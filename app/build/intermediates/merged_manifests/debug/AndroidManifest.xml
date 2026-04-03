@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <permission
         android:name="com.eevdf.scheduler.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
@@ -29,7 +32,6 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:testOnly="true"
         android:theme="@style/AppTheme" >
         <activity
             android:name="com.eevdf.scheduler.ui.MainActivity"
@@ -47,6 +49,18 @@
             android:parentActivityName="com.eevdf.scheduler.ui.MainActivity"
             android:windowSoftInputMode="adjustResize" />
 
+        <!--
+            Full-screen alarm activity — shown over lock screen when timer expires.
+            showWhenLocked + turnScreenOn handled in code for API 26 compat.
+        -->
+        <activity
+            android:name="com.eevdf.scheduler.ui.AlarmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
         <!-- Receives the Stop action from the expired-timer notification -->
         <receiver
             android:name="com.eevdf.scheduler.ui.AlarmStopReceiver"
@@ -55,6 +69,16 @@
                 <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            Foreground service that holds WakeLock and launches AlarmActivity.
+            Uses media_playback type which is allowed to start activities from background
+            on Android 12+ without special permissions.
+        -->
+        <service
+            android:name="com.eevdf.scheduler.ui.AlarmForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <provider
             android:name="androidx.startup.InitializationProvider"

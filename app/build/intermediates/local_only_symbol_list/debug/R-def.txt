@@ -21,6 +21,7 @@ drawable ic_launcher_foreground
 id action_clear_completed
 id action_schedule_next
 id appBarLayout
+id btnAlarmActivityStop
 id btnCancel
 id btnComplete
 id btnDelete
@@ -47,6 +48,8 @@ id sliderPriority
 id statsBar
 id tabLayout
 id toolbar
+id tvAlarmActivityElapsed
+id tvAlarmActivityTaskName
 id tvAlarmElapsed
 id tvAlarmSubtitle
 id tvAlarmTaskName
@@ -68,6 +71,7 @@ id tvVdeadline
 id tvVruntime
 id viewRunningIndicator
 layout activity_add_task
+layout activity_alarm
 layout activity_main
 layout item_task
 menu main_menu

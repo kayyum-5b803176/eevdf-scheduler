@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-71:12
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-71:12
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-71:12
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-71:12
 MERGED from [androidx.databinding:viewbinding:8.2.2] /home/kayyum954f/.gradle/caches/transforms-3/cc0b72b02bdcd59079ede77e6baa02ac/transformed/viewbinding-8.2.2/AndroidManifest.xml:2:1-7:12
 MERGED from [com.google.android.material:material:1.11.0] /home/kayyum954f/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] /home/kayyum954f/.gradle/caches/transforms-3/3a9c143dc806935c0544adcf7cccee2c/transformed/constraintlayout-2.1.4/AndroidManifest.xml:2:1-11:12
@@ -83,9 +83,21 @@ uses-permission#android.permission.POST_NOTIFICATIONS
 ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:8:5-77
 	android:name
 		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:8:22-74
+uses-permission#android.permission.USE_FULL_SCREEN_INTENT
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:9:5-81
+	android:name
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:9:22-78
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-77
+	android:name
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:22-74
+uses-permission#android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:11:5-92
+	android:name
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:11:22-89
 application
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-44:19
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-44:19
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:13:5-69:19
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:13:5-69:19
 MERGED from [com.google.android.material:material:1.11.0] /home/kayyum954f/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.11.0] /home/kayyum954f/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] /home/kayyum954f/.gradle/caches/transforms-3/3a9c143dc806935c0544adcf7cccee2c/transformed/constraintlayout-2.1.4/AndroidManifest.xml:9:5-20
@@ -109,59 +121,81 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /home/kayyum954f/.gradle/ca
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] /home/kayyum954f/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:16:9-35
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:19:9-35
 	android:label
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:14:9-41
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:17:9-41
 	android:roundIcon
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:15:9-54
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:18:9-54
 	android:icon
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:13:9-43
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:16:9-43
 	android:allowBackup
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:12:9-35
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:15:9-35
 	android:theme
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:17:9-40
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:20:9-40
 	android:name
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:11:9-33
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:14:9-33
 activity#com.eevdf.scheduler.ui.MainActivity
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:19:9-27:20
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:22:9-30:20
 	android:windowSoftInputMode
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:22:13-55
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:25:13-55
 	android:exported
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:21:13-36
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:24:13-36
 	android:name
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:20:13-44
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:23:13-44
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:23:13-26:29
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:26:13-29:29
 action#android.intent.action.MAIN
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:24:17-69
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:27:17-69
 	android:name
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:24:25-66
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:27:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:25:17-77
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:28:17-77
 	android:name
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:25:27-74
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:28:27-74
 activity#com.eevdf.scheduler.ui.AddTaskActivity
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:29:9-33:61
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:32:9-36:61
 	android:parentActivityName
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:33:13-58
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:36:13-58
 	android:windowSoftInputMode
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:32:13-55
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:35:13-55
 	android:exported
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:31:13-37
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:34:13-37
 	android:name
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:30:13-47
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:33:13-47
+activity#com.eevdf.scheduler.ui.AlarmActivity
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:42:9-48:51
+	android:turnScreenOn
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:46:13-40
+	android:excludeFromRecents
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:47:13-46
+	android:showWhenLocked
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:45:13-42
+	android:launchMode
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:48:13-48
+	android:exported
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:44:13-37
+	android:name
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:43:13-45
 receiver#com.eevdf.scheduler.ui.AlarmStopReceiver
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:36:9-42:20
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:51:9-57:20
 	android:exported
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:38:13-37
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:53:13-37
 	android:name
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:37:13-49
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:52:13-49
 intent-filter#action:name:com.eevdf.scheduler.ACTION_TIMER_EXPIRED
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:39:13-41:29
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:54:13-56:29
 action#com.eevdf.scheduler.ACTION_TIMER_EXPIRED
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:40:17-83
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:55:17-83
 	android:name
-		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:40:25-80
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:55:25-80
+service#com.eevdf.scheduler.ui.AlarmForegroundService
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:64:9-67:61
+	android:exported
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:66:13-37
+	android:foregroundServiceType
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:67:13-58
+	android:name
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:65:13-54
 uses-sdk
 INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml

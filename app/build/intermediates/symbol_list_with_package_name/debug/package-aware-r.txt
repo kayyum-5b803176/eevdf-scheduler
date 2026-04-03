@@ -3193,6 +3193,7 @@ id bounce
 id bounceBoth
 id bounceEnd
 id bounceStart
+id btnAlarmActivityStop
 id btnCancel
 id btnComplete
 id btnDelete
@@ -3596,6 +3597,8 @@ id transition_position
 id transition_scene_layoutid_cache
 id transition_transform
 id triangle
+id tvAlarmActivityElapsed
+id tvAlarmActivityTaskName
 id tvAlarmElapsed
 id tvAlarmSubtitle
 id tvAlarmTaskName
@@ -3754,6 +3757,7 @@ layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_add_task
+layout activity_alarm
 layout activity_main
 layout custom_dialog
 layout design_bottom_navigation_item

@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
         android:name=".EEVDFApp"
@@ -32,6 +35,18 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName=".ui.MainActivity" />
 
+        <!--
+            Full-screen alarm activity — shown over lock screen when timer expires.
+            showWhenLocked + turnScreenOn handled in code for API 26 compat.
+        -->
+        <activity
+            android:name=".ui.AlarmActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance" />
+
         <!-- Receives the Stop action from the expired-timer notification -->
         <receiver
             android:name=".ui.AlarmStopReceiver"
@@ -40,6 +55,16 @@
                 <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            Foreground service that holds WakeLock and launches AlarmActivity.
+            Uses media_playback type which is allowed to start activities from background
+            on Android 12+ without special permissions.
+        -->
+        <service
+            android:name=".ui.AlarmForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
     </application>
 

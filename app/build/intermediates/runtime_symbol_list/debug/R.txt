@@ -3192,6 +3192,7 @@ int id bounce 0x7f080061
 int id bounceBoth 0x7f080062
 int id bounceEnd 0x7f080063
 int id bounceStart 0x7f080064
+int id btnAlarmActivityStop 0x7f080223
 int id btnCancel 0x7f080065
 int id btnComplete 0x7f080066
 int id btnDelete 0x7f080067
@@ -3595,6 +3596,8 @@ int id transition_position 0x7f0801f2
 int id transition_scene_layoutid_cache 0x7f0801f3
 int id transition_transform 0x7f0801f4
 int id triangle 0x7f0801f5
+int id tvAlarmActivityElapsed 0x7f080224
+int id tvAlarmActivityTaskName 0x7f080225
 int id tvAlarmElapsed 0x7f080220
 int id tvAlarmSubtitle 0x7f080221
 int id tvAlarmTaskName 0x7f080222
@@ -3753,6 +3756,7 @@ int layout abc_search_view 0x7f0b0019
 int layout abc_select_dialog_material 0x7f0b001a
 int layout abc_tooltip 0x7f0b001b
 int layout activity_add_task 0x7f0b001c
+int layout activity_alarm 0x7f0b006e
 int layout activity_main 0x7f0b001d
 int layout custom_dialog 0x7f0b001e
 int layout design_bottom_navigation_item 0x7f0b001f

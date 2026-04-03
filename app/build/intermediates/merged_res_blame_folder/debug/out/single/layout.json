@@ -1,15 +1,15 @@
 [
     {
-        "merged": "com.eevdf.scheduler.app-mergeDebugResources-42:/layout/activity_main.xml",
-        "source": "com.eevdf.scheduler.app-main-45:/layout/activity_main.xml"
-    },
-    {
         "merged": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-mergeDebugResources-42:/layout/item_task.xml",
         "source": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-main-45:/layout/item_task.xml"
     },
     {
         "merged": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-mergeDebugResources-42:/layout/activity_add_task.xml",
         "source": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-main-45:/layout/activity_add_task.xml"
+    },
+    {
+        "merged": "com.eevdf.scheduler.app-mergeDebugResources-42:/layout/activity_alarm.xml",
+        "source": "com.eevdf.scheduler.app-main-45:/layout/activity_alarm.xml"
     },
     {
         "merged": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-mergeDebugResources-42:/layout/activity_main.xml",
