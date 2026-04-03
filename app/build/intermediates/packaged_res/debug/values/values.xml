@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cardBackground">#FFFFFF</color>
+    <color name="colorAccent">#FF6D00</color>
+    <color name="colorPrimary">#1565C0</color>
+    <color name="colorPrimaryDark">#0D47A1</color>
+    <color name="divider">#BDBDBD</color>
+    <color name="priorityHigh">#F44336</color>
+    <color name="priorityLow">#4CAF50</color>
+    <color name="priorityMedium">#2196F3</color>
+    <color name="priorityMediumHigh">#FF9800</color>
+    <color name="priorityMinimal">#9E9E9E</color>
+    <color name="screenBackground">#F5F5F5</color>
+    <color name="textPrimary">#212121</color>
+    <color name="textSecondary">#757575</color>
+    <color name="timerGreen">#4CAF50</color>
+    <color name="timerRed">#F44336</color>
+    <color name="timerYellow">#FF9800</color>
+    <string name="about_eevdf">About EEVDF</string>
+    <string name="add_task">Add Task</string>
+    <string name="app_name">EEVDF Scheduler</string>
+    <string name="cancel">Cancel</string>
+    <string name="clear_completed">Clear Completed</string>
+    <string name="delete">Delete</string>
+    <string name="edit_task">Edit Task</string>
+    <string name="no_tasks">No tasks yet. Tap + to add one!</string>
+    <string name="priority">Priority</string>
+    <string name="save">Save</string>
+    <string name="schedule_next">Schedule Next Task</string>
+    <string name="task_name">Task Name</string>
+    <string name="time_slice">Time Slice</string>
+    <string name="title_completed">Completed</string>
+    <string name="title_main">Task Queue</string>
+    <string name="title_schedule">Schedule</string>
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowBackground">@color/screenBackground</item>
+    </style>
+    <style name="AppTheme.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+</resources>
