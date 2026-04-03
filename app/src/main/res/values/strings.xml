@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EEVDF Scheduler</string>
+    <string name="title_main">Task Queue</string>
+    <string name="title_schedule">Schedule</string>
+    <string name="title_completed">Completed</string>
+    <string name="add_task">Add Task</string>
+    <string name="edit_task">Edit Task</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="task_name">Task Name</string>
+    <string name="priority">Priority</string>
+    <string name="time_slice">Time Slice</string>
+    <string name="no_tasks">No tasks yet. Tap + to add one!</string>
+    <string name="schedule_next">Schedule Next Task</string>
+    <string name="clear_completed">Clear Completed</string>
+    <string name="about_eevdf">About EEVDF</string>
+</resources>
