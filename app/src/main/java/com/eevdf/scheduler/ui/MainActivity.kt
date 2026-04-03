@@ -139,6 +139,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupTimerCard() {
         btnStartPause.setOnClickListener {
+            viewModel.stopAlarmSound()
             if (viewModel.timerRunning.value == true) {
                 viewModel.pauseTimer()
             } else {

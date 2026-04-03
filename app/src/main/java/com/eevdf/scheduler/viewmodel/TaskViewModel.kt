@@ -1,6 +1,10 @@
 package com.eevdf.scheduler.viewmodel
 
 import android.app.Application
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
 import android.os.CountDownTimer
 import androidx.lifecycle.*
 import com.eevdf.scheduler.db.TaskDatabase
@@ -38,6 +42,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private var countDownTimer: CountDownTimer? = null
     private var sessionStartSeconds: Long = 0L
     private var sessionElapsed: Long = 0L
+    private var alarmRingtone: Ringtone? = null
 
     init {
         val db = TaskDatabase.getDatabase(application)
@@ -143,6 +148,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pauseTimer() {
+        stopAlarmSound()
         countDownTimer?.cancel()
         countDownTimer = null
         _timerRunning.value = false
@@ -166,6 +172,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun skipTask() {
+        stopAlarmSound()
         pauseTimer()
         val task = _currentTask.value ?: return
         _toastMessage.value = "Skipped \"${task.name}\""
@@ -175,6 +182,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun onTimerFinished() {
         val task = _currentTask.value ?: return
+        playAlarmSound()
         viewModelScope.launch {
             repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
             val updated = task.copy(
@@ -190,6 +198,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun stopTimer(completed: Boolean) {
+        stopAlarmSound()
         countDownTimer?.cancel()
         countDownTimer = null
         _timerRunning.value = false
@@ -226,8 +235,39 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _timerSeconds.value = task.remainingSeconds
     }
 
+    // ─── ALARM SOUND ───────────────────────────────────────────────────────────
+
+    /**
+     * Play the system default alarm sound — resolves to Google Clock's alarm
+     * ringtone on devices where Google Clock manages alarms (same URI it uses).
+     * Falls back to notification sound if no alarm URI is set.
+     */
+    private fun playAlarmSound() {
+        stopAlarmSound() // stop any already-playing alarm
+        val context = getApplication<Application>()
+        val alarmUri = RingtoneManager.getActualDefaultRingtoneUri(
+            context, RingtoneManager.TYPE_ALARM
+        ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        val ringtone = RingtoneManager.getRingtone(context, alarmUri) ?: return
+        ringtone.audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        alarmRingtone = ringtone
+        ringtone.play()
+    }
+
+    fun stopAlarmSound() {
+        alarmRingtone?.let {
+            if (it.isPlaying) it.stop()
+        }
+        alarmRingtone = null
+    }
+
     override fun onCleared() {
         super.onCleared()
+        stopAlarmSound()
         countDownTimer?.cancel()
     }
 }
