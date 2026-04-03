@@ -32,6 +32,15 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName=".ui.MainActivity" />
 
+        <!-- Receives the Stop action from the expired-timer notification -->
+        <receiver
+            android:name=".ui.AlarmStopReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

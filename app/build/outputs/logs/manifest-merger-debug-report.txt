@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-37:12
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-37:12
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-37:12
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-37:12
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:2:1-46:12
 MERGED from [androidx.databinding:viewbinding:8.2.2] /home/kayyum954f/.gradle/caches/transforms-3/cc0b72b02bdcd59079ede77e6baa02ac/transformed/viewbinding-8.2.2/AndroidManifest.xml:2:1-7:12
 MERGED from [com.google.android.material:material:1.11.0] /home/kayyum954f/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] /home/kayyum954f/.gradle/caches/transforms-3/3a9c143dc806935c0544adcf7cccee2c/transformed/constraintlayout-2.1.4/AndroidManifest.xml:2:1-11:12
@@ -84,8 +84,8 @@ ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.
 	android:name
 		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:8:22-74
 application
-ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-35:19
-INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-35:19
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-44:19
+INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-44:19
 MERGED from [com.google.android.material:material:1.11.0] /home/kayyum954f/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.11.0] /home/kayyum954f/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] /home/kayyum954f/.gradle/caches/transforms-3/3a9c143dc806935c0544adcf7cccee2c/transformed/constraintlayout-2.1.4/AndroidManifest.xml:9:5-20
@@ -150,6 +150,18 @@ ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.
 		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:31:13-37
 	android:name
 		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:30:13-47
+receiver#com.eevdf.scheduler.ui.AlarmStopReceiver
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:36:9-42:20
+	android:exported
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:38:13-37
+	android:name
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:37:13-49
+intent-filter#action:name:com.eevdf.scheduler.ACTION_TIMER_EXPIRED
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:39:13-41:29
+action#com.eevdf.scheduler.ACTION_TIMER_EXPIRED
+ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:40:17-83
+	android:name
+		ADDED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:40:25-80
 uses-sdk
 INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml

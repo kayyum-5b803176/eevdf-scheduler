@@ -33,7 +33,7 @@
 20-->[androidx.core:core:1.12.0] /home/kayyum954f/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
 21
 22    <application
-22-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-35:19
+22-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:10:5-44:19
 23        android:name="com.eevdf.scheduler.EEVDFApp"
 23-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:11:9-33
 24        android:allowBackup="true"
@@ -83,80 +83,95 @@
 48            android:windowSoftInputMode="adjustResize" />
 48-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:32:13-55
 49
-50        <provider
-50-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
-51            android:name="androidx.startup.InitializationProvider"
-51-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:25:13-67
-52            android:authorities="com.eevdf.scheduler.androidx-startup"
-52-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:26:13-68
+50        <!-- Receives the Stop action from the expired-timer notification -->
+51        <receiver
+51-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:36:9-42:20
+52            android:name="com.eevdf.scheduler.ui.AlarmStopReceiver"
+52-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:37:13-49
 53            android:exported="false" >
-53-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:27:13-37
-54            <meta-data
-54-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
-55                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-55-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:30:17-75
-56                android:value="androidx.startup" />
-56-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:31:17-49
-57            <meta-data
-57-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/kayyum954f/.gradle/caches/transforms-3/f32f8a6bb35ea86a0bdc621e810ebd3e/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
-58                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-58-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/kayyum954f/.gradle/caches/transforms-3/f32f8a6bb35ea86a0bdc621e810ebd3e/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
-59                android:value="androidx.startup" />
-59-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/kayyum954f/.gradle/caches/transforms-3/f32f8a6bb35ea86a0bdc621e810ebd3e/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
-60            <meta-data
-60-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
-61                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-61-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
-62                android:value="androidx.startup" />
-62-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
-63        </provider>
-64
-65        <service
-65-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
-66            android:name="androidx.room.MultiInstanceInvalidationService"
-66-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
-67            android:directBootAware="true"
-67-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
-68            android:exported="false" />
-68-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
-69
-70        <receiver
-70-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
-71            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-71-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
-72            android:directBootAware="false"
-72-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
-73            android:enabled="true"
-73-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
-74            android:exported="true"
-74-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
-75            android:permission="android.permission.DUMP" >
-75-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
-76            <intent-filter>
-76-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
-77                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-77-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
-77-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
-78            </intent-filter>
-79            <intent-filter>
-79-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
-80                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-80-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
-80-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
-81            </intent-filter>
-82            <intent-filter>
-82-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
-83                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-83-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
-83-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
-84            </intent-filter>
+53-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:38:13-37
+54            <intent-filter>
+54-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:39:13-41:29
+55                <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
+55-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:40:17-83
+55-->/home/kayyum954f/project/EEVDFScheduler/app/src/main/AndroidManifest.xml:40:25-80
+56            </intent-filter>
+57        </receiver>
+58
+59        <provider
+59-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+60            android:name="androidx.startup.InitializationProvider"
+60-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:25:13-67
+61            android:authorities="com.eevdf.scheduler.androidx-startup"
+61-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:26:13-68
+62            android:exported="false" >
+62-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:27:13-37
+63            <meta-data
+63-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+64                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+64-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:30:17-75
+65                android:value="androidx.startup" />
+65-->[androidx.emoji2:emoji2:1.2.0] /home/kayyum954f/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:31:17-49
+66            <meta-data
+66-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/kayyum954f/.gradle/caches/transforms-3/f32f8a6bb35ea86a0bdc621e810ebd3e/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+67                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+67-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/kayyum954f/.gradle/caches/transforms-3/f32f8a6bb35ea86a0bdc621e810ebd3e/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+68                android:value="androidx.startup" />
+68-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/kayyum954f/.gradle/caches/transforms-3/f32f8a6bb35ea86a0bdc621e810ebd3e/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+69            <meta-data
+69-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+70                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+70-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+71                android:value="androidx.startup" />
+71-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+72        </provider>
+73
+74        <service
+74-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+75            android:name="androidx.room.MultiInstanceInvalidationService"
+75-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+76            android:directBootAware="true"
+76-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+77            android:exported="false" />
+77-->[androidx.room:room-runtime:2.6.1] /home/kayyum954f/.gradle/caches/transforms-3/fc5152a31fcf94dc443c5d0de47bb6bd/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+78
+79        <receiver
+79-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+80            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+80-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+81            android:directBootAware="false"
+81-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+82            android:enabled="true"
+82-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+83            android:exported="true"
+83-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+84            android:permission="android.permission.DUMP" >
+84-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
 85            <intent-filter>
-85-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
-86                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-86-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
-86-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+85-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+86                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+86-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+86-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
 87            </intent-filter>
-88        </receiver>
-89    </application>
-90
-91</manifest>
+88            <intent-filter>
+88-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+89                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+89-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+89-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+90            </intent-filter>
+91            <intent-filter>
+91-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+92                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+93            </intent-filter>
+94            <intent-filter>
+94-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+95                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+95-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+95-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/kayyum954f/.gradle/caches/transforms-3/19e15dbf13abf551346cc809eecbb624/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+96            </intent-filter>
+97        </receiver>
+98    </application>
+99
+100</manifest>

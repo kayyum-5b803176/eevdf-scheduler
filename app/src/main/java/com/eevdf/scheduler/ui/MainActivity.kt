@@ -1,27 +1,31 @@
 package com.eevdf.scheduler.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
+import androidx.core.content.ContextCompat
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
+import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.scheduler.R
 import com.eevdf.scheduler.adapter.TaskAdapter
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.viewmodel.TaskViewModel
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
-import androidx.appcompat.widget.Toolbar
-import android.widget.TextView
-import android.widget.LinearLayout
-import androidx.cardview.widget.CardView
-import android.view.View
-import androidx.appcompat.app.AlertDialog
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,19 +39,33 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabLayout: TabLayout
     private lateinit var fabAdd: FloatingActionButton
 
-    // Timer card views
+    // Timer card
     private lateinit var cardTimer: CardView
     private lateinit var tvCurrentTaskName: TextView
     private lateinit var tvTimerDisplay: TextView
     private lateinit var tvTimerPriority: TextView
-    private lateinit var btnStartPause: com.google.android.material.button.MaterialButton
-    private lateinit var btnSkip: com.google.android.material.button.MaterialButton
-    private lateinit var btnScheduleNext: com.google.android.material.button.MaterialButton
+    private lateinit var btnStartPause: MaterialButton
+    private lateinit var btnSkip: MaterialButton
+    private lateinit var btnScheduleNext: MaterialButton
     private lateinit var tvStats: TextView
     private lateinit var tvFairness: TextView
     private lateinit var emptyView: LinearLayout
 
+    // Alarm banner (shown when timer has expired)
+    private lateinit var cardAlarmBanner: CardView
+    private lateinit var tvAlarmTaskName: TextView
+    private lateinit var tvAlarmElapsed: TextView
+    private lateinit var tvAlarmSubtitle: TextView
+    private lateinit var btnStopAlarm: MaterialButton
+
     private var currentTab = 0
+
+    /** Receives the stop action from the notification's Stop button */
+    private val alarmStopReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            viewModel.stopAlarmSound()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,8 +78,24 @@ class MainActivity : AppCompatActivity() {
         setupTabs()
         setupObservers()
         setupTimerCard()
+        setupAlarmBanner()
 
         viewModel.refreshSchedule()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        ContextCompat.registerReceiver(
+            this,
+            alarmStopReceiver,
+            IntentFilter(AlarmStopReceiver.ACTION_STOP_ALARM),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(alarmStopReceiver)
     }
 
     private fun setupToolbar() {
@@ -71,44 +105,57 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupViews() {
-        recyclerView = findViewById(R.id.recyclerView)
-        tabLayout = findViewById(R.id.tabLayout)
-        fabAdd = findViewById(R.id.fabAdd)
-        cardTimer = findViewById(R.id.cardTimer)
-        tvCurrentTaskName = findViewById(R.id.tvCurrentTaskName)
-        tvTimerDisplay = findViewById(R.id.tvTimerDisplay)
-        tvTimerPriority = findViewById(R.id.tvTimerPriority)
-        btnStartPause = findViewById(R.id.btnStartPause)
-        btnSkip = findViewById(R.id.btnSkip)
-        btnScheduleNext = findViewById(R.id.btnScheduleNext)
-        tvStats = findViewById(R.id.tvStats)
-        tvFairness = findViewById(R.id.tvFairness)
-        emptyView = findViewById(R.id.emptyView)
+        recyclerView       = findViewById(R.id.recyclerView)
+        tabLayout          = findViewById(R.id.tabLayout)
+        fabAdd             = findViewById(R.id.fabAdd)
+        cardTimer          = findViewById(R.id.cardTimer)
+        tvCurrentTaskName  = findViewById(R.id.tvCurrentTaskName)
+        tvTimerDisplay     = findViewById(R.id.tvTimerDisplay)
+        tvTimerPriority    = findViewById(R.id.tvTimerPriority)
+        btnStartPause      = findViewById(R.id.btnStartPause)
+        btnSkip            = findViewById(R.id.btnSkip)
+        btnScheduleNext    = findViewById(R.id.btnScheduleNext)
+        tvStats            = findViewById(R.id.tvStats)
+        tvFairness         = findViewById(R.id.tvFairness)
+        emptyView          = findViewById(R.id.emptyView)
+
+        // Alarm banner
+        cardAlarmBanner  = findViewById(R.id.cardAlarmBanner)
+        tvAlarmTaskName  = findViewById(R.id.tvAlarmTaskName)
+        tvAlarmElapsed   = findViewById(R.id.tvAlarmElapsed)
+        tvAlarmSubtitle  = findViewById(R.id.tvAlarmSubtitle)
+        btnStopAlarm     = findViewById(R.id.btnStopAlarm)
 
         fabAdd.setOnClickListener {
             startActivity(Intent(this, AddTaskActivity::class.java))
         }
     }
 
+    private fun setupAlarmBanner() {
+        btnStopAlarm.setOnClickListener {
+            viewModel.stopAlarmSound()
+        }
+    }
+
     private fun setupAdapters() {
         activeAdapter = TaskAdapter(
-            onTaskClick = { showTaskDetail(it) },
-            onDeleteClick = { confirmDelete(it) },
+            onTaskClick    = { showTaskDetail(it) },
+            onDeleteClick  = { confirmDelete(it) },
             onCompleteClick = { viewModel.markCompleted(it) },
-            onRunClick = { viewModel.setCurrentTask(it) }
+            onRunClick     = { viewModel.setCurrentTask(it) }
         )
         scheduleAdapter = TaskAdapter(
-            onTaskClick = { showTaskDetail(it) },
-            onDeleteClick = { confirmDelete(it) },
+            onTaskClick    = { showTaskDetail(it) },
+            onDeleteClick  = { confirmDelete(it) },
             onCompleteClick = { viewModel.markCompleted(it) },
-            onRunClick = { viewModel.setCurrentTask(it) },
+            onRunClick     = { viewModel.setCurrentTask(it) },
             showScheduleRank = true
         )
         completedAdapter = TaskAdapter(
-            onTaskClick = { showTaskDetail(it) },
-            onDeleteClick = { confirmDelete(it) },
+            onTaskClick    = { showTaskDetail(it) },
+            onDeleteClick  = { confirmDelete(it) },
             onCompleteClick = {},
-            onRunClick = {}
+            onRunClick     = {}
         )
     }
 
@@ -125,10 +172,10 @@ class MainActivity : AppCompatActivity() {
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 currentTab = tab.position
-                when (tab.position) {
-                    0 -> recyclerView.adapter = activeAdapter
-                    1 -> recyclerView.adapter = scheduleAdapter
-                    2 -> recyclerView.adapter = completedAdapter
+                recyclerView.adapter = when (tab.position) {
+                    0 -> activeAdapter
+                    1 -> scheduleAdapter
+                    else -> completedAdapter
                 }
                 updateEmptyView()
             }
@@ -139,12 +186,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupTimerCard() {
         btnStartPause.setOnClickListener {
-            viewModel.stopAlarmSound()
-            if (viewModel.timerRunning.value == true) {
-                viewModel.pauseTimer()
-            } else {
-                viewModel.startTimer()
-            }
+            viewModel.stopAlarmSound()          // dismiss alarm if ringing
+            if (viewModel.timerRunning.value == true) viewModel.pauseTimer()
+            else viewModel.startTimer()
         }
         btnSkip.setOnClickListener { viewModel.skipTask() }
         btnScheduleNext.setOnClickListener { viewModel.scheduleNext() }
@@ -209,15 +253,31 @@ class MainActivity : AppCompatActivity() {
                 viewModel.clearToast()
             }
         }
+
+        // ── Alarm banner observers ─────────────────────────────────────────────
+
+        viewModel.alarmTaskName.observe(this) { taskName ->
+            if (taskName != null) {
+                cardAlarmBanner.visibility = View.VISIBLE
+                tvAlarmTaskName.text = taskName
+                tvAlarmSubtitle.text = "Time slice complete · tap Stop to dismiss"
+            } else {
+                cardAlarmBanner.visibility = View.GONE
+            }
+        }
+
+        viewModel.alarmElapsedSeconds.observe(this) { elapsed ->
+            tvAlarmElapsed.text = NotificationHelper.formatElapsed(elapsed)
+        }
     }
 
     private fun updateEmptyView() {
         val isEmpty = when (currentTab) {
-            0 -> (viewModel.activeTasks.value?.isEmpty() ?: true)
-            1 -> (viewModel.scheduleOrder.value?.isEmpty() ?: true)
-            else -> (viewModel.completedTasks.value?.isEmpty() ?: true)
+            0    -> viewModel.activeTasks.value?.isEmpty() ?: true
+            1    -> viewModel.scheduleOrder.value?.isEmpty() ?: true
+            else -> viewModel.completedTasks.value?.isEmpty() ?: true
         }
-        emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        emptyView.visibility    = if (isEmpty) View.VISIBLE else View.GONE
         recyclerView.visibility = if (isEmpty) View.GONE else View.VISIBLE
     }
 
@@ -243,14 +303,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_clear_completed -> {
-                viewModel.clearCompleted()
-                true
-            }
-            R.id.action_schedule_next -> {
-                viewModel.scheduleNext()
-                true
-            }
+            R.id.action_clear_completed -> { viewModel.clearCompleted(); true }
+            R.id.action_schedule_next   -> { viewModel.scheduleNext(); true }
             else -> super.onOptionsItemSelected(item)
         }
     }

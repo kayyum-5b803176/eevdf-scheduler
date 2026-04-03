@@ -2,7 +2,6 @@ package com.eevdf.scheduler.viewmodel
 
 import android.app.Application
 import android.media.AudioAttributes
-import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.CountDownTimer
@@ -12,6 +11,7 @@ import com.eevdf.scheduler.db.TaskRepository
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import com.eevdf.scheduler.scheduler.SchedulerStats
+import com.eevdf.scheduler.ui.NotificationHelper
 import kotlinx.coroutines.launch
 
 class TaskViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,10 +39,21 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val _toastMessage = MutableLiveData<String?>()
     val toastMessage: LiveData<String?> = _toastMessage
 
+    // ── Alarm state (null = no alarm ringing) ──────────────────────────────────
+    /** Name of the task whose timer just expired, or null if no alarm is active. */
+    private val _alarmTaskName = MutableLiveData<String?>(null)
+    val alarmTaskName: LiveData<String?> = _alarmTaskName
+
+    /** Seconds elapsed since the timer expired (counts up: 0, 1, 2, …). */
+    private val _alarmElapsedSeconds = MutableLiveData<Long>(0L)
+    val alarmElapsedSeconds: LiveData<Long> = _alarmElapsedSeconds
+
     private var countDownTimer: CountDownTimer? = null
+    private var overrunTimer: CountDownTimer? = null  // ticks up after expiry
     private var sessionStartSeconds: Long = 0L
     private var sessionElapsed: Long = 0L
     private var alarmRingtone: Ringtone? = null
+    private var expiredTaskName: String? = null        // held for notification updates
 
     init {
         val db = TaskDatabase.getDatabase(application)
@@ -182,11 +193,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun onTimerFinished() {
         val task = _currentTask.value ?: return
+        expiredTaskName = task.name
         playAlarmSound()
+        startOverrunCounter(task.name)
+
         viewModelScope.launch {
             repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
             val updated = task.copy(
-                remainingSeconds = task.timeSliceSeconds, // Reset for next round
+                remainingSeconds = task.timeSliceSeconds,
                 runCount = task.runCount + 1,
                 totalRunTime = task.totalRunTime + task.timeSliceSeconds
             )
@@ -195,6 +209,50 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             _currentTask.postValue(null)
             refreshSchedule()
         }
+    }
+
+    /**
+     * Starts counting up elapsed seconds after the timer expires.
+     * Updates _alarmElapsedSeconds + refreshes the notification every second
+     * (like Google Clock which shows "Timer expired · 0:23").
+     * Runs for up to 1 hour then auto-stops.
+     */
+    private fun startOverrunCounter(taskName: String) {
+        overrunTimer?.cancel()
+        _alarmTaskName.postValue(taskName)
+        _alarmElapsedSeconds.postValue(0L)
+
+        overrunTimer = object : CountDownTimer(3600_000L, 1000L) {
+            var elapsed = 0L
+            override fun onTick(millisUntilFinished: Long) {
+                elapsed++
+                _alarmElapsedSeconds.postValue(elapsed)
+                // Update notification text so the "X:XX ago" ticks up
+                val ctx = getApplication<Application>()
+                NotificationHelper.showTimerExpired(ctx, taskName, elapsed)
+            }
+            override fun onFinish() {
+                stopAlarmSound()
+                clearAlarmState()
+            }
+        }.start()
+
+        // Show first notification immediately (elapsed = 0)
+        val ctx = getApplication<Application>()
+        NotificationHelper.showTimerExpired(ctx, taskName, 0L)
+    }
+
+    private fun stopOverrunCounter() {
+        overrunTimer?.cancel()
+        overrunTimer = null
+    }
+
+    private fun clearAlarmState() {
+        _alarmTaskName.postValue(null)
+        _alarmElapsedSeconds.postValue(0L)
+        expiredTaskName = null
+        val ctx = getApplication<Application>()
+        NotificationHelper.cancelExpired(ctx)
     }
 
     private fun stopTimer(completed: Boolean) {
@@ -237,13 +295,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── ALARM SOUND ───────────────────────────────────────────────────────────
 
-    /**
-     * Play the system default alarm sound — resolves to Google Clock's alarm
-     * ringtone on devices where Google Clock manages alarms (same URI it uses).
-     * Falls back to notification sound if no alarm URI is set.
-     */
     private fun playAlarmSound() {
-        stopAlarmSound() // stop any already-playing alarm
+        stopAlarmSound()
         val context = getApplication<Application>()
         val alarmUri = RingtoneManager.getActualDefaultRingtoneUri(
             context, RingtoneManager.TYPE_ALARM
@@ -258,11 +311,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         ringtone.play()
     }
 
+    /** Stop alarm sound + overrun counter + dismiss notification + clear UI state. */
     fun stopAlarmSound() {
-        alarmRingtone?.let {
-            if (it.isPlaying) it.stop()
-        }
+        stopOverrunCounter()
+        alarmRingtone?.let { if (it.isPlaying) it.stop() }
         alarmRingtone = null
+        clearAlarmState()
     }
 
     override fun onCleared() {

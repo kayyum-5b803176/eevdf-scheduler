@@ -40,6 +40,12 @@ public final class ActivityMainBinding implements ViewBinding {
   public final MaterialButton btnStartPause;
 
   @NonNull
+  public final MaterialButton btnStopAlarm;
+
+  @NonNull
+  public final CardView cardAlarmBanner;
+
+  @NonNull
   public final CardView cardTimer;
 
   @NonNull
@@ -61,6 +67,15 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Toolbar toolbar;
 
   @NonNull
+  public final TextView tvAlarmElapsed;
+
+  @NonNull
+  public final TextView tvAlarmSubtitle;
+
+  @NonNull
+  public final TextView tvAlarmTaskName;
+
+  @NonNull
   public final TextView tvCurrentTaskName;
 
   @NonNull
@@ -78,16 +93,21 @@ public final class ActivityMainBinding implements ViewBinding {
   private ActivityMainBinding(@NonNull CoordinatorLayout rootView,
       @NonNull AppBarLayout appBarLayout, @NonNull MaterialButton btnScheduleNext,
       @NonNull MaterialButton btnSkip, @NonNull MaterialButton btnStartPause,
+      @NonNull MaterialButton btnStopAlarm, @NonNull CardView cardAlarmBanner,
       @NonNull CardView cardTimer, @NonNull LinearLayout emptyView,
       @NonNull FloatingActionButton fabAdd, @NonNull RecyclerView recyclerView,
       @NonNull LinearLayout statsBar, @NonNull TabLayout tabLayout, @NonNull Toolbar toolbar,
-      @NonNull TextView tvCurrentTaskName, @NonNull TextView tvFairness, @NonNull TextView tvStats,
-      @NonNull TextView tvTimerDisplay, @NonNull TextView tvTimerPriority) {
+      @NonNull TextView tvAlarmElapsed, @NonNull TextView tvAlarmSubtitle,
+      @NonNull TextView tvAlarmTaskName, @NonNull TextView tvCurrentTaskName,
+      @NonNull TextView tvFairness, @NonNull TextView tvStats, @NonNull TextView tvTimerDisplay,
+      @NonNull TextView tvTimerPriority) {
     this.rootView = rootView;
     this.appBarLayout = appBarLayout;
     this.btnScheduleNext = btnScheduleNext;
     this.btnSkip = btnSkip;
     this.btnStartPause = btnStartPause;
+    this.btnStopAlarm = btnStopAlarm;
+    this.cardAlarmBanner = cardAlarmBanner;
     this.cardTimer = cardTimer;
     this.emptyView = emptyView;
     this.fabAdd = fabAdd;
@@ -95,6 +115,9 @@ public final class ActivityMainBinding implements ViewBinding {
     this.statsBar = statsBar;
     this.tabLayout = tabLayout;
     this.toolbar = toolbar;
+    this.tvAlarmElapsed = tvAlarmElapsed;
+    this.tvAlarmSubtitle = tvAlarmSubtitle;
+    this.tvAlarmTaskName = tvAlarmTaskName;
     this.tvCurrentTaskName = tvCurrentTaskName;
     this.tvFairness = tvFairness;
     this.tvStats = tvStats;
@@ -153,6 +176,18 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.btnStopAlarm;
+      MaterialButton btnStopAlarm = ViewBindings.findChildViewById(rootView, id);
+      if (btnStopAlarm == null) {
+        break missingId;
+      }
+
+      id = R.id.cardAlarmBanner;
+      CardView cardAlarmBanner = ViewBindings.findChildViewById(rootView, id);
+      if (cardAlarmBanner == null) {
+        break missingId;
+      }
+
       id = R.id.cardTimer;
       CardView cardTimer = ViewBindings.findChildViewById(rootView, id);
       if (cardTimer == null) {
@@ -195,6 +230,24 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.tvAlarmElapsed;
+      TextView tvAlarmElapsed = ViewBindings.findChildViewById(rootView, id);
+      if (tvAlarmElapsed == null) {
+        break missingId;
+      }
+
+      id = R.id.tvAlarmSubtitle;
+      TextView tvAlarmSubtitle = ViewBindings.findChildViewById(rootView, id);
+      if (tvAlarmSubtitle == null) {
+        break missingId;
+      }
+
+      id = R.id.tvAlarmTaskName;
+      TextView tvAlarmTaskName = ViewBindings.findChildViewById(rootView, id);
+      if (tvAlarmTaskName == null) {
+        break missingId;
+      }
+
       id = R.id.tvCurrentTaskName;
       TextView tvCurrentTaskName = ViewBindings.findChildViewById(rootView, id);
       if (tvCurrentTaskName == null) {
@@ -226,8 +279,9 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       return new ActivityMainBinding((CoordinatorLayout) rootView, appBarLayout, btnScheduleNext,
-          btnSkip, btnStartPause, cardTimer, emptyView, fabAdd, recyclerView, statsBar, tabLayout,
-          toolbar, tvCurrentTaskName, tvFairness, tvStats, tvTimerDisplay, tvTimerPriority);
+          btnSkip, btnStartPause, btnStopAlarm, cardAlarmBanner, cardTimer, emptyView, fabAdd,
+          recyclerView, statsBar, tabLayout, toolbar, tvAlarmElapsed, tvAlarmSubtitle,
+          tvAlarmTaskName, tvCurrentTaskName, tvFairness, tvStats, tvTimerDisplay, tvTimerPriority);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

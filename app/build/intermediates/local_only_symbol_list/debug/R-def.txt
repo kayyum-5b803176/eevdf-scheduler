@@ -29,6 +29,8 @@ id btnSave
 id btnScheduleNext
 id btnSkip
 id btnStartPause
+id btnStopAlarm
+id cardAlarmBanner
 id cardTask
 id cardTimer
 id chipGroupCategory
@@ -45,6 +47,9 @@ id sliderPriority
 id statsBar
 id tabLayout
 id toolbar
+id tvAlarmElapsed
+id tvAlarmSubtitle
+id tvAlarmTaskName
 id tvCategory
 id tvCurrentTaskName
 id tvFairness

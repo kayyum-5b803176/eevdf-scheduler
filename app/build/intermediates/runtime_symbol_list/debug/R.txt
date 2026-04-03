@@ -3200,10 +3200,12 @@ int id btnSave 0x7f080069
 int id btnScheduleNext 0x7f08006a
 int id btnSkip 0x7f08006b
 int id btnStartPause 0x7f08006c
+int id btnStopAlarm 0x7f08021e
 int id buttonPanel 0x7f08006d
 int id cache_measures 0x7f08006e
 int id callMeasure 0x7f08006f
 int id cancel_button 0x7f080070
+int id cardAlarmBanner 0x7f08021f
 int id cardTask 0x7f080071
 int id cardTimer 0x7f080072
 int id carryVelocity 0x7f080073
@@ -3593,6 +3595,9 @@ int id transition_position 0x7f0801f2
 int id transition_scene_layoutid_cache 0x7f0801f3
 int id transition_transform 0x7f0801f4
 int id triangle 0x7f0801f5
+int id tvAlarmElapsed 0x7f080220
+int id tvAlarmSubtitle 0x7f080221
+int id tvAlarmTaskName 0x7f080222
 int id tvCategory 0x7f0801f6
 int id tvCurrentTaskName 0x7f0801f7
 int id tvFairness 0x7f0801f8

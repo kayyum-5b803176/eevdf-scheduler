@@ -63,6 +63,97 @@
         android:orientation="vertical"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
+        <!-- ALARM EXPIRED BANNER (visible when timer has expired, like Google Clock) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardAlarmBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="0dp"
+            android:visibility="gone"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="12dp"
+            app:cardBackgroundColor="#B71C1C">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- "Timer expired" label -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⏰  Timer expired"
+                    android:textColor="#FFFDE7"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:textAllCaps="true" />
+
+                <!-- Task name + elapsed row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="6dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvAlarmTaskName"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Task Name"
+                            android:textColor="@android:color/white"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
+
+                        <TextView
+                            android:id="@+id/tvAlarmSubtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Time slice complete"
+                            android:textColor="#FFCDD2"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <!-- Elapsed time counting up -->
+                    <TextView
+                        android:id="@+id/tvAlarmElapsed"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0:00"
+                        android:textColor="@android:color/white"
+                        android:textSize="36sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:layout_marginStart="12dp" />
+                </LinearLayout>
+
+                <!-- Stop button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnStopAlarm"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="⏹  Stop"
+                    android:textColor="#B71C1C"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    app:backgroundTint="@android:color/white"
+                    app:cornerRadius="8dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <!-- TIMER CARD (visible when a task is selected) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardTimer"

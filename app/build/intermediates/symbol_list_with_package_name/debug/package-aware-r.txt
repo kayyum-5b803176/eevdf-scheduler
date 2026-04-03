@@ -3201,10 +3201,12 @@ id btnSave
 id btnScheduleNext
 id btnSkip
 id btnStartPause
+id btnStopAlarm
 id buttonPanel
 id cache_measures
 id callMeasure
 id cancel_button
+id cardAlarmBanner
 id cardTask
 id cardTimer
 id carryVelocity
@@ -3594,6 +3596,9 @@ id transition_position
 id transition_scene_layoutid_cache
 id transition_transform
 id triangle
+id tvAlarmElapsed
+id tvAlarmSubtitle
+id tvAlarmTaskName
 id tvCategory
 id tvCurrentTaskName
 id tvFairness

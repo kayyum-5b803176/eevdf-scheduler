@@ -47,6 +47,15 @@
             android:parentActivityName="com.eevdf.scheduler.ui.MainActivity"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Receives the Stop action from the expired-timer notification -->
+        <receiver
+            android:name="com.eevdf.scheduler.ui.AlarmStopReceiver"
+            android:exported="false" >
+            <intent-filter>
+                <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="com.eevdf.scheduler.androidx-startup"
