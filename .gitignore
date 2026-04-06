@@ -1,0 +1,25 @@
+# Built outputs
+*.apk
+*.aab
+*.dex
+*.class
+
+# Build directories
+build/
+.gradle/
+app/build/
+
+# Local config
+local.properties
+*.keystore
+*.jks
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
