@@ -204,9 +204,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
             val updated = task.copy(
-                remainingSeconds = task.timeSliceSeconds,
-                runCount = task.runCount + 1,
-                totalRunTime = task.totalRunTime + task.timeSliceSeconds
+                remainingSeconds = task.timeSliceSeconds
             )
             repository.update(updated)
             _toastMessage.postValue("✓ Time slice done for \"${task.name}\"")
