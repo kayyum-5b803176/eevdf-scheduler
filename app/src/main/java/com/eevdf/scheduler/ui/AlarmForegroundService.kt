@@ -53,9 +53,12 @@ class AlarmForegroundService : Service() {
         private const val WAKE_TIMEOUT     = 3_600_000L  // 1 hour max — alarm screen wake
         private const val CPU_WAKE_TAG     = "EEVDFScheduler:CpuWake"
         private const val CPU_WAKE_TIMEOUT = 8 * 3_600_000L  // 8 hours max — timer cpu wake
+        private const val ALARM_MGR_REQ    = 9001
 
-        fun timerStart(context: Context, taskName: String, remainingSecs: Long) =
+        fun timerStart(context: Context, taskName: String, remainingSecs: Long) {
             send(context, ACTION_TIMER_START, taskName, remainingSecs)
+            scheduleAlarmManager(context, taskName, remainingSecs)
+        }
 
         fun timerTick(context: Context, taskName: String, remainingSecs: Long) =
             send(context, ACTION_TIMER_TICK, taskName, remainingSecs)
@@ -63,11 +66,53 @@ class AlarmForegroundService : Service() {
         fun timerExpire(context: Context, taskName: String) =
             send(context, ACTION_TIMER_EXPIRE, taskName, 0)
 
-        fun timerPause(context: Context) =
+        fun timerPause(context: Context) {
             send(context, ACTION_TIMER_PAUSE, "", 0)
+            cancelAlarmManager(context)
+        }
 
-        fun stopAlarm(context: Context) =
+        fun stopAlarm(context: Context) {
             send(context, ACTION_STOP, "", 0)
+            cancelAlarmManager(context)
+        }
+
+        /**
+         * Schedule a Doze-immune alarm via AlarmManager.setAlarmClock().
+         * This fires exactly on time even if the device is in Deep Doze —
+         * CountDownTimer alone is not reliable after ~30s of screen-off.
+         */
+        private fun scheduleAlarmManager(context: Context, taskName: String, remainingSecs: Long) {
+            val triggerAt = System.currentTimeMillis() + remainingSecs * 1000L
+
+            val receiverPi = PendingIntent.getBroadcast(
+                context, ALARM_MGR_REQ,
+                Intent(context, TimerAlarmReceiver::class.java).apply {
+                    putExtra(EXTRA_TASK_NAME, taskName)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            // Show intent — tapping the clock icon in status bar opens the app
+            val showPi = PendingIntent.getActivity(
+                context, 0,
+                Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                },
+                PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            am.setAlarmClock(android.app.AlarmManager.AlarmClockInfo(triggerAt, showPi), receiverPi)
+        }
+
+        private fun cancelAlarmManager(context: Context) {
+            val pi = PendingIntent.getBroadcast(
+                context, ALARM_MGR_REQ,
+                Intent(context, TimerAlarmReceiver::class.java),
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            ) ?: return
+            val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            am.cancel(pi)
+        }
 
         private fun send(context: Context, action: String, taskName: String, secs: Long) {
             val intent = Intent(context, AlarmForegroundService::class.java).apply {
@@ -139,10 +184,12 @@ class AlarmForegroundService : Service() {
             }
 
             ACTION_TIMER_EXPIRE -> {
-                expiredTaskName = taskName
-                acquireWakeLock()
-                playAlarmSound()
-                startOverrunCounter(taskName)
+                if (!isAlarmRinging) {          // guard: AlarmManager and CountDownTimer can both fire
+                    expiredTaskName = taskName
+                    acquireWakeLock()
+                    playAlarmSound()
+                    startOverrunCounter(taskName)
+                }
             }
 
             ACTION_STOP -> {

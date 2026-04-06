@@ -48,14 +48,18 @@
             android:excludeFromRecents="true"
             android:launchMode="singleInstance" />
 
-        <!-- Receives the Stop action from the expired-timer notification -->
-        <receiver
+        <!-- Receives the Stop action from the expired-timer notification -->\n        <receiver
             android:name=".ui.AlarmStopReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
             </intent-filter>
         </receiver>
+
+        <!-- Receives AlarmManager.setAlarmClock() callback — Doze-immune timer trigger -->
+        <receiver
+            android:name=".ui.TimerAlarmReceiver"
+            android:exported="false" />
 
         <!--
             Foreground service that holds WakeLock and launches AlarmActivity.
