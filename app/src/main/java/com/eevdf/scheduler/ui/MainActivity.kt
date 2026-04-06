@@ -238,7 +238,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.timerRunning.observe(this) { running ->
-            btnStartPause.text = if (running) "⏸ Pause" else "▶ Start"
+            btnStartPause.text = if (running) "Pause" else "Start"
             btnStartPause.icon = null
         }
 

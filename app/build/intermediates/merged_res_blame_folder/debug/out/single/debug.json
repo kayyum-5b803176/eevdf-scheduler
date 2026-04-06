@@ -8,6 +8,10 @@
         "source": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-main-45:/mipmap-mdpi/ic_launcher_round.webp"
     },
     {
+        "merged": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-merged_res-43:/layout_activity_alarm.xml.flat",
+        "source": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-main-45:/layout/activity_alarm.xml"
+    },
+    {
         "merged": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-merged_res-43:/layout_activity_add_task.xml.flat",
         "source": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-main-45:/layout/activity_add_task.xml"
     },
@@ -50,6 +54,10 @@
     {
         "merged": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-merged_res-43:/mipmap-xxxhdpi_ic_launcher.webp.flat",
         "source": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-main-45:/mipmap-xxxhdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.eevdf.scheduler.app-merged_res-43:/layout_activity_main.xml.flat",
+        "source": "com.eevdf.scheduler.app-main-45:/layout/activity_main.xml"
     },
     {
         "merged": "/home/kayyum954f/.gradle/daemon/8.5/com.eevdf.scheduler.app-merged_res-43:/mipmap-hdpi_ic_launcher.webp.flat",

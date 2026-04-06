@@ -9,13 +9,7 @@
     android:background="#B71C1C"
     android:padding="32dp">
 
-    <!-- Alarm icon -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="⏰"
-        android:textSize="72sp"
-        android:layout_marginBottom="24dp" />
+    <!-- Alarm icon removed -->
 
     <!-- "Timer expired" label -->
     <TextView
@@ -67,7 +61,7 @@
         android:id="@+id/btnAlarmActivityStop"
         android:layout_width="240dp"
         android:layout_height="64dp"
-        android:text="⏹  Stop"
+        android:text="Stop"
         android:textColor="#B71C1C"
         android:textSize="18sp"
         android:textStyle="bold"
