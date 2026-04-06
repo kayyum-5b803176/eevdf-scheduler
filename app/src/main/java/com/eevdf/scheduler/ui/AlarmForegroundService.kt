@@ -49,8 +49,10 @@ class AlarmForegroundService : Service() {
         private const val CHANNEL_ALARM = "eevdf_alarm_fg_channel"
         private const val NOTIF_ID      = 3001
 
-        private const val WAKE_TAG     = "EEVDFScheduler:AlarmWake"
-        private const val WAKE_TIMEOUT = 3_600_000L  // 1 hour max
+        private const val WAKE_TAG         = "EEVDFScheduler:AlarmWake"
+        private const val WAKE_TIMEOUT     = 3_600_000L  // 1 hour max — alarm screen wake
+        private const val CPU_WAKE_TAG     = "EEVDFScheduler:CpuWake"
+        private const val CPU_WAKE_TIMEOUT = 8 * 3_600_000L  // 8 hours max — timer cpu wake
 
         fun timerStart(context: Context, taskName: String, remainingSecs: Long) =
             send(context, ACTION_TIMER_START, taskName, remainingSecs)
@@ -85,7 +87,8 @@ class AlarmForegroundService : Service() {
         }
     }
 
-    private var wakeLock: PowerManager.WakeLock? = null
+    private var wakeLock: PowerManager.WakeLock? = null    // FULL — screen on at alarm
+    private var cpuWakeLock: PowerManager.WakeLock? = null // PARTIAL — CPU alive during timer
     private var alarmPlayer: MediaPlayer? = null
     private var isAlarmRinging = false
 
@@ -117,7 +120,9 @@ class AlarmForegroundService : Service() {
 
         when (intent?.action) {
             ACTION_TIMER_START -> {
-                // Service is now foreground — update notification
+                // Acquire a partial wake lock to keep CPU alive during countdown.
+                // Screen can still turn off — no battery impact from display.
+                acquireCpuWakeLock()
                 updateNotification(buildTimerNotification(taskName, remaining))
             }
 
@@ -127,7 +132,8 @@ class AlarmForegroundService : Service() {
             }
 
             ACTION_TIMER_PAUSE -> {
-                // Timer paused — stop service (will restart when timer resumes)
+                // Timer paused — release CPU lock, stop service
+                releaseCpuWakeLock()
                 stopForegroundCompat()
                 stopSelf()
             }
@@ -200,9 +206,22 @@ class AlarmForegroundService : Service() {
         ).also { it.acquire(WAKE_TIMEOUT) }
     }
 
+    /** Keeps the CPU running during the countdown without turning the screen on. */
+    private fun acquireCpuWakeLock() {
+        releaseCpuWakeLock()
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        cpuWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, CPU_WAKE_TAG)
+            .also { it.acquire(CPU_WAKE_TIMEOUT) }
+    }
+
     private fun releaseWakeLock() {
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+    }
+
+    private fun releaseCpuWakeLock() {
+        cpuWakeLock?.let { if (it.isHeld) it.release() }
+        cpuWakeLock = null
     }
 
     // ── Overrun counter ────────────────────────────────────────────────────────
@@ -286,6 +305,7 @@ class AlarmForegroundService : Service() {
     private fun stopEverything() {
         stopAlarmPlayer()
         releaseWakeLock()
+        releaseCpuWakeLock()
         stopOverrunCounter()
         stopForegroundCompat()
         stopSelf()
