@@ -4,7 +4,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import android.view.Menu
 import android.view.MenuItem
@@ -80,21 +83,29 @@ class MainActivity : AppCompatActivity() {
         setupTimerCard()
         setupAlarmBanner()
 
-        viewModel.refreshSchedule()
-    }
-
-    override fun onResume() {
-        super.onResume()
+        // Register here (not onResume) so the receiver stays alive when the app is
+        // paused/backgrounded — e.g. user stops alarm from notification while app is behind
         ContextCompat.registerReceiver(
             this,
             alarmStopReceiver,
             IntentFilter(AlarmStopReceiver.ACTION_STOP_ALARM),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
+
+        viewModel.refreshSchedule()
+        requestBatteryExemption()
+    }
+
+    override fun onResume() {
+        super.onResume()
     }
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
         unregisterReceiver(alarmStopReceiver)
     }
 
@@ -293,6 +304,24 @@ class MainActivity : AppCompatActivity() {
             .setMessage("Delete \"${task.name}\"?")
             .setPositiveButton("Delete") { _, _ -> viewModel.deleteTask(task) }
             .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun requestBatteryExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (pm.isIgnoringBatteryOptimizations(packageName)) return  // already exempted
+
+        AlertDialog.Builder(this)
+            .setTitle("Allow background activity")
+            .setMessage("To ensure timers fire on time, allow this app to run in the background without restrictions — just like a clock app.")
+            .setPositiveButton("Allow") { _, _ ->
+                startActivity(Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:$packageName")
+                ))
+            }
+            .setNegativeButton("Not now", null)
             .show()
     }
 

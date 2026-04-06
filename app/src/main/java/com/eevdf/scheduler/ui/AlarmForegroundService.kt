@@ -268,6 +268,15 @@ class AlarmForegroundService : Service() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        // Full-screen intent — system uses this to wake screen + launch AlarmActivity
+        // on Android 12+ where FULL_WAKE_LOCK is deprecated
+        val fullScreenPi = PendingIntent.getActivity(
+            this, 30,
+            AlarmActivity.createIntent(this, taskName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val elapsed = NotificationHelper.formatElapsed(elapsedSecs)
         val notification = NotificationCompat.Builder(this, CHANNEL_ALARM)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -283,6 +292,7 @@ class AlarmForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setFullScreenIntent(fullScreenPi, true)   // wakes screen, launches AlarmActivity
             .build()
         updateNotification(notification)
     }
