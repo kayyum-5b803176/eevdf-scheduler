@@ -221,6 +221,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 val secondsLeft = millisUntilFinished / 1000L
                 sessionElapsed = sessionStartSeconds - secondsLeft
                 _timerSeconds.postValue(secondsLeft)
+
+                // Update _currentTask in memory every tick so the card's
+                // progress bar and remaining display stay in sync without
+                // hitting the DB every second
+                _currentTask.value?.let { t ->
+                    _currentTask.postValue(t.copy(remainingSeconds = secondsLeft))
+                }
+
                 AlarmForegroundService.timerTick(ctx, task.name, secondsLeft)
                 if (sessionElapsed % 10 == 0L) persistTimerState(secondsLeft)
             }
@@ -238,6 +246,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         countDownTimer = null
         _timerRunning.value = false
         val secondsLeft = _timerSeconds.value ?: return
+
+        // Snap _currentTask in memory to the exact paused time so the card
+        // immediately shows the correct remaining value (not the stale DB value)
+        _currentTask.value?.let { t ->
+            _currentTask.value = t.copy(remainingSeconds = secondsLeft, isRunning = false)
+        }
+
         persistTimerState(secondsLeft)
         if (sessionElapsed > 0) {
             applyVruntimeUpdate(sessionElapsed)
