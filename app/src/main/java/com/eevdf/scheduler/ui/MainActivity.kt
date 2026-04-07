@@ -4,10 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -85,7 +83,6 @@ class MainActivity : AppCompatActivity() {
         )
 
         viewModel.refreshSchedule()
-        requestBatteryExemption()
     }
 
     override fun onDestroy() {
@@ -298,23 +295,6 @@ class MainActivity : AppCompatActivity() {
             .setMessage(msg)
             .setPositiveButton("Delete") { _, _ -> viewModel.deleteTask(task) }
             .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun requestBatteryExemption() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (pm.isIgnoringBatteryOptimizations(packageName)) return
-        AlertDialog.Builder(this)
-            .setTitle("Allow background activity")
-            .setMessage("To ensure timers fire on time, allow this app to run in the background without restrictions.")
-            .setPositiveButton("Allow") { _, _ ->
-                startActivity(Intent(
-                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:$packageName")
-                ))
-            }
-            .setNegativeButton("Not now", null)
             .show()
     }
 

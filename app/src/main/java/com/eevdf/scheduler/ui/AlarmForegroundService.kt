@@ -11,33 +11,35 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 
 /**
- * Foreground service that runs for the ENTIRE duration of a task timer.
+ * Foreground service whose lifecycle now matches AOSP Clock:
  *
- * Lifecycle:
- *   ACTION_TIMER_START  → service becomes foreground with a "Timer running" notification
- *   ACTION_TIMER_TICK   → updates the notification with remaining time every second
- *   ACTION_TIMER_EXPIRE → acquires WakeLock, wakes screen, starts looping alarm sound,
- *                         updates notification to "Timer expired · 0:23"
- *   ACTION_STOP         → stops sound, releases WakeLock, stops service
+ *   ACTION_TIMER_START  → becomes foreground with a chronometer notification.
+ *                         NO WakeLock is acquired — AlarmManager fires even in Deep Doze.
+ *                         The system clock drives the notification countdown with zero CPU cost.
+ *   ACTION_TIMER_EXPIRE → acquires FULL WakeLock, wakes screen, loops alarm sound.
+ *   ACTION_STOP         → stops sound, releases WakeLock, stops service.
+ *   ACTION_TIMER_PAUSE  → stops service (no lock to release).
  *
- * Why run from timer start rather than expiry:
- *   Android 12+ throws ForegroundServiceStartNotAllowedException when
- *   startForegroundService() is called while the app is in the background.
- *   By starting the service when the user taps "Start" (app is visible),
- *   the service is already foreground when the timer expires — no restrictions apply.
+ * What changed vs the original:
+ *  - PARTIAL_WAKE_LOCK (8-hour) removed entirely.
+ *    AlarmManager.setAlarmClock() is already Doze-immune — the WakeLock was redundant
+ *    and was the root cause of the "WiFi battery drain" symptom (WiFi chip stays on
+ *    whenever the CPU WakeLock prevents sleep).
+ *  - ACTION_TIMER_TICK removed. The notification now uses setUsesChronometer(true) +
+ *    setChronometerCountDown(true) + setWhen(triggerEpoch), so Android's system clock
+ *    updates the countdown display every second with no app code at all.
+ *  - overrunRunnable removed. TaskViewModel's overrunTimer already tracks elapsed time
+ *    after expiry — the service no longer needs a duplicate 1-second loop.
  */
 class AlarmForegroundService : Service() {
 
     companion object {
         const val ACTION_TIMER_START  = "com.eevdf.scheduler.TIMER_START"
-        const val ACTION_TIMER_TICK   = "com.eevdf.scheduler.TIMER_TICK"
         const val ACTION_TIMER_EXPIRE = "com.eevdf.scheduler.TIMER_EXPIRE"
         const val ACTION_TIMER_PAUSE  = "com.eevdf.scheduler.TIMER_PAUSE"
         const val ACTION_STOP         = "com.eevdf.scheduler.ALARM_STOP"
@@ -49,19 +51,16 @@ class AlarmForegroundService : Service() {
         private const val CHANNEL_ALARM = "eevdf_alarm_fg_channel"
         private const val NOTIF_ID      = 3001
 
-        private const val WAKE_TAG         = "EEVDFScheduler:AlarmWake"
-        private const val WAKE_TIMEOUT     = 3_600_000L  // 1 hour max — alarm screen wake
-        private const val CPU_WAKE_TAG     = "EEVDFScheduler:CpuWake"
-        private const val CPU_WAKE_TIMEOUT = 8 * 3_600_000L  // 8 hours max — timer cpu wake
-        private const val ALARM_MGR_REQ    = 9001
+        // FULL WakeLock only — acquired at alarm expiry to physically wake the screen
+        private const val WAKE_TAG     = "EEVDFScheduler:AlarmWake"
+        private const val WAKE_TIMEOUT = 3_600_000L  // 1 hour max
+
+        private const val ALARM_MGR_REQ = 9001
 
         fun timerStart(context: Context, taskName: String, remainingSecs: Long) {
             send(context, ACTION_TIMER_START, taskName, remainingSecs)
             scheduleAlarmManager(context, taskName, remainingSecs)
         }
-
-        fun timerTick(context: Context, taskName: String, remainingSecs: Long) =
-            send(context, ACTION_TIMER_TICK, taskName, remainingSecs)
 
         fun timerExpire(context: Context, taskName: String) =
             send(context, ACTION_TIMER_EXPIRE, taskName, 0)
@@ -78,8 +77,8 @@ class AlarmForegroundService : Service() {
 
         /**
          * Schedule a Doze-immune alarm via AlarmManager.setAlarmClock().
-         * This fires exactly on time even if the device is in Deep Doze —
-         * CountDownTimer alone is not reliable after ~30s of screen-off.
+         * Fires exactly on time even in Deep Doze — this is the ONLY mechanism
+         * needed to guarantee on-time delivery. No WakeLock required during countdown.
          */
         private fun scheduleAlarmManager(context: Context, taskName: String, remainingSecs: Long) {
             val triggerAt = System.currentTimeMillis() + remainingSecs * 1000L
@@ -91,7 +90,6 @@ class AlarmForegroundService : Service() {
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            // Show intent — tapping the clock icon in status bar opens the app
             val showPi = PendingIntent.getActivity(
                 context, 0,
                 Intent(context, MainActivity::class.java).apply {
@@ -120,7 +118,6 @@ class AlarmForegroundService : Service() {
                 putExtra(EXTRA_TASK_NAME, taskName)
                 putExtra(EXTRA_REMAINING_SECS, secs)
             }
-            // startForegroundService only when starting fresh; for ticks use startService
             if (action == ACTION_TIMER_START) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     context.startForegroundService(intent)
@@ -132,69 +129,44 @@ class AlarmForegroundService : Service() {
         }
     }
 
-    private var wakeLock: PowerManager.WakeLock? = null    // FULL — screen on at alarm
-    private var cpuWakeLock: PowerManager.WakeLock? = null // PARTIAL — CPU alive during timer
+    // FULL WakeLock only — acquired at expiry to physically wake the screen
+    private var wakeLock: PowerManager.WakeLock? = null
     private var alarmPlayer: MediaPlayer? = null
     private var isAlarmRinging = false
-
-    private val handler = Handler(Looper.getMainLooper())
-    private var overrunSeconds = 0L
-    private var expiredTaskName = ""
-
-    // Ticks the "elapsed" counter in the notification after expiry
-    private val overrunRunnable = object : Runnable {
-        override fun run() {
-            overrunSeconds++
-            updateExpiredNotification(expiredTaskName, overrunSeconds)
-            handler.postDelayed(this, 1000L)
-        }
-    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createChannels()
-        // Must call startForeground immediately in onCreate to avoid ANR
         startForeground(NOTIF_ID, buildTimerNotification("Starting…", 0))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val taskName = intent?.getStringExtra(EXTRA_TASK_NAME) ?: ""
+        val taskName  = intent?.getStringExtra(EXTRA_TASK_NAME) ?: ""
         val remaining = intent?.getLongExtra(EXTRA_REMAINING_SECS, 0) ?: 0
 
         when (intent?.action) {
             ACTION_TIMER_START -> {
-                // Acquire a partial wake lock to keep CPU alive during countdown.
-                // Screen can still turn off — no battery impact from display.
-                acquireCpuWakeLock()
-                updateNotification(buildTimerNotification(taskName, remaining))
-            }
-
-            ACTION_TIMER_TICK -> {
-                // Called every second by ViewModel — keep notification fresh
+                // Show a countdown notification driven by the system clock.
+                // No WakeLock — phone sleeps normally, AlarmManager wakes it on time.
                 updateNotification(buildTimerNotification(taskName, remaining))
             }
 
             ACTION_TIMER_PAUSE -> {
-                // Timer paused — release CPU lock, stop service
-                releaseCpuWakeLock()
                 stopForegroundCompat()
                 stopSelf()
             }
 
             ACTION_TIMER_EXPIRE -> {
-                if (!isAlarmRinging) {          // guard: AlarmManager and CountDownTimer can both fire
-                    expiredTaskName = taskName
+                if (!isAlarmRinging) {
                     acquireWakeLock()
                     playAlarmSound()
-                    startOverrunCounter(taskName)
+                    showExpiredNotification(taskName)
                 }
             }
 
-            ACTION_STOP -> {
-                stopEverything()
-            }
+            ACTION_STOP -> stopEverything()
         }
 
         return START_NOT_STICKY
@@ -220,7 +192,7 @@ class AlarmForegroundService : Service() {
                         .build()
                 )
                 setDataSource(this@AlarmForegroundService, uri)
-                isLooping = true   // rings forever until stopped
+                isLooping = true
                 prepare()
                 start()
             }
@@ -239,7 +211,7 @@ class AlarmForegroundService : Service() {
         isAlarmRinging = false
     }
 
-    // ── WakeLock ───────────────────────────────────────────────────────────────
+    // ── WakeLock (alarm expiry only) ───────────────────────────────────────────
 
     private fun acquireWakeLock() {
         releaseWakeLock()
@@ -247,18 +219,10 @@ class AlarmForegroundService : Service() {
         @Suppress("DEPRECATION")
         wakeLock = pm.newWakeLock(
             PowerManager.FULL_WAKE_LOCK          or
-                    PowerManager.ACQUIRE_CAUSES_WAKEUP   or  // physically turns screen on
+                    PowerManager.ACQUIRE_CAUSES_WAKEUP   or
                     PowerManager.ON_AFTER_RELEASE,
             WAKE_TAG
         ).also { it.acquire(WAKE_TIMEOUT) }
-    }
-
-    /** Keeps the CPU running during the countdown without turning the screen on. */
-    private fun acquireCpuWakeLock() {
-        releaseCpuWakeLock()
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        cpuWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, CPU_WAKE_TAG)
-            .also { it.acquire(CPU_WAKE_TIMEOUT) }
     }
 
     private fun releaseWakeLock() {
@@ -266,48 +230,38 @@ class AlarmForegroundService : Service() {
         wakeLock = null
     }
 
-    private fun releaseCpuWakeLock() {
-        cpuWakeLock?.let { if (it.isHeld) it.release() }
-        cpuWakeLock = null
-    }
-
-    // ── Overrun counter ────────────────────────────────────────────────────────
-
-    private fun startOverrunCounter(taskName: String) {
-        handler.removeCallbacks(overrunRunnable)
-        overrunSeconds = 0
-        updateExpiredNotification(taskName, 0)
-        handler.postDelayed(overrunRunnable, 1000L)
-    }
-
-    private fun stopOverrunCounter() {
-        handler.removeCallbacks(overrunRunnable)
-        overrunSeconds = 0
-    }
-
     // ── Notifications ──────────────────────────────────────────────────────────
 
+    /**
+     * Chronometer-based timer notification.
+     *
+     * setUsesChronometer(true) + setChronometerCountDown(true) + setWhen(triggerEpoch)
+     * tells Android to display a live countdown updated every second by the system
+     * clock — no app code needed, zero CPU cost. This is exactly how AOSP Clock works.
+     */
     private fun buildTimerNotification(taskName: String, remainingSecs: Long): Notification {
-        val h = remainingSecs / 3600
-        val m = (remainingSecs % 3600) / 60
-        val s = remainingSecs % 60
-        val timeStr = if (h > 0) "$h:${"%02d".format(m)}:${"%02d".format(s)}"
-        else "${"%02d".format(m)}:${"%02d".format(s)}"
+        val triggerEpoch = System.currentTimeMillis() + remainingSecs * 1000L
 
-        val openPi = openMainActivityPi(0)
-
-        return NotificationCompat.Builder(this, CHANNEL_TIMER)
+        val builder = NotificationCompat.Builder(this, CHANNEL_TIMER)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("⏱ $taskName")
-            .setContentText("Time remaining: $timeStr")
+            .setContentText("Time remaining")
             .setOngoing(true)
             .setSilent(true)
-            .setContentIntent(openPi)
+            .setContentIntent(openMainActivityPi(0))
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+            .setWhen(triggerEpoch)
+            .setUsesChronometer(true)
+
+        // setChronometerCountDown counts down to setWhen. minSdk 26 so always available.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            builder.setChronometerCountDown(true)
+        }
+
+        return builder.build()
     }
 
-    private fun updateExpiredNotification(taskName: String, elapsedSecs: Long) {
+    private fun showExpiredNotification(taskName: String) {
         val stopPi = PendingIntent.getBroadcast(
             this, 20,
             Intent(this, AlarmStopReceiver::class.java).apply {
@@ -315,31 +269,27 @@ class AlarmForegroundService : Service() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
-        // Full-screen intent — system uses this to wake screen + launch AlarmActivity
-        // on Android 12+ where FULL_WAKE_LOCK is deprecated
         val fullScreenPi = PendingIntent.getActivity(
             this, 30,
             AlarmActivity.createIntent(this, taskName),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val elapsed = NotificationHelper.formatElapsed(elapsedSecs)
         val notification = NotificationCompat.Builder(this, CHANNEL_ALARM)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("Timer expired")
-            .setContentText("$taskName · $elapsed")
+            .setContentText(taskName)
             .setOngoing(true)
             .setSilent(true)
-            .setWhen(System.currentTimeMillis() - elapsedSecs * 1000L)
+            .setWhen(System.currentTimeMillis())
             .setShowWhen(true)
-            .setUsesChronometer(true)
+            .setUsesChronometer(true)   // counts UP from setWhen — shows elapsed time for free
             .setContentIntent(openMainActivityPi(10))
             .addAction(android.R.drawable.ic_media_pause, "Stop", stopPi)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setFullScreenIntent(fullScreenPi, true)   // wakes screen, launches AlarmActivity
+            .setFullScreenIntent(fullScreenPi, true)
             .build()
         updateNotification(notification)
     }
@@ -362,8 +312,6 @@ class AlarmForegroundService : Service() {
     private fun stopEverything() {
         stopAlarmPlayer()
         releaseWakeLock()
-        releaseCpuWakeLock()
-        stopOverrunCounter()
         stopForegroundCompat()
         stopSelf()
     }
@@ -390,7 +338,7 @@ class AlarmForegroundService : Service() {
             )
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL_ALARM, "Timer Expired", NotificationManager.IMPORTANCE_HIGH).apply {
-                    setSound(null, null)  // sound handled by MediaPlayer
+                    setSound(null, null)
                     enableVibration(true)
                 }
             )

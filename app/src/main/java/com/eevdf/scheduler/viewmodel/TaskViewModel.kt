@@ -229,7 +229,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                     _currentTask.postValue(t.copy(remainingSeconds = secondsLeft))
                 }
 
-                AlarmForegroundService.timerTick(ctx, task.name, secondsLeft)
+                // No per-second service Intent needed — the notification countdown is
+                // driven by the system clock via setUsesChronometer/setChronometerCountDown.
                 if (sessionElapsed % 10 == 0L) persistTimerState(secondsLeft)
             }
             override fun onFinish() {
