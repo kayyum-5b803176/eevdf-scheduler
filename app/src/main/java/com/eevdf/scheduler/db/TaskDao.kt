@@ -35,4 +35,12 @@ interface TaskDao {
 
     @Query("SELECT * FROM tasks WHERE isCompleted = 0")
     suspend fun getActiveTasksSync(): List<Task>
+
+    /** All non-completed tasks whose parent is the given id (or root if null). */
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND parentId IS :parentId")
+    suspend fun getChildrenOf(parentId: String?): List<Task>
+
+    /** All group tasks (containers) that are not completed. */
+    @Query("SELECT * FROM tasks WHERE isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
+    fun getActiveGroups(): LiveData<List<Task>>
 }

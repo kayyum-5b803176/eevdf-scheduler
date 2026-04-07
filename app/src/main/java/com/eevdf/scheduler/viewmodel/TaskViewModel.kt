@@ -1,11 +1,13 @@
 package com.eevdf.scheduler.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.os.CountDownTimer
 import androidx.lifecycle.*
 import com.eevdf.scheduler.db.TaskDatabase
 import com.eevdf.scheduler.db.TaskRepository
 import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import com.eevdf.scheduler.scheduler.SchedulerStats
 import com.eevdf.scheduler.ui.AlarmForegroundService
@@ -13,12 +15,18 @@ import kotlinx.coroutines.launch
 
 class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val prefs = application.getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE)
+    private val KEY_GROUPS = "groups_enabled"
+
     private val repository: TaskRepository
     val allTasks: LiveData<List<Task>>
     val activeTasks: LiveData<List<Task>>
     val completedTasks: LiveData<List<Task>>
 
-    private val _currentTask = MutableLiveData<Task?>()
+    /** Groups available for parent selection in AddTaskActivity. */
+    val activeGroups: LiveData<List<Task>>
+
+    private val _currentTask = MutableLiveData<Task?>(null)
     val currentTask: LiveData<Task?> = _currentTask
 
     private val _timerSeconds = MutableLiveData<Long>()
@@ -33,15 +41,67 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val _stats = MutableLiveData<SchedulerStats>()
     val stats: LiveData<SchedulerStats> = _stats
 
-    private val _toastMessage = MutableLiveData<String?>()
+    private val _toastMessage = MutableLiveData<String?>(null)
     val toastMessage: LiveData<String?> = _toastMessage
 
-    // Alarm state — drives the in-app alarm banner in MainActivity
     private val _alarmTaskName = MutableLiveData<String?>(null)
     val alarmTaskName: LiveData<String?> = _alarmTaskName
 
     private val _alarmElapsedSeconds = MutableLiveData<Long>(0L)
     val alarmElapsedSeconds: LiveData<Long> = _alarmElapsedSeconds
+
+    // ── Groups mode ───────────────────────────────────────────────────────────
+
+    private val _groupsEnabled = MutableLiveData<Boolean>(prefs.getBoolean(KEY_GROUPS, false))
+    val groupsEnabled: LiveData<Boolean> = _groupsEnabled
+
+    fun toggleGroupsEnabled() {
+        val next = !(_groupsEnabled.value ?: false)
+        prefs.edit().putBoolean(KEY_GROUPS, next).apply()
+        _groupsEnabled.value = next
+    }
+
+    // Initialized after init{} so activeTasks/_scheduleOrder are already assigned
+    lateinit var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>>
+    lateinit var flatScheduleOrder: MediatorLiveData<List<TaskDisplayItem>>
+
+    /**
+     * Flattens the task tree into a display list.
+     *
+     * Groups mode OFF → all non-group tasks sorted by virtualDeadline, depth=0.
+     * Groups mode ON  → depth-first traversal respecting isGroupExpanded;
+     *                   groups appear as header rows with child count/time.
+     */
+    private fun buildFlatList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+        if (!groupsEnabled) {
+            return tasks
+                .filter { !it.isGroup }
+                .sortedBy { it.virtualDeadline }
+                .map { TaskDisplayItem(it, 0) }
+        }
+
+        val result = mutableListOf<TaskDisplayItem>()
+
+        fun addLevel(parentId: String?, depth: Int) {
+            val children = tasks
+                .filter { it.parentId == parentId }
+                .sortedBy { it.virtualDeadline }
+            for (task in children) {
+                val directChildren = tasks.filter { it.parentId == task.id }
+                val childCount     = directChildren.size
+                val childRuntime   = directChildren.sumOf { it.totalRunTime }
+                result.add(TaskDisplayItem(task, depth, childCount, childRuntime))
+                if (task.isGroup && task.isGroupExpanded) {
+                    addLevel(task.id, depth + 1)
+                }
+            }
+        }
+
+        addLevel(null, 0)
+        return result
+    }
+
+    // ── Timer state ───────────────────────────────────────────────────────────
 
     private var countDownTimer: CountDownTimer? = null
     private var overrunTimer: CountDownTimer? = null
@@ -51,12 +111,33 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     init {
         val db = TaskDatabase.getDatabase(application)
         repository = TaskRepository(db.taskDao())
-        allTasks = repository.allTasks
-        activeTasks = repository.activeTasks
+        allTasks       = repository.allTasks
+        activeTasks    = repository.activeTasks
         completedTasks = repository.completedTasks
+        activeGroups   = repository.activeGroups
+
+        flatActiveTasks = MediatorLiveData<List<TaskDisplayItem>>().apply {
+            fun rebuild() {
+                val tasks   = activeTasks.value ?: emptyList()
+                val enabled = _groupsEnabled.value ?: false
+                value = buildFlatList(tasks, enabled)
+            }
+            addSource(activeTasks)    { rebuild() }
+            addSource(_groupsEnabled) { rebuild() }
+        }
+
+        flatScheduleOrder = MediatorLiveData<List<TaskDisplayItem>>().apply {
+            fun rebuild() {
+                val tasks   = _scheduleOrder.value ?: emptyList()
+                val enabled = _groupsEnabled.value ?: false
+                value = buildFlatList(tasks, enabled)
+            }
+            addSource(_scheduleOrder) { rebuild() }
+            addSource(_groupsEnabled) { rebuild() }
+        }
     }
 
-    // ─── CRUD ──────────────────────────────────────────────────────────────────
+    // ── CRUD ──────────────────────────────────────────────────────────────────
 
     fun addTask(task: Task) = viewModelScope.launch {
         repository.insert(task)
@@ -80,11 +161,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markCompleted(task: Task) = viewModelScope.launch {
-        if (task.id == _currentTask.value?.id) {
-            stopTimer(completed = true)
-        } else {
-            repository.markCompleted(task)
-        }
+        if (task.id == _currentTask.value?.id) stopTimer(completed = true)
+        else repository.markCompleted(task)
         refreshSchedule()
     }
 
@@ -92,7 +170,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearToast() { _toastMessage.value = null }
 
-    // ─── SCHEDULER ─────────────────────────────────────────────────────────────
+    // ── Group expand / collapse ───────────────────────────────────────────────
+
+    fun toggleGroupExpanded(group: Task) = viewModelScope.launch {
+        val updated = group.copy(isGroupExpanded = !group.isGroupExpanded)
+        repository.update(updated)
+        // flatActiveTasks rebuilds automatically via activeTasks LiveData
+    }
+
+    // ── Scheduler ────────────────────────────────────────────────────────────
 
     fun scheduleNext() = viewModelScope.launch {
         pauseTimer()
@@ -100,7 +186,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         if (next != null) {
             _currentTask.postValue(next)
             _timerSeconds.postValue(next.remainingSeconds)
-            _toastMessage.postValue("▶ Now: \"${next.name}\" (Priority ${next.priority})")
+            _toastMessage.postValue("Now: \"${next.name}\" (Priority ${next.priority})")
         } else {
             _currentTask.postValue(null)
             _toastMessage.postValue("No active tasks to schedule")
@@ -115,7 +201,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _stats.postValue(EEVDFScheduler.getStats(allActive))
     }
 
-    // ─── TIMER ─────────────────────────────────────────────────────────────────
+    // ── Timer ─────────────────────────────────────────────────────────────────
 
     fun startTimer() {
         val task = _currentTask.value ?: return
@@ -126,9 +212,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         sessionElapsed = 0L
         _timerRunning.value = true
 
-        // Start the foreground service NOW while app is visible — this is the key.
-        // The service will be already foreground when the timer expires, so it can
-        // launch AlarmActivity from background without any restrictions.
         val ctx = getApplication<Application>()
         AlarmForegroundService.timerStart(ctx, task.name, remaining)
 
@@ -138,13 +221,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 val secondsLeft = millisUntilFinished / 1000L
                 sessionElapsed = sessionStartSeconds - secondsLeft
                 _timerSeconds.postValue(secondsLeft)
-
-                // Send tick to service so notification stays current
                 AlarmForegroundService.timerTick(ctx, task.name, secondsLeft)
-
                 if (sessionElapsed % 10 == 0L) persistTimerState(secondsLeft)
             }
-
             override fun onFinish() {
                 _timerSeconds.postValue(0L)
                 _timerRunning.postValue(false)
@@ -164,7 +243,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             applyVruntimeUpdate(sessionElapsed)
             sessionElapsed = 0L
         }
-        // Stop the foreground service — timer is paused, no need to keep running
         AlarmForegroundService.timerPause(getApplication())
     }
 
@@ -192,28 +270,22 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val task = _currentTask.value ?: return
         val ctx = getApplication<Application>()
 
-        // Tell the service to: acquire WakeLock + play sound + launch AlarmActivity
-        // Service is already foreground so this always works
         AlarmForegroundService.timerExpire(ctx, task.name)
-
-        // Update in-app state
         _alarmTaskName.postValue(task.name)
         _alarmElapsedSeconds.postValue(0L)
         startInAppOverrunCounter(task.name)
 
         viewModelScope.launch {
+            // updateVruntimeAfterRun handles leaf + all ancestor groups
             repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
-            val updated = task.copy(
-                remainingSeconds = task.timeSliceSeconds
-            )
+            val updated = task.copy(remainingSeconds = task.timeSliceSeconds)
             repository.update(updated)
-            _toastMessage.postValue("✓ Time slice done for \"${task.name}\"")
+            _toastMessage.postValue("Time slice done for \"${task.name}\"")
             _currentTask.postValue(null)
             refreshSchedule()
         }
     }
 
-    /** Drives the in-app banner elapsed counter — mirrors what the service shows in notification */
     private fun startInAppOverrunCounter(taskName: String) {
         overrunTimer?.cancel()
         overrunTimer = object : CountDownTimer(3600_000L, 1000L) {
@@ -231,7 +303,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         overrunTimer = null
     }
 
-    /** Called when user dismisses the alarm from any surface (banner, AlarmActivity, notification) */
     fun stopAlarmSound() {
         stopOverrunCounter()
         _alarmTaskName.postValue(null)
@@ -249,7 +320,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 repository.markCompleted(task)
                 _currentTask.postValue(null)
-                _toastMessage.postValue("✓ \"${task.name}\" completed!")
+                _toastMessage.postValue("\"${task.name}\" completed!")
                 refreshSchedule()
             }
         }

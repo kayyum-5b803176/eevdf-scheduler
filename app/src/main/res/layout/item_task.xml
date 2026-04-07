@@ -167,6 +167,17 @@
                 android:layout_marginTop="8dp"
                 android:gravity="end">
 
+                <!-- Group expand/collapse (visible for group items only) -->
+                <ImageButton
+                    android:id="@+id/btnGroupToggle"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@android:drawable/ic_media_play"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/colorPrimary"
+                    android:contentDescription="Toggle Group"
+                    android:visibility="gone" />
+
                 <ImageButton
                     android:id="@+id/btnRun"
                     android:layout_width="36dp"

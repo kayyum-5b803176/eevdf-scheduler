@@ -81,6 +81,44 @@
                             android:minLines="2"
                             android:maxLines="4" />
                     </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Groups section — shown only when groups mode is enabled -->
+                    <LinearLayout
+                        android:id="@+id/groupSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="12dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginBottom="12dp" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchIsGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="This is a group (container)" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Parent Group"
+                            android:textSize="12sp"
+                            android:textColor="#616161"
+                            android:layout_marginTop="14dp"
+                            android:layout_marginBottom="4dp" />
+
+                        <Spinner
+                            android:id="@+id/spinnerParentGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/abc_spinner_mtrl_am_alpha"
+                            android:padding="8dp" />
+                    </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

@@ -9,6 +9,12 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_toggle_groups"
+        android:title="Enable Groups"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_clear_completed"
         android:title="Clear Completed"
         app:showAsAction="never" />

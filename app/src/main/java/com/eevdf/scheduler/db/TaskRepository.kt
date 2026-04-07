@@ -11,9 +11,9 @@ class TaskRepository(private val dao: TaskDao) {
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
     val activeTasks: LiveData<List<Task>> = dao.getActiveTasks()
     val completedTasks: LiveData<List<Task>> = dao.getCompletedTasks()
+    val activeGroups: LiveData<List<Task>> = dao.getActiveGroups()
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
-        // Recalculate scheduler values before insert
         val existing = dao.getActiveTasksSync().toMutableList()
         existing.add(task)
         EEVDFScheduler.recalculate(existing)
@@ -21,12 +21,20 @@ class TaskRepository(private val dao: TaskDao) {
         existing.forEach { dao.update(it) }
     }
 
-    suspend fun update(task: Task) = withContext(Dispatchers.IO) {
-        dao.update(task)
-    }
+    suspend fun update(task: Task) = withContext(Dispatchers.IO) { dao.update(task) }
 
     suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
+        // Also delete all descendants
+        deleteDescendants(task.id)
         dao.delete(task)
+    }
+
+    private suspend fun deleteDescendants(parentId: String) {
+        val children = dao.getChildrenOf(parentId)
+        children.forEach { child ->
+            if (child.isGroup) deleteDescendants(child.id)
+            dao.delete(child)
+        }
     }
 
     suspend fun markCompleted(task: Task) = withContext(Dispatchers.IO) {
@@ -34,31 +42,62 @@ class TaskRepository(private val dao: TaskDao) {
         dao.update(updated)
     }
 
-    suspend fun stopAll() = withContext(Dispatchers.IO) {
-        dao.stopAllRunning()
-    }
+    suspend fun stopAll() = withContext(Dispatchers.IO) { dao.stopAllRunning() }
 
-    suspend fun clearCompleted() = withContext(Dispatchers.IO) {
-        dao.clearCompleted()
-    }
+    suspend fun clearCompleted() = withContext(Dispatchers.IO) { dao.clearCompleted() }
 
-    suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) {
-        dao.getTaskById(id)
-    }
+    suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) { dao.getTaskById(id) }
 
+    /**
+     * cgroup-aware vruntime update.
+     * Updates the leaf task, then propagates elapsed time upward through all
+     * ancestor groups — exactly like Linux cgroups crediting the task's CPU
+     * time to every cgroup it belongs to.
+     */
     suspend fun updateVruntimeAfterRun(task: Task, secondsRan: Long) = withContext(Dispatchers.IO) {
+        // Update leaf task (also increments runCount via EEVDFScheduler)
         EEVDFScheduler.updateVruntime(task, secondsRan)
         dao.update(task)
-        // Recalculate all active tasks
+
+        // Propagate up the ancestor chain — credit time but do NOT increment runCount
+        var parentId = task.parentId
+        while (parentId != null) {
+            val parent = dao.getTaskById(parentId) ?: break
+            parent.totalRunTime += secondsRan
+            if (parent.weight > 0) {
+                parent.vruntime += secondsRan.toDouble() / parent.weight
+            }
+            dao.update(parent)
+            parentId = parent.parentId
+        }
+
         val allActive = dao.getActiveTasksSync()
         EEVDFScheduler.recalculate(allActive)
         allActive.forEach { dao.update(it) }
     }
 
+    /**
+     * cgroup-aware task selection.
+     * Applies EEVDF at each level of the hierarchy, drilling into the winning
+     * group recursively until a leaf (non-group) task is found — same as
+     * Linux's hierarchical scheduling.
+     */
     suspend fun selectNextTask(): Task? = withContext(Dispatchers.IO) {
-        val activeTasks = dao.getActiveTasksSync()
-        EEVDFScheduler.recalculate(activeTasks)
-        EEVDFScheduler.selectNext(activeTasks)
+        val allActive = dao.getActiveTasksSync()
+        selectNextCgroup(allActive, null)
+    }
+
+    private fun selectNextCgroup(all: List<Task>, parentId: String?): Task? {
+        val level = all.filter { it.parentId == parentId && !it.isCompleted && !it.isRunning }
+        if (level.isEmpty()) return null
+        EEVDFScheduler.recalculate(level)
+        val winner = EEVDFScheduler.selectNext(level) ?: return null
+        return if (winner.isGroup) {
+            // Drill into the group; fall back to root if the group is empty
+            selectNextCgroup(all, winner.id) ?: selectNextCgroup(all, null)
+        } else {
+            winner
+        }
     }
 
     suspend fun getScheduleOrder(): List<Task> = withContext(Dispatchers.IO) {

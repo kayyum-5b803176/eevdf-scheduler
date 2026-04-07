@@ -13,14 +13,16 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.scheduler.R
 import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.TaskDisplayItem
 
 class TaskAdapter(
-    private val onTaskClick: (Task) -> Unit,
-    private val onDeleteClick: (Task) -> Unit,
-    private val onCompleteClick: (Task) -> Unit,
-    private val onRunClick: (Task) -> Unit,
+    private val onTaskClick:      (Task) -> Unit,
+    private val onDeleteClick:    (Task) -> Unit,
+    private val onCompleteClick:  (Task) -> Unit,
+    private val onRunClick:       (Task) -> Unit,
+    private val onGroupToggle:    (Task) -> Unit,   // expand / collapse a group
     private val showScheduleRank: Boolean = false
-) : ListAdapter<Task, TaskAdapter.TaskViewHolder>(TaskDiffCallback()) {
+) : ListAdapter<TaskDisplayItem, TaskAdapter.TaskViewHolder>(DiffCallback()) {
 
     private var runningTaskId: String? = null
 
@@ -30,21 +32,22 @@ class TaskAdapter(
     }
 
     inner class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val card: CardView = itemView.findViewById(R.id.cardTask)
-        val tvRank: TextView = itemView.findViewById(R.id.tvRank)
-        val tvName: TextView = itemView.findViewById(R.id.tvTaskName)
-        val tvCategory: TextView = itemView.findViewById(R.id.tvCategory)
-        val tvPriority: TextView = itemView.findViewById(R.id.tvPriority)
-        val tvTimeSlice: TextView = itemView.findViewById(R.id.tvTimeSlice)
-        val tvRemaining: TextView = itemView.findViewById(R.id.tvRemaining)
-        val tvVruntime: TextView = itemView.findViewById(R.id.tvVruntime)
-        val tvVdeadline: TextView = itemView.findViewById(R.id.tvVdeadline)
-        val progressBar: ProgressBar = itemView.findViewById(R.id.progressTask)
-        val btnDelete: ImageButton = itemView.findViewById(R.id.btnDelete)
-        val btnComplete: ImageButton = itemView.findViewById(R.id.btnComplete)
-        val btnRun: ImageButton = itemView.findViewById(R.id.btnRun)
-        val tvRunCount: TextView = itemView.findViewById(R.id.tvRunCount)
-        val viewRunning: View = itemView.findViewById(R.id.viewRunningIndicator)
+        val card:           CardView    = itemView.findViewById(R.id.cardTask)
+        val tvRank:         TextView    = itemView.findViewById(R.id.tvRank)
+        val tvName:         TextView    = itemView.findViewById(R.id.tvTaskName)
+        val tvCategory:     TextView    = itemView.findViewById(R.id.tvCategory)
+        val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
+        val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
+        val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
+        val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
+        val tvVdeadline:    TextView    = itemView.findViewById(R.id.tvVdeadline)
+        val progressBar:    ProgressBar = itemView.findViewById(R.id.progressTask)
+        val btnDelete:      ImageButton = itemView.findViewById(R.id.btnDelete)
+        val btnComplete:    ImageButton = itemView.findViewById(R.id.btnComplete)
+        val btnRun:         ImageButton = itemView.findViewById(R.id.btnRun)
+        val btnGroupToggle: ImageButton = itemView.findViewById(R.id.btnGroupToggle)
+        val tvRunCount:     TextView    = itemView.findViewById(R.id.tvRunCount)
+        val viewRunning:    View        = itemView.findViewById(R.id.viewRunningIndicator)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
@@ -54,55 +57,101 @@ class TaskAdapter(
     }
 
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int) {
-        val task = getItem(position)
+        val item  = getItem(position)
+        val task  = item.task
         val isRunning = task.id == runningTaskId
 
-        holder.tvName.text = task.name
-        holder.tvCategory.text = task.category
+        // ── Depth indentation ─────────────────────────────────────────────────
+        val density = holder.itemView.context.resources.displayMetrics.density
+        val params  = holder.itemView.layoutParams as RecyclerView.LayoutParams
+        params.marginStart = (item.depth * 20 * density).toInt()
+        holder.itemView.layoutParams = params
+
+        // ── Common fields ──────────────────────────────────────────────────────
+        holder.tvName.text     = task.name
         holder.tvPriority.text = "Priority: ${task.priority}/10"
-        holder.tvTimeSlice.text = "Slice: ${task.timeSliceDisplay}"
-        holder.tvRemaining.text = task.remainingDisplay
-        holder.progressBar.progress = task.progressPercent
-        holder.tvRunCount.text = "Runs: ${task.runCount}"
-        holder.tvVruntime.text = "VRT: ${"%.2f".format(task.vruntime)}"
+        holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
 
-        // Rank display
+        // ── Group vs leaf rendering ────────────────────────────────────────────
+        if (task.isGroup) {
+            // Group header row
+            holder.tvCategory.text  = "Group · ${item.childCount} task${if (item.childCount != 1) "s" else ""}"
+            holder.tvTimeSlice.text = "Child time: ${formatSeconds(item.childTotalRuntime)}"
+            holder.tvRemaining.text = "VRT: ${"%.2f".format(task.vruntime)}"
+            holder.tvRunCount.text  = "Runs: ${task.runCount}"
+            holder.progressBar.visibility = View.GONE
+            holder.btnRun.visibility      = View.GONE
+            holder.btnComplete.visibility = View.GONE
+            holder.btnGroupToggle.visibility = View.VISIBLE
+            // Rotate play icon: 90° = pointing down (expanded), 0° = pointing right (collapsed)
+            holder.btnGroupToggle.rotation = if (task.isGroupExpanded) 90f else 0f
+            holder.btnGroupToggle.setOnClickListener { onGroupToggle(task) }
+        } else {
+            // Leaf task row
+            holder.tvCategory.text  = task.category
+            holder.tvTimeSlice.text = "Slice: ${task.timeSliceDisplay}"
+            holder.tvRemaining.text = task.remainingDisplay
+            holder.tvRunCount.text  = "Runs: ${task.runCount}"
+            holder.progressBar.visibility    = View.VISIBLE
+            holder.progressBar.progress      = task.progressPercent
+            holder.btnRun.visibility         = View.VISIBLE
+            holder.btnComplete.visibility    = View.VISIBLE
+            holder.btnGroupToggle.visibility = View.GONE
+            holder.btnRun.setOnClickListener      { onRunClick(task) }
+            holder.btnComplete.setOnClickListener { onCompleteClick(task) }
+        }
+
+        // ── Schedule rank ──────────────────────────────────────────────────────
         if (showScheduleRank) {
             holder.tvRank.visibility = View.VISIBLE
-            holder.tvRank.text = "#${position + 1}"
+            holder.tvRank.text       = "#${position + 1}"
         } else {
             holder.tvRank.visibility = View.GONE
         }
 
-        // Running indicator
+        // ── Running state ──────────────────────────────────────────────────────
         holder.viewRunning.visibility = if (isRunning) View.VISIBLE else View.INVISIBLE
 
-        // Priority color badge
+        // ── Priority colour ────────────────────────────────────────────────────
         val priorityColor = when (task.priority) {
-            in 9..10 -> Color.parseColor("#F44336") // Red
-            in 7..8  -> Color.parseColor("#FF9800") // Orange
-            in 5..6  -> Color.parseColor("#2196F3") // Blue
-            in 3..4  -> Color.parseColor("#4CAF50") // Green
-            else     -> Color.parseColor("#9E9E9E") // Grey
+            in 9..10 -> Color.parseColor("#F44336")
+            in 7..8  -> Color.parseColor("#FF9800")
+            in 5..6  -> Color.parseColor("#2196F3")
+            in 3..4  -> Color.parseColor("#4CAF50")
+            else     -> Color.parseColor("#9E9E9E")
         }
         holder.tvPriority.setTextColor(priorityColor)
 
-        // Card elevation for running task
+        // ── Card highlight ─────────────────────────────────────────────────────
         holder.card.cardElevation = if (isRunning) 12f else 4f
         holder.card.setCardBackgroundColor(
-            if (isRunning) Color.parseColor("#E3F2FD")
-            else Color.WHITE
+            when {
+                isRunning   -> Color.parseColor("#E3F2FD")
+                task.isGroup -> Color.parseColor("#F5F5F5")
+                else         -> Color.WHITE
+            }
         )
 
         holder.card.setOnClickListener { onTaskClick(task) }
         holder.btnDelete.setOnClickListener { onDeleteClick(task) }
-        holder.btnComplete.setOnClickListener { onCompleteClick(task) }
-        holder.btnRun.setOnClickListener { onRunClick(task) }
     }
 
-    class TaskDiffCallback : DiffUtil.ItemCallback<Task>() {
-        override fun areItemsTheSame(oldItem: Task, newItem: Task) = oldItem.id == newItem.id
-        override fun areContentsTheSame(oldItem: Task, newItem: Task) = oldItem == newItem
+    private fun formatSeconds(totalSec: Long): String {
+        val h = totalSec / 3600
+        val m = (totalSec % 3600) / 60
+        val s = totalSec % 60
+        return when {
+            h > 0 -> "${h}h ${m}m"
+            m > 0 -> "${m}m ${s}s"
+            else  -> "${s}s"
+        }
+    }
+
+    class DiffCallback : DiffUtil.ItemCallback<TaskDisplayItem>() {
+        override fun areItemsTheSame(old: TaskDisplayItem, new: TaskDisplayItem) =
+            old.task.id == new.task.id
+        override fun areContentsTheSame(old: TaskDisplayItem, new: TaskDisplayItem) =
+            old == new
     }
 }

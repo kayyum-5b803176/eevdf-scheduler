@@ -10,30 +10,33 @@ data class Task(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val description: String = "",
-    val priority: Int,           // 1–10, maps to weight
-    val timeSliceSeconds: Long,  // Requested time in seconds
+    val priority: Int,
+    val timeSliceSeconds: Long,
     val category: String = "General",
     val color: Int = 0,
 
+    // cgroup hierarchy
+    val parentId: String? = null,
+    val isGroup: Boolean = false,
+    var isGroupExpanded: Boolean = true,
+
     // EEVDF scheduler state
-    var vruntime: Double = 0.0,          // Virtual runtime accumulated
-    var eligibleTime: Double = 0.0,      // When task becomes eligible
-    var virtualDeadline: Double = 0.0,   // eligibleTime + slice/weight
-    var lag: Double = 0.0,               // Lag = (avg_vruntime - vruntime) * weight
+    var vruntime: Double = 0.0,
+    var eligibleTime: Double = 0.0,
+    var virtualDeadline: Double = 0.0,
+    var lag: Double = 0.0,
 
     // Timer state
     var remainingSeconds: Long = timeSliceSeconds,
     var isRunning: Boolean = false,
     var isCompleted: Boolean = false,
-    var totalRunTime: Long = 0L,         // Total seconds this task has been active
-    var runCount: Int = 0,               // How many times it has been scheduled
+    var totalRunTime: Long = 0L,
+    var runCount: Int = 0,
 
     val createdAt: Long = System.currentTimeMillis()
 ) {
-    // Weight derived from priority (priority 10 → weight 10, priority 1 → weight 1)
     val weight: Double get() = priority.toDouble()
 
-    // Nice display string for time
     val timeSliceDisplay: String get() {
         val h = timeSliceSeconds / 3600
         val m = (timeSliceSeconds % 3600) / 60
@@ -41,7 +44,7 @@ data class Task(
         return when {
             h > 0 -> "${h}h ${m}m"
             m > 0 -> "${m}m ${s}s"
-            else -> "${s}s"
+            else  -> "${s}s"
         }
     }
 
@@ -51,12 +54,13 @@ data class Task(
         val s = remainingSeconds % 60
         return when {
             h > 0 -> String.format("%d:%02d:%02d", h, m, s)
-            else -> String.format("%02d:%02d", m, s)
+            else  -> String.format("%02d:%02d", m, s)
         }
     }
 
     val progressPercent: Int get() {
         if (timeSliceSeconds == 0L) return 0
-        return ((timeSliceSeconds - remainingSeconds) * 100 / timeSliceSeconds).toInt().coerceIn(0, 100)
+        return ((timeSliceSeconds - remainingSeconds) * 100 / timeSliceSeconds)
+            .toInt().coerceIn(0, 100)
     }
 }
