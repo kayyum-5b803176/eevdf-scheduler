@@ -15,6 +15,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_toggle_global_rotate"
+        android:title="Global Rotate"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_clear_completed"
         android:title="Clear Completed"
         app:showAsAction="never" />

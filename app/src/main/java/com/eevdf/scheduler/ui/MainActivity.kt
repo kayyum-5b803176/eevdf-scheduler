@@ -55,7 +55,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStopAlarm:        MaterialButton
 
     private var currentTab = 0
-    private var groupsMenuItem: MenuItem? = null
+    private var groupsMenuItem:       MenuItem? = null
+    private var globalRotateMenuItem: MenuItem? = null
 
     private val alarmStopReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -270,6 +271,9 @@ class MainActivity : AppCompatActivity() {
         viewModel.groupsEnabled.observe(this) { enabled ->
             groupsMenuItem?.isChecked = enabled
         }
+        viewModel.globalRotateEnabled.observe(this) { enabled ->
+            globalRotateMenuItem?.isChecked = enabled
+        }
     }
 
     private fun updateEmptyView() {
@@ -305,6 +309,8 @@ class MainActivity : AppCompatActivity() {
         menuInflater.inflate(R.menu.main_menu, menu)
         groupsMenuItem = menu.findItem(R.id.action_toggle_groups)
         groupsMenuItem?.isChecked = viewModel.groupsEnabled.value ?: false
+        globalRotateMenuItem = menu.findItem(R.id.action_toggle_global_rotate)
+        globalRotateMenuItem?.isChecked = viewModel.globalRotateEnabled.value ?: false
         return true
     }
 
@@ -313,6 +319,11 @@ class MainActivity : AppCompatActivity() {
             R.id.action_toggle_groups -> {
                 viewModel.toggleGroupsEnabled()
                 item.isChecked = viewModel.groupsEnabled.value ?: false
+                true
+            }
+            R.id.action_toggle_global_rotate -> {
+                viewModel.toggleGlobalRotate()
+                item.isChecked = viewModel.globalRotateEnabled.value ?: false
                 true
             }
             R.id.action_clear_completed -> { viewModel.clearCompleted(); true }

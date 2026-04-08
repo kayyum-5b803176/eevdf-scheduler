@@ -16,7 +16,8 @@ import kotlinx.coroutines.launch
 class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE)
-    private val KEY_GROUPS = "groups_enabled"
+    private val KEY_GROUPS         = "groups_enabled"
+    private val KEY_GLOBAL_ROTATE  = "global_rotate_enabled"
 
     private val repository: TaskRepository
     val allTasks: LiveData<List<Task>>
@@ -59,6 +60,17 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val next = !(_groupsEnabled.value ?: false)
         prefs.edit().putBoolean(KEY_GROUPS, next).apply()
         _groupsEnabled.value = next
+    }
+
+    // ── Global rotate mode ────────────────────────────────────────────────────
+
+    private val _globalRotateEnabled = MutableLiveData<Boolean>(prefs.getBoolean(KEY_GLOBAL_ROTATE, false))
+    val globalRotateEnabled: LiveData<Boolean> = _globalRotateEnabled
+
+    fun toggleGlobalRotate() {
+        val next = !(_globalRotateEnabled.value ?: false)
+        prefs.edit().putBoolean(KEY_GLOBAL_ROTATE, next).apply()
+        _globalRotateEnabled.value = next
     }
 
     // Initialized after init{} so activeTasks/_scheduleOrder are already assigned
@@ -191,30 +203,88 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // ── Scheduler ────────────────────────────────────────────────────────────
 
     /**
-     * Rotates to the next sibling task in UI display order (same parentId).
-     * Wraps around when the current task is the last sibling.
-     * Falls back to scheduleNext() if there are no siblings.
+     * Rotates to the next task.
+     *  - Global Rotate ON : cycles through the first leaf of each root-level entry
+     *                       (first leaf of group-a → first leaf of group-b → root tasks → wrap)
+     *  - Global Rotate OFF: cycles through siblings (same parentId) in UI order.
      */
     fun nextSibling() {
         pauseTimer()
+        if (_globalRotateEnabled.value == true) {
+            rotateGlobal()
+        } else {
+            rotateSiblings()
+        }
+    }
+
+    /** Sibling rotation: next leaf with same parentId in UI (virtualDeadline) order. */
+    private fun rotateSiblings() {
         val current = _currentTask.value
-        // Collect leaf siblings from the current UI display order
-        val displayItems = flatActiveTasks.value ?: emptyList()
-        val siblings = displayItems
-            .map { it.task }
+        val allTasks = flatActiveTasks.value?.map { it.task } ?: return
+        val siblings = allTasks
             .filter { !it.isGroup && !it.isCompleted && it.parentId == current?.parentId }
+            .sortedBy { it.virtualDeadline }
         if (siblings.size <= 1) {
-            // No siblings to rotate to — fall back to EEVDF global pick
-            viewModelScope.launch { scheduleNext() }
+            viewModelScope.launch { scheduleNext() }  // no siblings, fall back to EEVDF
             return
         }
-        val currentIndex = siblings.indexOfFirst { it.id == current?.id }
-        val nextIndex = (currentIndex + 1) % siblings.size
-        val next = siblings[nextIndex]
-        _currentTask.value = next
+        val idx  = siblings.indexOfFirst { it.id == current?.id }
+        val next = siblings[(idx + 1) % siblings.size]
+        _currentTask.value  = next
         _timerSeconds.value = next.remainingSeconds
-        _toastMessage.value = "Next: \"${next.name}\" (${nextIndex + 1}/${siblings.size})"
+        _toastMessage.value = "Next: \"${next.name}\" (${(idx + 2) % siblings.size + 1}/${siblings.size})"
         viewModelScope.launch { refreshSchedule() }
+    }
+
+    /**
+     * Global rotation: one representative leaf per root-level entry, in UI order.
+     * For a group, the representative is its first leaf (depth-first, virtualDeadline order).
+     * For a root leaf task, it represents itself.
+     * Example: group-a(group-aa(task-aa1), task-a1), group-b(task-b1,task-b2), task-a
+     *          → task-aa1 → task-b1 → task-a → (wrap)
+     */
+    private fun rotateGlobal() {
+        val current  = _currentTask.value
+        val allTasks = flatActiveTasks.value?.map { it.task } ?: return
+        // Root-level entries in UI order
+        val rootEntries = allTasks
+            .filter { it.parentId == null && !it.isCompleted }
+            .sortedBy { it.virtualDeadline }
+        // Map each root entry to its representative first leaf; skip empties
+        val representatives = rootEntries.mapNotNull { root ->
+            val leaf = if (!root.isGroup) root else firstLeafOf(allTasks, root.id)
+            leaf?.let { Pair(root.id, it) }
+        }
+        if (representatives.isEmpty()) return
+        // Find which root slot the current task lives under
+        val currentRootId = current?.let { rootAncestorOf(allTasks, it)?.id }
+        val currentIdx    = representatives.indexOfFirst { it.first == currentRootId }
+        val nextIdx       = (currentIdx + 1) % representatives.size
+        val next          = representatives[nextIdx].second
+        _currentTask.value  = next
+        _timerSeconds.value = next.remainingSeconds
+        _toastMessage.value = "Next: \"${next.name}\" (${nextIdx + 1}/${representatives.size})"
+        viewModelScope.launch { refreshSchedule() }
+    }
+
+    /** Returns the first non-group, non-completed leaf under [parentId] in virtualDeadline order. */
+    private fun firstLeafOf(tasks: List<Task>, parentId: String?): Task? {
+        val children = tasks
+            .filter { it.parentId == parentId && !it.isCompleted }
+            .sortedBy { it.virtualDeadline }
+        for (child in children) {
+            if (!child.isGroup) return child
+            val leaf = firstLeafOf(tasks, child.id)
+            if (leaf != null) return leaf
+        }
+        return null
+    }
+
+    /** Traces up parentId chain to return the root-level ancestor (parentId == null). */
+    private fun rootAncestorOf(tasks: List<Task>, task: Task): Task? {
+        if (task.parentId == null) return task
+        val parent = tasks.find { it.id == task.parentId } ?: return task
+        return rootAncestorOf(tasks, parent)
     }
 
     fun scheduleNext() = viewModelScope.launch {
