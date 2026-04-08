@@ -184,7 +184,7 @@ class MainActivity : AppCompatActivity() {
             else viewModel.startTimer()
         }
         btnSkip.setOnClickListener { viewModel.skipTask() }
-        btnScheduleNext.setOnClickListener { viewModel.scheduleNext() }
+        btnScheduleNext.setOnClickListener { viewModel.nextSibling() }
     }
 
     private fun setupObservers() {

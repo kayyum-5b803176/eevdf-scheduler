@@ -190,6 +190,33 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Scheduler ────────────────────────────────────────────────────────────
 
+    /**
+     * Rotates to the next sibling task in UI display order (same parentId).
+     * Wraps around when the current task is the last sibling.
+     * Falls back to scheduleNext() if there are no siblings.
+     */
+    fun nextSibling() {
+        pauseTimer()
+        val current = _currentTask.value
+        // Collect leaf siblings from the current UI display order
+        val displayItems = flatActiveTasks.value ?: emptyList()
+        val siblings = displayItems
+            .map { it.task }
+            .filter { !it.isGroup && !it.isCompleted && it.parentId == current?.parentId }
+        if (siblings.size <= 1) {
+            // No siblings to rotate to — fall back to EEVDF global pick
+            viewModelScope.launch { scheduleNext() }
+            return
+        }
+        val currentIndex = siblings.indexOfFirst { it.id == current?.id }
+        val nextIndex = (currentIndex + 1) % siblings.size
+        val next = siblings[nextIndex]
+        _currentTask.value = next
+        _timerSeconds.value = next.remainingSeconds
+        _toastMessage.value = "Next: \"${next.name}\" (${nextIndex + 1}/${siblings.size})"
+        viewModelScope.launch { refreshSchedule() }
+    }
+
     fun scheduleNext() = viewModelScope.launch {
         pauseTimer()
         val next = repository.selectNextTask()
