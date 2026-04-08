@@ -84,8 +84,8 @@ class TaskAdapter(
             holder.btnRun.visibility      = View.GONE
             holder.btnComplete.visibility = View.GONE
             holder.btnGroupToggle.visibility = View.VISIBLE
-            // Rotate play icon: 90° = pointing down (expanded), 0° = pointing right (collapsed)
-            holder.btnGroupToggle.rotation = if (task.isGroupExpanded) 90f else 0f
+            // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
+            holder.btnGroupToggle.rotation = if (task.isGroupExpanded) 180f else 0f
             holder.btnGroupToggle.setOnClickListener { onGroupToggle(task) }
         } else {
             // Leaf task row

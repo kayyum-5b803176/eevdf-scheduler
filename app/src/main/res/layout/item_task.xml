@@ -172,7 +172,7 @@
                     android:id="@+id/btnGroupToggle"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:src="@android:drawable/ic_media_play"
+                    android:src="@drawable/outline_arrow_circle_down_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@color/colorPrimary"
                     android:contentDescription="Toggle Group"
@@ -182,7 +182,7 @@
                     android:id="@+id/btnRun"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:src="@android:drawable/ic_media_play"
+                    android:src="@drawable/outline_timer_play_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@color/colorPrimary"
                     android:contentDescription="Run Task" />
@@ -191,7 +191,7 @@
                     android:id="@+id/btnComplete"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:src="@android:drawable/checkbox_on_background"
+                    android:src="@drawable/outline_check_circle_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="#4CAF50"
                     android:contentDescription="Mark Complete" />
@@ -200,7 +200,7 @@
                     android:id="@+id/btnDelete"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:src="@android:drawable/ic_menu_delete"
+                    android:src="@drawable/baseline_delete_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="#F44336"
                     android:contentDescription="Delete" />
