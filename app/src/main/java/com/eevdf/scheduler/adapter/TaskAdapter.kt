@@ -16,12 +16,13 @@ import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.model.TaskDisplayItem
 
 class TaskAdapter(
-    private val onTaskClick:      (Task) -> Unit,
-    private val onDeleteClick:    (Task) -> Unit,
-    private val onCompleteClick:  (Task) -> Unit,
-    private val onRunClick:       (Task) -> Unit,
-    private val onGroupToggle:    (Task) -> Unit,   // expand / collapse a group
-    private val showScheduleRank: Boolean = false
+    private val onTaskClick:        (Task) -> Unit,
+    private val onDeleteClick:      (Task) -> Unit,
+    private val onCompleteClick:    (Task) -> Unit,
+    private val onRunClick:         (Task) -> Unit,
+    private val onGroupToggle:      (Task) -> Unit,   // expand / collapse a group
+    private val onResetSliceClick:  (Task) -> Unit = {},
+    private val showScheduleRank:   Boolean = false
 ) : ListAdapter<TaskDisplayItem, TaskAdapter.TaskViewHolder>(DiffCallback()) {
 
     private var runningTaskId: String? = null
@@ -46,6 +47,7 @@ class TaskAdapter(
         val btnComplete:    ImageButton = itemView.findViewById(R.id.btnComplete)
         val btnRun:         ImageButton = itemView.findViewById(R.id.btnRun)
         val btnGroupToggle: ImageButton = itemView.findViewById(R.id.btnGroupToggle)
+        val btnResetSlice:  ImageButton = itemView.findViewById(R.id.btnResetSlice)
         val tvRunCount:     TextView    = itemView.findViewById(R.id.tvRunCount)
         val viewRunning:    View        = itemView.findViewById(R.id.viewRunningIndicator)
     }
@@ -81,8 +83,9 @@ class TaskAdapter(
             holder.tvRemaining.text = "VRT: ${"%.2f".format(task.vruntime)}"
             holder.tvRunCount.text  = "Runs: ${task.runCount}"
             holder.progressBar.visibility = View.GONE
-            holder.btnRun.visibility      = View.GONE
-            holder.btnComplete.visibility = View.GONE
+            holder.btnRun.visibility         = View.GONE
+            holder.btnComplete.visibility    = View.GONE
+            holder.btnResetSlice.visibility  = View.GONE
             holder.btnGroupToggle.visibility = View.VISIBLE
             // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
             holder.btnGroupToggle.rotation = if (task.isGroupExpanded) 180f else 0f
@@ -98,8 +101,12 @@ class TaskAdapter(
             holder.btnRun.visibility         = View.VISIBLE
             holder.btnComplete.visibility    = View.VISIBLE
             holder.btnGroupToggle.visibility = View.GONE
-            holder.btnRun.setOnClickListener      { onRunClick(task) }
-            holder.btnComplete.setOnClickListener { onCompleteClick(task) }
+            // Show reset button only when the slice has been partially consumed
+            holder.btnResetSlice.visibility  =
+                if (task.remainingSeconds < task.timeSliceSeconds) View.VISIBLE else View.GONE
+            holder.btnRun.setOnClickListener        { onRunClick(task) }
+            holder.btnComplete.setOnClickListener   { onCompleteClick(task) }
+            holder.btnResetSlice.setOnClickListener { onResetSliceClick(task) }
         }
 
         // ── Schedule rank ──────────────────────────────────────────────────────

@@ -167,6 +167,16 @@
                 android:layout_marginTop="8dp"
                 android:gravity="end">
 
+                <ImageButton
+                    android:id="@+id/btnResetSlice"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/outline_rotate_left_24"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="#FF9800"
+                    android:contentDescription="Reset Timer Slice"
+                    android:visibility="gone" />
+
                 <!-- Group expand/collapse (visible for group items only) -->
                 <ImageButton
                     android:id="@+id/btnGroupToggle"

@@ -129,12 +129,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeAdapter(showRank: Boolean = false) = TaskAdapter(
-        onTaskClick     = { showTaskDetail(it) },
-        onDeleteClick   = { confirmDelete(it) },
-        onCompleteClick = { viewModel.markCompleted(it) },
-        onRunClick      = { viewModel.setCurrentTask(it) },
-        onGroupToggle   = { viewModel.toggleGroupExpanded(it) },
-        showScheduleRank = showRank
+        onTaskClick          = { showTaskDetail(it) },
+        onDeleteClick        = { confirmDelete(it) },
+        onCompleteClick      = { viewModel.markCompleted(it) },
+        onRunClick           = { viewModel.setCurrentTask(it) },
+        onGroupToggle        = { viewModel.toggleGroupExpanded(it) },
+        onResetSliceClick    = { viewModel.resetSlice(it) },
+        showScheduleRank     = showRank
     )
 
     private fun setupAdapters() {

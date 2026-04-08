@@ -273,6 +273,19 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Reset the timer slice of any task back to its default [timeSliceSeconds]. */
+    fun resetSlice(task: Task) {
+        // If this task is the currently running one, also reset the live timer display
+        if (task.id == _currentTask.value?.id) {
+            resetTimer()
+            return
+        }
+        viewModelScope.launch {
+            val updated = task.copy(remainingSeconds = task.timeSliceSeconds)
+            repository.update(updated)
+        }
+    }
+
     fun skipTask() {
         stopAlarmSound()
         pauseTimer()
