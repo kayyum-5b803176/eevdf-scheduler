@@ -87,14 +87,25 @@ class TaskRepository(private val dao: TaskDao) {
         selectNextCgroup(allActive, null)
     }
 
-    private fun selectNextCgroup(all: List<Task>, parentId: String?): Task? {
-        val level = all.filter { it.parentId == parentId && !it.isCompleted && !it.isRunning }
+    private fun selectNextCgroup(
+        all: List<Task>,
+        parentId: String?,
+        visited: MutableSet<String> = mutableSetOf()
+    ): Task? {
+        // Exclude already-tried empty groups to prevent infinite recursion
+        val level = all.filter {
+            it.parentId == parentId && !it.isCompleted && !it.isRunning && it.id !in visited
+        }
         if (level.isEmpty()) return null
         EEVDFScheduler.recalculate(level)
         val winner = EEVDFScheduler.selectNext(level) ?: return null
         return if (winner.isGroup) {
-            // Drill into the group; fall back to root if the group is empty
-            selectNextCgroup(all, winner.id) ?: selectNextCgroup(all, null)
+            // Mark this group visited so it won't be retried if its children are empty
+            visited.add(winner.id)
+            // Drill into the group; if it has no eligible children fall back at
+            // the SAME level (not root) — skipping the now-visited empty group
+            selectNextCgroup(all, winner.id, visited)
+                ?: selectNextCgroup(all, parentId, visited)
         } else {
             winner
         }
