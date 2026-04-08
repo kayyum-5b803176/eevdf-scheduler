@@ -240,6 +240,14 @@ class MainActivity : AppCompatActivity() {
         viewModel.timerRunning.observe(this) { running ->
             btnStartPause.text = if (running) "Pause" else "Start"
             btnStartPause.icon = null
+            val tintColor = if (running) R.color.timerYellow else R.color.timerGreen
+            btnStartPause.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(
+                    androidx.core.content.ContextCompat.getColor(this, tintColor)
+                )
+            // Skip MaterialShapeDrawable's internal color-transition animator
+            // to prevent the brief light-flash artifact on state change
+            btnStartPause.jumpDrawablesToCurrentState()
         }
 
         viewModel.stats.observe(this) { stats ->
