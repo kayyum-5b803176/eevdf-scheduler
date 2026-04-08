@@ -168,6 +168,16 @@
                 android:gravity="end">
 
                 <ImageButton
+                    android:id="@+id/btnRevert"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_undo_24"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="#7E57C2"
+                    android:contentDescription="Revert to Queue"
+                    android:visibility="gone" />
+
+                <ImageButton
                     android:id="@+id/btnResetSlice"
                     android:layout_width="36dp"
                     android:layout_height="36dp"

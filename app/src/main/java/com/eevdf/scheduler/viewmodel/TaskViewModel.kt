@@ -160,6 +160,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _toastMessage.postValue("Task \"${task.name}\" deleted")
     }
 
+    /** Moves a completed task back to the active queue, restoring its timer slice. */
+    fun revertTask(task: Task) = viewModelScope.launch {
+        val reverted = task.copy(
+            isCompleted      = false,
+            isRunning        = false,
+            remainingSeconds = task.timeSliceSeconds
+        )
+        repository.update(reverted)
+    }
+
     fun markCompleted(task: Task) = viewModelScope.launch {
         if (task.id == _currentTask.value?.id) stopTimer(completed = true)
         else repository.markCompleted(task)

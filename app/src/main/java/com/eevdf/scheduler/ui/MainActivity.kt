@@ -142,11 +142,13 @@ class MainActivity : AppCompatActivity() {
         activeAdapter   = makeAdapter()
         scheduleAdapter = makeAdapter(showRank = true)
         completedAdapter = TaskAdapter(
-            onTaskClick     = { showTaskDetail(it) },
-            onDeleteClick   = { confirmDelete(it) },
+            onTaskClick    = { showTaskDetail(it) },
+            onDeleteClick  = { confirmDelete(it) },
             onCompleteClick = {},
             onRunClick      = {},
-            onGroupToggle   = {}
+            onGroupToggle   = {},
+            onRevertClick   = { viewModel.revertTask(it) },
+            isCompletedTab  = true
         )
     }
 
