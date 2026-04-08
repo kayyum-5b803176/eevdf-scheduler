@@ -170,13 +170,12 @@ class AddTaskActivity : AppCompatActivity() {
 
     private fun loadExistingTask() {
         lifecycleScope.launch {
-            val task = existingTaskId?.let { id ->
-                viewModel.activeTasks.value?.find { it.id == id }
-                    ?: viewModel.completedTasks.value?.find { it.id == id }
-            }
+            // Use a direct DB query so we never rely on LiveData.value being
+            // non-null on the first frame (which causes the "creates new task" bug)
+            val task = existingTaskId?.let { viewModel.getTaskById(it) }
             if (task != null) {
                 existingTask = task
-                populateFields(task)
+                runOnUiThread { populateFields(task) }
             }
         }
     }

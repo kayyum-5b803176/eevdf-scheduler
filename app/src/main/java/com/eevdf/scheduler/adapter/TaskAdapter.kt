@@ -17,6 +17,7 @@ import com.eevdf.scheduler.model.TaskDisplayItem
 
 class TaskAdapter(
     private val onTaskClick:        (Task) -> Unit,
+    private val onTaskLongClick:    (Task) -> Unit = {},
     private val onDeleteClick:      (Task) -> Unit,
     private val onCompleteClick:    (Task) -> Unit,
     private val onRunClick:         (Task) -> Unit,
@@ -156,6 +157,7 @@ class TaskAdapter(
         )
 
         holder.card.setOnClickListener { onTaskClick(task) }
+        holder.card.setOnLongClickListener { onTaskLongClick(task); true }
         holder.btnDelete.setOnClickListener { onDeleteClick(task) }
     }
 

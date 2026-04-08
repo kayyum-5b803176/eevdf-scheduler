@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private var currentTab = 0
     private var groupsMenuItem:       MenuItem? = null
     private var globalRotateMenuItem: MenuItem? = null
+    private var allowEditMenuItem:    MenuItem? = null
 
     private val alarmStopReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -130,7 +131,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeAdapter(showRank: Boolean = false) = TaskAdapter(
-        onTaskClick          = { showTaskDetail(it) },
+        onTaskClick          = { /* tap does nothing — use long-press to edit */ },
+        onTaskLongClick      = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
+        else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
         onDeleteClick        = { confirmDelete(it) },
         onCompleteClick      = { viewModel.markCompleted(it) },
         onRunClick           = { viewModel.setCurrentTask(it) },
@@ -143,13 +146,15 @@ class MainActivity : AppCompatActivity() {
         activeAdapter   = makeAdapter()
         scheduleAdapter = makeAdapter(showRank = true)
         completedAdapter = TaskAdapter(
-            onTaskClick    = { showTaskDetail(it) },
-            onDeleteClick  = { confirmDelete(it) },
-            onCompleteClick = {},
-            onRunClick      = {},
-            onGroupToggle   = {},
-            onRevertClick   = { viewModel.revertTask(it) },
-            isCompletedTab  = true
+            onTaskClick      = { /* tap does nothing */ },
+            onTaskLongClick  = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
+            else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
+            onDeleteClick    = { confirmDelete(it) },
+            onCompleteClick  = {},
+            onRunClick       = {},
+            onGroupToggle    = {},
+            onRevertClick    = { viewModel.revertTask(it) },
+            isCompletedTab   = true
         )
     }
 
@@ -283,6 +288,9 @@ class MainActivity : AppCompatActivity() {
         viewModel.globalRotateEnabled.observe(this) { enabled ->
             globalRotateMenuItem?.isChecked = enabled
         }
+        viewModel.allowEditEnabled.observe(this) { enabled ->
+            allowEditMenuItem?.isChecked = enabled
+        }
     }
 
     /**
@@ -349,6 +357,8 @@ class MainActivity : AppCompatActivity() {
         groupsMenuItem?.isChecked = viewModel.groupsEnabled.value ?: false
         globalRotateMenuItem = menu.findItem(R.id.action_toggle_global_rotate)
         globalRotateMenuItem?.isChecked = viewModel.globalRotateEnabled.value ?: false
+        allowEditMenuItem = menu.findItem(R.id.action_allow_edit)
+        allowEditMenuItem?.isChecked = viewModel.allowEditEnabled.value ?: false
         return true
     }
 
@@ -362,6 +372,11 @@ class MainActivity : AppCompatActivity() {
             R.id.action_toggle_global_rotate -> {
                 viewModel.toggleGlobalRotate()
                 item.isChecked = viewModel.globalRotateEnabled.value ?: false
+                true
+            }
+            R.id.action_allow_edit -> {
+                viewModel.toggleAllowEdit()
+                item.isChecked = viewModel.allowEditEnabled.value ?: false
                 true
             }
             R.id.action_clear_completed -> { viewModel.clearCompleted(); true }

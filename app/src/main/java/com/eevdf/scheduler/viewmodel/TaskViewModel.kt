@@ -18,6 +18,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE)
     private val KEY_GROUPS         = "groups_enabled"
     private val KEY_GLOBAL_ROTATE  = "global_rotate_enabled"
+    private val KEY_ALLOW_EDIT     = "allow_edit_enabled"
 
     private val repository: TaskRepository
     val allTasks: LiveData<List<Task>>
@@ -72,6 +73,20 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putBoolean(KEY_GLOBAL_ROTATE, next).apply()
         _globalRotateEnabled.value = next
     }
+
+    // ── Allow edit mode ───────────────────────────────────────────────────────
+
+    private val _allowEditEnabled = MutableLiveData<Boolean>(prefs.getBoolean(KEY_ALLOW_EDIT, false))
+    val allowEditEnabled: LiveData<Boolean> = _allowEditEnabled
+
+    fun toggleAllowEdit() {
+        val next = !(_allowEditEnabled.value ?: false)
+        prefs.edit().putBoolean(KEY_ALLOW_EDIT, next).apply()
+        _allowEditEnabled.value = next
+    }
+
+    /** Direct DB lookup used by AddTaskActivity to reliably load a task for editing. */
+    suspend fun getTaskById(id: String): Task? = repository.getTaskById(id)
 
     // Initialized after init{} so activeTasks/_scheduleOrder are already assigned
     lateinit var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>>
