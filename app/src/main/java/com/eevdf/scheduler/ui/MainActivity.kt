@@ -218,6 +218,7 @@ class MainActivity : AppCompatActivity() {
                 tvTimerDisplay.text = task.remainingDisplay
                 activeAdapter.setRunningTask(task.id)
                 scheduleAdapter.setRunningTask(task.id)
+                scrollToTask(task.id)
             } else {
                 cardTimer.visibility = View.GONE
                 activeAdapter.setRunningTask(null)
@@ -273,6 +274,35 @@ class MainActivity : AppCompatActivity() {
         }
         viewModel.globalRotateEnabled.observe(this) { enabled ->
             globalRotateMenuItem?.isChecked = enabled
+        }
+    }
+
+    /**
+     * Scrolls the RecyclerView to the card of [taskId].
+     * If the task is not in the currently visible adapter, switches to the Queue tab first.
+     */
+    private fun scrollToTask(taskId: String) {
+        // Try to find the task in whichever adapter is currently shown
+        val currentAdapter = when (currentTab) {
+            0    -> activeAdapter
+            1    -> scheduleAdapter
+            else -> return  // completed tab — no need to scroll
+        }
+        val position = currentAdapter.currentList.indexOfFirst { it.task.id == taskId }
+        if (position >= 0) {
+            // Task is visible in the current tab — scroll directly
+            (recyclerView.layoutManager as? LinearLayoutManager)
+                ?.smoothScrollToPosition(recyclerView, null, position)
+        } else {
+            // Task not in current tab — switch to Queue and retry after the list updates
+            tabLayout.getTabAt(0)?.select()
+            recyclerView.post {
+                val pos = activeAdapter.currentList.indexOfFirst { it.task.id == taskId }
+                if (pos >= 0) {
+                    (recyclerView.layoutManager as? LinearLayoutManager)
+                        ?.smoothScrollToPosition(recyclerView, null, pos)
+                }
+            }
         }
     }
 
