@@ -21,6 +21,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_auto_scroll"
+        android:title="Auto Scroll"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_allow_edit"
         android:title="Allow Edit"
         android:checkable="true"

@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private var groupsMenuItem:       MenuItem? = null
     private var globalRotateMenuItem: MenuItem? = null
     private var allowEditMenuItem:    MenuItem? = null
+    private var autoScrollMenuItem:   MenuItem? = null
 
     private val alarmStopReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -223,7 +224,7 @@ class MainActivity : AppCompatActivity() {
                 tvTimerDisplay.text = task.remainingDisplay
                 activeAdapter.setRunningTask(task.id)
                 scheduleAdapter.setRunningTask(task.id)
-                scrollToTask(task.id)
+                if (viewModel.autoScrollEnabled.value == true) scrollToTask(task.id)
             } else {
                 cardTimer.visibility = View.GONE
                 activeAdapter.setRunningTask(null)
@@ -290,6 +291,9 @@ class MainActivity : AppCompatActivity() {
         }
         viewModel.allowEditEnabled.observe(this) { enabled ->
             allowEditMenuItem?.isChecked = enabled
+        }
+        viewModel.autoScrollEnabled.observe(this) { enabled ->
+            autoScrollMenuItem?.isChecked = enabled
         }
     }
 
@@ -359,6 +363,8 @@ class MainActivity : AppCompatActivity() {
         globalRotateMenuItem?.isChecked = viewModel.globalRotateEnabled.value ?: false
         allowEditMenuItem = menu.findItem(R.id.action_allow_edit)
         allowEditMenuItem?.isChecked = viewModel.allowEditEnabled.value ?: false
+        autoScrollMenuItem = menu.findItem(R.id.action_auto_scroll)
+        autoScrollMenuItem?.isChecked = viewModel.autoScrollEnabled.value ?: false
         return true
     }
 
@@ -377,6 +383,11 @@ class MainActivity : AppCompatActivity() {
             R.id.action_allow_edit -> {
                 viewModel.toggleAllowEdit()
                 item.isChecked = viewModel.allowEditEnabled.value ?: false
+                true
+            }
+            R.id.action_auto_scroll -> {
+                viewModel.toggleAutoScroll()
+                item.isChecked = viewModel.autoScrollEnabled.value ?: false
                 true
             }
             R.id.action_clear_completed -> { viewModel.clearCompleted(); true }

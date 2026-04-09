@@ -19,6 +19,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val KEY_GROUPS         = "groups_enabled"
     private val KEY_GLOBAL_ROTATE  = "global_rotate_enabled"
     private val KEY_ALLOW_EDIT     = "allow_edit_enabled"
+    private val KEY_AUTO_SCROLL    = "auto_scroll_enabled"
 
     private val repository: TaskRepository
     val allTasks: LiveData<List<Task>>
@@ -83,6 +84,17 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val next = !(_allowEditEnabled.value ?: false)
         prefs.edit().putBoolean(KEY_ALLOW_EDIT, next).apply()
         _allowEditEnabled.value = next
+    }
+
+    // ── Auto scroll mode ─────────────────────────────────────────────────────
+
+    private val _autoScrollEnabled = MutableLiveData<Boolean>(prefs.getBoolean(KEY_AUTO_SCROLL, false))
+    val autoScrollEnabled: LiveData<Boolean> = _autoScrollEnabled
+
+    fun toggleAutoScroll() {
+        val next = !(_autoScrollEnabled.value ?: false)
+        prefs.edit().putBoolean(KEY_AUTO_SCROLL, next).apply()
+        _autoScrollEnabled.value = next
     }
 
     /** Direct DB lookup used by AddTaskActivity to reliably load a task for editing. */
