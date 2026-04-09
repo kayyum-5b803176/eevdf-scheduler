@@ -144,27 +144,23 @@ class AddTaskActivity : AppCompatActivity() {
 
     private fun setupPrioritySlider() {
         sliderPriority.valueFrom = 1f
-        sliderPriority.valueTo   = 10f
+        sliderPriority.valueTo   = 7f
         sliderPriority.stepSize  = 1f
-        sliderPriority.value     = 5f
-        updatePriorityInfo(5)
+        sliderPriority.value     = 4f
+        updatePriorityInfo(4)
         sliderPriority.addOnChangeListener { _, value, _ -> updatePriorityInfo(value.toInt()) }
     }
 
     private fun updatePriorityInfo(priority: Int) {
-        tvPriorityLabel.text = "Priority: $priority/10"
+        tvPriorityLabel.text = "Priority: $priority"
         tvPriorityInfo.text = when (priority) {
-            10 -> "Critical — Maximum weight (10x). Runs first."
-            9  -> "Urgent — Very high weight."
-            8  -> "High — Prioritized over average tasks."
-            7  -> "Above Average — Scheduled before medium tasks."
-            6  -> "Medium-High — Slightly favored."
-            5  -> "Medium — Balanced scheduling weight."
-            4  -> "Medium-Low — Slightly deprioritized."
-            3  -> "Low — Runs after higher-priority tasks."
-            2  -> "Background — Minimal urgency."
-            1  -> "Minimal — Runs only when nothing else is pending."
-            else -> ""
+            7    -> "Critical — Maximum weight. Runs first."
+            6    -> "High — Prioritized over most tasks."
+            5    -> "Above Average — Scheduled before medium tasks."
+            4    -> "Medium — Balanced scheduling weight."
+            3    -> "Below Average — Slightly deprioritized."
+            2    -> "Low — Runs after higher-priority tasks."
+            else -> "Minimal — Runs only when nothing else is pending."
         }
     }
 
@@ -183,7 +179,7 @@ class AddTaskActivity : AppCompatActivity() {
     private fun populateFields(task: Task) {
         etName.setText(task.name)
         etDescription.setText(task.description)
-        sliderPriority.value = task.priority.toFloat()
+        sliderPriority.value = task.priority.coerceIn(1, 7).toFloat()
         updatePriorityInfo(task.priority)
 
         val totalSec = task.timeSliceSeconds

@@ -4,11 +4,14 @@
     <color name="colorPrimaryDark">#0D47A1</color>
     <color name="colorAccent">#FF6D00</color>
 
-    <color name="priorityHigh">#F44336</color>
-    <color name="priorityMediumHigh">#FF9800</color>
-    <color name="priorityMedium">#2196F3</color>
-    <color name="priorityLow">#4CAF50</color>
-    <color name="priorityMinimal">#9E9E9E</color>
+    <!-- Priority rainbow: 1 (lowest) → 7 (highest) -->
+    <color name="priority1">#9C27B0</color><!-- Purple  -->
+    <color name="priority2">#3F51B5</color><!-- Indigo  -->
+    <color name="priority3">#2196F3</color><!-- Blue    -->
+    <color name="priority4">#4CAF50</color><!-- Green   -->
+    <color name="priority5">#FF9800</color><!-- Orange (was orange, now yellow slot) -->
+    <color name="priority6">#F57F17</color><!-- Orange -->
+    <color name="priority7">#F44336</color><!-- Red     -->
 
     <color name="timerGreen">#4CAF50</color>
     <color name="timerYellow">#FF9800</color>

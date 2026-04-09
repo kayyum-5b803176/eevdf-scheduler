@@ -167,9 +167,9 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:valueFrom="1"
-                        android:valueTo="10"
+                        android:valueTo="7"
                         android:stepSize="1"
-                        android:value="5"
+                        android:value="4"
                         app:haloColor="@color/colorPrimary"
                         app:thumbColor="@color/colorPrimary"
                         app:trackColorActive="@color/colorPrimary" />
@@ -181,7 +181,7 @@
                         <TextView android:layout_width="0dp" android:layout_height="wrap_content"
                             android:layout_weight="1" android:text="1 (Low)" android:textSize="10sp" android:textColor="#9E9E9E"/>
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="10 (Critical)" android:textSize="10sp" android:textColor="#9E9E9E"/>
+                            android:text="7 (Critical)" android:textSize="10sp" android:textColor="#9E9E9E"/>
                     </LinearLayout>
 
                     <TextView

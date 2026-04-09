@@ -75,7 +75,7 @@ class TaskAdapter(
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
-        holder.tvPriority.text = "Priority: ${task.priority}/10"
+        holder.tvPriority.text = "Priority: ${task.priority}"
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
 
@@ -138,11 +138,13 @@ class TaskAdapter(
 
         // ── Priority colour ────────────────────────────────────────────────────
         val priorityColor = when (task.priority) {
-            in 9..10 -> Color.parseColor("#F44336")
-            in 7..8  -> Color.parseColor("#FF9800")
-            in 5..6  -> Color.parseColor("#2196F3")
-            in 3..4  -> Color.parseColor("#4CAF50")
-            else     -> Color.parseColor("#9E9E9E")
+            7    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority7)
+            6    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority6)
+            5    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority5)
+            4    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority4)
+            3    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority3)
+            2    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority2)
+            else -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority1)
         }
         holder.tvPriority.setTextColor(priorityColor)
 
