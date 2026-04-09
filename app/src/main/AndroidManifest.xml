@@ -39,6 +39,19 @@
             Full-screen alarm activity — shown over lock screen when timer expires.
             showWhenLocked + turnScreenOn handled in code for API 26 compat.
         -->
+        <!--
+            Settings screen — import / export data backup.
+        -->
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <!--
+            Full-screen alarm activity — shown over lock screen when timer expires.
+            showWhenLocked + turnScreenOn handled in code for API 26 compat.
+        -->
         <activity
             android:name=".ui.AlarmActivity"
             android:exported="false"

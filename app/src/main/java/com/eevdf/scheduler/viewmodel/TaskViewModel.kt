@@ -504,4 +504,17 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         stopAlarmSound()
         countDownTimer?.cancel()
     }
+
+    // ── DB export / import ────────────────────────────────────────────────────
+
+    /**
+     * Stops the timer, clears the current task, then flushes and closes the
+     * Room connection so SettingsActivity can safely copy/replace the .db file.
+     * Room re-initialises automatically the next time any DAO is accessed.
+     */
+    fun prepareForDbExport() {
+        pauseTimer()
+        _currentTask.postValue(null)
+        TaskDatabase.checkpointAndClose(getApplication())
+    }
 }

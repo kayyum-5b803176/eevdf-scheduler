@@ -30,4 +30,9 @@
         android:id="@+id/action_clear_completed"
         android:title="Clear Completed"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/action_settings"
+        android:title="Settings"
+        app:showAsAction="never" />
+
 </menu>

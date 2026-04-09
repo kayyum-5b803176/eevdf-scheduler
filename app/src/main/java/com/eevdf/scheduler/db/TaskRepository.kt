@@ -115,4 +115,22 @@ class TaskRepository(private val dao: TaskDao) {
         val activeTasks = dao.getActiveTasksSync()
         EEVDFScheduler.getScheduleOrder(activeTasks)
     }
+
+    // ── Backup / Restore ──────────────────────────────────────────────────────
+
+    /** Returns every task (active + completed) for export. */
+    suspend fun getAllTasksForBackup(): List<Task> = withContext(Dispatchers.IO) {
+        dao.getAllTasksForBackup()
+    }
+
+    /**
+     * Replaces the entire database with [tasks].
+     * Runs inside a single IO coroutine so the DB is never left half-written.
+     */
+    suspend fun restoreFromBackup(tasks: List<Task>) = withContext(Dispatchers.IO) {
+        dao.deleteAllTasks()
+        for (task in tasks) {
+            dao.insert(task)
+        }
+    }
 }

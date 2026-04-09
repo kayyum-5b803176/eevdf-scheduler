@@ -43,4 +43,14 @@ interface TaskDao {
     /** All group tasks (containers) that are not completed. */
     @Query("SELECT * FROM tasks WHERE isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
     fun getActiveGroups(): LiveData<List<Task>>
+
+    // ── Backup / Restore ──────────────────────────────────────────────────────
+
+    /** Returns every task (active + completed) for full backup. */
+    @Query("SELECT * FROM tasks ORDER BY createdAt ASC")
+    suspend fun getAllTasksForBackup(): List<Task>
+
+    /** Removes every task row — used before restoring a backup. */
+    @Query("DELETE FROM tasks")
+    suspend fun deleteAllTasks()
 }

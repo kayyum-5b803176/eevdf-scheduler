@@ -381,6 +381,10 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_clear_completed -> { viewModel.clearCompleted(); true }
             R.id.action_schedule_next   -> { viewModel.scheduleNext(); true }
+            R.id.action_settings -> {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
     }

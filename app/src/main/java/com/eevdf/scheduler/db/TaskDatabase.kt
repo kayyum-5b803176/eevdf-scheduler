@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import java.io.File
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.eevdf.scheduler.model.Task
@@ -26,17 +27,40 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        private const val DB_NAME = "eevdf_task_database"
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     TaskDatabase::class.java,
-                    "eevdf_task_database"
+                    DB_NAME
                 )
                     .addMigrations(MIGRATION_1_2)
                     .build()
                 INSTANCE = instance
                 instance
+            }
+        }
+        /** Returns the on-disk path of the main SQLite database file. */
+        fun getDatabaseFile(context: Context): File =
+            context.getDatabasePath(DB_NAME)
+
+        /**
+         * Flushes the WAL into the main database file so the exported .db is
+         * self-contained, then closes and nulls the singleton so Room does not
+         * hold any file locks during the copy.
+         */
+        fun checkpointAndClose(context: Context) {
+            synchronized(this) {
+                try {
+                    INSTANCE?.let { db ->
+                        db.openHelper.writableDatabase
+                            .execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
+                    }
+                } catch (_: Exception) { /* ignore if already closed */ }
+                INSTANCE?.close()
+                INSTANCE = null
             }
         }
     }
