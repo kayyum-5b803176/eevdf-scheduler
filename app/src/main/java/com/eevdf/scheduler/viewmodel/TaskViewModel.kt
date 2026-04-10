@@ -184,19 +184,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * - If currently on the interrupt task → jump back to saved card.
      */
     fun jumpToInterrupt() {
-        // _interruptTask LiveData is loaded async on init; also scan activeTasks
-        // directly as a reliable fallback so we never miss a flagged task.
         val interrupt = _interruptTask.value
             ?: activeTasks.value?.firstOrNull { it.isInterrupt && !it.isCompleted }
             ?: run {
                 _toastMessage.value = "No interrupt task assigned"
                 return
             }
-        // Ensure the LiveData is in sync
         if (_interruptTask.value == null) _interruptTask.value = interrupt
         val current = _currentTask.value
         if (current?.id == interrupt.id) {
-            // Already on interrupt — jump back to saved card
             val back = savedTaskBeforeInterrupt
             savedTaskBeforeInterrupt = null
             if (back != null) {
@@ -208,7 +204,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _toastMessage.value = "No saved task to return to"
             }
         } else {
-            // Save current and jump to interrupt
             savedTaskBeforeInterrupt = current
             pauseTimer()
             _currentTask.value = interrupt
@@ -397,24 +392,33 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      *                       (first leaf of group-a → first leaf of group-b → root tasks → wrap)
      *  - Global Rotate OFF: cycles through siblings (same parentId) in UI order.
      */
-    fun nextSibling() {
+    /**
+     * [onQueueTab] = true  → uses Queue task list (number-sorted)
+     * [onQueueTab] = false → uses Schedule task list (VDL-sorted, default)
+     */
+    fun nextSibling(onQueueTab: Boolean = false) {
         pauseTimer()
         if (_globalRotateEnabled.value == true) {
-            rotateGlobal()
+            rotateGlobal(onQueueTab)
         } else {
-            rotateSiblings()
+            rotateSiblings(onQueueTab)
         }
     }
 
-    /** Sibling rotation: next leaf with same parentId in UI (virtualDeadline) order. */
-    private fun rotateSiblings() {
-        val current = _currentTask.value
-        val allTasks = flatActiveTasks.value?.map { it.task } ?: return
-        val siblings = allTasks
+    /** Sibling rotation: next leaf with same parentId.
+     *  Queue tab → number sort; Schedule tab → VDL sort. */
+    private fun rotateSiblings(onQueueTab: Boolean) {
+        val current  = _currentTask.value
+        val allTasks = (if (onQueueTab) flatActiveTasks else flatScheduleOrder)
+            .value?.map { it.task } ?: return
+        val base = allTasks
             .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == current?.parentId }
-            .sortedBy { it.virtualDeadline }
+        val siblings = if (onQueueTab)
+            base.sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
+        else
+            base.sortedBy { it.virtualDeadline }
         if (siblings.size <= 1) {
-            viewModelScope.launch { scheduleNext() }  // no siblings, fall back to EEVDF
+            viewModelScope.launch { scheduleNext() }
             return
         }
         val idx  = siblings.indexOfFirst { it.id == current?.id }
@@ -432,13 +436,20 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Example: group-a(group-aa(task-aa1), task-a1), group-b(task-b1,task-b2), task-a
      *          → task-aa1 → task-b1 → task-a → (wrap)
      */
-    private fun rotateGlobal() {
+    /** Global rotation.
+     *  Queue tab → number-sorted root entries.
+     *  Schedule tab → VDL-sorted root entries (original behaviour). */
+    private fun rotateGlobal(onQueueTab: Boolean) {
         val current  = _currentTask.value
-        val allTasks = flatActiveTasks.value?.map { it.task } ?: return
-        // Root-level entries in UI order — skip interrupt-flagged root tasks/groups
-        val rootEntries = allTasks
+        val allTasks = (if (onQueueTab) flatActiveTasks else flatScheduleOrder)
+            .value?.map { it.task } ?: return
+        // Root-level entries — skip interrupt-flagged tasks/groups
+        val base = allTasks
             .filter { it.parentId == null && !it.isCompleted && !it.isInterrupt }
-            .sortedBy { it.virtualDeadline }
+        val rootEntries = if (onQueueTab)
+            base.sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
+        else
+            base.sortedBy { it.virtualDeadline }
         // Map each root entry to its representative first leaf;
         // skip empties and skip if the first leaf itself is the interrupt task
         val representatives = rootEntries.mapNotNull { root ->

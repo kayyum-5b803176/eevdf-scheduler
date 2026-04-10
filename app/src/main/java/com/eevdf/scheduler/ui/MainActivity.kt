@@ -218,7 +218,7 @@ class MainActivity : AppCompatActivity() {
             else viewModel.startTimer()
         }
         btnInt.setOnClickListener { viewModel.jumpToInterrupt() }
-        btnScheduleNext.setOnClickListener { viewModel.nextSibling() }
+        btnScheduleNext.setOnClickListener { viewModel.nextSibling(onQueueTab = currentTab == 0) }
     }
 
     private fun setupObservers() {
