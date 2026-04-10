@@ -25,7 +25,9 @@ class TaskAdapter(
     private val onResetSliceClick:  (Task) -> Unit = {},
     private val onRevertClick:      (Task) -> Unit = {},
     private val showScheduleRank:   Boolean = false,
-    private val isCompletedTab:     Boolean = false
+    private val isCompletedTab:     Boolean = false,
+    /** Returns the expanded state for a group task id — used for rotation icon. */
+    private val expandStateProvider: (String) -> Boolean = { true }
 ) : ListAdapter<TaskDisplayItem, TaskAdapter.TaskViewHolder>(DiffCallback()) {
 
     private var runningTaskId: String? = null
@@ -93,7 +95,7 @@ class TaskAdapter(
             holder.btnRevert.visibility      = View.GONE
             holder.btnGroupToggle.visibility = View.VISIBLE
             // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
-            holder.btnGroupToggle.rotation = if (task.isGroupExpanded) 180f else 0f
+            holder.btnGroupToggle.rotation = if (expandStateProvider(task.id)) 180f else 0f
             holder.btnGroupToggle.setOnClickListener { onGroupToggle(task) }
         } else {
             // Leaf task row

@@ -104,38 +104,127 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     lateinit var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>>
     lateinit var flatScheduleOrder: MediatorLiveData<List<TaskDisplayItem>>
 
+    // ── Per-tab independent expand state ─────────────────────────────────────
+
+    // Prefix constants for SharedPreferences expand persistence
+    private val QUEUE_EXPAND_PREFIX    = "qexpand_"
+    private val SCHEDULE_EXPAND_PREFIX = "sexpand_"
+
     /**
-     * Flattens the task tree into a display list.
-     *
-     * Groups mode OFF → all non-group tasks sorted by virtualDeadline, depth=0.
-     * Groups mode ON  → depth-first traversal respecting isGroupExpanded;
-     *                   groups appear as header rows with child count/time.
+     * Queue tab expand state — loaded from prefs on init, saved on every toggle.
+     * Key format in prefs: "qexpand_{taskId}" = Boolean
      */
-    private fun buildFlatList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+    private val queueExpandState: MutableMap<String, Boolean> = run {
+        val map = mutableMapOf<String, Boolean>()
+        prefs.all.forEach { (key, value) ->
+            if (key.startsWith(QUEUE_EXPAND_PREFIX) && value is Boolean)
+                map[key.removePrefix(QUEUE_EXPAND_PREFIX)] = value
+        }
+        map
+    }
+
+    /**
+     * Schedule tab expand state — loaded from prefs on init, saved on every toggle.
+     * Key format in prefs: "sexpand_{taskId}" = Boolean
+     */
+    private val scheduleExpandState: MutableMap<String, Boolean> = run {
+        val map = mutableMapOf<String, Boolean>()
+        prefs.all.forEach { (key, value) ->
+            if (key.startsWith(SCHEDULE_EXPAND_PREFIX) && value is Boolean)
+                map[key.removePrefix(SCHEDULE_EXPAND_PREFIX)] = value
+        }
+        map
+    }
+
+    private val _queueExpandTrigger    = MutableLiveData(0)
+    private val _scheduleExpandTrigger = MutableLiveData(0)
+
+    fun toggleQueueGroupExpanded(group: Task) {
+        val next = !(queueExpandState[group.id] ?: true)
+        queueExpandState[group.id] = next
+        prefs.edit().putBoolean(QUEUE_EXPAND_PREFIX + group.id, next).apply()
+        _queueExpandTrigger.value = (_queueExpandTrigger.value ?: 0) + 1
+    }
+
+    fun toggleScheduleGroupExpanded(group: Task) {
+        val next = !(scheduleExpandState[group.id] ?: true)
+        scheduleExpandState[group.id] = next
+        prefs.edit().putBoolean(SCHEDULE_EXPAND_PREFIX + group.id, next).apply()
+        _scheduleExpandTrigger.value = (_scheduleExpandTrigger.value ?: 0) + 1
+    }
+
+    /** Exposed for adapter rotation icon — returns Queue expand state for [taskId]. */
+    fun getQueueExpanded(taskId: String): Boolean = queueExpandState[taskId] ?: true
+
+    /** Exposed for adapter rotation icon — returns Schedule expand state for [taskId]. */
+    fun getScheduleExpanded(taskId: String): Boolean = scheduleExpandState[taskId] ?: true
+
+    // ── Tab persistence ───────────────────────────────────────────────────────
+
+    private val KEY_LAST_TAB = "last_tab"
+
+    fun saveTab(tab: Int) { prefs.edit().putInt(KEY_LAST_TAB, tab).apply() }
+
+    fun getSavedTab(): Int = prefs.getInt(KEY_LAST_TAB, 0)
+
+    // ── Number extraction helper for Queue sort ───────────────────────────────
+
+    private val numberRegex = Regex("""(\d+(?:\.\d+)?)""")
+
+    private fun extractNumber(name: String): Double =
+        numberRegex.find(name)?.groupValues?.getOrNull(1)?.toDoubleOrNull() ?: Double.MAX_VALUE
+
+    /**
+     * Queue tab: static sort by first number in task name (number pattern).
+     * "icon 1"→1.0, "task 1.1"→1.1, "10 work"→10.0, "clean 4.4"→4.4.
+     * Tasks with no number sort after numbered ones.
+     * Uses queueExpandState — independent of Schedule tab.
+     */
+    private fun buildQueueList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+        if (!groupsEnabled) {
+            return tasks
+                .filter { !it.isGroup }
+                .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
+                .map { TaskDisplayItem(it, 0) }
+        }
+        val result = mutableListOf<TaskDisplayItem>()
+        fun addLevel(parentId: String?, depth: Int) {
+            val children = tasks
+                .filter { it.parentId == parentId }
+                .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
+            for (task in children) {
+                val dc = tasks.filter { it.parentId == task.id }
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }))
+                if (task.isGroup && (queueExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
+            }
+        }
+        addLevel(null, 0)
+        return result
+    }
+
+    /**
+     * Schedule tab: live EEVDF sort (virtualDeadline ascending).
+     * Uses scheduleExpandState — independent of Queue tab.
+     * Sources from activeTasks so reflects DB changes (vruntime updates, new tasks) instantly.
+     */
+    private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
                 .sortedBy { it.virtualDeadline }
                 .map { TaskDisplayItem(it, 0) }
         }
-
         val result = mutableListOf<TaskDisplayItem>()
-
         fun addLevel(parentId: String?, depth: Int) {
             val children = tasks
                 .filter { it.parentId == parentId }
                 .sortedBy { it.virtualDeadline }
             for (task in children) {
-                val directChildren = tasks.filter { it.parentId == task.id }
-                val childCount     = directChildren.size
-                val childRuntime   = directChildren.sumOf { it.totalRunTime }
-                result.add(TaskDisplayItem(task, depth, childCount, childRuntime))
-                if (task.isGroup && task.isGroupExpanded) {
-                    addLevel(task.id, depth + 1)
-                }
+                val dc = tasks.filter { it.parentId == task.id }
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }))
+                if (task.isGroup && (scheduleExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
             }
         }
-
         addLevel(null, 0)
         return result
     }
@@ -155,24 +244,28 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         completedTasks = repository.completedTasks
         activeGroups   = repository.activeGroups
 
+        // Queue: stable name-number sort, own expand state, never re-sorts by vruntime
         flatActiveTasks = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
                 val tasks   = activeTasks.value ?: emptyList()
                 val enabled = _groupsEnabled.value ?: false
-                value = buildFlatList(tasks, enabled)
+                value = buildQueueList(tasks, enabled)
             }
-            addSource(activeTasks)    { rebuild() }
-            addSource(_groupsEnabled) { rebuild() }
+            addSource(activeTasks)         { rebuild() }
+            addSource(_groupsEnabled)      { rebuild() }
+            addSource(_queueExpandTrigger) { rebuild() }
         }
 
+        // Schedule: live EEVDF sort directly from activeTasks — updates instantly
         flatScheduleOrder = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                val tasks   = _scheduleOrder.value ?: emptyList()
+                val tasks   = activeTasks.value ?: emptyList()
                 val enabled = _groupsEnabled.value ?: false
-                value = buildFlatList(tasks, enabled)
+                value = buildScheduleList(tasks, enabled)
             }
-            addSource(_scheduleOrder) { rebuild() }
-            addSource(_groupsEnabled) { rebuild() }
+            addSource(activeTasks)            { rebuild() }
+            addSource(_groupsEnabled)         { rebuild() }
+            addSource(_scheduleExpandTrigger) { rebuild() }
         }
     }
 

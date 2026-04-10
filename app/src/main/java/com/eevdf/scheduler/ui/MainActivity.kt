@@ -76,6 +76,29 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupTabs()
         setupObservers()
+        // Restore last active tab using a one-shot observer so the tab is
+        // selected only AFTER the target adapter has received its first data
+        // from Room (which is async — the value is never ready synchronously).
+        val savedTab = viewModel.getSavedTab()
+        if (savedTab == 0) {
+            // Queue is default — nothing to do
+        } else {
+            // Switch to the saved tab only after DiffUtil has actually painted
+            // the items into scheduleAdapter. Using AdapterDataObserver is the
+            // only reliable hook that fires AFTER ListAdapter's async DiffUtil
+            // completes and items are visible — a LiveData observer fires too
+            // early (before DiffUtil finishes).
+            scheduleAdapter.registerAdapterDataObserver(
+                object : androidx.recyclerview.widget.RecyclerView.AdapterDataObserver() {
+                    override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+                        if (itemCount > 0) {
+                            tabLayout.getTabAt(savedTab)?.select()
+                            scheduleAdapter.unregisterAdapterDataObserver(this)
+                        }
+                    }
+                }
+            )
+        }
         setupTimerCard()
         setupAlarmBanner()
 
@@ -131,21 +154,24 @@ class MainActivity : AppCompatActivity() {
         btnStopAlarm.setOnClickListener { viewModel.stopAlarmSound() }
     }
 
-    private fun makeAdapter(showRank: Boolean = false) = TaskAdapter(
+    private fun makeAdapter(showRank: Boolean = false, scheduleTab: Boolean = false) = TaskAdapter(
         onTaskClick          = { /* tap does nothing — use long-press to edit */ },
         onTaskLongClick      = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
         else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
         onDeleteClick        = { confirmDelete(it) },
         onCompleteClick      = { viewModel.markCompleted(it) },
         onRunClick           = { viewModel.setCurrentTask(it) },
-        onGroupToggle        = { viewModel.toggleGroupExpanded(it) },
+        onGroupToggle        = { if (scheduleTab) viewModel.toggleScheduleGroupExpanded(it)
+                                 else viewModel.toggleQueueGroupExpanded(it) },
         onResetSliceClick    = { viewModel.resetSlice(it) },
-        showScheduleRank     = showRank
+        showScheduleRank     = showRank,
+        expandStateProvider  = { id -> if (scheduleTab) viewModel.getScheduleExpanded(id)
+                                        else viewModel.getQueueExpanded(id) }
     )
 
     private fun setupAdapters() {
         activeAdapter   = makeAdapter()
-        scheduleAdapter = makeAdapter(showRank = true)
+        scheduleAdapter = makeAdapter(showRank = true, scheduleTab = true)
         completedAdapter = TaskAdapter(
             onTaskClick      = { /* tap does nothing */ },
             onTaskLongClick  = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
@@ -172,6 +198,7 @@ class MainActivity : AppCompatActivity() {
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 currentTab = tab.position
+                viewModel.saveTab(tab.position)
                 recyclerView.adapter = when (tab.position) {
                     0    -> activeAdapter
                     1    -> scheduleAdapter
@@ -302,27 +329,16 @@ class MainActivity : AppCompatActivity() {
      * If the task is not in the currently visible adapter, switches to the Queue tab first.
      */
     private fun scrollToTask(taskId: String) {
-        // Try to find the task in whichever adapter is currently shown
+        // Only scroll within the currently visible tab — never switch tabs
         val currentAdapter = when (currentTab) {
             0    -> activeAdapter
             1    -> scheduleAdapter
-            else -> return  // completed tab — no need to scroll
+            else -> return
         }
         val position = currentAdapter.currentList.indexOfFirst { it.task.id == taskId }
         if (position >= 0) {
-            // Task is visible in the current tab — scroll directly
             (recyclerView.layoutManager as? LinearLayoutManager)
                 ?.smoothScrollToPosition(recyclerView, null, position)
-        } else {
-            // Task not in current tab — switch to Queue and retry after the list updates
-            tabLayout.getTabAt(0)?.select()
-            recyclerView.post {
-                val pos = activeAdapter.currentList.indexOfFirst { it.task.id == taskId }
-                if (pos >= 0) {
-                    (recyclerView.layoutManager as? LinearLayoutManager)
-                        ?.smoothScrollToPosition(recyclerView, null, pos)
-                }
-            }
         }
     }
 
