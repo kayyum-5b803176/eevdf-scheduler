@@ -35,6 +35,10 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var btnCancel:       MaterialButton
     private lateinit var tvPriorityInfo:  TextView
 
+    // Interrupt section
+    private lateinit var switchIsInterrupt: SwitchMaterial
+    private lateinit var tvInterruptOwner:  TextView
+
     // Groups section
     private lateinit var groupSection:    LinearLayout
     private lateinit var switchIsGroup:   SwitchMaterial
@@ -66,6 +70,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupCategoryChips()
         setupPrioritySlider()
         setupGroupSection()
+        setupInterruptSwitch()
 
         if (existingTaskId != null) {
             supportActionBar?.title = "Edit Task"
@@ -86,6 +91,8 @@ class AddTaskActivity : AppCompatActivity() {
         chipGroupCategory = findViewById(R.id.chipGroupCategory)
         btnSave          = findViewById(R.id.btnSave)
         btnCancel        = findViewById(R.id.btnCancel)
+        switchIsInterrupt = findViewById(R.id.switchIsInterrupt)
+        tvInterruptOwner  = findViewById(R.id.tvInterruptOwner)
         tvPriorityInfo   = findViewById(R.id.tvPriorityInfo)
         groupSection     = findViewById(R.id.groupSection)
         switchIsGroup    = findViewById(R.id.switchIsGroup)
@@ -196,6 +203,32 @@ class AddTaskActivity : AppCompatActivity() {
         if (groupsEnabled) {
             switchIsGroup.isChecked = task.isGroup
         }
+        if (task.isInterrupt) {
+            switchIsInterrupt.isChecked = true
+            switchIsInterrupt.isEnabled = true
+            tvInterruptOwner.visibility = android.view.View.GONE
+        }
+    }
+
+    private fun setupInterruptSwitch() {
+        // Show which task currently owns the interrupt slot
+        lifecycleScope.launch {
+            val current = viewModel.interruptTask.value
+                ?: repository_getInterrupt()
+            if (current != null && current.id != existingTaskId) {
+                tvInterruptOwner.text = "Currently assigned to: \"${current.name}\""
+                tvInterruptOwner.visibility = android.view.View.VISIBLE
+                switchIsInterrupt.isEnabled = false  // can't steal without clearing first
+            }
+        }
+        // If editing the interrupt task itself, show checked
+        existingTask?.let { if (it.isInterrupt) switchIsInterrupt.isChecked = true }
+    }
+
+    /** Inline helper — avoids exposing repository directly, uses ViewModel. */
+    private suspend fun repository_getInterrupt(): Task? {
+        // Use ViewModel's LiveData value (already loaded on init)
+        return viewModel.interruptTask.value
     }
 
     private fun saveTask() {
@@ -230,7 +263,10 @@ class AddTaskActivity : AppCompatActivity() {
                 isGroup          = isGroup,
                 parentId         = parentId
             )
-            viewModel.updateTask(updated)
+            // Handle interrupt assignment
+        if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(updated)
+        else if (updated.isInterrupt) viewModel.clearInterruptTask()
+        viewModel.updateTask(updated)
         } else {
             val task = Task(
                 name             = name,
@@ -243,6 +279,7 @@ class AddTaskActivity : AppCompatActivity() {
                 parentId         = parentId
             )
             viewModel.addTask(task)
+            if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(task)
         }
         finish()
     }

@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTimerDisplay:      TextView
     private lateinit var tvTimerPriority:     TextView
     private lateinit var btnStartPause:       MaterialButton
-    private lateinit var btnSkip:             MaterialButton
+    private lateinit var btnInt:              MaterialButton
     private lateinit var btnScheduleNext:     MaterialButton
     private lateinit var tvStats:             TextView
     private lateinit var tvFairness:          TextView
@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
         tvTimerDisplay    = findViewById(R.id.tvTimerDisplay)
         tvTimerPriority   = findViewById(R.id.tvTimerPriority)
         btnStartPause     = findViewById(R.id.btnStartPause)
-        btnSkip           = findViewById(R.id.btnSkip)
+        btnInt            = findViewById(R.id.btnInt)
         btnScheduleNext   = findViewById(R.id.btnScheduleNext)
         tvStats           = findViewById(R.id.tvStats)
         tvFairness        = findViewById(R.id.tvFairness)
@@ -217,7 +217,7 @@ class MainActivity : AppCompatActivity() {
             if (viewModel.timerRunning.value == true) viewModel.pauseTimer()
             else viewModel.startTimer()
         }
-        btnSkip.setOnClickListener { viewModel.skipTask() }
+        btnInt.setOnClickListener { viewModel.jumpToInterrupt() }
         btnScheduleNext.setOnClickListener { viewModel.nextSibling() }
     }
 
@@ -321,6 +321,16 @@ class MainActivity : AppCompatActivity() {
         }
         viewModel.autoScrollEnabled.observe(this) { enabled ->
             autoScrollMenuItem?.isChecked = enabled
+        }
+        // When interrupt is assigned: red text on white bg.
+        // When no interrupt: primary-color text on white bg (default).
+        viewModel.interruptTask.observe(this) { interrupt ->
+            val textColor = if (interrupt != null)
+                android.graphics.Color.parseColor("#F44336")
+            else
+                androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary)
+            btnInt.setTextColor(textColor)
+            btnInt.jumpDrawablesToCurrentState()
         }
     }
 

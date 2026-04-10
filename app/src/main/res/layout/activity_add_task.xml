@@ -119,6 +119,31 @@
                             android:background="@drawable/abc_spinner_mtrl_am_alpha"
                             android:padding="8dp" />
                     </LinearLayout>
+
+                    <!-- Interrupt assignment -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#E0E0E0"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="12dp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchIsInterrupt"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Assign as Interrupt task" />
+
+                    <TextView
+                        android:id="@+id/tvInterruptOwner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="#F44336"
+                        android:layout_marginTop="4dp"
+                        android:visibility="gone" />
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

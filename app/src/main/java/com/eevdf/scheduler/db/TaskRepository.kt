@@ -116,6 +116,19 @@ class TaskRepository(private val dao: TaskDao) {
         EEVDFScheduler.getScheduleOrder(activeTasks)
     }
 
+    // ── Interrupt task ────────────────────────────────────────────────────────
+
+    suspend fun getInterruptTask(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTask() }
+
+    /** Atomically clears all interrupt flags then sets isInterrupt=true on [task]. */
+    suspend fun setInterruptTask(task: Task) = withContext(Dispatchers.IO) {
+        dao.clearAllInterrupts()
+        dao.update(task.copy(isInterrupt = true))
+    }
+
+    /** Clears interrupt flag from all tasks. */
+    suspend fun clearInterruptTask() = withContext(Dispatchers.IO) { dao.clearAllInterrupts() }
+
     // ── Backup / Restore ──────────────────────────────────────────────────────
 
     /** Returns every task (active + completed) for export. */

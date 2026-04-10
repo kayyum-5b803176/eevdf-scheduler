@@ -33,6 +33,8 @@ data class Task(
     var totalRunTime: Long = 0L,
     var runCount: Int = 0,
 
+    val isInterrupt: Boolean = false,
+
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val weight: Double get() = priority.toDouble()

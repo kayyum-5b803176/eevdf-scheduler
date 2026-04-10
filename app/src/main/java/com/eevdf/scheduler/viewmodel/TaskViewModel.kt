@@ -32,6 +32,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentTask = MutableLiveData<Task?>(null)
     val currentTask: LiveData<Task?> = _currentTask
 
+    // ── Interrupt task ────────────────────────────────────────────────────────
+
+    /** The task currently flagged as the interrupt destination. */
+    private val _interruptTask = MutableLiveData<Task?>(null)
+    val interruptTask: LiveData<Task?> = _interruptTask
+
+    /** Saved card to return to after visiting the interrupt task. */
+    private var savedTaskBeforeInterrupt: Task? = null
+
     private val _timerSeconds = MutableLiveData<Long>()
     val timerSeconds: LiveData<Long> = _timerSeconds
 
@@ -153,6 +162,61 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _scheduleExpandTrigger.value = (_scheduleExpandTrigger.value ?: 0) + 1
     }
 
+    // ── Interrupt task operations ─────────────────────────────────────────────
+
+    /** Sets [task] as the single interrupt task; clears any previous assignment. */
+    fun assignInterruptTask(task: Task) = viewModelScope.launch {
+        repository.setInterruptTask(task)
+        _interruptTask.postValue(task.copy(isInterrupt = true))
+        refreshSchedule()
+    }
+
+    /** Clears the interrupt assignment from all tasks. */
+    fun clearInterruptTask() = viewModelScope.launch {
+        repository.clearInterruptTask()
+        _interruptTask.postValue(null)
+        refreshSchedule()
+    }
+
+    /**
+     * Int button logic:
+     * - If not currently on the interrupt task → save current card, jump to interrupt.
+     * - If currently on the interrupt task → jump back to saved card.
+     */
+    fun jumpToInterrupt() {
+        // _interruptTask LiveData is loaded async on init; also scan activeTasks
+        // directly as a reliable fallback so we never miss a flagged task.
+        val interrupt = _interruptTask.value
+            ?: activeTasks.value?.firstOrNull { it.isInterrupt && !it.isCompleted }
+            ?: run {
+                _toastMessage.value = "No interrupt task assigned"
+                return
+            }
+        // Ensure the LiveData is in sync
+        if (_interruptTask.value == null) _interruptTask.value = interrupt
+        val current = _currentTask.value
+        if (current?.id == interrupt.id) {
+            // Already on interrupt — jump back to saved card
+            val back = savedTaskBeforeInterrupt
+            savedTaskBeforeInterrupt = null
+            if (back != null) {
+                pauseTimer()
+                _currentTask.value = back
+                _timerSeconds.value = back.remainingSeconds
+                _toastMessage.value = "Returned to \"${back.name}\""
+            } else {
+                _toastMessage.value = "No saved task to return to"
+            }
+        } else {
+            // Save current and jump to interrupt
+            savedTaskBeforeInterrupt = current
+            pauseTimer()
+            _currentTask.value = interrupt
+            _timerSeconds.value = interrupt.remainingSeconds
+            _toastMessage.value = "Jumped to interrupt: \"${interrupt.name}\""
+        }
+    }
+
     /** Exposed for adapter rotation icon — returns Queue expand state for [taskId]. */
     fun getQueueExpanded(taskId: String): Boolean = queueExpandState[taskId] ?: true
 
@@ -245,6 +309,11 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         activeGroups   = repository.activeGroups
 
         // Queue: stable name-number sort, own expand state, never re-sorts by vruntime
+        // Load persisted interrupt task
+        viewModelScope.launch {
+            _interruptTask.postValue(repository.getInterruptTask())
+        }
+
         flatActiveTasks = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
                 val tasks   = activeTasks.value ?: emptyList()
@@ -342,7 +411,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val current = _currentTask.value
         val allTasks = flatActiveTasks.value?.map { it.task } ?: return
         val siblings = allTasks
-            .filter { !it.isGroup && !it.isCompleted && it.parentId == current?.parentId }
+            .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == current?.parentId }
             .sortedBy { it.virtualDeadline }
         if (siblings.size <= 1) {
             viewModelScope.launch { scheduleNext() }  // no siblings, fall back to EEVDF
@@ -366,14 +435,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private fun rotateGlobal() {
         val current  = _currentTask.value
         val allTasks = flatActiveTasks.value?.map { it.task } ?: return
-        // Root-level entries in UI order
+        // Root-level entries in UI order — skip interrupt-flagged root tasks/groups
         val rootEntries = allTasks
-            .filter { it.parentId == null && !it.isCompleted }
+            .filter { it.parentId == null && !it.isCompleted && !it.isInterrupt }
             .sortedBy { it.virtualDeadline }
-        // Map each root entry to its representative first leaf; skip empties
+        // Map each root entry to its representative first leaf;
+        // skip empties and skip if the first leaf itself is the interrupt task
         val representatives = rootEntries.mapNotNull { root ->
             val leaf = if (!root.isGroup) root else firstLeafOf(allTasks, root.id)
-            leaf?.let { Pair(root.id, it) }
+            if (leaf == null || leaf.isInterrupt) null else Pair(root.id, leaf)
         }
         if (representatives.isEmpty()) return
         // Find which root slot the current task lives under
@@ -390,7 +460,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     /** Returns the first non-group, non-completed leaf under [parentId] in virtualDeadline order. */
     private fun firstLeafOf(tasks: List<Task>, parentId: String?): Task? {
         val children = tasks
-            .filter { it.parentId == parentId && !it.isCompleted }
+            .filter { it.parentId == parentId && !it.isCompleted && !it.isInterrupt }
             .sortedBy { it.virtualDeadline }
         for (child in children) {
             if (!child.isGroup) return child

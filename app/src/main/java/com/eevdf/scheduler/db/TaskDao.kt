@@ -44,6 +44,14 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
     fun getActiveGroups(): LiveData<List<Task>>
 
+    /** Returns the task/group flagged as interrupt, or null if none assigned. */
+    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND isCompleted = 0 LIMIT 1")
+    suspend fun getInterruptTask(): Task?
+
+    /** Clears the interrupt flag on all tasks (used before setting a new one). */
+    @Query("UPDATE tasks SET isInterrupt = 0")
+    suspend fun clearAllInterrupts()
+
     // ── Backup / Restore ──────────────────────────────────────────────────────
 
     /** Returns every task (active + completed) for full backup. */

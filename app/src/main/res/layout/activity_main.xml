@@ -248,14 +248,15 @@
                         android:layout_marginHorizontal="4dp" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnSkip"
+                        android:id="@+id/btnInt"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Skip"
-                        android:textColor="@android:color/white"
+                        android:text="Int"
+                        android:textColor="@color/colorPrimary"
+                        android:textStyle="bold"
                         android:layout_marginStart="8dp"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        app:strokeColor="@android:color/white" />
+                        app:backgroundTint="@android:color/white"
+                        app:cornerRadius="8dp" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
