@@ -18,6 +18,8 @@ import com.eevdf.scheduler.db.TaskDatabase
 import com.eevdf.scheduler.viewmodel.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import android.content.Context
+import android.app.Activity
+import android.media.RingtoneManager
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import com.google.android.material.slider.Slider
@@ -38,6 +40,27 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnImport:      MaterialButton
     private lateinit var progressBar:    ProgressBar
     private lateinit var tvStatus:       TextView
+
+    // Sound UI
+    private lateinit var tvSoundName:     TextView
+    private lateinit var btnPickSound:    MaterialButton
+    private lateinit var sliderSoundTimeout: Slider
+    private lateinit var tvSoundTimeoutLabel: TextView
+    private lateinit var sliderVolume:    Slider
+    private lateinit var tvVolumeLabel:   TextView
+    private lateinit var sliderFadeIn:    Slider
+    private lateinit var tvFadeInLabel:   TextView
+
+    // Sound picker launcher
+    private val soundPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            prefs.edit().putString(SoundManager.KEY_SOUND_URI, uri?.toString()).apply()
+            updateSoundName()
+        }
+    }
 
     // Vibration UI
     private lateinit var rgVibPattern:   RadioGroup
@@ -79,6 +102,14 @@ class SettingsActivity : AppCompatActivity() {
         btnImport       = findViewById(R.id.btnImport)
         progressBar     = findViewById(R.id.settingsProgress)
         tvStatus        = findViewById(R.id.tvSettingsStatus)
+        tvSoundName          = findViewById(R.id.tvSoundName)
+        btnPickSound         = findViewById(R.id.btnPickSound)
+        sliderSoundTimeout   = findViewById(R.id.sliderSoundTimeout)
+        tvSoundTimeoutLabel  = findViewById(R.id.tvSoundTimeoutLabel)
+        sliderVolume         = findViewById(R.id.sliderVolume)
+        tvVolumeLabel        = findViewById(R.id.tvVolumeLabel)
+        sliderFadeIn         = findViewById(R.id.sliderFadeIn)
+        tvFadeInLabel        = findViewById(R.id.tvFadeInLabel)
         rgVibPattern    = findViewById(R.id.rgVibPattern)
         btnPreviewVib   = findViewById(R.id.btnPreviewVib)
         sliderTimeout   = findViewById(R.id.sliderVibTimeout)
@@ -87,7 +118,67 @@ class SettingsActivity : AppCompatActivity() {
 
         btnExport.setOnClickListener { launchExport() }
         btnImport.setOnClickListener { launchImport() }
+        setupSoundSection()
         setupVibrationSection()
+    }
+
+    private fun setupSoundSection() {
+        updateSoundName()
+
+        btnPickSound.setOnClickListener {
+            val current = prefs.getString(SoundManager.KEY_SOUND_URI, null)
+                ?.let { android.net.Uri.parse(it) }
+            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Timer Sound")
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                if (current != null) putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, current)
+            }
+            soundPickerLauncher.launch(intent)
+        }
+
+        // Sound timeout
+        val savedSoundTimeout = prefs.getInt(SoundManager.KEY_SOUND_TIMEOUT, SoundManager.DEFAULT_SOUND_TIMEOUT)
+        sliderSoundTimeout.value = savedSoundTimeout.toFloat().coerceIn(0f, 900f)
+        tvSoundTimeoutLabel.text = formatTimeout(savedSoundTimeout)
+        sliderSoundTimeout.addOnChangeListener { _, value, _ ->
+            val sec = value.toInt()
+            prefs.edit().putInt(SoundManager.KEY_SOUND_TIMEOUT, sec).apply()
+            tvSoundTimeoutLabel.text = formatTimeout(sec)
+        }
+
+        // Volume
+        val savedVol = prefs.getInt(SoundManager.KEY_SOUND_VOLUME, SoundManager.DEFAULT_SOUND_VOLUME)
+        sliderVolume.value = savedVol.toFloat().coerceIn(0f, 100f)
+        tvVolumeLabel.text = "$savedVol%"
+        sliderVolume.addOnChangeListener { _, value, _ ->
+            val pct = value.toInt()
+            prefs.edit().putInt(SoundManager.KEY_SOUND_VOLUME, pct).apply()
+            tvVolumeLabel.text = "$pct%"
+        }
+
+        // Fade-in
+        val savedFade = prefs.getInt(SoundManager.KEY_SOUND_FADE_IN, SoundManager.DEFAULT_FADE_IN)
+        sliderFadeIn.value = savedFade.toFloat().coerceIn(0f, 300f)
+        tvFadeInLabel.text = if (savedFade == 0) "Off" else formatTimeout(savedFade)
+        sliderFadeIn.addOnChangeListener { _, value, _ ->
+            val sec = value.toInt()
+            prefs.edit().putInt(SoundManager.KEY_SOUND_FADE_IN, sec).apply()
+            tvFadeInLabel.text = if (sec == 0) "Off" else formatTimeout(sec)
+        }
+    }
+
+    private fun updateSoundName() {
+        val uriStr = prefs.getString(SoundManager.KEY_SOUND_URI, null)
+        tvSoundName.text = if (uriStr.isNullOrBlank()) {
+            "System alarm tone"
+        } else {
+            try {
+                RingtoneManager.getRingtone(this, android.net.Uri.parse(uriStr))
+                    ?.getTitle(this) ?: "Custom sound"
+            } catch (_: Exception) { "Custom sound" }
+        }
     }
 
     private fun setupVibrationSection() {

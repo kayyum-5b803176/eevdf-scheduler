@@ -193,6 +193,299 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- ── Sound section header ─────────────────────────────────── -->
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="SOUND"
+                android:textSize="11sp"
+                android:letterSpacing="0.12"
+                android:textColor="@color/colorPrimary"
+                android:fontFamily="sans-serif-medium"
+                android:paddingBottom="12dp" />
+
+            <!-- Sound picker card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Timer Sound"
+                                android:textSize="16sp"
+                                android:textColor="@color/textPrimary"
+                                android:fontFamily="sans-serif-medium" />
+
+                            <TextView
+                                android:id="@+id/tvSoundName"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="System alarm tone"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnPickSound"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Choose"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Sound timeout card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Sound Timeout"
+                            android:textSize="16sp"
+                            android:textColor="@color/textPrimary"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tvSoundTimeoutLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1 min"
+                            android:textSize="14sp"
+                            android:textColor="@color/colorPrimary"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="How long sound plays after timer expires (0 = no timeout)"
+                        android:textSize="12sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/sliderSoundTimeout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:valueFrom="0"
+                        android:valueTo="900"
+                        android:stepSize="15"
+                        android:value="60"
+                        app:thumbColor="@color/colorPrimary"
+                        app:trackColorActive="@color/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:text="No timeout" android:textSize="10sp" android:textColor="#9E9E9E"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="15 min" android:textSize="10sp" android:textColor="#9E9E9E"/>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Volume card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Default Volume"
+                            android:textSize="16sp"
+                            android:textColor="@color/textPrimary"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tvVolumeLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="80%"
+                            android:textSize="14sp"
+                            android:textColor="@color/colorPrimary"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Alarm rings at this volume. Returns to previous level when stopped."
+                        android:textSize="12sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/sliderVolume"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:valueFrom="0"
+                        android:valueTo="100"
+                        android:stepSize="5"
+                        android:value="80"
+                        app:thumbColor="@color/colorPrimary"
+                        app:trackColorActive="@color/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:text="0%" android:textSize="10sp" android:textColor="#9E9E9E"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="100%" android:textSize="10sp" android:textColor="#9E9E9E"/>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Fade-in card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Gradual Volume Increase"
+                            android:textSize="16sp"
+                            android:textColor="@color/textPrimary"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tvFadeInLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Off"
+                            android:textSize="14sp"
+                            android:textColor="@color/colorPrimary"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Slowly increase from silent to target volume over this duration (0 = start at full volume)"
+                        android:textSize="12sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/sliderFadeIn"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:valueFrom="0"
+                        android:valueTo="300"
+                        android:stepSize="15"
+                        android:value="0"
+                        app:thumbColor="@color/colorPrimary"
+                        app:trackColorActive="@color/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:text="Off" android:textSize="10sp" android:textColor="#9E9E9E"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="5 min" android:textSize="10sp" android:textColor="#9E9E9E"/>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- ── Vibration section header ──────────────────────────── -->
 
             <TextView

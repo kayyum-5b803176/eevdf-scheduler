@@ -7,9 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -131,7 +128,6 @@ class AlarmForegroundService : Service() {
 
     // FULL WakeLock only — acquired at expiry to physically wake the screen
     private var wakeLock: PowerManager.WakeLock? = null
-    private var alarmPlayer: MediaPlayer? = null
     private var isAlarmRinging = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -160,11 +156,11 @@ class AlarmForegroundService : Service() {
 
             ACTION_TIMER_EXPIRE -> {
                 if (!isAlarmRinging) {
+                    isAlarmRinging = true
                     acquireWakeLock()
-                    playAlarmSound()
                     showExpiredNotification(taskName)
-                    // Start vibration with user-configured pattern and timeout
                     val prefs = getSharedPreferences("eevdf_prefs", android.content.Context.MODE_PRIVATE)
+                    SoundManager.startAlarm(this, prefs)
                     VibrationManager.startAlarm(this, prefs)
                 }
             }
@@ -182,37 +178,7 @@ class AlarmForegroundService : Service() {
 
     // ── Sound ──────────────────────────────────────────────────────────────────
 
-    private fun playAlarmSound() {
-        stopAlarmPlayer()
-        val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        try {
-            alarmPlayer = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                setDataSource(this@AlarmForegroundService, uri)
-                isLooping = true
-                prepare()
-                start()
-            }
-            isAlarmRinging = true
-        } catch (e: Exception) {
-            isAlarmRinging = false
-        }
-    }
-
-    private fun stopAlarmPlayer() {
-        alarmPlayer?.let {
-            try { if (it.isPlaying) it.stop() } catch (_: Exception) {}
-            try { it.release() } catch (_: Exception) {}
-        }
-        alarmPlayer = null
-        isAlarmRinging = false
-    }
+    // Sound is now handled by SoundManager
 
     // ── WakeLock (alarm expiry only) ───────────────────────────────────────────
 
@@ -314,7 +280,8 @@ class AlarmForegroundService : Service() {
 
     private fun stopEverything() {
         VibrationManager.stop(this)
-        stopAlarmPlayer()
+        SoundManager.stop(this)
+        isAlarmRinging = false
         releaseWakeLock()
         stopForegroundCompat()
         stopSelf()
