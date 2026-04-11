@@ -17,6 +17,11 @@ import com.eevdf.scheduler.R
 import com.eevdf.scheduler.db.TaskDatabase
 import com.eevdf.scheduler.viewmodel.TaskViewModel
 import com.google.android.material.button.MaterialButton
+import android.content.Context
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import com.google.android.material.slider.Slider
+import com.google.android.material.switchmaterial.SwitchMaterial
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,10 +34,19 @@ class SettingsActivity : AppCompatActivity() {
 
     private val viewModel: TaskViewModel by viewModels()
 
-    private lateinit var btnExport:   MaterialButton
-    private lateinit var btnImport:   MaterialButton
-    private lateinit var progressBar: ProgressBar
-    private lateinit var tvStatus:    TextView
+    private lateinit var btnExport:      MaterialButton
+    private lateinit var btnImport:      MaterialButton
+    private lateinit var progressBar:    ProgressBar
+    private lateinit var tvStatus:       TextView
+
+    // Vibration UI
+    private lateinit var rgVibPattern:   RadioGroup
+    private lateinit var btnPreviewVib:  MaterialButton
+    private lateinit var sliderTimeout:  Slider
+    private lateinit var tvTimeoutLabel: TextView
+    private lateinit var switchHaptic:   SwitchMaterial
+
+    private val prefs by lazy { getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE) }
 
     // ── SAF launchers ─────────────────────────────────────────────────────────
 
@@ -61,13 +75,66 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Settings"
 
-        btnExport   = findViewById(R.id.btnExport)
-        btnImport   = findViewById(R.id.btnImport)
-        progressBar = findViewById(R.id.settingsProgress)
-        tvStatus    = findViewById(R.id.tvSettingsStatus)
+        btnExport       = findViewById(R.id.btnExport)
+        btnImport       = findViewById(R.id.btnImport)
+        progressBar     = findViewById(R.id.settingsProgress)
+        tvStatus        = findViewById(R.id.tvSettingsStatus)
+        rgVibPattern    = findViewById(R.id.rgVibPattern)
+        btnPreviewVib   = findViewById(R.id.btnPreviewVib)
+        sliderTimeout   = findViewById(R.id.sliderVibTimeout)
+        tvTimeoutLabel  = findViewById(R.id.tvVibTimeoutLabel)
+        switchHaptic    = findViewById(R.id.switchHaptic)
 
         btnExport.setOnClickListener { launchExport() }
         btnImport.setOnClickListener { launchImport() }
+        setupVibrationSection()
+    }
+
+    private fun setupVibrationSection() {
+        // Populate RadioGroup with pattern names
+        VibrationManager.PATTERNS.forEach { pat ->
+            val rb = RadioButton(this).apply {
+                id = pat.id
+                text = pat.name
+                textSize = 14f
+                setPadding(8, 8, 8, 8)
+            }
+            rgVibPattern.addView(rb)
+        }
+        val savedPattern = prefs.getInt(VibrationManager.KEY_PATTERN, VibrationManager.DEFAULT_PATTERN)
+        rgVibPattern.check(savedPattern)
+        rgVibPattern.setOnCheckedChangeListener { _, id ->
+            prefs.edit().putInt(VibrationManager.KEY_PATTERN, id).apply()
+        }
+
+        // Preview button
+        btnPreviewVib.setOnClickListener {
+            val id = prefs.getInt(VibrationManager.KEY_PATTERN, VibrationManager.DEFAULT_PATTERN)
+            VibrationManager.preview(this, id)
+        }
+
+        // Timeout slider — 0..900 seconds (0=no timeout, 900=15 min), step 15
+        val savedTimeout = prefs.getInt(VibrationManager.KEY_TIMEOUT_SEC, VibrationManager.DEFAULT_TIMEOUT_SEC)
+        sliderTimeout.value = savedTimeout.toFloat()
+        tvTimeoutLabel.text = formatTimeout(savedTimeout)
+        sliderTimeout.addOnChangeListener { _, value, _ ->
+            val sec = value.toInt()
+            prefs.edit().putInt(VibrationManager.KEY_TIMEOUT_SEC, sec).apply()
+            tvTimeoutLabel.text = formatTimeout(sec)
+        }
+
+        // Haptic toggle
+        switchHaptic.isChecked = prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)
+        switchHaptic.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(VibrationManager.KEY_HAPTIC, checked).apply()
+        }
+    }
+
+    private fun formatTimeout(seconds: Int): String = when {
+        seconds == 0   -> "No timeout"
+        seconds < 60   -> "${seconds}s"
+        seconds % 60 == 0 -> "${seconds / 60} min"
+        else           -> "${seconds / 60}m ${seconds % 60}s"
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

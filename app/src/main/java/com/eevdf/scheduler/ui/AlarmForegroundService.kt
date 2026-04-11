@@ -163,6 +163,9 @@ class AlarmForegroundService : Service() {
                     acquireWakeLock()
                     playAlarmSound()
                     showExpiredNotification(taskName)
+                    // Start vibration with user-configured pattern and timeout
+                    val prefs = getSharedPreferences("eevdf_prefs", android.content.Context.MODE_PRIVATE)
+                    VibrationManager.startAlarm(this, prefs)
                 }
             }
 
@@ -310,6 +313,7 @@ class AlarmForegroundService : Service() {
     // ── Cleanup ────────────────────────────────────────────────────────────────
 
     private fun stopEverything() {
+        VibrationManager.stop(this)
         stopAlarmPlayer()
         releaseWakeLock()
         stopForegroundCompat()

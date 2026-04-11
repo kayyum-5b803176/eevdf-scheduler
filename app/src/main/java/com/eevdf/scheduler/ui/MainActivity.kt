@@ -55,6 +55,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStopAlarm:        MaterialButton
 
     private var currentTab = 0
+    private val prefs by lazy { getSharedPreferences("eevdf_prefs", android.content.Context.MODE_PRIVATE) }
+
+    /** Convenience: fire haptic feedback on [v] if enabled in prefs. */
+    private fun haptic(v: android.view.View) = com.eevdf.scheduler.ui.VibrationManager.haptic(v, prefs)
     private var groupsMenuItem:       MenuItem? = null
     private var globalRotateMenuItem: MenuItem? = null
     private var allowEditMenuItem:    MenuItem? = null
@@ -146,6 +150,7 @@ class MainActivity : AppCompatActivity() {
         btnStopAlarm      = findViewById(R.id.btnStopAlarm)
 
         fabAdd.setOnClickListener {
+            haptic(it)
             startActivity(Intent(this, AddTaskActivity::class.java))
         }
     }
@@ -213,12 +218,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupTimerCard() {
         btnStartPause.setOnClickListener {
+            haptic(it)
             viewModel.stopAlarmSound()
             if (viewModel.timerRunning.value == true) viewModel.pauseTimer()
             else viewModel.startTimer()
         }
-        btnInt.setOnClickListener { viewModel.jumpToInterrupt() }
-        btnScheduleNext.setOnClickListener { viewModel.nextSibling(onQueueTab = currentTab == 0) }
+        btnInt.setOnClickListener { haptic(it); viewModel.jumpToInterrupt() }
+        btnScheduleNext.setOnClickListener { haptic(it); viewModel.nextSibling(onQueueTab = currentTab == 0) }
     }
 
     private fun setupObservers() {
