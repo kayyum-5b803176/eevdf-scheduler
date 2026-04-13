@@ -20,6 +20,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val KEY_GLOBAL_ROTATE  = "global_rotate_enabled"
     private val KEY_ALLOW_EDIT     = "allow_edit_enabled"
     private val KEY_AUTO_SCROLL    = "auto_scroll_enabled"
+    private val KEY_AUTO_MODE      = "auto_mode"
 
     private val repository: TaskRepository
     val allTasks: LiveData<List<Task>>
@@ -104,6 +105,56 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val next = !(_autoScrollEnabled.value ?: false)
         prefs.edit().putBoolean(KEY_AUTO_SCROLL, next).apply()
         _autoScrollEnabled.value = next
+    }
+
+    // ── Auto mode ─────────────────────────────────────────────────────────────
+    //  Hold on the "Next" button cycles between two states:
+    //   • OFF ("Next")  – normal sibling rotation, Global Rotate follows its own toggle.
+    //   • ON  ("Auto")  – Global Rotate is forced off; when the countdown timer expires
+    //                     the scheduler automatically advances to the next EEVDF task and
+    //                     restarts the timer, hands-free.
+
+    private val _autoMode = MutableLiveData<Boolean>(prefs.getBoolean(KEY_AUTO_MODE, false))
+    val autoMode: LiveData<Boolean> = _autoMode
+
+    /** Mirrors MainActivity's active tab position so onTimerFinished can auto-advance correctly. */
+    var activeTab: Int = 0
+
+    /** Set to true by onTimerFinished when auto mode queues the next task; consumed by MainActivity. */
+    private var pendingAutoStart = false
+
+    /** Global Rotate state saved on entering Auto mode so it can be restored on exit. */
+    private var savedGlobalRotateBeforeAuto: Boolean = false
+
+    /**
+     * Toggles Auto mode on/off (bound to long-press of the "Next" button).
+     *  ON  → saves and forces Global Rotate OFF; button label → "Auto".
+     *  OFF → restores Global Rotate to its previous state; button label → "Next".
+     */
+    fun toggleAutoMode() {
+        val next = !(_autoMode.value ?: false)
+        if (next) {
+            savedGlobalRotateBeforeAuto = _globalRotateEnabled.value ?: false
+            prefs.edit().putBoolean(KEY_GLOBAL_ROTATE, false).apply()
+            _globalRotateEnabled.value = false
+            _toastMessage.value = "Auto mode ON — Global Rotate disabled"
+        } else {
+            prefs.edit().putBoolean(KEY_GLOBAL_ROTATE, savedGlobalRotateBeforeAuto).apply()
+            _globalRotateEnabled.value = savedGlobalRotateBeforeAuto
+            _toastMessage.value = "Auto mode OFF — Global Rotate restored"
+        }
+        prefs.edit().putBoolean(KEY_AUTO_MODE, next).apply()
+        _autoMode.value = next
+    }
+
+    /**
+     * Called from MainActivity's currentTask observer to consume the one-shot
+     * auto-start flag set by onTimerFinished when auto mode is active.
+     */
+    fun consumePendingAutoStart(): Boolean {
+        val v = pendingAutoStart
+        pendingAutoStart = false
+        return v
     }
 
     /** Direct DB lookup used by AddTaskActivity to reliably load a task for editing. */
@@ -616,19 +667,34 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val task = _currentTask.value ?: return
         val ctx = getApplication<Application>()
 
-        AlarmForegroundService.timerExpire(ctx, task.name)
-        _alarmTaskName.postValue(task.name)
-        _alarmElapsedSeconds.postValue(0L)
-        startInAppOverrunCounter(task.name)
-
         viewModelScope.launch {
             // updateVruntimeAfterRun handles leaf + all ancestor groups
             repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
             val updated = task.copy(remainingSeconds = task.timeSliceSeconds)
             repository.update(updated)
             _toastMessage.postValue("Time slice done for \"${task.name}\"")
-            _currentTask.postValue(null)
             refreshSchedule()
+
+            if (_autoMode.value == true) {
+                // Auto mode: skip the alarm banner and immediately advance to the
+                // next EEVDF-selected task, then signal MainActivity to start the timer.
+                val next = repository.selectNextTask()
+                if (next != null) {
+                    pendingAutoStart = true
+                    _currentTask.postValue(next)
+                    _timerSeconds.postValue(next.remainingSeconds)
+                    _toastMessage.postValue("Auto → \"${next.name}\"")
+                } else {
+                    _currentTask.postValue(null)
+                    _toastMessage.postValue("Auto: no more active tasks")
+                }
+            } else {
+                AlarmForegroundService.timerExpire(ctx, task.name)
+                _alarmTaskName.postValue(task.name)
+                _alarmElapsedSeconds.postValue(0L)
+                startInAppOverrunCounter(task.name)
+                _currentTask.postValue(null)
+            }
         }
     }
 

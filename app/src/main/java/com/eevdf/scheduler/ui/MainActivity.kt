@@ -203,6 +203,7 @@ class MainActivity : AppCompatActivity() {
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 currentTab = tab.position
+                viewModel.activeTab = tab.position
                 viewModel.saveTab(tab.position)
                 recyclerView.adapter = when (tab.position) {
                     0    -> activeAdapter
@@ -225,6 +226,8 @@ class MainActivity : AppCompatActivity() {
         }
         btnInt.setOnClickListener { haptic(it); viewModel.jumpToInterrupt() }
         btnScheduleNext.setOnClickListener { haptic(it); viewModel.nextSibling(onQueueTab = currentTab == 0) }
+        // Hold → toggle Auto mode (button label + Global Rotate state flip)
+        btnScheduleNext.setOnLongClickListener { haptic(it); viewModel.toggleAutoMode(); true }
     }
 
     private fun setupObservers() {
@@ -258,6 +261,8 @@ class MainActivity : AppCompatActivity() {
                 activeAdapter.setRunningTask(task.id)
                 scheduleAdapter.setRunningTask(task.id)
                 if (viewModel.autoScrollEnabled.value == true) scrollToTask(task.id)
+                // Auto mode: onTimerFinished queued the next task — start it immediately
+                if (viewModel.consumePendingAutoStart()) viewModel.startTimer()
             } else {
                 cardTimer.visibility = View.GONE
                 activeAdapter.setRunningTask(null)
@@ -327,6 +332,11 @@ class MainActivity : AppCompatActivity() {
         }
         viewModel.autoScrollEnabled.observe(this) { enabled ->
             autoScrollMenuItem?.isChecked = enabled
+        }
+        // Auto mode: flip "Next" ↔ "Auto" label; lock Global Rotate menu item while active
+        viewModel.autoMode.observe(this) { auto ->
+            btnScheduleNext.text = if (auto) "Auto" else "Next"
+            globalRotateMenuItem?.isEnabled = !auto
         }
         // When interrupt is assigned: red text on white bg.
         // When no interrupt: primary-color text on white bg (default).
@@ -423,8 +433,12 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_toggle_global_rotate -> {
-                viewModel.toggleGlobalRotate()
-                item.isChecked = viewModel.globalRotateEnabled.value ?: false
+                if (viewModel.autoMode.value == true) {
+                    Toast.makeText(this, "Global Rotate is managed by Auto mode", Toast.LENGTH_SHORT).show()
+                } else {
+                    viewModel.toggleGlobalRotate()
+                    item.isChecked = viewModel.globalRotateEnabled.value ?: false
+                }
                 true
             }
             R.id.action_allow_edit -> {
