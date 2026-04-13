@@ -6,7 +6,8 @@
         android:id="@+id/action_schedule_next"
         android:title="Schedule Next"
         android:icon="@android:drawable/ic_media_next"
-        app:showAsAction="ifRoom" />
+        app:showAsAction="always"
+        app:actionLayout="@layout/menu_action_schedule_next" />
 
     <item
         android:id="@+id/action_toggle_groups"

@@ -694,6 +694,36 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _timerSeconds.value = task.remainingSeconds
     }
 
+    /**
+     * Tap behaviour for the "Next" button.
+     * Jumps to the first visible leaf task at the top of the current tab list
+     * (depth-first, list order — e.g. group-a → group-aa → task-aa1).
+     * Skips groups, completed tasks, and the interrupt task.
+     * [onQueueTab] true → Queue list order; false → Schedule (VDL) list order.
+     */
+    fun jumpToFirst(onQueueTab: Boolean) {
+        val list = if (onQueueTab) flatActiveTasks.value else flatScheduleOrder.value
+        val first = list
+            ?.firstOrNull { !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt }
+            ?.task
+            ?: run { _toastMessage.value = "No tasks available"; return }
+        pauseTimer()
+        _currentTask.value = first
+        _timerSeconds.value = first.remainingSeconds
+        _toastMessage.value = "Jumped to \"${first.name}\""
+    }
+
+    /**
+     * Hold behaviour for the "Next" button.
+     * Saves the current timer state (identical to a manual pause) then
+     * dismisses the timer card so the user sees the plain task list.
+     */
+    fun pauseAndDismiss() {
+        pauseTimer()
+        _currentTask.value = null
+        _toastMessage.value = "Timer paused — task saved"
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopAlarmSound()

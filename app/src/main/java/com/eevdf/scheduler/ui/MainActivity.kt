@@ -389,14 +389,29 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
-        groupsMenuItem = menu.findItem(R.id.action_toggle_groups)
+        groupsMenuItem       = menu.findItem(R.id.action_toggle_groups)
         groupsMenuItem?.isChecked = viewModel.groupsEnabled.value ?: false
         globalRotateMenuItem = menu.findItem(R.id.action_toggle_global_rotate)
         globalRotateMenuItem?.isChecked = viewModel.globalRotateEnabled.value ?: false
-        allowEditMenuItem = menu.findItem(R.id.action_allow_edit)
+        allowEditMenuItem    = menu.findItem(R.id.action_allow_edit)
         allowEditMenuItem?.isChecked = viewModel.allowEditEnabled.value ?: false
-        autoScrollMenuItem = menu.findItem(R.id.action_auto_scroll)
+        autoScrollMenuItem   = menu.findItem(R.id.action_auto_scroll)
         autoScrollMenuItem?.isChecked = viewModel.autoScrollEnabled.value ?: false
+
+        // Action view supports both tap and long-press; a plain MenuItem only fires tap.
+        menu.findItem(R.id.action_schedule_next)?.actionView?.let { view ->
+            // Tap → jump to first visible leaf task in the current tab
+            view.setOnClickListener {
+                haptic(view)
+                viewModel.jumpToFirst(onQueueTab = currentTab == 0)
+            }
+            // Hold → pause timer + close card (state saved to DB)
+            view.setOnLongClickListener {
+                haptic(view)
+                viewModel.pauseAndDismiss()
+                true
+            }
+        }
         return true
     }
 
@@ -423,7 +438,6 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_clear_completed -> { viewModel.clearCompleted(); true }
-            R.id.action_schedule_next   -> { viewModel.scheduleNext(); true }
             R.id.action_settings -> {
                 startActivity(Intent(this, SettingsActivity::class.java))
                 true
