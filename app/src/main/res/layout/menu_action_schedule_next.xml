@@ -3,7 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="?attr/actionBarSize"
     android:layout_height="?attr/actionBarSize"
-    android:src="@android:drawable/ic_media_next"
+    android:src="@drawable/outline_skip_next_24"
     android:background="?attr/selectableItemBackgroundBorderless"
     android:tint="@android:color/white"
     android:contentDescription="Schedule Next"
