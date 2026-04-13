@@ -197,6 +197,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             savedTaskBeforeInterrupt = null
             if (back != null) {
                 pauseTimer()
+                // Sync _interruptTask with the just-paused state so it has the correct
+                // remainingSeconds when the user jumps back to it later.
+                _currentTask.value?.let { paused -> _interruptTask.value = paused }
                 _currentTask.value = back
                 _timerSeconds.value = back.remainingSeconds
                 _toastMessage.value = "Returned to \"${back.name}\""
@@ -206,9 +209,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             savedTaskBeforeInterrupt = current
             pauseTimer()
-            _currentTask.value = interrupt
-            _timerSeconds.value = interrupt.remainingSeconds
-            _toastMessage.value = "Jumped to interrupt: \"${interrupt.name}\""
+            // Prefer fresh interrupt data from activeTasks LiveData (Room keeps this
+            // up-to-date from the DB, so remainingSeconds reflects the last persisted
+            // value rather than the potentially stale in-memory _interruptTask copy).
+            val freshInterrupt = activeTasks.value?.firstOrNull { it.isInterrupt && !it.isCompleted }
+                ?: interrupt
+            _interruptTask.value = freshInterrupt
+            _currentTask.value = freshInterrupt
+            _timerSeconds.value = freshInterrupt.remainingSeconds
+            _toastMessage.value = "Jumped to interrupt: \"${freshInterrupt.name}\""
         }
     }
 
