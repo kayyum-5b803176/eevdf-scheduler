@@ -478,7 +478,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         else
             base.sortedBy { it.virtualDeadline }
         if (siblings.size <= 1) {
-            viewModelScope.launch { scheduleNext() }
+            // Only one task in this sibling group — stay on the current task
+            // rather than handing off to scheduleNext() which would close the card.
+            _toastMessage.value = "No other siblings to rotate"
             return
         }
         val idx  = siblings.indexOfFirst { it.id == current?.id }
