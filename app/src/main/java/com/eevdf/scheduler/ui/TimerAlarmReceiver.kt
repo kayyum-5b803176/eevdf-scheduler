@@ -18,6 +18,7 @@ import android.content.Intent
 class TimerAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val taskName = intent.getStringExtra(AlarmForegroundService.EXTRA_TASK_NAME) ?: return
-        AlarmForegroundService.timerExpire(context, taskName)
+        val taskType = intent.getStringExtra(AlarmForegroundService.EXTRA_TASK_TYPE) ?: "DEFAULT"
+        AlarmForegroundService.timerExpire(context, taskName, taskType)
     }
 }

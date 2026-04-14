@@ -40,6 +40,12 @@ object VibrationManager {
     const val DEFAULT_TIMEOUT_SEC = 60   // 1 minute
     const val DEFAULT_HAPTIC      = true
 
+    // ── Profile key helpers ───────────────────────────────────────────────────
+
+    fun vibPatternKey(prefix: String)  = "${prefix}${KEY_PATTERN}"
+    fun vibTimeoutKey(prefix: String)  = "${prefix}${KEY_TIMEOUT_SEC}"
+    fun vibHapticKey(prefix: String)   = "${prefix}${KEY_HAPTIC}"
+
     // ── Internal state ────────────────────────────────────────────────────────
 
     private var stopTimeMs: Long = Long.MAX_VALUE
@@ -48,12 +54,30 @@ object VibrationManager {
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
+     * Start vibration for the given task type (reads the matching profile prefs).
+     */
+    fun startAlarmForType(context: Context, prefs: android.content.SharedPreferences, taskType: String) {
+        val prefix = SoundManager.prefixFor(taskType)
+        startAlarmWithPrefix(context, prefs, prefix)
+    }
+
+    /**
      * Start the selected vibration pattern, repeating until [stopAfterMs] elapses or
      * [stop] is called. Pass [stopAfterMs] = 0 to respect the saved timeout.
      */
     fun startAlarm(context: Context, prefs: android.content.SharedPreferences) {
-        val patternId   = prefs.getInt(KEY_PATTERN, DEFAULT_PATTERN)
-        val timeoutSec  = prefs.getInt(KEY_TIMEOUT_SEC, DEFAULT_TIMEOUT_SEC)
+        startAlarmWithPrefix(context, prefs, "")
+    }
+
+    private fun startAlarmWithPrefix(context: Context, prefs: android.content.SharedPreferences, prefix: String) {
+        val patternId  = run {
+            val p = prefs.getInt(vibPatternKey(prefix), -1)
+            if (p == -1) prefs.getInt(KEY_PATTERN, DEFAULT_PATTERN) else p
+        }
+        val timeoutSec = run {
+            val t = prefs.getInt(vibTimeoutKey(prefix), -1)
+            if (t == -1) prefs.getInt(KEY_TIMEOUT_SEC, DEFAULT_TIMEOUT_SEC) else t
+        }
         val pattern     = PATTERNS.getOrNull(patternId)?.pattern ?: PATTERNS[0].pattern
         val timeoutMs   = if (timeoutSec == 0) Long.MAX_VALUE else timeoutSec * 1000L
 

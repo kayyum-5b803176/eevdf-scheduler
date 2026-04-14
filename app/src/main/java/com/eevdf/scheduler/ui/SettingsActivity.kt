@@ -38,6 +38,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var btnExport:      MaterialButton
     private lateinit var btnImport:      MaterialButton
+    private lateinit var btnOpenProfiles: MaterialButton
     private lateinit var progressBar:    ProgressBar
     private lateinit var tvStatus:       TextView
 
@@ -100,6 +101,7 @@ class SettingsActivity : AppCompatActivity() {
 
         btnExport       = findViewById(R.id.btnExport)
         btnImport       = findViewById(R.id.btnImport)
+        btnOpenProfiles = findViewById(R.id.btnOpenProfiles)
         progressBar     = findViewById(R.id.settingsProgress)
         tvStatus        = findViewById(R.id.tvSettingsStatus)
         tvSoundName          = findViewById(R.id.tvSoundName)
@@ -118,6 +120,9 @@ class SettingsActivity : AppCompatActivity() {
 
         btnExport.setOnClickListener { launchExport() }
         btnImport.setOnClickListener { launchImport() }
+        btnOpenProfiles.setOnClickListener {
+            startActivity(Intent(this, ProfileSettingsActivity::class.java))
+        }
         setupSoundSection()
         setupVibrationSection()
     }

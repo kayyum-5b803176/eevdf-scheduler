@@ -7,16 +7,27 @@
     android:orientation="vertical"
     android:background="@android:color/white">
 
-    <!-- Toolbar -->
     <androidx.appcompat.widget.Toolbar
-        android:id="@+id/settingsToolbar"
+        android:id="@+id/profileSettingsToolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="@android:color/white"
         android:elevation="4dp"
         app:titleTextColor="@color/textPrimary" />
 
+    <!-- Tab strip to switch between profiles -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/profileTabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabSelectedTextColor="@color/colorPrimary"
+        app:tabIndicatorColor="@color/colorPrimary"
+        app:tabTextColor="@color/textSecondary" />
+
     <ScrollView
+        android:id="@+id/profileScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
@@ -27,241 +38,7 @@
             android:orientation="vertical"
             android:padding="24dp">
 
-            <!-- ── Data & Backup section header ──────────────────────────── -->
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="DATA &amp; BACKUP"
-                android:textSize="11sp"
-                android:letterSpacing="0.12"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp" />
-
-            <!-- Export card -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="8dp">
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_menu_save"
-                            android:contentDescription="Export icon"
-                            android:layout_marginEnd="12dp"
-                            app:tint="@color/colorPrimary" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Export Database"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
-                                android:fontFamily="sans-serif-medium" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Save a complete copy of the database to a .db file"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
-
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnExport"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Export Database"
-                        android:layout_marginTop="4dp"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Import card -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="8dp">
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_menu_upload"
-                            android:contentDescription="Import icon"
-                            android:layout_marginEnd="12dp"
-                            app:tint="#F44336" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Import Database"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
-                                android:fontFamily="sans-serif-medium" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Restore from a .db backup file — replaces all current data"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
-
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <!-- Warning notice -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:background="@drawable/bg_warning_notice"
-                        android:padding="10dp"
-                        android:layout_marginBottom="8dp"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="This will permanently replace all existing tasks — app will restart"
-                            android:textSize="12sp"
-                            android:textColor="#E65100" />
-
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnImport"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Import Database"
-                        android:layout_marginTop="4dp"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        app:strokeColor="#F44336"
-                        app:rippleColor="#F44336" />
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- ── Task Type Profiles section header ─────────────────────── -->
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="TASK TYPE PROFILES"
-                android:textSize="11sp"
-                android:letterSpacing="0.12"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp" />
-
-            <!-- Profile settings card -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="8dp">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Profile Settings"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
-                                android:fontFamily="sans-serif-medium" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Configure sound &amp; vibration for Default, Notification, Alarm and Custom task types"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnOpenProfiles"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Configure Profiles"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- ── Sound section header ─────────────────────────────────── -->
+            <!-- ── SOUND section ─────────────────────────────────────────── -->
 
             <TextView
                 android:layout_width="match_parent"
@@ -310,7 +87,7 @@
                                 android:fontFamily="sans-serif-medium" />
 
                             <TextView
-                                android:id="@+id/tvSoundName"
+                                android:id="@+id/tvProfileSoundName"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="System alarm tone"
@@ -321,14 +98,13 @@
                         </LinearLayout>
 
                         <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnPickSound"
+                            android:id="@+id/btnProfilePickSound"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Choose"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
                     </LinearLayout>
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -363,14 +139,13 @@
                             android:fontFamily="sans-serif-medium" />
 
                         <TextView
-                            android:id="@+id/tvSoundTimeoutLabel"
+                            android:id="@+id/tvProfileSoundTimeoutLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="1 min"
                             android:textSize="14sp"
                             android:textColor="@color/colorPrimary"
                             android:textStyle="bold" />
-
                     </LinearLayout>
 
                     <TextView
@@ -383,7 +158,7 @@
                         android:layout_marginBottom="8dp" />
 
                     <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderSoundTimeout"
+                        android:id="@+id/sliderProfileSoundTimeout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:valueFrom="0"
@@ -402,7 +177,6 @@
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="15 min" android:textSize="10sp" android:textColor="#9E9E9E"/>
                     </LinearLayout>
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -437,14 +211,13 @@
                             android:fontFamily="sans-serif-medium" />
 
                         <TextView
-                            android:id="@+id/tvVolumeLabel"
+                            android:id="@+id/tvProfileVolumeLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="80%"
                             android:textSize="14sp"
                             android:textColor="@color/colorPrimary"
                             android:textStyle="bold" />
-
                     </LinearLayout>
 
                     <TextView
@@ -457,7 +230,7 @@
                         android:layout_marginBottom="8dp" />
 
                     <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderVolume"
+                        android:id="@+id/sliderProfileVolume"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:valueFrom="0"
@@ -476,7 +249,6 @@
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="100%" android:textSize="10sp" android:textColor="#9E9E9E"/>
                     </LinearLayout>
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -511,27 +283,26 @@
                             android:fontFamily="sans-serif-medium" />
 
                         <TextView
-                            android:id="@+id/tvFadeInLabel"
+                            android:id="@+id/tvProfileFadeInLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Off"
                             android:textSize="14sp"
                             android:textColor="@color/colorPrimary"
                             android:textStyle="bold" />
-
                     </LinearLayout>
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Slowly increase from silent to target volume over this duration (0 = start at full volume)"
+                        android:text="Slowly increase from silent to target volume (0 = start at full volume)"
                         android:textSize="12sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="2dp"
                         android:layout_marginBottom="8dp" />
 
                     <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderFadeIn"
+                        android:id="@+id/sliderProfileFadeIn"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:valueFrom="0"
@@ -550,11 +321,10 @@
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="5 min" android:textSize="10sp" android:textColor="#9E9E9E"/>
                     </LinearLayout>
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- ── Vibration section header ──────────────────────────── -->
+            <!-- ── VIBRATION section ─────────────────────────────────────── -->
 
             <TextView
                 android:layout_width="match_parent"
@@ -591,13 +361,13 @@
                         android:layout_marginBottom="12dp" />
 
                     <RadioGroup
-                        android:id="@+id/rgVibPattern"
+                        android:id="@+id/rgProfileVibPattern"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnPreviewVib"
+                        android:id="@+id/btnProfilePreviewVib"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Preview"
@@ -638,14 +408,13 @@
                             android:fontFamily="sans-serif-medium" />
 
                         <TextView
-                            android:id="@+id/tvVibTimeoutLabel"
+                            android:id="@+id/tvProfileVibTimeoutLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="1 min"
                             android:textSize="14sp"
                             android:textColor="@color/colorPrimary"
                             android:textStyle="bold" />
-
                     </LinearLayout>
 
                     <TextView
@@ -658,7 +427,7 @@
                         android:layout_marginBottom="8dp" />
 
                     <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderVibTimeout"
+                        android:id="@+id/sliderProfileVibTimeout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:valueFrom="0"
@@ -677,7 +446,6 @@
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="15 min" android:textSize="10sp" android:textColor="#9E9E9E"/>
                     </LinearLayout>
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -697,7 +465,7 @@
                     android:padding="20dp">
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchHaptic"
+                        android:id="@+id/switchProfileHaptic"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Haptic Feedback on Buttons"
@@ -711,31 +479,9 @@
                         android:textSize="12sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="4dp" />
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Progress indicator (hidden by default) -->
-            <ProgressBar
-                android:id="@+id/settingsProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:visibility="gone"
-                android:layout_marginBottom="12dp" />
-
-            <!-- Status message -->
-            <TextView
-                android:id="@+id/tvSettingsStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="14sp"
-                android:gravity="center"
-                android:textColor="@color/textSecondary"
-                android:paddingBottom="8dp" />
-
         </LinearLayout>
     </ScrollView>
-
 </LinearLayout>

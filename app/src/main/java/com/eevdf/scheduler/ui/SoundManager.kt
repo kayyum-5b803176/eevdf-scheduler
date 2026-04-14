@@ -49,19 +49,56 @@ object SoundManager {
     private var targetVolume: Float   = 1f
     private var fadeDurationMs: Long  = 0L
 
+    // ── Profile key helpers ───────────────────────────────────────────────────
+
+    /** Returns the prefs-key prefix for the given task type string. */
+    fun prefixFor(taskType: String): String = when (taskType) {
+        "NOTIFICATION" -> "notif_"
+        "ALARM"        -> "alarm_"
+        "CUSTOM"       -> "custom_"
+        else           -> ""   // "DEFAULT" — uses legacy/global keys
+    }
+
+    fun soundUriKey(prefix: String)     = "${prefix}${KEY_SOUND_URI}"
+    fun soundTimeoutKey(prefix: String) = "${prefix}${KEY_SOUND_TIMEOUT}"
+    fun soundVolumeKey(prefix: String)  = "${prefix}${KEY_SOUND_VOLUME}"
+    fun soundFadeInKey(prefix: String)  = "${prefix}${KEY_SOUND_FADE_IN}"
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Start alarm sound using settings from [prefs].
+     * Start alarm sound for the given task type (reads the matching profile prefs).
+     * Falls through to the default profile when a per-profile key has no value saved yet.
+     */
+    fun startAlarmForType(context: Context, prefs: SharedPreferences, taskType: String) {
+        val prefix = prefixFor(taskType)
+        startAlarmWithPrefix(context, prefs, prefix)
+    }
+
+    /**
+     * Start alarm sound using settings from [prefs] (uses default profile keys).
      * Safe to call multiple times — stops any previous playback first.
      */
     fun startAlarm(context: Context, prefs: SharedPreferences) {
+        startAlarmWithPrefix(context, prefs, "")
+    }
+
+    private fun startAlarmWithPrefix(context: Context, prefs: SharedPreferences, prefix: String) {
         stop(context)
 
-        val uriStr      = prefs.getString(KEY_SOUND_URI, null)
-        val timeoutSec  = prefs.getInt(KEY_SOUND_TIMEOUT, DEFAULT_SOUND_TIMEOUT)
-        val volumePct   = prefs.getInt(KEY_SOUND_VOLUME, DEFAULT_SOUND_VOLUME).coerceIn(0, 100)
-        val fadeInSec   = prefs.getInt(KEY_SOUND_FADE_IN, DEFAULT_FADE_IN).coerceIn(0, 300)
+        // Read profile-specific prefs, fall back to the default (no-prefix) value if unset
+        val uriStr     = prefs.getString(soundUriKey(prefix), null)
+            ?: if (prefix.isNotEmpty()) prefs.getString(KEY_SOUND_URI, null) else null
+        val timeoutSec = prefs.getInt(soundTimeoutKey(prefix), -1)
+            .let { if (it == -1) prefs.getInt(KEY_SOUND_TIMEOUT, DEFAULT_SOUND_TIMEOUT) else it }
+        val volumePct  = run {
+            val v = prefs.getInt(soundVolumeKey(prefix), -1)
+            if (v == -1) prefs.getInt(KEY_SOUND_VOLUME, DEFAULT_SOUND_VOLUME) else v
+        }.coerceIn(0, 100)
+        val fadeInSec  = run {
+            val f = prefs.getInt(soundFadeInKey(prefix), -1)
+            if (f == -1) prefs.getInt(KEY_SOUND_FADE_IN, DEFAULT_FADE_IN) else f
+        }.coerceIn(0, 300)
 
         targetVolume   = volumePct / 100f
         fadeDurationMs = fadeInSec * 1000L

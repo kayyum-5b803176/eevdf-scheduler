@@ -35,6 +35,13 @@ data class Task(
 
     val isInterrupt: Boolean = false,
 
+    // Task type — drives which sound/vibration profile fires on expiry
+    // Values: "DEFAULT" | "NOTIFICATION" | "ALARM" | "CUSTOM"
+    val taskType: String = "DEFAULT",
+
+    // Notification type only: seconds to wait before the countdown starts (0–300)
+    val notificationDelaySeconds: Long = 0L,
+
     /** Epoch ms when the running countdown expires. 0 = not running.
      *  Written to DB the instant Start is pressed so app-kill / phone-off
      *  cannot lose this anchor. Cleared to 0 on pause or finish. */

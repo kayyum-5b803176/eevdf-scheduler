@@ -52,6 +52,12 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName=".ui.MainActivity" />
 
+        <activity
+            android:name=".ui.ProfileSettingsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.SettingsActivity" />
+
         <!--
             Full-screen alarm activity — shown over lock screen when timer expires.
             showWhenLocked + turnScreenOn handled in code for API 26 compat.

@@ -638,7 +638,10 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        AlarmForegroundService.timerStart(getApplication(), task.name, remaining)
+        AlarmForegroundService.timerStart(
+            getApplication(), task.name, remaining,
+            task.taskType, task.notificationDelaySeconds
+        )
         attachTickerOnly(remaining)
     }
 
