@@ -48,6 +48,11 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND isCompleted = 0 LIMIT 1")
     suspend fun getInterruptTask(): Task?
 
+    /** Returns the task currently running with an active wall-clock deadline, or null.
+     *  Used on app resume to restore timer state after a kill or device sleep. */
+    @Query("SELECT * FROM tasks WHERE isRunning = 1 AND timerDeadlineEpoch > 0 LIMIT 1")
+    suspend fun getRunningTask(): Task?
+
     /** Clears the interrupt flag on all tasks (used before setting a new one). */
     @Query("UPDATE tasks SET isInterrupt = 0")
     suspend fun clearAllInterrupts()

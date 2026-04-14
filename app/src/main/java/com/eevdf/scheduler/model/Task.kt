@@ -35,6 +35,11 @@ data class Task(
 
     val isInterrupt: Boolean = false,
 
+    /** Epoch ms when the running countdown expires. 0 = not running.
+     *  Written to DB the instant Start is pressed so app-kill / phone-off
+     *  cannot lose this anchor. Cleared to 0 on pause or finish. */
+    var timerDeadlineEpoch: Long = 0L,
+
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val weight: Double get() = priority.toDouble()

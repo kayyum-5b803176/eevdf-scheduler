@@ -118,6 +118,8 @@ class TaskRepository(private val dao: TaskDao) {
 
     // ── Interrupt task ────────────────────────────────────────────────────────
 
+    suspend fun getRunningTask(): Task? = withContext(Dispatchers.IO) { dao.getRunningTask() }
+
     suspend fun getInterruptTask(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTask() }
 
     /** Atomically clears all interrupt flags then sets isInterrupt=true on [task]. */

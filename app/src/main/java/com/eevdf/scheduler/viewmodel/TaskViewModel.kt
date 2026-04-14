@@ -352,8 +352,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     private var countDownTimer: CountDownTimer? = null
     private var overrunTimer: CountDownTimer? = null
-    private var sessionStartSeconds: Long = 0L
-    private var sessionElapsed: Long = 0L
+
+    /** Epoch ms when the current countdown expires — in-memory mirror of Task.timerDeadlineEpoch.
+     *  0 means no timer is running. Written to DB the instant Start is pressed. */
+    private var timerDeadlineEpoch: Long = 0L
+
+    /** Remaining seconds at the moment the current session's Start was pressed.
+     *  Used to compute elapsed = sessionStartRemaining - secondsLeftNow on pause. */
+    private var sessionStartRemaining: Long = 0L
 
     init {
         val db = TaskDatabase.getDatabase(application)
@@ -367,6 +373,33 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // Load persisted interrupt task
         viewModelScope.launch {
             _interruptTask.postValue(repository.getInterruptTask())
+
+            // Resume any task that was actively running when the app was killed or
+            // the device went to sleep.  The wall-clock deadline tells us exactly
+            // how many seconds remain without relying on any in-process state.
+            val running = repository.getRunningTask()
+            if (running != null) {
+                val nowMs        = System.currentTimeMillis()
+                val secondsLeft  = ((running.timerDeadlineEpoch - nowMs) / 1000L).coerceAtLeast(0L)
+                if (secondsLeft > 0L) {
+                    // Correct the in-DB remaining so the card shows the right value
+                    val corrected = running.copy(remainingSeconds = secondsLeft)
+                    repository.update(corrected)
+                    _currentTask.postValue(corrected)
+                    _timerSeconds.postValue(secondsLeft)
+                    // Restore in-memory deadline so startTimer() / pauseTimer() work
+                    timerDeadlineEpoch    = running.timerDeadlineEpoch
+                    sessionStartRemaining = secondsLeft
+                    // Re-attach the UI ticker (does not restart the AlarmManager alarm —
+                    // AlarmForegroundService.timerStart already set that before the kill)
+                    _timerRunning.postValue(true)
+                    attachTickerOnly(secondsLeft)
+                } else {
+                    // Deadline already passed while the app was dead — treat as finished
+                    _currentTask.postValue(running.copy(remainingSeconds = 0L))
+                    onTimerFinished()
+                }
+            }
         }
 
         flatActiveTasks = MediatorLiveData<List<TaskDisplayItem>>().apply {
@@ -574,38 +607,59 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // ── Timer ─────────────────────────────────────────────────────────────────
 
     fun startTimer() {
-        val task = _currentTask.value ?: return
+        // ── Rapid-tap guard ───────────────────────────────────────────────────
+        // If the timer is already running, ignore the press entirely.
+        // Fixes "60 taps = 60 seconds lost": each re-enter used to create a new
+        // CountDownTimer starting from stale LiveData, shedding a second per tap.
+        if (_timerRunning.value == true) return
+
+        val task      = _currentTask.value ?: return
         val remaining = _timerSeconds.value ?: task.remainingSeconds
         if (remaining <= 0) return
 
-        sessionStartSeconds = remaining
-        sessionElapsed = 0L
-        _timerRunning.value = true
+        // ── Wall-clock anchor ─────────────────────────────────────────────────
+        // Store the absolute expiry epoch rather than a duration.  Every tick,
+        // pause, and resume derives elapsed/remaining from this anchor, so the
+        // timer is immune to CountDownTimer drift, process death, and device sleep.
+        val deadlineEpoch     = System.currentTimeMillis() + remaining * 1000L
+        timerDeadlineEpoch    = deadlineEpoch
+        sessionStartRemaining = remaining
+        _timerRunning.value   = true
 
-        val ctx = getApplication<Application>()
-        AlarmForegroundService.timerStart(ctx, task.name, remaining)
+        // Persist the deadline immediately — if the process dies the instant after
+        // this line the resume path in init{} will recover the correct time.
+        viewModelScope.launch {
+            repository.update(
+                task.copy(remainingSeconds = remaining, isRunning = true,
+                          timerDeadlineEpoch = deadlineEpoch)
+            )
+        }
 
+        AlarmForegroundService.timerStart(getApplication(), task.name, remaining)
+        attachTickerOnly(remaining)
+    }
+
+    /**
+     * Attaches a CountDownTimer used purely as a UI wakeup every second.
+     * Every displayed value is derived from [timerDeadlineEpoch] (wall clock),
+     * not from CountDownTimer's internal millisUntilFinished — so drift,
+     * rapid restarts, and process death cannot corrupt the display.
+     */
+    private fun attachTickerOnly(remaining: Long) {
         countDownTimer?.cancel()
         countDownTimer = object : CountDownTimer(remaining * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
-                val secondsLeft = millisUntilFinished / 1000L
-                sessionElapsed = sessionStartSeconds - secondsLeft
+                val secondsLeft = ((timerDeadlineEpoch - System.currentTimeMillis()) / 1000L)
+                    .coerceAtLeast(0L)
                 _timerSeconds.postValue(secondsLeft)
-
-                // Update _currentTask in memory every tick so the card's
-                // progress bar and remaining display stay in sync without
-                // hitting the DB every second
                 _currentTask.value?.let { t ->
                     _currentTask.postValue(t.copy(remainingSeconds = secondsLeft))
                 }
-
-                // No per-second service Intent needed — the notification countdown is
-                // driven by the system clock via setUsesChronometer/setChronometerCountDown.
-                if (sessionElapsed % 10 == 0L) persistTimerState(secondsLeft)
             }
             override fun onFinish() {
                 _timerSeconds.postValue(0L)
                 _timerRunning.postValue(false)
+                timerDeadlineEpoch = 0L
                 onTimerFinished()
             }
         }.start()
@@ -616,19 +670,37 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         countDownTimer?.cancel()
         countDownTimer = null
         _timerRunning.value = false
-        val secondsLeft = _timerSeconds.value ?: return
 
-        // Snap _currentTask in memory to the exact paused time so the card
-        // immediately shows the correct remaining value (not the stale DB value)
+        // Derive exact remaining from the wall-clock deadline — not from the LiveData
+        // value, which may lag one tick behind, and not from CountDownTimer state.
+        val secondsLeft = if (timerDeadlineEpoch > 0L)
+            ((timerDeadlineEpoch - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L)
+        else
+            _timerSeconds.value ?: 0L
+
+        val elapsed = (sessionStartRemaining - secondsLeft).coerceAtLeast(0L)
+        timerDeadlineEpoch    = 0L
+        sessionStartRemaining = 0L
+
+        // Snap in-memory task to exact paused time so the card shows the right value
         _currentTask.value?.let { t ->
-            _currentTask.value = t.copy(remainingSeconds = secondsLeft, isRunning = false)
+            _currentTask.value = t.copy(remainingSeconds = secondsLeft, isRunning = false,
+                                        timerDeadlineEpoch = 0L)
+        }
+        _timerSeconds.value = secondsLeft
+
+        // Persist paused state — clear deadline so resume logic does not re-fire
+        val task = _currentTask.value
+        if (task != null) {
+            viewModelScope.launch {
+                repository.update(
+                    task.copy(remainingSeconds = secondsLeft, isRunning = false,
+                              timerDeadlineEpoch = 0L)
+                )
+            }
         }
 
-        persistTimerState(secondsLeft)
-        if (sessionElapsed > 0) {
-            applyVruntimeUpdate(sessionElapsed)
-            sessionElapsed = 0L
-        }
+        if (elapsed > 0) applyVruntimeUpdate(elapsed)
         AlarmForegroundService.timerPause(getApplication())
     }
 
@@ -737,14 +809,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _toastMessage.postValue("\"${task.name}\" completed!")
                 refreshSchedule()
             }
-        }
-    }
-
-    private fun persistTimerState(secondsLeft: Long) {
-        val task = _currentTask.value ?: return
-        viewModelScope.launch {
-            val updated = task.copy(remainingSeconds = secondsLeft, isRunning = true)
-            repository.update(updated)
         }
     }
 
