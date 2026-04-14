@@ -395,9 +395,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                     _timerRunning.postValue(true)
                     attachTickerOnly(secondsLeft)
                 } else {
-                    // Deadline already passed while the app was dead — treat as finished
-                    _currentTask.postValue(running.copy(remainingSeconds = 0L))
-                    onTimerFinished()
+                    // Deadline already passed while the app was killed/dead.
+                    // Do NOT postValue here — that would briefly show the timer card
+                    // at 0:00 before onTimerFinished() clears it.  Instead, pass the
+                    // task directly so onTimerFinished() can show the alarm banner
+                    // without depending on the async _currentTask update.
+                    onTimerFinished(running)
                 }
             }
         }
@@ -631,7 +634,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.update(
                 task.copy(remainingSeconds = remaining, isRunning = true,
-                          timerDeadlineEpoch = deadlineEpoch)
+                    timerDeadlineEpoch = deadlineEpoch)
             )
         }
 
@@ -685,7 +688,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // Snap in-memory task to exact paused time so the card shows the right value
         _currentTask.value?.let { t ->
             _currentTask.value = t.copy(remainingSeconds = secondsLeft, isRunning = false,
-                                        timerDeadlineEpoch = 0L)
+                timerDeadlineEpoch = 0L)
         }
         _timerSeconds.value = secondsLeft
 
@@ -695,7 +698,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 repository.update(
                     task.copy(remainingSeconds = secondsLeft, isRunning = false,
-                              timerDeadlineEpoch = 0L)
+                        timerDeadlineEpoch = 0L)
                 )
             }
         }
@@ -737,8 +740,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         scheduleNext()
     }
 
-    private fun onTimerFinished() {
-        val task = _currentTask.value ?: return
+    /**
+     * Called when the countdown reaches zero.
+     *
+     * [taskOverride] is supplied by the app-killed recovery path in init{} where
+     * _currentTask hasn't been set yet (postValue is asynchronous — it hasn't resolved
+     * by the time onTimerFinished() is called on the same thread).  Every other call
+     * site leaves [taskOverride] null and relies on _currentTask.value as before.
+     */
+    private fun onTimerFinished(taskOverride: Task? = null) {
+        val task = taskOverride ?: _currentTask.value ?: return
         val ctx = getApplication<Application>()
 
         viewModelScope.launch {
