@@ -44,24 +44,32 @@ class ProfileSettingsActivity : AppCompatActivity() {
 
     // ── UI references ──────────────────────────────────────────────────────────
 
-    private lateinit var tabLayout:           TabLayout
-    private lateinit var tvSoundName:         TextView
-    private lateinit var btnPickSound:        MaterialButton
-    private lateinit var sliderSoundTimeout:  Slider
-    private lateinit var tvSoundTimeoutLabel: TextView
-    private lateinit var sliderVolume:        Slider
-    private lateinit var tvVolumeLabel:       TextView
-    private lateinit var sliderFadeIn:        Slider
-    private lateinit var tvFadeInLabel:       TextView
-    private lateinit var rgVibPattern:        RadioGroup
-    private lateinit var btnPreviewVib:       MaterialButton
-    private lateinit var sliderVibTimeout:    Slider
-    private lateinit var tvVibTimeoutLabel:   TextView
-    private lateinit var switchHaptic:        SwitchMaterial
+    private lateinit var tabLayout:            TabLayout
+    private lateinit var tvSoundName:          TextView
+    private lateinit var btnPickSound:         MaterialButton
+    private lateinit var sliderSoundTimeout:   Slider
+    private lateinit var tvSoundTimeoutLabel:  TextView
+    private lateinit var sliderVolume:         Slider
+    private lateinit var tvVolumeLabel:        TextView
+    private lateinit var sliderFadeIn:         Slider
+    private lateinit var tvFadeInLabel:        TextView
+    private lateinit var rgVibPattern:         RadioGroup
+    private lateinit var btnPreviewVib:        MaterialButton
+    private lateinit var sliderVibTimeout:     Slider
+    private lateinit var tvVibTimeoutLabel:    TextView
+    private lateinit var switchHaptic:         SwitchMaterial
+    // Visibility containers
+    private lateinit var layoutAction1Section: android.widget.LinearLayout
+    private lateinit var layoutVibrationSection: android.widget.LinearLayout
+    // Action 1 widgets
+    private lateinit var tvAction1SoundName:   TextView
+    private lateinit var btnAction1PickSound:  MaterialButton
+    private lateinit var sliderAction1Volume:  Slider
+    private lateinit var tvAction1VolumeLabel: TextView
 
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE) }
 
-    // ── Sound picker launcher ──────────────────────────────────────────────────
+    // ── Sound picker launchers ─────────────────────────────────────────────────
 
     private val soundPickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -72,6 +80,17 @@ class ProfileSettingsActivity : AppCompatActivity() {
             val key = soundUriKeyFor(currentProfileIdx)
             prefs.edit().putString(key, uri?.toString()).apply()
             updateSoundName()
+        }
+    }
+
+    private val action1SoundPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data
+                ?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            prefs.edit().putString(SoundManager.KEY_ACTION1_SOUND_URI, uri?.toString()).apply()
+            updateAction1SoundName()
         }
     }
 
@@ -100,6 +119,12 @@ class ProfileSettingsActivity : AppCompatActivity() {
         sliderVibTimeout   = findViewById(R.id.sliderProfileVibTimeout)
         tvVibTimeoutLabel  = findViewById(R.id.tvProfileVibTimeoutLabel)
         switchHaptic       = findViewById(R.id.switchProfileHaptic)
+        layoutAction1Section   = findViewById(R.id.layoutAction1Section)
+        layoutVibrationSection = findViewById(R.id.layoutVibrationSection)
+        tvAction1SoundName     = findViewById(R.id.tvAction1SoundName)
+        btnAction1PickSound    = findViewById(R.id.btnAction1PickSound)
+        sliderAction1Volume    = findViewById(R.id.sliderAction1Volume)
+        tvAction1VolumeLabel   = findViewById(R.id.tvAction1VolumeLabel)
 
         // Build tabs
         profiles.forEach { tabLayout.addTab(tabLayout.newTab().setText(it.label)) }
@@ -107,6 +132,9 @@ class ProfileSettingsActivity : AppCompatActivity() {
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 currentProfileIdx = tab.position
+                val isNotification = profiles[tab.position].taskType == "NOTIFICATION"
+                layoutAction1Section.visibility   = if (isNotification) android.view.View.VISIBLE else android.view.View.GONE
+                layoutVibrationSection.visibility = if (isNotification) android.view.View.GONE   else android.view.View.VISIBLE
                 loadProfile(currentProfileIdx)
             }
             override fun onTabUnselected(tab: TabLayout.Tab) {}
@@ -133,6 +161,25 @@ class ProfileSettingsActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        btnAction1PickSound.setOnClickListener {
+            val current = prefs.getString(SoundManager.KEY_ACTION1_SOUND_URI, null)
+                ?.let { android.net.Uri.parse(it) }
+            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Cue Sound")
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                if (current != null) putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, current)
+            }
+            action1SoundPickerLauncher.launch(intent)
+        }
+
+        sliderAction1Volume.addOnChangeListener { _, value, _ ->
+            val pct = value.toInt()
+            prefs.edit().putInt(SoundManager.KEY_ACTION1_VOLUME, pct).apply()
+            tvAction1VolumeLabel.text = "$pct%"
+        }
+
         btnPickSound.setOnClickListener {
             val current = prefs.getString(soundUriKeyFor(currentProfileIdx), null)
                 ?.let { android.net.Uri.parse(it) }
@@ -192,6 +239,14 @@ class ProfileSettingsActivity : AppCompatActivity() {
      * so changes here are reflected there and vice-versa.
      */
     private fun loadProfile(idx: Int) {
+        // Action 1 (Notification profile only)
+        if (profiles[idx].taskType == "NOTIFICATION") {
+            updateAction1SoundName()
+            val a1vol = prefs.getInt(SoundManager.KEY_ACTION1_VOLUME, SoundManager.DEFAULT_ACTION1_VOLUME)
+            sliderAction1Volume.value = a1vol.toFloat().coerceIn(0f, 100f)
+            tvAction1VolumeLabel.text = "$a1vol%"
+        }
+
         // Sound
         updateSoundName()
 
@@ -223,6 +278,18 @@ class ProfileSettingsActivity : AppCompatActivity() {
         val uriStr = prefs.getString(soundUriKeyFor(currentProfileIdx), null)
         tvSoundName.text = if (uriStr.isNullOrBlank()) {
             "System alarm tone"
+        } else {
+            try {
+                RingtoneManager.getRingtone(this, android.net.Uri.parse(uriStr))
+                    ?.getTitle(this) ?: "Custom sound"
+            } catch (_: Exception) { "Custom sound" }
+        }
+    }
+
+    private fun updateAction1SoundName() {
+        val uriStr = prefs.getString(SoundManager.KEY_ACTION1_SOUND_URI, null)
+        tvAction1SoundName.text = if (uriStr.isNullOrBlank()) {
+            "System notification tone"
         } else {
             try {
                 RingtoneManager.getRingtone(this, android.net.Uri.parse(uriStr))

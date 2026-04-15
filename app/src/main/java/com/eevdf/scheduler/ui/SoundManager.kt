@@ -49,6 +49,54 @@ object SoundManager {
     private var targetVolume: Float   = 1f
     private var fadeDurationMs: Long  = 0L
 
+    // ── Action 1 (Notification pre-timer cue) ────────────────────────────────
+    // Played once when the delay phase ends — signals the real task timer is starting.
+    // No vibration. Stored under fixed keys (notification profile owns this setting).
+
+    const val KEY_ACTION1_SOUND_URI = "notif_action1_sound_uri"
+    const val KEY_ACTION1_VOLUME    = "notif_action1_volume"
+    const val DEFAULT_ACTION1_VOLUME = 80
+
+    private var action1Player: MediaPlayer? = null
+
+    /**
+     * Play the Action 1 cue once (non-looping). Uses its own dedicated MediaPlayer
+     * so it does not interfere with any ongoing alarm playback.
+     */
+    fun playAction1(context: Context, prefs: SharedPreferences) {
+        action1Player?.let { try { it.stop(); it.release() } catch (_: Exception) {} }
+        action1Player = null
+
+        val uriStr   = prefs.getString(KEY_ACTION1_SOUND_URI, null)
+        val volumePct = prefs.getInt(KEY_ACTION1_VOLUME, DEFAULT_ACTION1_VOLUME).coerceIn(0, 100)
+        val vol       = volumePct / 100f
+
+        val uri: Uri = when {
+            !uriStr.isNullOrBlank() -> Uri.parse(uriStr)
+            else -> RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_NOTIFICATION)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        }
+
+        try {
+            action1Player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(context, uri)
+                isLooping = false
+                setVolume(vol, vol)
+                prepare()
+                start()
+                setOnCompletionListener { release(); action1Player = null }
+            }
+        } catch (_: Exception) {
+            action1Player = null
+        }
+    }
+
     // ── Profile key helpers ───────────────────────────────────────────────────
 
     /** Returns the prefs-key prefix for the given task type string. */

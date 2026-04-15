@@ -221,8 +221,11 @@ class MainActivity : AppCompatActivity() {
         btnStartPause.setOnClickListener {
             haptic(it)
             viewModel.stopAlarmSound()
-            if (viewModel.timerRunning.value == true) viewModel.pauseTimer()
-            else viewModel.startTimer()
+            when {
+                viewModel.timerRunning.value == true  -> viewModel.pauseTimer()
+                viewModel.delayRunning.value == true  -> viewModel.pauseTimer()  // cancels delay → back to step 1
+                else -> viewModel.startTimer()
+            }
         }
         btnInt.setOnClickListener { haptic(it); viewModel.jumpToInterrupt() }
         btnScheduleNext.setOnClickListener { haptic(it); viewModel.nextSibling(onQueueTab = currentTab == 0) }
@@ -282,6 +285,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.timerRunning.observe(this) { running ->
+            // Don't overwrite button state while delay is active
+            if (viewModel.delayRunning.value == true) return@observe
             btnStartPause.text = if (running) "Pause" else "Start"
             btnStartPause.icon = null
             val tintColor = if (running) R.color.timerYellow else R.color.timerGreen
@@ -289,9 +294,30 @@ class MainActivity : AppCompatActivity() {
                 android.content.res.ColorStateList.valueOf(
                     androidx.core.content.ContextCompat.getColor(this, tintColor)
                 )
-            // Skip MaterialShapeDrawable's internal color-transition animator
-            // to prevent the brief light-flash artifact on state change
             btnStartPause.jumpDrawablesToCurrentState()
+        }
+
+        viewModel.delayRunning.observe(this) { inDelay ->
+            if (inDelay) {
+                btnStartPause.text = "Cancel"
+                btnStartPause.icon = null
+                btnStartPause.backgroundTintList =
+                    android.content.res.ColorStateList.valueOf(
+                        androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
+                    )
+                btnStartPause.jumpDrawablesToCurrentState()
+            } else {
+                // Delay just ended (Action 1 fired, real timer starting) — button
+                // state will be corrected momentarily by timerRunning observer
+            }
+        }
+
+        viewModel.delaySecondsRemaining.observe(this) { secs ->
+            if (viewModel.delayRunning.value == true) {
+                val m = secs / 60
+                val s = secs % 60
+                tvTimerDisplay.text = "\u23F3 %02d:%02d".format(m, s)
+            }
         }
 
         viewModel.stats.observe(this) { stats ->

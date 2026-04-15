@@ -11,6 +11,7 @@ import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import com.eevdf.scheduler.scheduler.SchedulerStats
 import com.eevdf.scheduler.ui.AlarmForegroundService
+import com.eevdf.scheduler.ui.SoundManager
 import kotlinx.coroutines.launch
 
 class TaskViewModel(application: Application) : AndroidViewModel(application) {
@@ -351,7 +352,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // ── Timer state ───────────────────────────────────────────────────────────
 
     private var countDownTimer: CountDownTimer? = null
-    private var overrunTimer: CountDownTimer? = null
+    private var overrunTimer:   CountDownTimer? = null
+    private var delayTimer:     CountDownTimer? = null   // NOTIFICATION delay phase
+
+    /** True while the pre-timer delay countdown is running. */
+    private val _delayRunning = MutableLiveData<Boolean>(false)
+    val delayRunning: LiveData<Boolean> = _delayRunning
+
+    /** Seconds remaining in the delay phase countdown (only meaningful when delayRunning). */
+    private val _delaySecondsRemaining = MutableLiveData<Long>(0L)
+    val delaySecondsRemaining: LiveData<Long> = _delaySecondsRemaining
 
     /** Epoch ms when the current countdown expires — in-memory mirror of Task.timerDeadlineEpoch.
      *  0 means no timer is running. Written to DB the instant Start is pressed. */
@@ -610,27 +620,69 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // ── Timer ─────────────────────────────────────────────────────────────────
 
     fun startTimer() {
-        // ── Rapid-tap guard ───────────────────────────────────────────────────
-        // If the timer is already running, ignore the press entirely.
-        // Fixes "60 taps = 60 seconds lost": each re-enter used to create a new
-        // CountDownTimer starting from stale LiveData, shedding a second per tap.
-        if (_timerRunning.value == true) return
+        // Already counting down (delay phase OR task timer) — ignore tap
+        if (_timerRunning.value == true || _delayRunning.value == true) return
 
         val task      = _currentTask.value ?: return
         val remaining = _timerSeconds.value ?: task.remainingSeconds
         if (remaining <= 0) return
 
+        val delaySecs = if (task.taskType == "NOTIFICATION") task.notificationDelaySeconds else 0L
+
+        if (delaySecs > 0) {
+            startDelayPhase(task, remaining, delaySecs)
+        } else {
+            startActualTimer(task, remaining)
+        }
+    }
+
+    // ── Delay phase ───────────────────────────────────────────────────────────
+
+    private fun startDelayPhase(task: Task, remaining: Long, delaySecs: Long) {
+        _delayRunning.value        = true
+        _delaySecondsRemaining.value = delaySecs
+
+        delayTimer?.cancel()
+        delayTimer = object : CountDownTimer(delaySecs * 1000L, 1000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                _delaySecondsRemaining.postValue(
+                    (millisUntilFinished / 1000L).coerceAtLeast(0L)
+                )
+            }
+            override fun onFinish() {
+                _delayRunning.postValue(false)
+                _delaySecondsRemaining.postValue(0L)
+                delayTimer = null
+                // Fire Action 1 cue then immediately start the actual task timer
+                SoundManager.playAction1(getApplication(), prefs)
+                startActualTimer(task, remaining)
+            }
+        }.start()
+
+        // Show a foreground-service notification for the delay phase so the user
+        // sees a live countdown even when the app is backgrounded. The service does
+        // not start the AlarmManager here — that is done inside startActualTimer().
+        AlarmForegroundService.delayStart(getApplication(), task.name, delaySecs)
+    }
+
+    /** Cancel the delay phase without proceeding to the task timer. */
+    private fun cancelDelayPhase() {
+        delayTimer?.cancel()
+        delayTimer = null
+        _delayRunning.value          = false
+        _delaySecondsRemaining.value = 0L
+        AlarmForegroundService.timerPause(getApplication())   // dismiss the delay notification
+    }
+
+    // ── Actual task timer ─────────────────────────────────────────────────────
+
+    private fun startActualTimer(task: Task, remaining: Long) {
         // ── Wall-clock anchor ─────────────────────────────────────────────────
-        // Store the absolute expiry epoch rather than a duration.  Every tick,
-        // pause, and resume derives elapsed/remaining from this anchor, so the
-        // timer is immune to CountDownTimer drift, process death, and device sleep.
         val deadlineEpoch     = System.currentTimeMillis() + remaining * 1000L
         timerDeadlineEpoch    = deadlineEpoch
         sessionStartRemaining = remaining
         _timerRunning.value   = true
 
-        // Persist the deadline immediately — if the process dies the instant after
-        // this line the resume path in init{} will recover the correct time.
         viewModelScope.launch {
             repository.update(
                 task.copy(remainingSeconds = remaining, isRunning = true,
@@ -638,10 +690,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        AlarmForegroundService.timerStart(
-            getApplication(), task.name, remaining,
-            task.taskType, task.notificationDelaySeconds
-        )
+        AlarmForegroundService.timerStart(getApplication(), task.name, remaining, task.taskType)
         attachTickerOnly(remaining)
     }
 
@@ -672,6 +721,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pauseTimer() {
+        // If we are in the delay phase, abort it — next Start press will re-run the delay
+        if (_delayRunning.value == true) {
+            cancelDelayPhase()
+            return
+        }
+
         stopAlarmSound()
         countDownTimer?.cancel()
         countDownTimer = null

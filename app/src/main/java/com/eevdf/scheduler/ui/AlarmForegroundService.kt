@@ -37,6 +37,7 @@ class AlarmForegroundService : Service() {
 
     companion object {
         const val ACTION_TIMER_START  = "com.eevdf.scheduler.TIMER_START"
+        const val ACTION_DELAY_START  = "com.eevdf.scheduler.DELAY_START"
         const val ACTION_TIMER_EXPIRE = "com.eevdf.scheduler.TIMER_EXPIRE"
         const val ACTION_TIMER_PAUSE  = "com.eevdf.scheduler.TIMER_PAUSE"
         const val ACTION_STOP         = "com.eevdf.scheduler.ALARM_STOP"
@@ -57,18 +58,26 @@ class AlarmForegroundService : Service() {
 
         private const val ALARM_MGR_REQ = 9001
 
+        fun delayStart(context: Context, taskName: String, delaySecs: Long) {
+            val intent = Intent(context, AlarmForegroundService::class.java).apply {
+                action = ACTION_DELAY_START
+                putExtra(EXTRA_TASK_NAME, taskName)
+                putExtra(EXTRA_NOTIF_DELAY, delaySecs)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                context.startForegroundService(intent)
+            else
+                context.startService(intent)
+        }
+
         fun timerStart(
             context: Context,
             taskName: String,
             remainingSecs: Long,
-            taskType: String = "DEFAULT",
-            notifDelaySecs: Long = 0L
+            taskType: String = "DEFAULT"
         ) {
-            send(context, ACTION_TIMER_START, taskName, remainingSecs, taskType, notifDelaySecs)
-            // For NOTIFICATION type: AlarmManager fires after delay + remaining so the
-            // countdown phase begins only after the delay elapses.
-            val alarmDelay = if (taskType == "NOTIFICATION") notifDelaySecs else 0L
-            scheduleAlarmManager(context, taskName, remainingSecs, alarmDelay, taskType)
+            send(context, ACTION_TIMER_START, taskName, remainingSecs, taskType)
+            scheduleAlarmManager(context, taskName, remainingSecs, taskType)
         }
 
         fun timerExpire(context: Context, taskName: String, taskType: String = "DEFAULT") {
@@ -93,17 +102,15 @@ class AlarmForegroundService : Service() {
 
         /**
          * Schedule a Doze-immune alarm via AlarmManager.setAlarmClock().
-         * For NOTIFICATION tasks, [delaySecs] extra seconds are added before the countdown
-         * actually begins — the timer fires after delay + remaining.
+         * Fires exactly on time even in Deep Doze.
          */
         private fun scheduleAlarmManager(
             context: Context,
             taskName: String,
             remainingSecs: Long,
-            delaySecs: Long = 0L,
             taskType: String = "DEFAULT"
         ) {
-            val triggerAt = System.currentTimeMillis() + (delaySecs + remainingSecs) * 1000L
+            val triggerAt = System.currentTimeMillis() + remainingSecs * 1000L
 
             val receiverPi = PendingIntent.getBroadcast(
                 context, ALARM_MGR_REQ,
@@ -140,15 +147,13 @@ class AlarmForegroundService : Service() {
             action: String,
             taskName: String,
             secs: Long,
-            taskType: String = "DEFAULT",
-            notifDelay: Long = 0L
+            taskType: String = "DEFAULT"
         ) {
             val intent = Intent(context, AlarmForegroundService::class.java).apply {
                 this.action = action
                 putExtra(EXTRA_TASK_NAME, taskName)
                 putExtra(EXTRA_REMAINING_SECS, secs)
                 putExtra(EXTRA_TASK_TYPE, taskType)
-                putExtra(EXTRA_NOTIF_DELAY, notifDelay)
             }
             if (action == ACTION_TIMER_START) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
@@ -180,19 +185,14 @@ class AlarmForegroundService : Service() {
         val notifDelay = intent?.getLongExtra(EXTRA_NOTIF_DELAY, 0L) ?: 0L
 
         when (intent?.action) {
+            // Delay phase: show countdown notification until ViewModel fires the real timer
+            ACTION_DELAY_START -> {
+                updateNotification(buildDelayNotification(taskName, notifDelay))
+            }
+
             ACTION_TIMER_START -> {
-                if (taskType == "NOTIFICATION" && notifDelay > 0) {
-                    // Show a "delay" notification while we wait before counting down
-                    updateNotification(buildDelayNotification(taskName, notifDelay))
-                    // After the delay elapses, switch to the live countdown notification
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        updateNotification(buildTimerNotification(taskName, remaining))
-                    }, notifDelay * 1000L)
-                } else {
-                    // Show a countdown notification driven by the system clock.
-                    // No WakeLock — phone sleeps normally, AlarmManager wakes it on time.
-                    updateNotification(buildTimerNotification(taskName, remaining))
-                }
+                // Show a countdown notification driven by the system clock.
+                updateNotification(buildTimerNotification(taskName, remaining))
             }
 
             ACTION_TIMER_PAUSE -> {
