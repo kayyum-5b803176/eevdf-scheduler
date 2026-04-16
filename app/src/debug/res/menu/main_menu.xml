@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_schedule_next"
+        android:title="Schedule Next"
+        android:icon="@android:drawable/ic_media_next"
+        app:showAsAction="always"
+        app:actionLayout="@layout/menu_action_schedule_next" />
+
+    <item
+        android:id="@+id/action_toggle_groups"
+        android:title="Enable Groups"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_toggle_global_rotate"
+        android:title="Global Rotate"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_auto_scroll"
+        android:title="Auto Scroll"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_allow_edit"
+        android:title="Allow Edit"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clear_completed"
+        android:title="Clear Completed"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_settings"
+        android:title="Settings"
+        app:showAsAction="never" />
+
+</menu>

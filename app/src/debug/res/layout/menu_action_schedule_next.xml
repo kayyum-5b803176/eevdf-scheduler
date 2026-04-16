@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageButton
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="?attr/actionBarSize"
+    android:layout_height="?attr/actionBarSize"
+    android:src="@drawable/outline_skip_next_24"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:tint="@android:color/white"
+    android:contentDescription="Schedule Next"
+    android:padding="12dp" />
