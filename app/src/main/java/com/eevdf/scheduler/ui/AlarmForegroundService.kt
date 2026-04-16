@@ -255,7 +255,7 @@ class AlarmForegroundService : Service() {
         val delayEndEpoch = System.currentTimeMillis() + delaySecs * 1000L
         val builder = NotificationCompat.Builder(this, CHANNEL_DELAY)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("⏳ Starting soon — $taskName")
+            .setContentTitle("Starting soon \u2014 $taskName")
             .setContentText("Timer begins in")
             .setOngoing(true)
             .setSilent(true)

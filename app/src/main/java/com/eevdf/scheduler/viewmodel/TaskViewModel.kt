@@ -354,17 +354,21 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private var countDownTimer: CountDownTimer? = null
     private var overrunTimer:   CountDownTimer? = null
     private var delayTimer:     CountDownTimer? = null
-    private var restTimer:      CountDownTimer? = null   // Notice rest phase
+    private var waitTimer:      CountDownTimer? = null   // Notice wait phase
 
     private val _delayRunning = MutableLiveData<Boolean>(false)
     val delayRunning: LiveData<Boolean> = _delayRunning
     private val _delaySecondsRemaining = MutableLiveData<Long>(0L)
     val delaySecondsRemaining: LiveData<Long> = _delaySecondsRemaining
 
-    private val _restRunning = MutableLiveData<Boolean>(false)
-    val restRunning: LiveData<Boolean> = _restRunning
-    private val _restSecondsRemaining = MutableLiveData<Long>(0L)
-    val restSecondsRemaining: LiveData<Long> = _restSecondsRemaining
+    private val _waitRunning = MutableLiveData<Boolean>(false)
+    val waitRunning: LiveData<Boolean> = _waitRunning
+    private val _waitSecondsRemaining = MutableLiveData<Long>(0L)
+    val waitSecondsRemaining: LiveData<Long> = _waitSecondsRemaining
+
+    /** Elapsed seconds accumulated across delay + execute + wait phases this session. */
+    private var delayElapsedSeconds: Long  = 0L
+    private var waitElapsedSeconds:  Long  = 0L
 
     /** Tracks completed repeat cycles for the current Notice task session. */
     private var currentRepeatIteration = 0
@@ -626,7 +630,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // ── Timer ─────────────────────────────────────────────────────────────────
 
     fun startTimer() {
-        if (_timerRunning.value == true || _delayRunning.value == true || _restRunning.value == true) return
+        if (_timerRunning.value == true || _delayRunning.value == true || _waitRunning.value == true) return
 
         val task      = _currentTask.value ?: return
         val remaining = _timerSeconds.value ?: task.remainingSeconds
@@ -643,21 +647,25 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── Delay phase ───────────────────────────────────────────────────────────
+    // ── Delay phase (step 2) ──────────────────────────────────────────────────
 
     private fun startDelayPhase(task: Task, remaining: Long, delaySecs: Long) {
+        delayElapsedSeconds          = 0L
+        waitElapsedSeconds           = 0L
         _delayRunning.value          = true
         _delaySecondsRemaining.value = delaySecs
+        val delayStart = System.currentTimeMillis()
         delayTimer?.cancel()
         delayTimer = object : CountDownTimer(delaySecs * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
                 _delaySecondsRemaining.postValue((millisUntilFinished / 1000L).coerceAtLeast(0L))
             }
             override fun onFinish() {
+                delayElapsedSeconds = ((System.currentTimeMillis() - delayStart) / 1000L).coerceAtLeast(0L)
                 _delayRunning.postValue(false)
                 _delaySecondsRemaining.postValue(0L)
                 delayTimer = null
-                SoundManager.playDelaySound(getApplication(), prefs)
+                SoundManager.playExecuteSound(getApplication(), prefs)   // [execute sound] at step 3
                 startActualTimer(task, remaining)
             }
         }.start()
@@ -665,6 +673,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun cancelDelayPhase() {
+        val elapsed = _delaySecondsRemaining.value?.let { (delaySecs() - it).coerceAtLeast(0L) } ?: 0L
+        delayElapsedSeconds          = elapsed
         delayTimer?.cancel(); delayTimer = null
         _delayRunning.value          = false
         _delaySecondsRemaining.value = 0L
@@ -672,38 +682,55 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         AlarmForegroundService.timerPause(getApplication())
     }
 
-    // ── Rest phase ────────────────────────────────────────────────────────────
+    /** Returns the configured delay seconds for the current task (0 if none). */
+    private fun delaySecs(): Long =
+        if (_currentTask.value?.taskType == "NOTIFICATION") _currentTask.value?.notificationDelaySeconds ?: 0L else 0L
 
-    private fun startRestPhase(task: Task, restSecs: Long) {
-        _restRunning.value          = true
-        _restSecondsRemaining.value = restSecs
-        SoundManager.playRestSound(getApplication(), prefs)
-        AlarmForegroundService.delayStart(getApplication(), task.name, restSecs)   // reuse delay notification for rest
-        restTimer?.cancel()
-        restTimer = object : CountDownTimer(restSecs * 1000L, 1000L) {
+    // ── Wait phase (step 4) ───────────────────────────────────────────────────
+
+    private fun startWaitPhase(task: Task, waitSecs: Long) {
+        _waitRunning.value          = true
+        _waitSecondsRemaining.value = waitSecs
+        val waitStart = System.currentTimeMillis()
+        SoundManager.playWaitSound(getApplication(), prefs)   // [wait sound] at step 4
+        AlarmForegroundService.delayStart(getApplication(), task.name, waitSecs)
+        waitTimer?.cancel()
+        waitTimer = object : CountDownTimer(waitSecs * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
-                _restSecondsRemaining.postValue((millisUntilFinished / 1000L).coerceAtLeast(0L))
+                _waitSecondsRemaining.postValue((millisUntilFinished / 1000L).coerceAtLeast(0L))
             }
             override fun onFinish() {
-                _restRunning.postValue(false)
-                _restSecondsRemaining.postValue(0L)
-                restTimer = null
+                waitElapsedSeconds = ((System.currentTimeMillis() - waitStart) / 1000L).coerceAtLeast(0L)
+                _waitRunning.postValue(false)
+                _waitSecondsRemaining.postValue(0L)
+                waitTimer = null
+                // Step 5: if repeat → jump to step 3 (execute), else expire
                 val maxRepeat = task.notificationRepeatCount
                 if (currentRepeatIteration < maxRepeat) {
                     currentRepeatIteration++
-                    startActualTimer(task, task.timeSliceSeconds)
+                    startActualTimer(task, task.timeSliceSeconds)   // jump to step 3
                 } else {
-                    triggerAlarmExpire(task)
+                    triggerAlarmExpire(task)   // step 6
                 }
             }
         }.start()
     }
 
-    private fun cancelRestPhase() {
-        restTimer?.cancel(); restTimer = null
-        _restRunning.value          = false
-        _restSecondsRemaining.value = 0L
+    private fun cancelWaitPhase() {
+        val secs = _waitSecondsRemaining.value ?: 0L
+        val task = _currentTask.value
+        val waitSecs = task?.notificationRestSeconds ?: 0L
+        waitElapsedSeconds          = (waitSecs - secs).coerceAtLeast(0L)
+        waitTimer?.cancel(); waitTimer = null
+        _waitRunning.value          = false
+        _waitSecondsRemaining.value = 0L
         currentRepeatIteration      = 0
+        // Restore execute slice so pressing Start goes back to step 2 → step 3 correctly
+        val sliceSecs = task?.timeSliceSeconds ?: 0L
+        _timerSeconds.value = sliceSecs
+        _currentTask.value?.let { t ->
+            _currentTask.value = t.copy(remainingSeconds = sliceSecs)
+        }
         AlarmForegroundService.timerPause(getApplication())
     }
 
@@ -764,10 +791,10 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pauseTimer() {
-        // Delay phase → cancel, go back to step 1
+        // Delay phase → cancel, clear session
         if (_delayRunning.value == true) { cancelDelayPhase(); return }
-        // Rest phase → cancel, go back to step 1
-        if (_restRunning.value == true) { cancelRestPhase(); return }
+        // Wait phase → cancel, restore execute slice for clean restart
+        if (_waitRunning.value == true) { cancelWaitPhase(); return }
 
         stopAlarmSound()
         countDownTimer?.cancel()
@@ -803,7 +830,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        if (elapsed > 0) applyVruntimeUpdate(elapsed)
+        if (elapsed > 0) applyVruntimeUpdate(elapsed + delayElapsedSeconds + waitElapsedSeconds)
+        delayElapsedSeconds = 0L
+        waitElapsedSeconds  = 0L
         AlarmForegroundService.timerPause(getApplication())
     }
 
@@ -872,14 +901,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                     _toastMessage.postValue("Auto: no more active tasks")
                 }
             } else if (task.taskType == "NOTIFICATION") {
-                // Notice cycle: timer → rest → repeat → … → expire
-                val restSecs  = task.notificationRestSeconds
+                // Notice cycle: step 3 (execute) → step 4 (wait) → step 5 (repeat/expire)
+                val waitSecs  = task.notificationRestSeconds
                 val maxRepeat = task.notificationRepeatCount
                 when {
-                    restSecs > 0 -> startRestPhase(task, restSecs)
+                    waitSecs > 0 -> startWaitPhase(task, waitSecs)
                     currentRepeatIteration < maxRepeat -> {
                         currentRepeatIteration++
-                        startActualTimer(task, task.timeSliceSeconds)
+                        startActualTimer(task, task.timeSliceSeconds)   // jump to step 3
                     }
                     else -> triggerAlarmExpire(task)
                 }

@@ -23,8 +23,8 @@ object SoundManager {
     const val DEFAULT_FADE_IN       = 0
 
     // ── Action sound prefs keys (Notice profile) ──────────────────────────────
-    const val KEY_DELAY_SOUND_URI   = "notif_delay_sound_uri"
-    const val KEY_REST_SOUND_URI    = "notif_rest_sound_uri"
+    const val KEY_EXECUTE_SOUND_URI = "notif_delay_sound_uri"
+    const val KEY_WAIT_SOUND_URI    = "notif_rest_sound_uri"
     const val KEY_ACTION_VOLUME     = "notif_action_volume"
     const val DEFAULT_ACTION_VOLUME = 80
 
@@ -75,11 +75,11 @@ object SoundManager {
     val isActive: Boolean get() = isPlaying
 
     // ── Action sound API (Notice only) ────────────────────────────────────────
-    fun playDelaySound(context: Context, prefs: SharedPreferences) =
-        playActionSound(context, prefs.getString(KEY_DELAY_SOUND_URI, null), prefs)
+    fun playExecuteSound(context: Context, prefs: SharedPreferences) =
+        playActionSound(context, prefs.getString(KEY_EXECUTE_SOUND_URI, null), prefs)
 
-    fun playRestSound(context: Context, prefs: SharedPreferences) =
-        playActionSound(context, prefs.getString(KEY_REST_SOUND_URI, null), prefs)
+    fun playWaitSound(context: Context, prefs: SharedPreferences) =
+        playActionSound(context, prefs.getString(KEY_WAIT_SOUND_URI, null), prefs)
 
     private fun playActionSound(context: Context, uriStr: String?, prefs: SharedPreferences) {
         actionPlayer?.let { try { it.stop(); it.release() } catch (_: Exception) {} }

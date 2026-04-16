@@ -49,10 +49,10 @@ class ProfileSettingsActivity : AppCompatActivity() {
 
     // ── Action section (Notice only) ──────────────────────────────────────────
     private lateinit var layoutActionSection:  LinearLayout
-    private lateinit var tvDelaySoundName:     TextView
-    private lateinit var btnPickDelaySound:    MaterialButton
-    private lateinit var tvRestSoundName:      TextView
-    private lateinit var btnPickRestSound:     MaterialButton
+    private lateinit var tvExecuteSoundName:   TextView
+    private lateinit var btnPickExecuteSound:  MaterialButton
+    private lateinit var tvWaitSoundName:      TextView
+    private lateinit var btnPickWaitSound:     MaterialButton
     private lateinit var sliderActionVolume:   Slider
     private lateinit var tvActionVolumeLabel:  TextView
 
@@ -68,22 +68,22 @@ class ProfileSettingsActivity : AppCompatActivity() {
             updateSoundName()
         }
     }
-    private val delaySoundLauncher = registerForActivityResult(
+    private val executeSoundLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            prefs.edit().putString(SoundManager.KEY_DELAY_SOUND_URI, uri?.toString()).apply()
-            updateDelaySoundName()
+            prefs.edit().putString(SoundManager.KEY_EXECUTE_SOUND_URI, uri?.toString()).apply()
+            updateExecuteSoundName()
         }
     }
-    private val restSoundLauncher = registerForActivityResult(
+    private val waitSoundLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            prefs.edit().putString(SoundManager.KEY_REST_SOUND_URI, uri?.toString()).apply()
-            updateRestSoundName()
+            prefs.edit().putString(SoundManager.KEY_WAIT_SOUND_URI, uri?.toString()).apply()
+            updateWaitSoundName()
         }
     }
 
@@ -110,10 +110,10 @@ class ProfileSettingsActivity : AppCompatActivity() {
         sliderVibTimeout    = findViewById(R.id.sliderProfileVibTimeout)
         tvVibTimeoutLabel   = findViewById(R.id.tvProfileVibTimeoutLabel)
         layoutActionSection = findViewById(R.id.layoutActionSection)
-        tvDelaySoundName    = findViewById(R.id.tvDelaySoundName)
-        btnPickDelaySound   = findViewById(R.id.btnPickDelaySound)
-        tvRestSoundName     = findViewById(R.id.tvRestSoundName)
-        btnPickRestSound    = findViewById(R.id.btnPickRestSound)
+        tvExecuteSoundName  = findViewById(R.id.tvExecuteSoundName)
+        btnPickExecuteSound = findViewById(R.id.btnPickExecuteSound)
+        tvWaitSoundName     = findViewById(R.id.tvWaitSoundName)
+        btnPickWaitSound    = findViewById(R.id.btnPickWaitSound)
         sliderActionVolume  = findViewById(R.id.sliderActionVolume)
         tvActionVolumeLabel = findViewById(R.id.tvActionVolumeLabel)
 
@@ -175,15 +175,15 @@ class ProfileSettingsActivity : AppCompatActivity() {
             tvVibTimeoutLabel.text = formatTimeout(v.toInt())
         }
         // Action section
-        btnPickDelaySound.setOnClickListener {
-            launchRingtonePicker(delaySoundLauncher,
-                prefs.getString(SoundManager.KEY_DELAY_SOUND_URI, null),
-                RingtoneManager.TYPE_NOTIFICATION, "Select Delay Sound")
+        btnPickExecuteSound.setOnClickListener {
+            launchRingtonePicker(executeSoundLauncher,
+                prefs.getString(SoundManager.KEY_EXECUTE_SOUND_URI, null),
+                RingtoneManager.TYPE_NOTIFICATION, "Select Execute Sound")
         }
-        btnPickRestSound.setOnClickListener {
-            launchRingtonePicker(restSoundLauncher,
-                prefs.getString(SoundManager.KEY_REST_SOUND_URI, null),
-                RingtoneManager.TYPE_NOTIFICATION, "Select Rest Sound")
+        btnPickWaitSound.setOnClickListener {
+            launchRingtonePicker(waitSoundLauncher,
+                prefs.getString(SoundManager.KEY_WAIT_SOUND_URI, null),
+                RingtoneManager.TYPE_NOTIFICATION, "Select Wait Sound")
         }
         sliderActionVolume.addOnChangeListener { _, v, _ ->
             prefs.edit().putInt(SoundManager.KEY_ACTION_VOLUME, v.toInt()).apply()
@@ -208,7 +208,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
         tvVibTimeoutLabel.text   = formatTimeout(sliderVibTimeout.value.toInt())
 
         if (profiles[idx].taskType == "NOTIFICATION") {
-            updateDelaySoundName(); updateRestSoundName()
+            updateExecuteSoundName(); updateWaitSoundName()
             val av = prefs.getInt(SoundManager.KEY_ACTION_VOLUME, SoundManager.DEFAULT_ACTION_VOLUME)
             sliderActionVolume.value  = av.toFloat().coerceIn(0f, 100f)
             tvActionVolumeLabel.text  = "$av%"
@@ -219,11 +219,11 @@ class ProfileSettingsActivity : AppCompatActivity() {
     private fun updateSoundName() {
         tvSoundName.text = resolveRingtoneName(prefs.getString(soundUriKeyFor(currentProfileIdx), null), "System alarm tone")
     }
-    private fun updateDelaySoundName() {
-        tvDelaySoundName.text = resolveRingtoneName(prefs.getString(SoundManager.KEY_DELAY_SOUND_URI, null), "System notification tone")
+    private fun updateExecuteSoundName() {
+        tvExecuteSoundName.text = resolveRingtoneName(prefs.getString(SoundManager.KEY_EXECUTE_SOUND_URI, null), "System notification tone")
     }
-    private fun updateRestSoundName() {
-        tvRestSoundName.text = resolveRingtoneName(prefs.getString(SoundManager.KEY_REST_SOUND_URI, null), "System notification tone")
+    private fun updateWaitSoundName() {
+        tvWaitSoundName.text = resolveRingtoneName(prefs.getString(SoundManager.KEY_WAIT_SOUND_URI, null), "System notification tone")
     }
     private fun resolveRingtoneName(uriStr: String?, fallback: String): String {
         if (uriStr.isNullOrBlank()) return fallback
