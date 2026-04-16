@@ -5,8 +5,6 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.view.HapticFeedbackConstants
-import android.view.View
 
 /**
  * Centralised vibration helper.
@@ -105,18 +103,6 @@ object VibrationManager {
         vibrating = false
         stopTimeMs = Long.MAX_VALUE
         getVibrator(context).cancel()
-    }
-
-    /**
-     * Fire a single short haptic tick on [view] if haptic is enabled in prefs.
-     * Safe to call from any button click handler.
-     */
-    fun haptic(view: View, prefs: android.content.SharedPreferences) {
-        if (!prefs.getBoolean(KEY_HAPTIC, DEFAULT_HAPTIC)) return
-        view.performHapticFeedback(
-            HapticFeedbackConstants.VIRTUAL_KEY,
-            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-        )
     }
 
     /** Preview: play the pattern once (no repeat). */

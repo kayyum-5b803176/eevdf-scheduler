@@ -56,6 +56,12 @@
             android:name=".ui.ProfileSettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.SoundVibrationActivity" />
+
+        <activity
+            android:name=".ui.SoundVibrationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
             android:parentActivityName=".ui.SettingsActivity" />
 
         <!--

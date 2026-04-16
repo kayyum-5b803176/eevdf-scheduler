@@ -45,12 +45,15 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var spinnerParent:   Spinner
 
     // Task type section
-    private lateinit var spinnerTaskType:      Spinner
-    private lateinit var layoutNotifDelay:     LinearLayout
-    private lateinit var etNotifDelay:         TextInputEditText
-    private lateinit var tvNotifDelayPreview:  TextView
+    private lateinit var spinnerTaskType:       Spinner
+    private lateinit var layoutNoticeSection:   LinearLayout
+    private lateinit var etNotifDelay:          TextInputEditText
+    private lateinit var tvNotifDelayPreview:   TextView
+    private lateinit var etNoticeRest:          TextInputEditText
+    private lateinit var tvNoticeRestPreview:   TextView
+    private lateinit var etNoticeRepeat:        TextInputEditText
 
-    private val taskTypeLabels = listOf("Default", "Notification", "Alarm", "Custom")
+    private val taskTypeLabels = listOf("Default", "Notice", "Alert", "Custom")
     private val taskTypeValues = listOf("DEFAULT", "NOTIFICATION", "ALARM", "CUSTOM")
     private var selectedTaskType = "DEFAULT"
 
@@ -109,9 +112,12 @@ class AddTaskActivity : AppCompatActivity() {
         switchIsGroup    = findViewById(R.id.switchIsGroup)
         spinnerParent    = findViewById(R.id.spinnerParentGroup)
         spinnerTaskType      = findViewById(R.id.spinnerTaskType)
-        layoutNotifDelay     = findViewById(R.id.layoutNotifDelay)
+        layoutNoticeSection  = findViewById(R.id.layoutNotifDelay)
         etNotifDelay         = findViewById(R.id.etNotifDelay)
         tvNotifDelayPreview  = findViewById(R.id.tvNotifDelayPreview)
+        etNoticeRest         = findViewById(R.id.etNoticeRest)
+        tvNoticeRestPreview  = findViewById(R.id.tvNoticeRestPreview)
+        etNoticeRepeat       = findViewById(R.id.etNoticeRepeat)
 
         btnSave.setOnClickListener { saveTask() }
         btnCancel.setOnClickListener { finish() }
@@ -223,10 +229,12 @@ class AddTaskActivity : AppCompatActivity() {
         spinnerTaskType.setSelection(typeIdx)
         selectedTaskType = task.taskType
         if (task.taskType == "NOTIFICATION") {
-            layoutNotifDelay.visibility = android.view.View.VISIBLE
+            layoutNoticeSection.visibility = android.view.View.VISIBLE
             val dm = task.notificationDelaySeconds
-            val mmss = if (dm == 0L) "" else "%02d-%02d".format(dm / 60, dm % 60)
-            etNotifDelay.setText(mmss)
+            etNotifDelay.setText(if (dm == 0L) "" else "%02d-%02d".format(dm / 60, dm % 60))
+            val rm = task.notificationRestSeconds
+            etNoticeRest.setText(if (rm == 0L) "" else "%02d-%02d".format(rm / 60, rm % 60))
+            etNoticeRepeat.setText(if (task.notificationRepeatCount == 0) "" else task.notificationRepeatCount.toString())
         }
         if (task.isInterrupt) {
             switchIsInterrupt.isChecked = true
@@ -260,27 +268,28 @@ class AddTaskActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, taskTypeLabels)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerTaskType.adapter = adapter
-
-        // Default selection
         spinnerTaskType.setSelection(taskTypeValues.indexOf(selectedTaskType).coerceAtLeast(0))
 
         spinnerTaskType.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, pos: Int, id: Long) {
                 selectedTaskType = taskTypeValues.getOrElse(pos) { "DEFAULT" }
-                layoutNotifDelay.visibility = if (selectedTaskType == "NOTIFICATION") android.view.View.VISIBLE else android.view.View.GONE
+                layoutNoticeSection.visibility =
+                    if (selectedTaskType == "NOTIFICATION") android.view.View.VISIBLE else android.view.View.GONE
             }
             override fun onNothingSelected(parent: android.widget.AdapterView<*>) {}
         }
 
-        // Live preview of parsed delay
-        etNotifDelay.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val secs = parseDelayInput(s?.toString() ?: "")
-                tvNotifDelayPreview.text = formatDelaySecs(secs)
-            }
-        })
+        fun watchDelay(et: TextInputEditText, preview: TextView) {
+            et.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+                override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    preview.text = formatDelaySecs(parseDelayInput(s?.toString() ?: ""))
+                }
+            })
+        }
+        watchDelay(etNotifDelay, tvNotifDelayPreview)
+        watchDelay(etNoticeRest, tvNoticeRestPreview)
     }
 
     /** Parses mm-ss format (e.g. "01-30") into total seconds. Also accepts plain seconds. */
@@ -324,8 +333,9 @@ class AddTaskActivity : AppCompatActivity() {
             val idx = spinnerParent.selectedItemPosition
             groupsList.getOrNull(idx)?.id
         } else null
-        val notifDelaySecs = if (selectedTaskType == "NOTIFICATION")
-            parseDelayInput(etNotifDelay.text.toString()) else 0L
+        val notifDelaySecs  = if (selectedTaskType == "NOTIFICATION") parseDelayInput(etNotifDelay.text.toString()) else 0L
+        val notifRestSecs   = if (selectedTaskType == "NOTIFICATION") parseDelayInput(etNoticeRest.text.toString()) else 0L
+        val notifRepeat     = if (selectedTaskType == "NOTIFICATION") (etNoticeRepeat.text.toString().toIntOrNull() ?: 0).coerceIn(0, 12) else 0
 
         if (existingTask != null) {
             val updated = existingTask!!.copy(
@@ -337,7 +347,9 @@ class AddTaskActivity : AppCompatActivity() {
                 isGroup          = isGroup,
                 parentId         = parentId,
                 taskType         = selectedTaskType,
-                notificationDelaySeconds = notifDelaySecs
+                notificationDelaySeconds = notifDelaySecs,
+                notificationRestSeconds  = notifRestSecs,
+                notificationRepeatCount  = notifRepeat
             )
             // Handle interrupt assignment
         if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(updated)
@@ -354,7 +366,9 @@ class AddTaskActivity : AppCompatActivity() {
                 isGroup          = isGroup,
                 parentId         = parentId,
                 taskType         = selectedTaskType,
-                notificationDelaySeconds = notifDelaySecs
+                notificationDelaySeconds = notifDelaySecs,
+                notificationRestSeconds  = notifRestSecs,
+                notificationRepeatCount  = notifRepeat
             )
             viewModel.addTask(task)
             if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(task)

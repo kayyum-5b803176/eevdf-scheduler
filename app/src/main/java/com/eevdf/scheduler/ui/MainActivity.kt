@@ -58,7 +58,13 @@ class MainActivity : AppCompatActivity() {
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", android.content.Context.MODE_PRIVATE) }
 
     /** Convenience: fire haptic feedback on [v] if enabled in prefs. */
-    private fun haptic(v: android.view.View) = com.eevdf.scheduler.ui.VibrationManager.haptic(v, prefs)
+    private fun haptic(v: android.view.View) {
+        if (!prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)) return
+        v.performHapticFeedback(
+            android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+            android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+        )
+    }
     private var groupsMenuItem:       MenuItem? = null
     private var globalRotateMenuItem: MenuItem? = null
     private var allowEditMenuItem:    MenuItem? = null
@@ -222,8 +228,9 @@ class MainActivity : AppCompatActivity() {
             haptic(it)
             viewModel.stopAlarmSound()
             when {
-                viewModel.timerRunning.value == true  -> viewModel.pauseTimer()
-                viewModel.delayRunning.value == true  -> viewModel.pauseTimer()  // cancels delay → back to step 1
+                viewModel.timerRunning.value == true -> viewModel.pauseTimer()
+                viewModel.delayRunning.value == true -> viewModel.pauseTimer()
+                viewModel.restRunning.value  == true -> viewModel.pauseTimer()
                 else -> viewModel.startTimer()
             }
         }
@@ -295,6 +302,25 @@ class MainActivity : AppCompatActivity() {
                     androidx.core.content.ContextCompat.getColor(this, tintColor)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
+        }
+
+        viewModel.restRunning.observe(this) { inRest ->
+            if (inRest) {
+                btnStartPause.text = "Cancel"
+                btnStartPause.icon = null
+                btnStartPause.backgroundTintList =
+                    android.content.res.ColorStateList.valueOf(
+                        androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
+                    )
+                btnStartPause.jumpDrawablesToCurrentState()
+            }
+        }
+
+        viewModel.restSecondsRemaining.observe(this) { secs ->
+            if (viewModel.restRunning.value == true) {
+                val m = secs / 60; val s = secs % 60
+                tvTimerDisplay.text = "\uD83C\uDF19 %02d:%02d".format(m, s)
+            }
         }
 
         viewModel.delayRunning.observe(this) { inDelay ->

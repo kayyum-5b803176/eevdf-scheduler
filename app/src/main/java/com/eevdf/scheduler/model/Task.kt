@@ -39,8 +39,14 @@ data class Task(
     // Values: "DEFAULT" | "NOTIFICATION" | "ALARM" | "CUSTOM"
     val taskType: String = "DEFAULT",
 
-    // Notification type only: seconds to wait before the countdown starts (0–300)
+    // Notice type only: seconds to wait before the countdown starts (0–300)
     val notificationDelaySeconds: Long = 0L,
+
+    // Notice type only: rest seconds after task timer (0–300), 0 = skip rest
+    val notificationRestSeconds: Long = 0L,
+
+    // Notice type only: how many extra cycles (timer→rest) after the first (0 = run once)
+    val notificationRepeatCount: Int = 0,
 
     /** Epoch ms when the running countdown expires. 0 = not running.
      *  Written to DB the instant Start is pressed so app-kill / phone-off
