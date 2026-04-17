@@ -101,6 +101,16 @@ class AlarmForegroundService : Service() {
         }
 
         /**
+         * Cancel the pending AlarmManager alarm without stopping the foreground service.
+         * Called when the notice state machine transitions to wait or repeat-execute so
+         * the alarm does not fire spuriously and trigger timerExpire while a phase is
+         * still in progress.
+         */
+        fun cancelScheduledAlarm(context: Context) {
+            cancelAlarmManager(context)
+        }
+
+        /**
          * Schedule a Doze-immune alarm via AlarmManager.setAlarmClock().
          * Fires exactly on time even in Deep Doze.
          */
