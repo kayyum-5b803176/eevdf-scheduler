@@ -122,18 +122,58 @@ object EEVDFScheduler {
      *     proportionally by EEVDF weight (priority).
      *  3. If pinned tasks already consume ≥ 100 %, un-pinned tasks get 0 %.
      *
+     * When [groupsEnabled] is false (default), all active tasks are treated as a flat
+     * pool — the original behaviour for a plain list with no groups.
+     *
+     * When [groupsEnabled] is true the calculation is **scoped per hierarchy level**:
+     *  • Root-level tasks/groups (parentId == null) are compared against each other → their
+     *    shares sum to 100 % at the root.
+     *  • Tasks that are direct children of a group are compared only against their group
+     *    siblings → their shares sum to 100 % within that group.
+     *
+     * This means a task that is the sole member of a group correctly shows 100 % (its
+     * full share of the group's CPU budget), while the group itself may represent only
+     * part of the root budget.
+     *
      * Returns a map of task.id → share (0.0–100.0).
      */
-    fun computeShares(tasks: List<Task>): Map<String, Double> {
-        val active = tasks.filter { !it.isCompleted }
-        val pinnedTotal = active
+    fun computeShares(tasks: List<Task>, groupsEnabled: Boolean = false): Map<String, Double> {
+        return if (groupsEnabled) {
+            // Hierarchical mode: compute shares at every level independently.
+            val result = mutableMapOf<String, Double>()
+            fun computeLevel(parentId: String?) {
+                val levelTasks = tasks.filter { !it.isCompleted && it.parentId == parentId }
+                if (levelTasks.isEmpty()) return
+                result.putAll(computeSharesAtLevel(levelTasks))
+                // Recurse into each group so its children get their own 0–100 % slice.
+                levelTasks.filter { it.isGroup }.forEach { group ->
+                    computeLevel(group.id)
+                }
+            }
+            computeLevel(null)
+            result
+        } else {
+            // Flat mode: treat every active task as a peer (original behaviour).
+            computeSharesAtLevel(tasks.filter { !it.isCompleted })
+        }
+    }
+
+    /**
+     * Core share calculation for a set of sibling tasks (already filtered to the
+     * relevant level and completion state).
+     *
+     * Pinned tasks receive exactly their [Task.pinnedShare] %.
+     * Un-pinned tasks share the remainder proportionally by EEVDF weight (priority).
+     */
+    private fun computeSharesAtLevel(levelTasks: List<Task>): Map<String, Double> {
+        val pinnedTotal = levelTasks
             .filter  { it.pinnedShare != null }
             .sumOf   { it.pinnedShare!!.toDouble() }
-        val floatPool  = (100.0 - pinnedTotal).coerceAtLeast(0.0)
-        val floatTasks = active.filter { it.pinnedShare == null }
+        val floatPool   = (100.0 - pinnedTotal).coerceAtLeast(0.0)
+        val floatTasks  = levelTasks.filter { it.pinnedShare == null }
         val floatWeight = floatTasks.sumOf { it.weight }.coerceAtLeast(1.0)
 
-        return active.associate { task ->
+        return levelTasks.associate { task ->
             task.id to if (task.pinnedShare != null) {
                 task.pinnedShare.toDouble()
             } else {

@@ -301,7 +301,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Uses queueExpandState — independent of Schedule tab.
      */
     private fun buildQueueList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
-        val shares = EEVDFScheduler.computeShares(tasks)
+        val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
@@ -329,7 +329,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Sources from activeTasks so reflects DB changes (vruntime updates, new tasks) instantly.
      */
     private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
-        val shares = EEVDFScheduler.computeShares(tasks)
+        val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
