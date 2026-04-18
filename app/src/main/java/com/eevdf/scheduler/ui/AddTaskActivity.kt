@@ -69,6 +69,13 @@ class AddTaskActivity : AppCompatActivity() {
     /** Groups from the ViewModel for the parent spinner; first entry = "None (root)" */
     private val groupsList = mutableListOf<Task?>()   // null = no parent
 
+    /**
+     * Holds the auto-calculated internal weight derived from [etPinnedShare].
+     * Non-null only while the pinned share field has a valid value; cleared when
+     * the field is emptied so normal slider-based priority resumes.
+     */
+    private var autoCalcWeight: Double? = null
+
     private val categories = listOf("Work", "Study", "Health", "Personal", "Project", "Meeting", "General")
 
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE) }
@@ -91,6 +98,11 @@ class AddTaskActivity : AppCompatActivity() {
         setupInterruptSwitch()
         setupTaskTypeSection()
         setupPinnedShare()
+
+        // Observe activeTasks here (not just in validation) so .value is populated
+        // the moment the user opens this screen and types a pinned share value.
+        // Also re-triggers weight calc if the task list changes while the form is open.
+        viewModel.activeTasks.observe(this) { recalcWeightFromPinned() }
 
         if (existingTaskId != null) {
             supportActionBar?.title = "Edit Task"
@@ -183,22 +195,40 @@ class AddTaskActivity : AppCompatActivity() {
         sliderPriority.valueTo   = 7f
         sliderPriority.stepSize  = 1f
         sliderPriority.value     = 4f
-        updatePriorityInfo(4)
-        sliderPriority.addOnChangeListener { _, value, _ -> updatePriorityInfo(value.toInt()) }
+        updatePriorityDisplay()
+        sliderPriority.addOnChangeListener { _, _, _ -> updatePriorityDisplay() }
     }
 
-    private fun updatePriorityInfo(priority: Int) {
-        tvPriorityLabel.text = "Priority: $priority"
-        tvPriorityInfo.text = when (priority) {
-            7    -> "Critical — Maximum weight. Runs first."
-            6    -> "High — Prioritized over most tasks."
-            5    -> "Above Average — Scheduled before medium tasks."
-            4    -> "Medium — Balanced scheduling weight."
-            3    -> "Below Average — Slightly deprioritized."
-            2    -> "Low — Runs after higher-priority tasks."
-            else -> "Minimal — Runs only when nothing else is pending."
+    /**
+     * Updates the priority label and description.
+     *
+     * • When [autoCalcWeight] is set (pinnedShare driven): shows the calculated
+     *   decimal weight ("Priority: 34.44 (auto)") and a short explanation.
+     * • Otherwise: shows the slider integer and its human-readable band label.
+     */
+    private fun updatePriorityDisplay() {
+        val w = autoCalcWeight
+        if (w != null) {
+            tvPriorityLabel.text = "Priority: ${"%.2f".format(w)} (auto)"
+            tvPriorityInfo.text  = "Weight auto-calculated from pinned share. " +
+                "Matches your target allocation if the pin is later removed."
+        } else {
+            val p = sliderPriority.value.toInt()
+            tvPriorityLabel.text = "Priority: $p"
+            tvPriorityInfo.text  = when (p) {
+                7    -> "Critical — Maximum weight. Runs first."
+                6    -> "High — Prioritized over most tasks."
+                5    -> "Above Average — Scheduled before medium tasks."
+                4    -> "Medium — Balanced scheduling weight."
+                3    -> "Below Average — Slightly deprioritized."
+                2    -> "Low — Runs after higher-priority tasks."
+                else -> "Minimal — Runs only when nothing else is pending."
+            }
         }
     }
+
+    @Deprecated("Use updatePriorityDisplay()", ReplaceWith("updatePriorityDisplay()"))
+    private fun updatePriorityInfo(priority: Int) = updatePriorityDisplay()
 
     private fun loadExistingTask() {
         lifecycleScope.launch {
@@ -216,7 +246,12 @@ class AddTaskActivity : AppCompatActivity() {
         etName.setText(task.name)
         etDescription.setText(task.description)
         sliderPriority.value = task.priority.coerceIn(1, 7).toFloat()
-        updatePriorityInfo(task.priority)
+
+        // Restore auto-calc state: if the task already has an internalWeight it means
+        // pinnedShare was previously set and the weight was derived from it.
+        autoCalcWeight = if (task.pinnedShare != null) task.internalWeight else null
+        applySliderLock(task.pinnedShare)
+        updatePriorityDisplay()
 
         val totalSec = task.timeSliceSeconds
         etHours.setText((totalSec / 3600).toString())
@@ -274,14 +309,81 @@ class AddTaskActivity : AppCompatActivity() {
         return viewModel.interruptTask.value
     }
 
+    /**
+     * Re-runs the weight calculation from whatever is currently in [etPinnedShare].
+     * Called both when the pinned share field changes AND when [viewModel.activeTasks]
+     * emits (ensuring the calculation always uses a fresh sibling list, not a stale or
+     * null snapshot).
+     */
+    private fun recalcWeightFromPinned() {
+        val value = etPinnedShare.text?.toString()?.toIntOrNull()
+        autoCalcWeight = if (value != null && value in 1..99) calcInternalWeight(value) else null
+        applySliderLock(value)
+        updatePriorityDisplay()
+    }
+
     private fun setupPinnedShare() {
         etPinnedShare.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
                 validatePinnedShare(s?.toString()?.toIntOrNull())
+                recalcWeightFromPinned()
             }
         })
+    }
+
+    /**
+     * Locks or unlocks the priority slider based on whether a pinned share is set.
+     * When locked the slider is visually dimmed so the user can see it is not interactive.
+     */
+    private fun applySliderLock(pinnedValue: Int?) {
+        val locked = pinnedValue != null
+        sliderPriority.isEnabled = !locked
+        sliderPriority.alpha     = if (locked) 0.38f else 1.0f
+    }
+
+    /**
+     * Back-calculates the EEVDF internal weight that would produce [targetShare]% CPU
+     * allocation for this task when it participates in the float pool (i.e. if the pin
+     * were removed).
+     *
+     * The calculation is scoped to the task's sibling level so grouped tasks compare
+     * only against their group-mates, not the entire task list.
+     *
+     * Formula (derived from share_i = weight_i / Σweights * floatPool):
+     *   weight = targetShare × Σ(other float weights) / (floatPool − targetShare)
+     *
+     * Edge cases:
+     *  • floatPool ≤ targetShare  → other pinned tasks already consume ≥ targetShare;
+     *    any finite weight is impossible — returns MAX_INTERNAL_WEIGHT.
+     *  • No float siblings yet    → task would be the sole float member (100% regardless
+     *    of weight); returns the current slider value unchanged.
+     */
+    private fun calcInternalWeight(targetShare: Int): Double {
+        val tasks = viewModel.activeTasks.value ?: emptyList()
+
+        // Resolve sibling scope: tasks at the same parentId level as this task will be.
+        val selectedParentId: String? = if (groupsEnabled) {
+            val idx = spinnerParent.selectedItemPosition
+            groupsList.getOrNull(idx)?.id
+        } else null
+
+        val siblings = tasks.filter {
+            !it.isCompleted && it.id != existingTaskId && it.parentId == selectedParentId
+        }
+
+        // Float pool available after sibling pinned tasks are accounted for.
+        val siblingPinned    = siblings.filter { it.pinnedShare != null }.sumOf { it.pinnedShare!!.toDouble() }
+        val floatPool        = (100.0 - siblingPinned).coerceAtLeast(0.0)
+        val otherFloatWeight = siblings.filter { it.pinnedShare == null }.sumOf { it.weight }
+
+        val denominator = floatPool - targetShare.toDouble()
+        return when {
+            denominator <= 0.0      -> MAX_INTERNAL_WEIGHT         // pinned siblings take ≥ targetShare
+            otherFloatWeight == 0.0 -> sliderPriority.value.toDouble() // sole float sibling
+            else                    -> (targetShare.toDouble() * otherFloatWeight) / denominator
+        }
     }
 
     private fun validatePinnedShare(newValue: Int?) {
@@ -404,6 +506,10 @@ class AddTaskActivity : AppCompatActivity() {
             clamped
         } else null
 
+        // internalWeight is set only when pinnedShare is active; cleared otherwise so
+        // the task falls back to the slider-based integer priority for weight calculation.
+        val internalWeight: Double? = if (pinnedShare != null) autoCalcWeight else null
+
         if (existingTask != null) {
             val updated = existingTask!!.copy(
                 name             = name,
@@ -417,7 +523,8 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
-                pinnedShare      = pinnedShare
+                pinnedShare      = pinnedShare,
+                internalWeight   = internalWeight
             )
             // Handle interrupt assignment
         if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(updated)
@@ -437,7 +544,8 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
-                pinnedShare      = pinnedShare
+                pinnedShare      = pinnedShare,
+                internalWeight   = internalWeight
             )
             viewModel.addTask(task)
             if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(task)
@@ -446,4 +554,10 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     override fun onSupportNavigateUp(): Boolean { finish(); return true }
+
+    companion object {
+        /** Weight ceiling used when the pinned target is mathematically unachievable
+         *  via float-pool arithmetic (e.g. sibling pins already exceed the target). */
+        private const val MAX_INTERNAL_WEIGHT = 9_999.0
+    }
 }

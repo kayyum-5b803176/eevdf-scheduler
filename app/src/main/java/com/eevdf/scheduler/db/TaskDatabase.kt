@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.eevdf.scheduler.model.Task
 
-@Database(entities = [Task::class], version = 7, exportSchema = false)
+@Database(entities = [Task::class], version = 8, exportSchema = false)
 abstract class TaskDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
@@ -69,6 +69,14 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /** version 7 → 8: auto-calculated internal weight derived from pinnedShare (null = use priority) */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // REAL = SQLite float; NULL = fall back to priority-based weight
+                database.execSQL("ALTER TABLE tasks ADD COLUMN internalWeight REAL")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -76,7 +84,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                 INSTANCE = instance
                 instance

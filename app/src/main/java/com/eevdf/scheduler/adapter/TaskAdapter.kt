@@ -78,7 +78,12 @@ class TaskAdapter(
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
-        holder.tvPriority.text = "Priority: ${task.priority}"
+        holder.tvPriority.text = if (task.internalWeight != null) {
+            // Auto-calculated from pinned share — show the effective decimal weight
+            "Priority: ${"%.2f".format(task.weight)}"
+        } else {
+            "Priority: ${task.priority}"
+        }
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
         val pinned = task.pinnedShare != null

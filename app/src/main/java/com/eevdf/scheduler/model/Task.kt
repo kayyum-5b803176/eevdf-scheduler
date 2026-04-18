@@ -56,9 +56,18 @@ data class Task(
     // CPU share pinning — null = auto-float (EEVDF weight-based), 0–100 = fixed %
     val pinnedShare: Int? = null,
 
+    /**
+     * Auto-calculated internal scheduling weight derived from [pinnedShare].
+     * When non-null, overrides [priority] for all EEVDF weight calculations so
+     * that — if the user later removes the pin — the task naturally receives the
+     * same CPU share via the float pool.  Null = use [priority] as normal.
+     */
+    val internalWeight: Double? = null,
+
     val createdAt: Long = System.currentTimeMillis()
 ) {
-    val weight: Double get() = priority.toDouble()
+    /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
+    val weight: Double get() = internalWeight ?: priority.toDouble()
 
     val timeSliceDisplay: String get() {
         val h = timeSliceSeconds / 3600
