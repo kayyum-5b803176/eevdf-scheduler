@@ -64,6 +64,13 @@ data class Task(
      */
     val internalWeight: Double? = null,
 
+    /**
+     * Rolling window size in hours for the Exceed multiplier shown on the task card.
+     * 0 = feature disabled (no Exceed label shown).
+     * Range: 0 – 2376 (99 days × 24 h).
+     */
+    val frequencyPeriodHours: Int = 0,
+
     val createdAt: Long = System.currentTimeMillis()
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */

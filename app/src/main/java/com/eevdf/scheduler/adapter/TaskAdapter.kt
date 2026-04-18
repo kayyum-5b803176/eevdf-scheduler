@@ -43,6 +43,7 @@ class TaskAdapter(
         val tvName:         TextView    = itemView.findViewById(R.id.tvTaskName)
         val tvCategory:     TextView    = itemView.findViewById(R.id.tvCategory)
         val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
+        val tvExceed:       TextView    = itemView.findViewById(R.id.tvExceed)
         val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
         val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
@@ -83,6 +84,19 @@ class TaskAdapter(
             "Priority: ${"%.2f".format(task.weight)}"
         } else {
             "Priority: ${task.priority}"
+        }
+
+        // Exceed multiplier — shown only when frequencyPeriodHours > 0 and runs exist in window
+        val exceed = item.exceedMultiple
+        if (exceed != null) {
+            holder.tvExceed.visibility = android.view.View.VISIBLE
+            holder.tvExceed.text = "Exceed: ${"%.1f".format(exceed)}x"
+            holder.tvExceed.setTextColor(
+                if (exceed >= 1.0) android.graphics.Color.parseColor("#FF9800") // over-used → orange
+                else               android.graphics.Color.parseColor("#66BB6A")  // under-used → green
+            )
+        } else {
+            holder.tvExceed.visibility = android.view.View.GONE
         }
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"

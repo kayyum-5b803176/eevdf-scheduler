@@ -8,11 +8,13 @@ import java.io.File
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.TaskRunLog
 
-@Database(entities = [Task::class], version = 8, exportSchema = false)
+@Database(entities = [Task::class, TaskRunLog::class], version = 9, exportSchema = false)
 abstract class TaskDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
+    abstract fun taskRunLogDao(): TaskRunLogDao
 
     companion object {
         @Volatile
@@ -77,6 +79,21 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /** version 8 → 9: frequencyPeriodHours on tasks + new task_run_logs table */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE tasks ADD COLUMN frequencyPeriodHours INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS task_run_logs (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        taskId TEXT NOT NULL,
+                        startEpoch INTEGER NOT NULL,
+                        durationSeconds INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -84,7 +101,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build()
                 INSTANCE = instance
                 instance

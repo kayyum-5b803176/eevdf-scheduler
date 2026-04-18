@@ -57,6 +57,8 @@ class AddTaskActivity : AppCompatActivity() {
     // Pinned share section
     private lateinit var etPinnedShare:         TextInputEditText
     private lateinit var tvPinnedShareWarning:  TextView
+    private lateinit var etFrequencyPeriod:     TextInputEditText
+    private lateinit var tvFrequencyPeriodHint: TextView
 
     private val taskTypeLabels = listOf("Default", "Notice", "Alert", "Custom")
     private val taskTypeValues = listOf("DEFAULT", "NOTIFICATION", "ALARM", "CUSTOM")
@@ -98,6 +100,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupInterruptSwitch()
         setupTaskTypeSection()
         setupPinnedShare()
+        setupFrequencyPeriod()
 
         // Observe activeTasks here (not just in validation) so .value is populated
         // the moment the user opens this screen and types a pinned share value.
@@ -138,6 +141,8 @@ class AddTaskActivity : AppCompatActivity() {
         etNoticeRepeat       = findViewById(R.id.etNoticeRepeat)
         etPinnedShare        = findViewById(R.id.etPinnedShare)
         tvPinnedShareWarning = findViewById(R.id.tvPinnedShareWarning)
+        etFrequencyPeriod    = findViewById(R.id.etFrequencyPeriod)
+        tvFrequencyPeriodHint = findViewById(R.id.tvFrequencyPeriodHint)
 
         btnSave.setOnClickListener { saveTask() }
         btnCancel.setOnClickListener { finish() }
@@ -286,6 +291,10 @@ class AddTaskActivity : AppCompatActivity() {
         }
         // Pinned share
         task.pinnedShare?.let { etPinnedShare.setText(it.toString()) }
+        // Frequency period
+        if (task.frequencyPeriodHours > 0) {
+            etFrequencyPeriod.setText(task.frequencyPeriodHours.toString())
+        }
     }
 
     private fun setupInterruptSwitch() {
@@ -307,6 +316,27 @@ class AddTaskActivity : AppCompatActivity() {
     private suspend fun repository_getInterrupt(): Task? {
         // Use ViewModel's LiveData value (already loaded on init)
         return viewModel.interruptTask.value
+    }
+
+    private fun setupFrequencyPeriod() {
+        etFrequencyPeriod.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val hours = s?.toString()?.toIntOrNull()
+                tvFrequencyPeriodHint.text = when {
+                    hours == null || hours == 0 -> "Exceed tracking disabled"
+                    hours > 2376               -> "⚠ Max is 2376 h (99 days)"
+                    hours < 24                 -> "Window: ${hours}h"
+                    else -> {
+                        val days = hours / 24
+                        val rem  = hours % 24
+                        if (rem == 0) "Window: ${days}d" else "Window: ${days}d ${rem}h"
+                    }
+                }
+            }
+        })
+        tvFrequencyPeriodHint.text = "Exceed tracking disabled"
     }
 
     /**
@@ -491,6 +521,10 @@ class AddTaskActivity : AppCompatActivity() {
         // the task falls back to the slider-based integer priority for weight calculation.
         val internalWeight: Double? = if (pinnedShare != null) autoCalcWeight else null
 
+        // Frequency period — clamped to 0–2376; empty field = 0 (disabled)
+        val frequencyPeriodHours = etFrequencyPeriod.text.toString().toIntOrNull()
+            ?.coerceIn(0, 2376) ?: 0
+
         if (existingTask != null) {
             val updated = existingTask!!.copy(
                 name             = name,
@@ -504,8 +538,9 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
-                pinnedShare      = pinnedShare,
-                internalWeight   = internalWeight
+                pinnedShare           = pinnedShare,
+                internalWeight        = internalWeight,
+                frequencyPeriodHours  = frequencyPeriodHours
             )
             // Handle interrupt assignment
         if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(updated)
@@ -525,8 +560,9 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
-                pinnedShare      = pinnedShare,
-                internalWeight   = internalWeight
+                pinnedShare           = pinnedShare,
+                internalWeight        = internalWeight,
+                frequencyPeriodHours  = frequencyPeriodHours
             )
             viewModel.addTask(task)
             if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(task)

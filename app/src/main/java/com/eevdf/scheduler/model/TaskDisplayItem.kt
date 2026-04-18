@@ -11,5 +11,11 @@ data class TaskDisplayItem(
     val depth: Int,
     val childCount: Int = 0,          // only meaningful when task.isGroup == true
     val childTotalRuntime: Long = 0L, // sum of all direct children's totalRunTime
-    val cpuShare: Double = 0.0        // real-time CPU share % from EEVDFScheduler.computeShares()
+    val cpuShare: Double = 0.0,       // real-time CPU share % from EEVDFScheduler.computeShares()
+    /**
+     * Wall-clock usage ÷ timeSliceSeconds within the task's [Task.frequencyPeriodHours] window.
+     * null = feature disabled (frequencyPeriodHours == 0) or no runs yet in the window.
+     * Values < 1.0 mean the task was used less than its slice allocation.
+     */
+    val exceedMultiple: Double? = null
 )

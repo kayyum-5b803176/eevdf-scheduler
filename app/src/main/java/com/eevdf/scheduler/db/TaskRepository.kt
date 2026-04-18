@@ -2,11 +2,12 @@ package com.eevdf.scheduler.db
 
 import androidx.lifecycle.LiveData
 import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.TaskRunLog
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class TaskRepository(private val dao: TaskDao) {
+class TaskRepository(private val dao: TaskDao, private val runLogDao: TaskRunLogDao) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
     val activeTasks: LiveData<List<Task>> = dao.getActiveTasks()
@@ -27,6 +28,36 @@ class TaskRepository(private val dao: TaskDao) {
     suspend fun updateBatch(tasks: List<Task>) = withContext(Dispatchers.IO) {
         if (tasks.isNotEmpty()) dao.updateAll(tasks)
     }
+
+    // ── Run log (wall-clock exceed tracking) ──────────────────────────────────
+
+    /**
+     * Records a completed run session for [taskId] starting at [startEpoch] with
+     * [durationSeconds] of actual wall-clock time.
+     * Also prunes log entries outside the longest window any task could need
+     * (99 days) to keep the table small.
+     */
+    suspend fun logRun(taskId: String, startEpoch: Long, durationSeconds: Long) =
+        withContext(Dispatchers.IO) {
+            if (durationSeconds > 0) {
+                runLogDao.insert(TaskRunLog(taskId = taskId, startEpoch = startEpoch, durationSeconds = durationSeconds))
+                // Prune anything older than 99 days — the maximum frequency period
+                val cutoff = System.currentTimeMillis() - 99L * 24 * 3600 * 1000
+                runLogDao.deleteBefore(cutoff)
+            }
+        }
+
+    /**
+     * Returns the total seconds this task was actually run within the last
+     * [periodHours] hours (moving window ending now).
+     * Returns 0 when [periodHours] is 0 (feature disabled).
+     */
+    suspend fun getWindowedSeconds(taskId: String, periodHours: Int): Long =
+        withContext(Dispatchers.IO) {
+            if (periodHours <= 0) return@withContext 0L
+            val windowStartEpoch = System.currentTimeMillis() - periodHours * 3600_000L
+            runLogDao.sumDurationInWindow(taskId, windowStartEpoch)
+        }
 
     suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
         // Also delete all descendants

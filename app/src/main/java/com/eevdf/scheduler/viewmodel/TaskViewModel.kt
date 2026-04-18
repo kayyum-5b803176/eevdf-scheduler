@@ -295,18 +295,41 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         numberRegex.find(name)?.groupValues?.getOrNull(1)?.toDoubleOrNull() ?: Double.MAX_VALUE
 
     /**
+     * Builds a map of taskId → exceedMultiple for every active task that has
+     * [Task.frequencyPeriodHours] > 0.
+     *
+     * exceedMultiple = windowedSeconds / timeSliceSeconds
+     *  • 1.0 = used exactly the allocated slice in the period
+     *  • 2.0 = used twice the slice (2x)
+     *  • 0.5 = used half the slice
+     * null entry = feature disabled for that task or no runs in window yet.
+     */
+    private suspend fun buildExceedMap(tasks: List<Task>): Map<String, Double> {
+        val result = mutableMapOf<String, Double>()
+        for (task in tasks) {
+            if (task.frequencyPeriodHours <= 0 || task.timeSliceSeconds <= 0) continue
+            val windowedSecs = repository.getWindowedSeconds(task.id, task.frequencyPeriodHours)
+            if (windowedSecs > 0) {
+                result[task.id] = windowedSecs.toDouble() / task.timeSliceSeconds.toDouble()
+            }
+        }
+        return result
+    }
+
+    /**
      * Queue tab: static sort by first number in task name (number pattern).
      * "icon 1"→1.0, "task 1.1"→1.1, "10 work"→10.0, "clean 4.4"→4.4.
      * Tasks with no number sort after numbered ones.
      * Uses queueExpandState — independent of Schedule tab.
      */
-    private fun buildQueueList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
-        val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+    private suspend fun buildQueueList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+        val shares  = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+        val exceeds = buildExceedMap(tasks)
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
                 .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
-                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0) }
+                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0, exceedMultiple = exceeds[it.id]) }
         }
         val result = mutableListOf<TaskDisplayItem>()
         fun addLevel(parentId: String?, depth: Int) {
@@ -315,7 +338,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
             for (task in children) {
                 val dc = tasks.filter { it.parentId == task.id }
-                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0))
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0, exceeds[task.id]))
                 if (task.isGroup && (queueExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
             }
         }
@@ -328,13 +351,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Uses scheduleExpandState — independent of Queue tab.
      * Sources from activeTasks so reflects DB changes (vruntime updates, new tasks) instantly.
      */
-    private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
-        val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+    private suspend fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+        val shares  = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+        val exceeds = buildExceedMap(tasks)
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
                 .sortedBy { it.virtualDeadline }
-                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0) }
+                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0, exceedMultiple = exceeds[it.id]) }
         }
         val result = mutableListOf<TaskDisplayItem>()
         fun addLevel(parentId: String?, depth: Int) {
@@ -343,7 +367,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 .sortedBy { it.virtualDeadline }
             for (task in children) {
                 val dc = tasks.filter { it.parentId == task.id }
-                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0))
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0, exceeds[task.id]))
                 if (task.isGroup && (scheduleExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
             }
         }
@@ -389,9 +413,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      *  Used to compute elapsed = sessionStartRemaining - secondsLeftNow on pause. */
     private var sessionStartRemaining: Long = 0L
 
+    /** Wall-clock epoch ms when the current session's Start was pressed.
+     *  Stored so logRun() can record the correct window-bucket for the run. */
+    private var sessionStartEpoch: Long = 0L
+
     init {
         val db = TaskDatabase.getDatabase(application)
-        repository = TaskRepository(db.taskDao())
+        repository = TaskRepository(db.taskDao(), db.taskRunLogDao())
         allTasks       = repository.allTasks
         activeTasks    = repository.activeTasks
         completedTasks = repository.completedTasks
@@ -437,7 +465,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             fun rebuild() {
                 val tasks   = activeTasks.value ?: emptyList()
                 val enabled = _groupsEnabled.value ?: false
-                value = buildQueueList(tasks, enabled)
+                viewModelScope.launch { postValue(buildQueueList(tasks, enabled)) }
             }
             addSource(activeTasks)         { rebuild() }
             addSource(_groupsEnabled)      { rebuild() }
@@ -449,7 +477,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             fun rebuild() {
                 val tasks   = activeTasks.value ?: emptyList()
                 val enabled = _groupsEnabled.value ?: false
-                value = buildScheduleList(tasks, enabled)
+                viewModelScope.launch { postValue(buildScheduleList(tasks, enabled)) }
             }
             addSource(activeTasks)            { rebuild() }
             addSource(_groupsEnabled)         { rebuild() }
@@ -810,6 +838,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val deadlineEpoch     = System.currentTimeMillis() + remaining * 1000L
         timerDeadlineEpoch    = deadlineEpoch
         sessionStartRemaining = remaining
+        sessionStartEpoch     = System.currentTimeMillis()
         _timerRunning.value   = true
 
         viewModelScope.launch {
@@ -1041,8 +1070,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun applyVruntimeUpdate(ranSeconds: Long) {
         val task = _currentTask.value ?: return
+        val capturedStart = sessionStartEpoch.also { sessionStartEpoch = 0L }
         viewModelScope.launch {
             repository.updateVruntimeAfterRun(task, ranSeconds)
+            // Log the wall-clock run for the Exceed multiplier calculation.
+            // capturedStart is 0 only if the timer was never started via startActualTimer
+            // (e.g. app-kill recovery path) — fall back to now minus elapsed in that case.
+            val logStart = if (capturedStart > 0L) capturedStart
+                           else System.currentTimeMillis() - ranSeconds * 1000L
+            repository.logRun(task.id, logStart, ranSeconds)
             refreshSchedule()
         }
     }
