@@ -344,46 +344,27 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     /**
-     * Back-calculates the EEVDF internal weight that would produce [targetShare]% CPU
-     * allocation for this task when it participates in the float pool (i.e. if the pin
-     * were removed).
+     * Delegates to [EEVDFScheduler.calcPinnedWeight] using the task-editor's current
+     * sibling context (parent spinner selection + live task list).
      *
-     * The calculation is scoped to the task's sibling level so grouped tasks compare
-     * only against their group-mates, not the entire task list.
-     *
-     * Formula (derived from share_i = weight_i / Σweights * floatPool):
-     *   weight = targetShare × Σ(other float weights) / (floatPool − targetShare)
-     *
-     * Edge cases:
-     *  • floatPool ≤ targetShare  → other pinned tasks already consume ≥ targetShare;
-     *    any finite weight is impossible — returns MAX_INTERNAL_WEIGHT.
-     *  • No float siblings yet    → task would be the sole float member (100% regardless
-     *    of weight); returns the current slider value unchanged.
+     * Keeping this wrapper here lets the Activity pass the slider value as the
+     * fallback weight (reasonable default for a task that has no float siblings yet).
      */
     private fun calcInternalWeight(targetShare: Int): Double {
         val tasks = viewModel.activeTasks.value ?: emptyList()
 
-        // Resolve sibling scope: tasks at the same parentId level as this task will be.
         val selectedParentId: String? = if (groupsEnabled) {
             val idx = spinnerParent.selectedItemPosition
             groupsList.getOrNull(idx)?.id
         } else null
 
-        val siblings = tasks.filter {
-            !it.isCompleted && it.id != existingTaskId && it.parentId == selectedParentId
-        }
-
-        // Float pool available after sibling pinned tasks are accounted for.
-        val siblingPinned    = siblings.filter { it.pinnedShare != null }.sumOf { it.pinnedShare!!.toDouble() }
-        val floatPool        = (100.0 - siblingPinned).coerceAtLeast(0.0)
-        val otherFloatWeight = siblings.filter { it.pinnedShare == null }.sumOf { it.weight }
-
-        val denominator = floatPool - targetShare.toDouble()
-        return when {
-            denominator <= 0.0      -> MAX_INTERNAL_WEIGHT         // pinned siblings take ≥ targetShare
-            otherFloatWeight == 0.0 -> sliderPriority.value.toDouble() // sole float sibling
-            else                    -> (targetShare.toDouble() * otherFloatWeight) / denominator
-        }
+        return EEVDFScheduler.calcPinnedWeight(
+            targetShare    = targetShare.toDouble(),
+            parentId       = selectedParentId,
+            excludeId      = existingTaskId,
+            allTasks       = tasks,
+            fallbackWeight = sliderPriority.value.toDouble()
+        )
     }
 
     private fun validatePinnedShare(newValue: Int?) {
@@ -554,10 +535,4 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     override fun onSupportNavigateUp(): Boolean { finish(); return true }
-
-    companion object {
-        /** Weight ceiling used when the pinned target is mathematically unachievable
-         *  via float-pool arithmetic (e.g. sibling pins already exceed the target). */
-        private const val MAX_INTERNAL_WEIGHT = 9_999.0
-    }
 }

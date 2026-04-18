@@ -190,6 +190,74 @@ object EEVDFScheduler {
     fun otherPinnedTotal(tasks: List<Task>, excludeId: String?): Int =
         tasks.filter { !it.isCompleted && it.pinnedShare != null && it.id != excludeId }
              .sumOf  { it.pinnedShare!! }
+
+    /**
+     * Back-calculates the EEVDF internal weight that would produce [targetShare]% CPU
+     * allocation for a task when it participates in the float pool.
+     *
+     * The calculation is scoped to the task's sibling level ([parentId]) so grouped
+     * tasks compare only against their group-mates.
+     *
+     * @param targetShare   Desired CPU share in percent (e.g. 25.0 for 25 %).
+     * @param parentId      The task's parent group id, or null for root level.
+     * @param excludeId     The task's own id — excluded from the sibling list so
+     *                      the task doesn't count itself.
+     * @param allTasks      Full active task list (completed tasks are ignored).
+     * @param fallbackWeight Returned when no float siblings exist (any weight would
+     *                      give the same result since the task is the sole floater).
+     *                      Callers should pass the task's current priority as the default.
+     */
+    fun calcPinnedWeight(
+        targetShare: Double,
+        parentId: String?,
+        excludeId: String?,
+        allTasks: List<Task>,
+        fallbackWeight: Double = 4.0
+    ): Double {
+        val siblings = allTasks.filter {
+            !it.isCompleted && it.id != excludeId && it.parentId == parentId
+        }
+        val siblingPinned    = siblings.filter { it.pinnedShare != null }.sumOf { it.pinnedShare!!.toDouble() }
+        val floatPool        = (100.0 - siblingPinned).coerceAtLeast(0.0)
+        val otherFloatWeight = siblings.filter { it.pinnedShare == null }.sumOf { it.weight }
+
+        val denominator = floatPool - targetShare
+        return when {
+            denominator <= 0.0      -> MAX_INTERNAL_WEIGHT   // float pool already exhausted
+            otherFloatWeight == 0.0 -> fallbackWeight        // sole float sibling — any weight works
+            else                    -> (targetShare * otherFloatWeight) / denominator
+        }
+    }
+
+    /**
+     * Recalculates [Task.internalWeight] for every active pinned task based on the
+     * current sibling context.  Returns only the tasks whose weight actually changed
+     * so the caller can batch-persist the minimal diff.
+     *
+     * Call this after any mutation that could shift the share distribution:
+     * add, update, delete, or complete a task.
+     */
+    fun syncPinnedWeights(allTasks: List<Task>): List<Task> {
+        val active  = allTasks.filter { !it.isCompleted }
+        val changed = mutableListOf<Task>()
+
+        active.filter { it.pinnedShare != null }.forEach { task ->
+            val newWeight = calcPinnedWeight(
+                targetShare    = task.pinnedShare!!.toDouble(),
+                parentId       = task.parentId,
+                excludeId      = task.id,
+                allTasks       = active,
+                fallbackWeight = task.priority.toDouble()
+            )
+            // Only record a change when the value materially differs (avoid pointless DB writes).
+            if (task.internalWeight == null || Math.abs((task.internalWeight) - newWeight) > 1e-9) {
+                changed.add(task.copy(internalWeight = newWeight))
+            }
+        }
+        return changed
+    }
+
+    private const val MAX_INTERNAL_WEIGHT = 9_999.0
     /**
      * Statistics summary for the scheduler dashboard.
      */

@@ -459,14 +459,29 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
+    /**
+     * After any task mutation (add / update / delete / complete) the float-pool
+     * changes for every sibling.  This re-derives [Task.internalWeight] for all
+     * pinned tasks and batch-persists only the ones that actually changed, so the
+     * cards immediately reflect the new effective weight without the user having
+     * to re-open each task editor.
+     */
+    private suspend fun syncPinnedWeights() {
+        val tasks   = repository.getActiveTasksSync()
+        val changed = EEVDFScheduler.syncPinnedWeights(tasks)
+        if (changed.isNotEmpty()) repository.updateBatch(changed)
+    }
+
     fun addTask(task: Task) = viewModelScope.launch {
         repository.insert(task)
+        syncPinnedWeights()
         refreshSchedule()
         _toastMessage.postValue("Task \"${task.name}\" added to scheduler")
     }
 
     fun updateTask(task: Task) = viewModelScope.launch {
         repository.update(task)
+        syncPinnedWeights()
         refreshSchedule()
     }
 
@@ -476,6 +491,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             _currentTask.postValue(null)
         }
         repository.delete(task)
+        syncPinnedWeights()
         refreshSchedule()
         _toastMessage.postValue("Task \"${task.name}\" deleted")
     }
@@ -488,11 +504,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             remainingSeconds = task.timeSliceSeconds
         )
         repository.update(reverted)
+        syncPinnedWeights()
     }
 
     fun markCompleted(task: Task) = viewModelScope.launch {
         if (task.id == _currentTask.value?.id) stopTimer(completed = true)
         else repository.markCompleted(task)
+        syncPinnedWeights()
         refreshSchedule()
     }
 

@@ -24,6 +24,10 @@ interface TaskDao {
     @Update
     suspend fun update(task: Task)
 
+    /** Batch-updates multiple tasks in a single transaction — used for weight sync. */
+    @Update
+    suspend fun updateAll(tasks: List<Task>)
+
     @Delete
     suspend fun delete(task: Task)
 

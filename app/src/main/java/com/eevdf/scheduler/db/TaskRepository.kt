@@ -23,6 +23,11 @@ class TaskRepository(private val dao: TaskDao) {
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) { dao.update(task) }
 
+    /** Batch-persists a list of tasks whose [Task.internalWeight] was re-synced. */
+    suspend fun updateBatch(tasks: List<Task>) = withContext(Dispatchers.IO) {
+        if (tasks.isNotEmpty()) dao.updateAll(tasks)
+    }
+
     suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
         // Also delete all descendants
         deleteDescendants(task.id)
@@ -47,6 +52,8 @@ class TaskRepository(private val dao: TaskDao) {
     suspend fun clearCompleted() = withContext(Dispatchers.IO) { dao.clearCompleted() }
 
     suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) { dao.getTaskById(id) }
+
+    suspend fun getActiveTasksSync(): List<Task> = withContext(Dispatchers.IO) { dao.getActiveTasksSync() }
 
     /**
      * cgroup-aware vruntime update.
