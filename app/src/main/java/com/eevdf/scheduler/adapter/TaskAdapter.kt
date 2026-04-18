@@ -87,8 +87,7 @@ class TaskAdapter(
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
         val pinned = task.pinnedShare != null
-        holder.tvCpuShare.text  = if (pinned) "\uD83D\uDCCC ${"%.1f".format(item.cpuShare)}%"
-                                   else        "CPU: ${"%.1f".format(item.cpuShare)}%"
+        holder.tvCpuShare.text = "RS: ${"%.1f".format(item.cpuShare)}"
         holder.tvCpuShare.setTextColor(
             if (pinned) android.graphics.Color.parseColor("#FF9800")
             else        android.graphics.Color.parseColor("#BDBDBD")

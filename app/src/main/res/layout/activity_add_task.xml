@@ -539,7 +539,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Pinned CPU Share"
+                        android:text="Realtime Share"
                         android:textSize="14sp"
                         android:textStyle="bold"
                         android:textColor="@color/colorPrimary"
@@ -548,7 +548,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Fix this task's CPU share to an exact %. Leave empty to float automatically based on priority weight."
+                        android:text="Fix this task's realtime share to an exact %. Leave empty to float automatically based on priority weight."
                         android:textSize="11sp"
                         android:textColor="#9E9E9E"
                         android:layout_marginBottom="12dp" />
