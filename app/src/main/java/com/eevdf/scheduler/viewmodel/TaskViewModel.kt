@@ -7,8 +7,8 @@ import androidx.lifecycle.*
 import com.eevdf.scheduler.db.TaskDatabase
 import com.eevdf.scheduler.db.TaskRepository
 import com.eevdf.scheduler.model.Task
-import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
+import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.SchedulerStats
 import com.eevdf.scheduler.ui.AlarmForegroundService
 import com.eevdf.scheduler.ui.SoundManager
@@ -301,11 +301,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Uses queueExpandState — independent of Schedule tab.
      */
     private fun buildQueueList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+        val shares = EEVDFScheduler.computeShares(tasks)
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
                 .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
-                .map { TaskDisplayItem(it, 0) }
+                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0) }
         }
         val result = mutableListOf<TaskDisplayItem>()
         fun addLevel(parentId: String?, depth: Int) {
@@ -314,7 +315,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
             for (task in children) {
                 val dc = tasks.filter { it.parentId == task.id }
-                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }))
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0))
                 if (task.isGroup && (queueExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
             }
         }
@@ -328,11 +329,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Sources from activeTasks so reflects DB changes (vruntime updates, new tasks) instantly.
      */
     private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+        val shares = EEVDFScheduler.computeShares(tasks)
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
                 .sortedBy { it.virtualDeadline }
-                .map { TaskDisplayItem(it, 0) }
+                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0) }
         }
         val result = mutableListOf<TaskDisplayItem>()
         fun addLevel(parentId: String?, depth: Int) {
@@ -341,7 +343,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 .sortedBy { it.virtualDeadline }
             for (task in children) {
                 val dc = tasks.filter { it.parentId == task.id }
-                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }))
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0))
                 if (task.isGroup && (scheduleExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
             }
         }

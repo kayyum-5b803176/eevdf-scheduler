@@ -114,6 +114,43 @@ object EEVDFScheduler {
     }
 
     /**
+     * Compute the real-time CPU share percentage for every active task.
+     *
+     * Rules:
+     *  1. Tasks with a non-null [Task.pinnedShare] always receive exactly that %.
+     *  2. The remaining % (100 − sum-of-pinned) is distributed among un-pinned tasks
+     *     proportionally by EEVDF weight (priority).
+     *  3. If pinned tasks already consume ≥ 100 %, un-pinned tasks get 0 %.
+     *
+     * Returns a map of task.id → share (0.0–100.0).
+     */
+    fun computeShares(tasks: List<Task>): Map<String, Double> {
+        val active = tasks.filter { !it.isCompleted }
+        val pinnedTotal = active
+            .filter  { it.pinnedShare != null }
+            .sumOf   { it.pinnedShare!!.toDouble() }
+        val floatPool  = (100.0 - pinnedTotal).coerceAtLeast(0.0)
+        val floatTasks = active.filter { it.pinnedShare == null }
+        val floatWeight = floatTasks.sumOf { it.weight }.coerceAtLeast(1.0)
+
+        return active.associate { task ->
+            task.id to if (task.pinnedShare != null) {
+                task.pinnedShare.toDouble()
+            } else {
+                (task.weight / floatWeight) * floatPool
+            }
+        }
+    }
+
+    /**
+     * Validate that all pinned shares across [tasks] (excluding [excludeId]) plus
+     * [newValue] do not exceed 100.
+     * Returns the sum of all OTHER pinned shares so the caller can compare.
+     */
+    fun otherPinnedTotal(tasks: List<Task>, excludeId: String?): Int =
+        tasks.filter { !it.isCompleted && it.pinnedShare != null && it.id != excludeId }
+             .sumOf  { it.pinnedShare!! }
+    /**
      * Statistics summary for the scheduler dashboard.
      */
     fun getStats(tasks: List<Task>): SchedulerStats {

@@ -10,6 +10,7 @@ import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.scheduler.R
 import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import com.eevdf.scheduler.viewmodel.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
@@ -53,6 +54,10 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var tvNoticeRestPreview:   TextView
     private lateinit var etNoticeRepeat:        TextInputEditText
 
+    // Pinned share section
+    private lateinit var etPinnedShare:         TextInputEditText
+    private lateinit var tvPinnedShareWarning:  TextView
+
     private val taskTypeLabels = listOf("Default", "Notice", "Alert", "Custom")
     private val taskTypeValues = listOf("DEFAULT", "NOTIFICATION", "ALARM", "CUSTOM")
     private var selectedTaskType = "DEFAULT"
@@ -85,6 +90,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupGroupSection()
         setupInterruptSwitch()
         setupTaskTypeSection()
+        setupPinnedShare()
 
         if (existingTaskId != null) {
             supportActionBar?.title = "Edit Task"
@@ -118,6 +124,8 @@ class AddTaskActivity : AppCompatActivity() {
         etNoticeRest         = findViewById(R.id.etNoticeRest)
         tvNoticeRestPreview  = findViewById(R.id.tvNoticeRestPreview)
         etNoticeRepeat       = findViewById(R.id.etNoticeRepeat)
+        etPinnedShare        = findViewById(R.id.etPinnedShare)
+        tvPinnedShareWarning = findViewById(R.id.tvPinnedShareWarning)
 
         btnSave.setOnClickListener { saveTask() }
         btnCancel.setOnClickListener { finish() }
@@ -241,6 +249,8 @@ class AddTaskActivity : AppCompatActivity() {
             switchIsInterrupt.isEnabled = true
             tvInterruptOwner.visibility = android.view.View.GONE
         }
+        // Pinned share
+        task.pinnedShare?.let { etPinnedShare.setText(it.toString()) }
     }
 
     private fun setupInterruptSwitch() {
@@ -262,6 +272,47 @@ class AddTaskActivity : AppCompatActivity() {
     private suspend fun repository_getInterrupt(): Task? {
         // Use ViewModel's LiveData value (already loaded on init)
         return viewModel.interruptTask.value
+    }
+
+    private fun setupPinnedShare() {
+        etPinnedShare.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                validatePinnedShare(s?.toString()?.toIntOrNull())
+            }
+        })
+    }
+
+    private fun validatePinnedShare(newValue: Int?) {
+        if (newValue == null) {
+            // Empty = auto-float, no warning needed
+            tvPinnedShareWarning.visibility = android.view.View.GONE
+            return
+        }
+        val tasks = viewModel.activeTasks.value ?: emptyList()
+        val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId)
+        val total = otherPinned + newValue
+        when {
+            newValue < 1 || newValue > 99 -> {
+                tvPinnedShareWarning.text = "Value must be between 1 and 99."
+                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+            }
+            total > 100 -> {
+                tvPinnedShareWarning.text =
+                    "Total pinned share would be $total% (other tasks: $otherPinned%). " +
+                    "Reduce this or other pinned tasks so total ≤ 100%."
+                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+            }
+            total == 100 -> {
+                tvPinnedShareWarning.text =
+                    "Warning: all 100% is pinned. Floating tasks will receive 0% CPU share."
+                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+            }
+            else -> {
+                tvPinnedShareWarning.visibility = android.view.View.GONE
+            }
+        }
     }
 
     private fun setupTaskTypeSection() {
@@ -337,6 +388,22 @@ class AddTaskActivity : AppCompatActivity() {
         val notifRestSecs   = if (selectedTaskType == "NOTIFICATION") parseDelayInput(etNoticeRest.text.toString()) else 0L
         val notifRepeat     = if (selectedTaskType == "NOTIFICATION") (etNoticeRepeat.text.toString().toIntOrNull() ?: 0).coerceIn(0, 12) else 0
 
+        // Pinned share — null if field empty (auto-float), else validated 1–99
+        val pinnedShareRaw = etPinnedShare.text.toString().toIntOrNull()
+        val pinnedShare: Int? = if (pinnedShareRaw != null) {
+            val clamped     = pinnedShareRaw.coerceIn(1, 99)
+            val tasks       = viewModel.activeTasks.value ?: emptyList()
+            val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId)
+            if (otherPinned + clamped > 100) {
+                tvPinnedShareWarning.text =
+                    "Cannot save: total pinned share would be ${otherPinned + clamped}%. " +
+                    "Reduce this or other pinned tasks so total ≤ 100%."
+                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+                return
+            }
+            clamped
+        } else null
+
         if (existingTask != null) {
             val updated = existingTask!!.copy(
                 name             = name,
@@ -349,7 +416,8 @@ class AddTaskActivity : AppCompatActivity() {
                 taskType         = selectedTaskType,
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
-                notificationRepeatCount  = notifRepeat
+                notificationRepeatCount  = notifRepeat,
+                pinnedShare      = pinnedShare
             )
             // Handle interrupt assignment
         if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(updated)
@@ -368,7 +436,8 @@ class AddTaskActivity : AppCompatActivity() {
                 taskType         = selectedTaskType,
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
-                notificationRepeatCount  = notifRepeat
+                notificationRepeatCount  = notifRepeat,
+                pinnedShare      = pinnedShare
             )
             viewModel.addTask(task)
             if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(task)

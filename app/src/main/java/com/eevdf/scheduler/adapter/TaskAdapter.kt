@@ -47,6 +47,7 @@ class TaskAdapter(
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
         val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
         val tvVdeadline:    TextView    = itemView.findViewById(R.id.tvVdeadline)
+        val tvCpuShare:     TextView    = itemView.findViewById(R.id.tvCpuShare)
         val progressBar:    ProgressBar = itemView.findViewById(R.id.progressTask)
         val btnDelete:      ImageButton = itemView.findViewById(R.id.btnDelete)
         val btnComplete:    ImageButton = itemView.findViewById(R.id.btnComplete)
@@ -80,6 +81,13 @@ class TaskAdapter(
         holder.tvPriority.text = "Priority: ${task.priority}"
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
+        val pinned = task.pinnedShare != null
+        holder.tvCpuShare.text  = if (pinned) "\uD83D\uDCCC ${"%.1f".format(item.cpuShare)}%"
+                                   else        "CPU: ${"%.1f".format(item.cpuShare)}%"
+        holder.tvCpuShare.setTextColor(
+            if (pinned) android.graphics.Color.parseColor("#FF9800")
+            else        android.graphics.Color.parseColor("#BDBDBD")
+        )
 
         // ── Group vs leaf rendering ────────────────────────────────────────────
         if (task.isGroup) {

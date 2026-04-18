@@ -53,6 +53,9 @@ data class Task(
      *  cannot lose this anchor. Cleared to 0 on pause or finish. */
     var timerDeadlineEpoch: Long = 0L,
 
+    // CPU share pinning — null = auto-float (EEVDF weight-based), 0–100 = fixed %
+    val pinnedShare: Int? = null,
+
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val weight: Double get() = priority.toDouble()
