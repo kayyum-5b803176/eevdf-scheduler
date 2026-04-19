@@ -48,6 +48,30 @@ class TaskRepository(private val dao: TaskDao, private val runLogDao: TaskRunLog
         }
 
     /**
+     * Records a completed run for [task] and propagates the same duration up every
+     * ancestor group, so group exceed counters automatically accumulate child time —
+     * mirroring the cgroup-style propagation used by [updateVruntimeAfterRun].
+     *
+     * Call this instead of [logRun] everywhere a leaf-task run is logged.
+     */
+    suspend fun logRunWithAncestors(task: Task, startEpoch: Long, durationSeconds: Long) =
+        withContext(Dispatchers.IO) {
+            if (durationSeconds <= 0) return@withContext
+            // Log for the leaf task itself
+            runLogDao.insert(TaskRunLog(taskId = task.id, startEpoch = startEpoch, durationSeconds = durationSeconds))
+            // Walk the ancestor chain and credit the same slice to every parent group
+            var parentId = task.parentId
+            while (parentId != null) {
+                runLogDao.insert(TaskRunLog(taskId = parentId, startEpoch = startEpoch, durationSeconds = durationSeconds))
+                val parent = dao.getTaskById(parentId) ?: break
+                parentId = parent.parentId
+            }
+            // Prune once after all inserts (99-day window matches logRun)
+            val cutoff = System.currentTimeMillis() - 99L * 24 * 3600 * 1000
+            runLogDao.deleteBefore(cutoff)
+        }
+
+    /**
      * Returns the total seconds this task was actually run within the last
      * [periodHours] hours (moving window ending now).
      * Returns 0 when [periodHours] is 0 (feature disabled).

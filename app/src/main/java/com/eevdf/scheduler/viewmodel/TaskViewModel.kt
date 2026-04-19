@@ -1004,7 +1004,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                                   else task.timeSliceSeconds
                 val logStart    = if (capturedSessionStart > 0L) capturedSessionStart
                                   else System.currentTimeMillis() - logDuration * 1000L
-                repository.logRun(task.id, logStart, logDuration)
+                repository.logRunWithAncestors(task, logStart, logDuration)
             } else {
                 noticeSessionSeconds += task.timeSliceSeconds   // add this execute cycle to session total
             }
@@ -1094,12 +1094,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val capturedStart = sessionStartEpoch.also { sessionStartEpoch = 0L }
         viewModelScope.launch {
             repository.updateVruntimeAfterRun(task, ranSeconds)
-            // Log the wall-clock run for the Exceed multiplier calculation.
+            // Log the wall-clock run for the Exceed multiplier calculation and propagate
+            // it up to every ancestor group so group exceed counters accumulate child time.
             // capturedStart is 0 only if the timer was never started via startActualTimer
             // (e.g. app-kill recovery path) — fall back to now minus elapsed in that case.
             val logStart = if (capturedStart > 0L) capturedStart
                            else System.currentTimeMillis() - ranSeconds * 1000L
-            repository.logRun(task.id, logStart, ranSeconds)
+            repository.logRunWithAncestors(task, logStart, ranSeconds)
             refreshSchedule()
         }
     }
