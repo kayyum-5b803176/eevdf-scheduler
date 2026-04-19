@@ -978,12 +978,33 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val task = taskOverride ?: _currentTask.value ?: return
         val ctx = getApplication<Application>()
 
+        // Capture wall-clock session anchors before launching the coroutine.
+        // Both are cleared here so that a subsequent pauseTimer() / applyVruntimeUpdate()
+        // call (possible e.g. during an overrun) cannot double-log the same session.
+        //
+        // sessionStartRemaining = remaining seconds when the user last pressed Start.
+        // When the timer reaches zero the task ran exactly those seconds this session
+        // (e.g. resumed with 30 s left → ran 30 s, not the full timeSliceSeconds).
+        val capturedSessionStart     = sessionStartEpoch.also     { sessionStartEpoch     = 0L }
+        val capturedSessionRemaining = sessionStartRemaining.also { sessionStartRemaining = 0L }
+
         viewModelScope.launch {
             // For NOTIFICATION tasks, vruntime is accumulated in noticeSessionSeconds across
             // all phases and applied in a single shot at triggerAlarmExpire or pause.
             // updateVruntimeAfterRun here would double-count on every repeat cycle.
             if (task.taskType != "NOTIFICATION") {
                 repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
+                // Log only the seconds actually elapsed this session to TaskRunLog so the
+                // exceed counter stays accurate after a pause-then-resume cycle.
+                // On pause this is done via applyVruntimeUpdate → logRun; on natural expiry
+                // that path is never taken, so we must log here explicitly.
+                // capturedSessionRemaining = 0 only on the app-kill recovery path where
+                // startActualTimer was never called; fall back to full slice in that case.
+                val logDuration = if (capturedSessionRemaining > 0L) capturedSessionRemaining
+                                  else task.timeSliceSeconds
+                val logStart    = if (capturedSessionStart > 0L) capturedSessionStart
+                                  else System.currentTimeMillis() - logDuration * 1000L
+                repository.logRun(task.id, logStart, logDuration)
             } else {
                 noticeSessionSeconds += task.timeSliceSeconds   // add this execute cycle to session total
             }
