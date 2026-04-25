@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.eevdf.scheduler.model.Task
 
-@Database(entities = [Task::class], version = 8, exportSchema = false)
+@Database(entities = [Task::class], version = 9, exportSchema = false)
 abstract class TaskDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
@@ -77,6 +77,66 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 8 → 9 — replace timerDeadlineEpoch with the two-field epoch model.
+         *
+         * New model:
+         *   accumulatedMs  = total ms consumed across all sessions before the current one
+         *   startTimeEpoch = System.currentTimeMillis() when Start was last pressed (0 = paused)
+         *   liveElapsedMs  = accumulatedMs + (now − startTimeEpoch)   // while Running
+         *   remainingMs    = timeSliceSeconds * 1000 − liveElapsedMs
+         *
+         * Back-fill maths for existing rows:
+         *
+         *   Paused (timerDeadlineEpoch = 0, isRunning = 0):
+         *     accumulatedMs  = (timeSliceSeconds − remainingSeconds) * 1000
+         *     startTimeEpoch = 0
+         *
+         *   Running (timerDeadlineEpoch > 0, isRunning = 1, deadline still in future):
+         *     accumulatedMs  = (timeSliceSeconds − remainingSeconds) * 1000
+         *     startTimeEpoch = timerDeadlineEpoch − remainingSeconds * 1000
+         *
+         *   Running but deadline already passed (deadline ≤ now):
+         *     Treat as expired → remainingSeconds=0, accumulatedMs=sliceMs, isRunning=0
+         *
+         * Note: SQLite cannot DROP columns, so timerDeadlineEpoch remains in the schema
+         * as a permanently ignored legacy column. It will be 0 for all new rows.
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 1. Add the two new columns
+                database.execSQL(
+                    "ALTER TABLE tasks ADD COLUMN accumulatedMs  INTEGER NOT NULL DEFAULT 0"
+                )
+                database.execSQL(
+                    "ALTER TABLE tasks ADD COLUMN startTimeEpoch INTEGER NOT NULL DEFAULT 0"
+                )
+
+                // 2. Back-fill accumulatedMs for every row
+                database.execSQL(
+                    "UPDATE tasks SET accumulatedMs = (timeSliceSeconds - remainingSeconds) * 1000"
+                )
+
+                // 3. Back-fill startTimeEpoch for tasks whose deadline is still in the future
+                database.execSQL("""
+                    UPDATE tasks
+                       SET startTimeEpoch = timerDeadlineEpoch - remainingSeconds * 1000
+                     WHERE isRunning = 1
+                       AND timerDeadlineEpoch > (strftime('%s','now') * 1000)
+                """.trimIndent())
+
+                // 4. Tasks running but deadline already passed → expire them cleanly
+                database.execSQL("""
+                    UPDATE tasks
+                       SET isRunning        = 0,
+                           remainingSeconds = 0,
+                           accumulatedMs    = timeSliceSeconds * 1000
+                     WHERE isRunning = 1
+                       AND startTimeEpoch = 0
+                """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -84,7 +144,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build()
                 INSTANCE = instance
                 instance

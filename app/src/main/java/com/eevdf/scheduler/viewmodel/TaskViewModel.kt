@@ -7,7 +7,11 @@ import androidx.lifecycle.*
 import com.eevdf.scheduler.db.TaskDatabase
 import com.eevdf.scheduler.db.TaskRepository
 import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.TimerState
+import com.eevdf.scheduler.model.timerState
+import com.eevdf.scheduler.model.withTimerState
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
+import com.eevdf.scheduler.scheduler.TimerEngine
 import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.SchedulerStats
 import com.eevdf.scheduler.ui.AlarmForegroundService
@@ -353,10 +357,11 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Timer state ───────────────────────────────────────────────────────────
 
-    private var countDownTimer: CountDownTimer? = null
-    private var overrunTimer:   CountDownTimer? = null
-    private var delayTimer:     CountDownTimer? = null
-    private var waitTimer:      CountDownTimer? = null   // Notice wait phase
+    // CountDownTimer still used for delay, wait, and overrun phases only.
+    // The main execute countdown is owned entirely by TimerEngine.
+    private var overrunTimer: CountDownTimer? = null
+    private var delayTimer:   CountDownTimer? = null
+    private var waitTimer:    CountDownTimer? = null
 
     private val _delayRunning = MutableLiveData<Boolean>(false)
     val delayRunning: LiveData<Boolean> = _delayRunning
@@ -369,25 +374,27 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     val waitSecondsRemaining: LiveData<Long> = _waitSecondsRemaining
 
     /** Elapsed seconds accumulated across delay + execute + wait phases this session. */
-    private var delayElapsedSeconds:   Long = 0L
-    private var waitElapsedSeconds:    Long = 0L
+    private var delayElapsedSeconds:  Long = 0L
+    private var waitElapsedSeconds:   Long = 0L
     /**
      * Running total of every second consumed by the notice state machine in the
      * current session (delay + all execute cycles + all wait cycles).
      * Applied to vruntime in a single shot on expire or pause — never per-cycle.
      */
-    private var noticeSessionSeconds:  Long = 0L
+    private var noticeSessionSeconds: Long = 0L
 
     /** Tracks completed repeat cycles for the current Notice task session. */
     private var currentRepeatIteration = 0
 
-    /** Epoch ms when the current countdown expires — in-memory mirror of Task.timerDeadlineEpoch.
-     *  0 means no timer is running. Written to DB the instant Start is pressed. */
-    private var timerDeadlineEpoch: Long = 0L
-
-    /** Remaining seconds at the moment the current session's Start was pressed.
-     *  Used to compute elapsed = sessionStartRemaining - secondsLeftNow on pause. */
-    private var sessionStartRemaining: Long = 0L
+    /**
+     * Isolated timer engine — owns the CountDownTimer, in-memory TimerState, and
+     * all epoch arithmetic for the active execute countdown.
+     *
+     * The ViewModel wires its LiveData outputs in init{} and calls its API
+     * from startActualTimer / pauseTimer / resetTimer. Nothing else in the
+     * ViewModel touches accumulatedMs or startTimeEpoch directly.
+     */
+    private val timerEngine = TimerEngine()
 
     init {
         val db = TaskDatabase.getDatabase(application)
@@ -397,37 +404,41 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         completedTasks = repository.completedTasks
         activeGroups   = repository.activeGroups
 
-        // Queue: stable name-number sort, own expand state, never re-sorts by vruntime
-        // Load persisted interrupt task
+        // ── Wire TimerEngine outputs ──────────────────────────────────────────
+
+        timerEngine.tickSeconds.observeForever { remainingSecs ->
+            _timerSeconds.postValue(remainingSecs)
+            _currentTask.value?.let { t ->
+                _currentTask.postValue(t.copy(remainingSeconds = remainingSecs))
+            }
+        }
+
+        timerEngine.expiredTask.observeForever { expired ->
+            viewModelScope.launch { repository.update(expired) }
+            _timerRunning.postValue(false)
+            _currentTask.value = expired
+            onTimerFinished()
+        }
+
+        // ── Startup / app-kill recovery ───────────────────────────────────────
+
         viewModelScope.launch {
             _interruptTask.postValue(repository.getInterruptTask())
 
-            // Resume any task that was actively running when the app was killed or
-            // the device went to sleep.  The wall-clock deadline tells us exactly
-            // how many seconds remain without relying on any in-process state.
             val running = repository.getRunningTask()
             if (running != null) {
-                val nowMs        = System.currentTimeMillis()
-                val secondsLeft  = ((running.timerDeadlineEpoch - nowMs) / 1000L).coerceAtLeast(0L)
+                val nowMs       = System.currentTimeMillis()
+                val secondsLeft = TimerState.remainingSecs(
+                    running.timerState, running.timeSliceSeconds, nowMs
+                )
                 if (secondsLeft > 0L) {
-                    // Correct the in-DB remaining so the card shows the right value
                     val corrected = running.copy(remainingSeconds = secondsLeft)
                     repository.update(corrected)
                     _currentTask.postValue(corrected)
                     _timerSeconds.postValue(secondsLeft)
-                    // Restore in-memory deadline so startTimer() / pauseTimer() work
-                    timerDeadlineEpoch    = running.timerDeadlineEpoch
-                    sessionStartRemaining = secondsLeft
-                    // Re-attach the UI ticker (does not restart the AlarmManager alarm —
-                    // AlarmForegroundService.timerStart already set that before the kill)
                     _timerRunning.postValue(true)
-                    attachTickerOnly(secondsLeft)
+                    timerEngine.restoreFromDb(corrected)
                 } else {
-                    // Deadline already passed while the app was killed/dead.
-                    // Do NOT postValue here — that would briefly show the timer card
-                    // at 0:00 before onTimerFinished() clears it.  Instead, pass the
-                    // task directly so onTimerFinished() can show the alarm banner
-                    // without depending on the async _currentTask update.
                     onTimerFinished(running)
                 }
             }
@@ -444,7 +455,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             addSource(_queueExpandTrigger) { rebuild() }
         }
 
-        // Schedule: live EEVDF sort directly from activeTasks — updates instantly
         flatScheduleOrder = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
                 val tasks   = activeTasks.value ?: emptyList()
@@ -498,11 +508,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Moves a completed task back to the active queue, restoring its timer slice. */
     fun revertTask(task: Task) = viewModelScope.launch {
-        val reverted = task.copy(
-            isCompleted      = false,
-            isRunning        = false,
-            remainingSeconds = task.timeSliceSeconds
-        )
+        val reverted = task.copy(isCompleted = false).withTimerState(TimerState.reset())
         repository.update(reverted)
         syncPinnedWeights()
     }
@@ -805,99 +811,53 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Actual task timer ─────────────────────────────────────────────────────
 
-    private fun startActualTimer(task: Task, remaining: Long) {
-        // ── Wall-clock anchor ─────────────────────────────────────────────────
-        val deadlineEpoch     = System.currentTimeMillis() + remaining * 1000L
-        timerDeadlineEpoch    = deadlineEpoch
-        sessionStartRemaining = remaining
-        _timerRunning.value   = true
-
-        viewModelScope.launch {
-            repository.update(
-                task.copy(remainingSeconds = remaining, isRunning = true,
-                    timerDeadlineEpoch = deadlineEpoch)
-            )
-        }
-
-        AlarmForegroundService.timerStart(getApplication(), task.name, remaining, task.taskType)
-        attachTickerOnly(remaining)
-    }
-
     /**
-     * Attaches a CountDownTimer used purely as a UI wakeup every second.
-     * Every displayed value is derived from [timerDeadlineEpoch] (wall clock),
-     * not from CountDownTimer's internal millisUntilFinished — so drift,
-     * rapid restarts, and process death cannot corrupt the display.
+     * Builds a Running state, persists it to DB, then hands off to [timerEngine].
+     * Single entry point for starting an execute countdown.
      */
-    private fun attachTickerOnly(remaining: Long) {
-        countDownTimer?.cancel()
-        countDownTimer = object : CountDownTimer(remaining * 1000L, 1000L) {
-            override fun onTick(millisUntilFinished: Long) {
-                val secondsLeft = ((timerDeadlineEpoch - System.currentTimeMillis()) / 1000L)
-                    .coerceAtLeast(0L)
-                _timerSeconds.postValue(secondsLeft)
-                _currentTask.value?.let { t ->
-                    _currentTask.postValue(t.copy(remainingSeconds = secondsLeft))
-                }
-            }
-            override fun onFinish() {
-                _timerSeconds.postValue(0L)
-                _timerRunning.postValue(false)
-                timerDeadlineEpoch = 0L
-                onTimerFinished()
-            }
-        }.start()
+    private fun startActualTimer(task: Task, remaining: Long) {
+        val nowMs       = System.currentTimeMillis()
+        val accumulated = (task.timeSliceSeconds - remaining) * 1000L
+        val running     = TimerState.Running(accumulatedMs = accumulated, startTimeEpoch = nowMs)
+        val updated     = task.withTimerState(running)
+
+        _timerRunning.value = true
+        viewModelScope.launch { repository.update(updated) }
+        AlarmForegroundService.timerStart(getApplication(), task.name, remaining, task.taskType)
+        timerEngine.start(updated)
     }
 
     fun pauseTimer() {
-        // Delay phase → cancel, clear session
         if (_delayRunning.value == true) { cancelDelayPhase(); return }
-        // Wait phase → cancel, restore execute slice for clean restart
-        if (_waitRunning.value == true) { cancelWaitPhase(); return }
+        if (_waitRunning.value == true)  { cancelWaitPhase();  return }
 
         stopAlarmSound()
-        countDownTimer?.cancel()
-        countDownTimer = null
+
+        val nowMs  = System.currentTimeMillis()
+
+        // Seconds consumed this execute session — used for vruntime
+        val sessionElapsed = when (val state = timerEngine.currentState()) {
+            is TimerState.Running -> ((nowMs - state.startTimeEpoch) / 1000L).coerceAtLeast(0L)
+            else                  -> 0L
+        }
+
+        val paused = timerEngine.pause(nowMs)
         _timerRunning.value = false
 
-        // Derive exact remaining from the wall-clock deadline — not from the LiveData
-        // value, which may lag one tick behind, and not from CountDownTimer state.
-        val secondsLeft = if (timerDeadlineEpoch > 0L)
-            ((timerDeadlineEpoch - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L)
-        else
-            _timerSeconds.value ?: 0L
-
-        val elapsed = (sessionStartRemaining - secondsLeft).coerceAtLeast(0L)
-        timerDeadlineEpoch    = 0L
-        sessionStartRemaining = 0L
-
-        // Snap in-memory task to exact paused time so the card shows the right value
-        _currentTask.value?.let { t ->
-            _currentTask.value = t.copy(remainingSeconds = secondsLeft, isRunning = false,
-                timerDeadlineEpoch = 0L)
-        }
-        _timerSeconds.value = secondsLeft
-
-        // Persist paused state — clear deadline so resume logic does not re-fire
         val task = _currentTask.value
-        if (task != null) {
-            viewModelScope.launch {
-                repository.update(
-                    task.copy(remainingSeconds = secondsLeft, isRunning = false,
-                        timerDeadlineEpoch = 0L)
-                )
-            }
+        if (paused != null) {
+            _currentTask.value  = paused
+            _timerSeconds.value = paused.remainingSeconds
+            viewModelScope.launch { repository.update(paused) }
         }
 
-        // For NOTIFICATION tasks, noticeSessionSeconds already holds delay + all completed execute/wait
-        // cycles from this session. Add the current execute's partial elapsed on top.
-        // For non-NOTIFICATION tasks, use elapsed + any legacy delay/wait fields.
         if (task != null && task.taskType == "NOTIFICATION") {
-            val totalConsumed = noticeSessionSeconds + elapsed
+            val totalConsumed = noticeSessionSeconds + sessionElapsed
             noticeSessionSeconds = 0L
             if (totalConsumed > 0) applyVruntimeUpdate(totalConsumed)
         } else {
-            if (elapsed > 0) applyVruntimeUpdate(elapsed + delayElapsedSeconds + waitElapsedSeconds)
+            val total = sessionElapsed + delayElapsedSeconds + waitElapsedSeconds
+            if (total > 0) applyVruntimeUpdate(total)
         }
         delayElapsedSeconds = 0L
         waitElapsedSeconds  = 0L
@@ -906,25 +866,24 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetTimer() {
         pauseTimer()
+        timerEngine.clear()
         val task = _currentTask.value ?: return
-        _timerSeconds.value = task.timeSliceSeconds
+        val reset = task.withTimerState(TimerState.reset())
+        _timerSeconds.value = reset.remainingSeconds
         viewModelScope.launch {
-            val updated = task.copy(remainingSeconds = task.timeSliceSeconds)
-            repository.update(updated)
-            _currentTask.postValue(updated)
+            repository.update(reset)
+            _currentTask.postValue(reset)
         }
     }
 
     /** Reset the timer slice of any task back to its default [timeSliceSeconds]. */
     fun resetSlice(task: Task) {
-        // If this task is the currently running one, also reset the live timer display
         if (task.id == _currentTask.value?.id) {
             resetTimer()
             return
         }
         viewModelScope.launch {
-            val updated = task.copy(remainingSeconds = task.timeSliceSeconds)
-            repository.update(updated)
+            repository.update(task.withTimerState(TimerState.reset()))
         }
     }
 
@@ -950,16 +909,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val ctx = getApplication<Application>()
 
         viewModelScope.launch {
-            // For NOTIFICATION tasks, vruntime is accumulated in noticeSessionSeconds across
-            // all phases and applied in a single shot at triggerAlarmExpire or pause.
-            // updateVruntimeAfterRun here would double-count on every repeat cycle.
             if (task.taskType != "NOTIFICATION") {
                 repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
             } else {
-                noticeSessionSeconds += task.timeSliceSeconds   // add this execute cycle to session total
+                noticeSessionSeconds += task.timeSliceSeconds
             }
-            val updated = task.copy(remainingSeconds = task.timeSliceSeconds)
-            repository.update(updated)
+            repository.update(task.withTimerState(TimerState.reset()))
             _toastMessage.postValue("Time slice done for \"${task.name}\"")
             refreshSchedule()
 
@@ -975,18 +930,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                     _toastMessage.postValue("Auto: no more active tasks")
                 }
             } else if (task.taskType == "NOTIFICATION") {
-                // Notice cycle: step 3 (execute done) → step 4 (wait) → step 5 (repeat/expire)
                 val waitSecs  = task.notificationRestSeconds
                 val maxRepeat = task.notificationRepeatCount
                 when {
-                    // Step 4: wait configured → go to wait phase (wait sound plays inside startWaitPhase)
                     waitSecs > 0 -> startWaitPhase(task, waitSecs)
-                    // Step 5: no wait, but repeat remaining → jump to step 3 with execute sound
                     currentRepeatIteration < maxRepeat -> {
                         currentRepeatIteration++
-                        startExecutePhase(task, task.timeSliceSeconds)  // step 3: sound plays on every repeat
+                        startExecutePhase(task, task.timeSliceSeconds)
                     }
-                    // Step 6: no wait, no repeat remaining → expire
                     else -> triggerAlarmExpire(task)
                 }
             } else {
@@ -1025,8 +976,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun stopTimer(completed: Boolean) {
         stopAlarmSound()
-        countDownTimer?.cancel()
-        countDownTimer = null
+        timerEngine.clear()
         _timerRunning.value = false
         if (completed) {
             val task = _currentTask.value ?: return
@@ -1086,7 +1036,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         stopAlarmSound()
-        countDownTimer?.cancel()
+        timerEngine.clear()
     }
 
     // ── DB export / import ────────────────────────────────────────────────────

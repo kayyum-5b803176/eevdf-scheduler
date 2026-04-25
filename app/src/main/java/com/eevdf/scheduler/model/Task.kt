@@ -48,10 +48,20 @@ data class Task(
     // Notice type only: how many extra cycles (timer→rest) after the first (0 = run once)
     val notificationRepeatCount: Int = 0,
 
-    /** Epoch ms when the running countdown expires. 0 = not running.
-     *  Written to DB the instant Start is pressed so app-kill / phone-off
-     *  cannot lose this anchor. Cleared to 0 on pause or finish. */
-    var timerDeadlineEpoch: Long = 0L,
+    /**
+     * Total elapsed ms accumulated across all sessions before the current one.
+     * 0 when Idle. Updated on every Start/Pause so process death loses nothing.
+     * READ via Task.timerState — WRITE via Task.withTimerState().
+     */
+    var accumulatedMs: Long = 0L,
+
+    /**
+     * Epoch ms (System.currentTimeMillis) when the timer was last resumed.
+     * 0 = paused or never started.
+     * liveElapsedMs = accumulatedMs + (now − startTimeEpoch)   // while Running
+     * READ via Task.timerState — WRITE via Task.withTimerState().
+     */
+    var startTimeEpoch: Long = 0L,
 
     // CPU share pinning — null = auto-float (EEVDF weight-based), 0–100 = fixed %
     val pinnedShare: Int? = null,
@@ -90,9 +100,17 @@ data class Task(
         }
     }
 
+    /**
+     * Live elapsed ms — correct whether running or paused.
+     * Used for progress bar; never depends on the remainingSeconds cache.
+     */
+    val liveElapsedMs: Long get() =
+        if (startTimeEpoch > 0L) accumulatedMs + (System.currentTimeMillis() - startTimeEpoch)
+        else accumulatedMs
+
     val progressPercent: Int get() {
-        if (timeSliceSeconds == 0L) return 0
-        return ((timeSliceSeconds - remainingSeconds) * 100 / timeSliceSeconds)
-            .toInt().coerceIn(0, 100)
+        val totalMs = timeSliceSeconds * 1000L
+        if (totalMs == 0L) return 0
+        return (liveElapsedMs * 100L / totalMs).toInt().coerceIn(0, 100)
     }
 }
