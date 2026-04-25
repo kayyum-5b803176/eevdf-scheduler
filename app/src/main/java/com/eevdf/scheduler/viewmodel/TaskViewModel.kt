@@ -414,10 +414,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         timerEngine.expiredTask.observeForever { expired ->
+            // Capture now before any suspend — this is the expiry moment for the
+            // normal (app-alive) path. elapsed will be ~0s.
+            val expiryEpochMs = System.currentTimeMillis()
             viewModelScope.launch { repository.update(expired) }
             _timerRunning.postValue(false)
             _currentTask.value = expired
-            onTimerFinished()
+            onTimerFinished(expiryEpochMs = expiryEpochMs)
         }
 
         // ── Startup / app-kill recovery ───────────────────────────────────────
@@ -439,7 +442,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                     _timerRunning.postValue(true)
                     timerEngine.restoreFromDb(corrected)
                 } else {
-                    onTimerFinished(running)
+                    // Timer expired while the app was dead.
+                    // Compute the exact wall-clock epoch when the slice ran out so the
+                    // expire card shows the correct elapsed time (e.g. 0:10, not 0:01).
+                    //   expiryEpoch = startTimeEpoch + sliceMs - accumulatedMs
+                    // This is the moment liveElapsedMs first equalled timeSliceSeconds * 1000.
+                    val state = running.timerState as TimerState.Running
+                    val expiryEpochMs = state.startTimeEpoch +
+                        running.timeSliceSeconds * 1000L - state.accumulatedMs
+                    onTimerFinished(running, expiryEpochMs)
                 }
             }
         }
@@ -904,9 +915,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * by the time onTimerFinished() is called on the same thread).  Every other call
      * site leaves [taskOverride] null and relies on _currentTask.value as before.
      */
-    private fun onTimerFinished(taskOverride: Task? = null) {
+    private fun onTimerFinished(taskOverride: Task? = null, expiryEpochMs: Long = System.currentTimeMillis()) {
         val task = taskOverride ?: _currentTask.value ?: return
         val ctx = getApplication<Application>()
+
+        // How long ago did the slice actually expire?
+        // - Normal path (app alive): expiryEpochMs ≈ now → elapsedSinceExpiry ≈ 0  ✓
+        // - Recovery path (app killed): expiryEpochMs is computed from the stored epoch
+        //   data, so elapsedSinceExpiry reflects real wall-clock time since expiry    ✓
+        val elapsedSinceExpiry = ((System.currentTimeMillis() - expiryEpochMs) / 1000L)
+            .coerceAtLeast(0L)
 
         viewModelScope.launch {
             if (task.taskType != "NOTIFICATION") {
@@ -943,17 +961,21 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 AlarmForegroundService.timerExpire(ctx, task.name, task.taskType)
                 _alarmTaskName.postValue(task.name)
-                _alarmElapsedSeconds.postValue(0L)
-                startInAppOverrunCounter(task.name)
+                _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
+                startInAppOverrunCounter(task.name, elapsedSinceExpiry)
                 _currentTask.postValue(null)
             }
         }
     }
 
-    private fun startInAppOverrunCounter(taskName: String) {
+    private fun startInAppOverrunCounter(taskName: String, initialElapsedSeconds: Long = 0L) {
         overrunTimer?.cancel()
         overrunTimer = object : CountDownTimer(3600_000L, 1000L) {
-            var elapsed = 0L
+            // Start from the real elapsed time since expiry, not always from 0.
+            // When the app was killed and the timer expired while dead, this ensures
+            // the card shows the correct elapsed time from the moment it actually
+            // expired — not from the moment the user opened the app.
+            var elapsed = initialElapsedSeconds
             override fun onTick(millisUntilFinished: Long) {
                 elapsed++
                 _alarmElapsedSeconds.postValue(elapsed)
