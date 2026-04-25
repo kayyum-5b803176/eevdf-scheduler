@@ -255,7 +255,7 @@
                     android:textSize="12sp" android:textColor="@color/textSecondary"
                     android:paddingBottom="12dp" />
 
-                <!-- Delay sound -->
+                <!-- Execute sound -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginBottom="12dp"
@@ -268,29 +268,29 @@
                             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                                 android:layout_weight="1" android:orientation="vertical">
                                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:text="Delay Sound"
+                                    android:text="Execute Sound"
                                     android:textSize="16sp" android:textColor="@color/textPrimary"
                                     android:fontFamily="sans-serif-medium" />
-                                <TextView android:id="@+id/tvDelaySoundName"
+                                <TextView android:id="@+id/tvExecuteSoundName"
                                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                                     android:text="System notification tone"
                                     android:textSize="13sp" android:textColor="@color/textSecondary"
                                     android:layout_marginTop="2dp" />
                             </LinearLayout>
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnPickDelaySound"
+                                android:id="@+id/btnPickExecuteSound"
                                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                                 android:text="Choose"
                                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
                         </LinearLayout>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:text="Played once when delay ends and task timer begins"
+                            android:text="Played once when execute time starts"
                             android:textSize="12sp" android:textColor="@color/textSecondary"
                             android:layout_marginTop="8dp" />
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
-                <!-- Rest sound -->
+                <!-- Wait sound -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginBottom="12dp"
@@ -303,23 +303,23 @@
                             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                                 android:layout_weight="1" android:orientation="vertical">
                                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:text="Rest Sound"
+                                    android:text="Wait Sound"
                                     android:textSize="16sp" android:textColor="@color/textPrimary"
                                     android:fontFamily="sans-serif-medium" />
-                                <TextView android:id="@+id/tvRestSoundName"
+                                <TextView android:id="@+id/tvWaitSoundName"
                                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                                     android:text="System notification tone"
                                     android:textSize="13sp" android:textColor="@color/textSecondary"
                                     android:layout_marginTop="2dp" />
                             </LinearLayout>
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnPickRestSound"
+                                android:id="@+id/btnPickWaitSound"
                                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                                 android:text="Choose"
                                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
                         </LinearLayout>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:text="Played once when rest phase begins"
+                            android:text="Played once when wait time begins"
                             android:textSize="12sp" android:textColor="@color/textSecondary"
                             android:layout_marginTop="8dp" />
                     </LinearLayout>
@@ -345,7 +345,7 @@
                                 android:textColor="@color/colorPrimary" android:textStyle="bold" />
                         </LinearLayout>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:text="System notification volume for delay &amp; rest sounds. Restored after playback."
+                            android:text="System notification volume for execute &amp; wait sounds. Restored after playback."
                             android:textSize="12sp" android:textColor="@color/textSecondary"
                             android:layout_marginTop="2dp" android:layout_marginBottom="8dp" />
                         <com.google.android.material.slider.Slider

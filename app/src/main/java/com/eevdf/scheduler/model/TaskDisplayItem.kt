@@ -10,5 +10,6 @@ data class TaskDisplayItem(
     val task: Task,
     val depth: Int,
     val childCount: Int = 0,          // only meaningful when task.isGroup == true
-    val childTotalRuntime: Long = 0L  // sum of all direct children's totalRunTime
+    val childTotalRuntime: Long = 0L, // sum of all direct children's totalRunTime
+    val cpuShare: Double = 0.0        // real-time CPU share % from EEVDFScheduler.computeShares()
 )

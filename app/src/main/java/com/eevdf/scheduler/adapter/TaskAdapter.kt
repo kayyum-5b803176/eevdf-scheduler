@@ -47,6 +47,7 @@ class TaskAdapter(
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
         val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
         val tvVdeadline:    TextView    = itemView.findViewById(R.id.tvVdeadline)
+        val tvCpuShare:     TextView    = itemView.findViewById(R.id.tvCpuShare)
         val progressBar:    ProgressBar = itemView.findViewById(R.id.progressTask)
         val btnDelete:      ImageButton = itemView.findViewById(R.id.btnDelete)
         val btnComplete:    ImageButton = itemView.findViewById(R.id.btnComplete)
@@ -77,15 +78,26 @@ class TaskAdapter(
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
-        holder.tvPriority.text = "Priority: ${task.priority}"
+        holder.tvPriority.text = if (task.internalWeight != null) {
+            // Auto-calculated from pinned share — show the effective decimal weight
+            "Priority: ${"%.2f".format(task.weight)}"
+        } else {
+            "Priority: ${task.priority}"
+        }
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
+        val pinned = task.pinnedShare != null
+        holder.tvCpuShare.text = "RS: ${"%.1f".format(item.cpuShare)}"
+        holder.tvCpuShare.setTextColor(
+            if (pinned) android.graphics.Color.parseColor("#FF9800")
+            else        android.graphics.Color.parseColor("#BDBDBD")
+        )
 
         // ── Group vs leaf rendering ────────────────────────────────────────────
         if (task.isGroup) {
             // Group header row
             holder.tvCategory.text  = "Group · ${item.childCount} task${if (item.childCount != 1) "s" else ""}"
-            holder.tvTimeSlice.text = "Child time: ${formatSeconds(item.childTotalRuntime)}"
+            holder.tvTimeSlice.text = "TRT: ${formatTRT(item.childTotalRuntime)}"
             holder.tvRemaining.text = "VRT: ${"%.2f".format(task.vruntime)}"
             holder.tvRunCount.text  = "Runs: ${task.runCount}"
             holder.progressBar.visibility = View.GONE
@@ -100,7 +112,7 @@ class TaskAdapter(
         } else {
             // Leaf task row
             holder.tvCategory.text  = task.category
-            holder.tvTimeSlice.text = "Slice: ${task.timeSliceDisplay}"
+            holder.tvTimeSlice.text = "TRT: ${formatTRT(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
             holder.tvRunCount.text  = "Runs: ${task.runCount}"
             holder.progressBar.visibility    = View.VISIBLE
@@ -165,15 +177,35 @@ class TaskAdapter(
         holder.btnDelete.setOnClickListener { onDeleteClick(task) }
     }
 
-    private fun formatSeconds(totalSec: Long): String {
-        val h = totalSec / 3600
-        val m = (totalSec % 3600) / 60
-        val s = totalSec % 60
-        return when {
-            h > 0 -> "${h}h ${m}m"
-            m > 0 -> "${m}m ${s}s"
-            else  -> "${s}s"
+    /**
+     * Format a duration in seconds as a compact real-time string, showing only
+     * the two most significant non-zero units down to seconds.
+     * Examples: 0s · 45s · 3m 8s · 2h 23m · 1d 3h · 1m 1d · 1y 1m 1d 3h 23m 8s
+     *
+     * Unit definitions (average):
+     *   1 year  = 365 days
+     *   1 month = 30 days
+     */
+    private fun formatTRT(totalSec: Long): String {
+        if (totalSec <= 0L) return "0s"
+
+        var rem = totalSec
+        val years   = rem / 31_536_000L; rem %= 31_536_000L
+        val months  = rem /  2_592_000L; rem %=  2_592_000L
+        val days    = rem /     86_400L; rem %=     86_400L
+        val hours   = rem /      3_600L; rem %=      3_600L
+        val minutes = rem /         60L
+        val seconds = rem %         60L
+
+        val parts = buildList {
+            if (years   > 0) add("${years}y")
+            if (months  > 0) add("${months}mo")
+            if (days    > 0) add("${days}d")
+            if (hours   > 0) add("${hours}h")
+            if (minutes > 0) add("${minutes}m")
+            if (seconds > 0) add("${seconds}s")
         }
+        return parts.joinToString(" ")
     }
 
     class DiffCallback : DiffUtil.ItemCallback<TaskDisplayItem>() {

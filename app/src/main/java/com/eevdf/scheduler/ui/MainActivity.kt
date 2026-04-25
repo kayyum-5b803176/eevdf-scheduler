@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvAlarmElapsed:      TextView
     private lateinit var tvAlarmSubtitle:     TextView
     private lateinit var btnStopAlarm:        MaterialButton
+    private lateinit var viewPhaseStatus:     View
 
     private var currentTab = 0
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", android.content.Context.MODE_PRIVATE) }
@@ -154,6 +155,7 @@ class MainActivity : AppCompatActivity() {
         tvAlarmElapsed    = findViewById(R.id.tvAlarmElapsed)
         tvAlarmSubtitle   = findViewById(R.id.tvAlarmSubtitle)
         btnStopAlarm      = findViewById(R.id.btnStopAlarm)
+        viewPhaseStatus   = findViewById(R.id.viewPhaseStatus)
 
         fabAdd.setOnClickListener {
             haptic(it)
@@ -230,7 +232,7 @@ class MainActivity : AppCompatActivity() {
             when {
                 viewModel.timerRunning.value == true -> viewModel.pauseTimer()
                 viewModel.delayRunning.value == true -> viewModel.pauseTimer()
-                viewModel.restRunning.value  == true -> viewModel.pauseTimer()
+                viewModel.waitRunning.value  == true -> viewModel.pauseTimer()
                 else -> viewModel.startTimer()
             }
         }
@@ -302,39 +304,51 @@ class MainActivity : AppCompatActivity() {
                     androidx.core.content.ContextCompat.getColor(this, tintColor)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
+            // Hide status bar when normal timer running or idle
+            if (!running && viewModel.delayRunning.value != true && viewModel.waitRunning.value != true) {
+                viewPhaseStatus.visibility = View.GONE
+            }
         }
 
-        viewModel.restRunning.observe(this) { inRest ->
-            if (inRest) {
-                btnStartPause.text = "Cancel"
+        viewModel.waitRunning.observe(this) { inWait ->
+            if (inWait) {
+                btnStartPause.text = "Pause"
                 btnStartPause.icon = null
                 btnStartPause.backgroundTintList =
                     android.content.res.ColorStateList.valueOf(
                         androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
                     )
                 btnStartPause.jumpDrawablesToCurrentState()
+                // Green status bar for wait phase
+                viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#4CAF50"))
+                viewPhaseStatus.visibility = View.VISIBLE
+            } else {
+                viewPhaseStatus.visibility = View.GONE
             }
         }
 
-        viewModel.restSecondsRemaining.observe(this) { secs ->
-            if (viewModel.restRunning.value == true) {
+        viewModel.waitSecondsRemaining.observe(this) { secs ->
+            if (viewModel.waitRunning.value == true) {
                 val m = secs / 60; val s = secs % 60
-                tvTimerDisplay.text = "\uD83C\uDF19 %02d:%02d".format(m, s)
+                tvTimerDisplay.text = "%02d:%02d".format(m, s)
             }
         }
 
         viewModel.delayRunning.observe(this) { inDelay ->
             if (inDelay) {
-                btnStartPause.text = "Cancel"
+                btnStartPause.text = "Pause"
                 btnStartPause.icon = null
                 btnStartPause.backgroundTintList =
                     android.content.res.ColorStateList.valueOf(
                         androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
                     )
                 btnStartPause.jumpDrawablesToCurrentState()
+                // Red status bar for delay phase
+                viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#F44336"))
+                viewPhaseStatus.visibility = View.VISIBLE
             } else {
-                // Delay just ended (Action 1 fired, real timer starting) — button
-                // state will be corrected momentarily by timerRunning observer
+                viewPhaseStatus.visibility = View.GONE
+                // Delay just ended — button state corrected momentarily by timerRunning observer
             }
         }
 
@@ -342,7 +356,7 @@ class MainActivity : AppCompatActivity() {
             if (viewModel.delayRunning.value == true) {
                 val m = secs / 60
                 val s = secs % 60
-                tvTimerDisplay.text = "\u23F3 %02d:%02d".format(m, s)
+                tvTimerDisplay.text = "%02d:%02d".format(m, s)
             }
         }
 

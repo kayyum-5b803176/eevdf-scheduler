@@ -110,7 +110,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Slice: 25m"
+                    android:text="TRT: 0s"
                     android:textSize="12sp"
                     android:textColor="#616161" />
 
@@ -147,6 +147,15 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="VDL: 0.00"
+                    android:textSize="10sp"
+                    android:textColor="#BDBDBD" />
+
+                <TextView
+                    android:id="@+id/tvCpuShare"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="RS: 0.0"
                     android:textSize="10sp"
                     android:textColor="#BDBDBD" />
 

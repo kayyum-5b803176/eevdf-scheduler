@@ -412,7 +412,7 @@
                                 android:maxLength="5" />
                         </com.google.android.material.textfield.TextInputLayout>
 
-                        <!-- Rest row -->
+                        <!-- Wait row -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -423,7 +423,7 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="Rest after timer"
+                                android:text="Wait time"
                                 android:textSize="13sp"
                                 android:textColor="#212121"
                                 android:fontFamily="sans-serif-medium" />
@@ -439,14 +439,14 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Rest countdown after task timer expires; 0s = skip (mm-ss, 0–5 min)"
+                            android:text="Wait countdown after execute expires; 0s = skip (mm-ss, 0–5 min)"
                             android:textSize="11sp"
                             android:textColor="#9E9E9E"
                             android:layout_marginBottom="6dp" />
                         <com.google.android.material.textfield.TextInputLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="Rest mm-ss  (e.g. 00-30)"
+                            android:hint="Wait mm-ss  (e.g. 00-30)"
                             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                             android:layout_marginBottom="16dp">
                             <com.google.android.material.textfield.TextInputEditText
@@ -470,7 +470,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="After rest, restart timer this many more times (0 = run once, max 12)"
+                            android:text="After wait, restart execute this many more times (0 = run once, max 12)"
                             android:textSize="11sp"
                             android:textColor="#9E9E9E"
                             android:layout_marginBottom="6dp" />
@@ -519,6 +519,64 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:singleSelection="true" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Pinned Share Card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Realtime Share"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Fix this task's realtime share to an exact %. Leave empty to float automatically based on priority weight."
+                        android:textSize="11sp"
+                        android:textColor="#9E9E9E"
+                        android:layout_marginBottom="12dp" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Pinned share % (1–99, empty = auto)"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_marginBottom="8dp">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etPinnedShare"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLength="2" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Live warning: shown when pinned totals would exceed 100 -->
+                    <TextView
+                        android:id="@+id/tvPinnedShareWarning"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="#F44336"
+                        android:visibility="gone" />
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
