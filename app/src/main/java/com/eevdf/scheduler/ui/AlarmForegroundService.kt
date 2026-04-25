@@ -58,6 +58,34 @@ class AlarmForegroundService : Service() {
 
         private const val ALARM_MGR_REQ = 9001
 
+        /**
+         * SharedPreferences key used as a "armed" token.
+         *
+         * WHY: AlarmManager.cancel() is not guaranteed to prevent a pending broadcast
+         * from firing on OEM ROMs (MIUI, EMUI, OneUI) that buffer broadcasts internally.
+         * An armed token written on schedule and cleared on cancel lets the receiver
+         * verify the alarm is still valid even after a process kill.
+         *
+         * The token survives process death (SharedPreferences is on disk) so app-kill
+         * recovery works correctly:
+         *   running → app killed → alarm fires → token = true → receiver fires  ✓
+         *   running → user pauses → app killed → alarm fires → token = false → receiver bails ✓
+         */
+        private const val ALARM_PREFS    = "eevdf_alarm_state"
+        private const val KEY_ALARM_ARMED = "alarm_armed"
+
+        private fun setArmed(context: Context, armed: Boolean) {
+            // commit() not apply() — synchronous write ensures the flag is on disk
+            // before the function returns, so a race between pause and alarm fire is safe.
+            context.getSharedPreferences(ALARM_PREFS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_ALARM_ARMED, armed).commit()
+        }
+
+        /** Read by TimerAlarmReceiver before deciding whether to fire the alarm. */
+        fun isAlarmArmed(context: Context): Boolean =
+            context.getSharedPreferences(ALARM_PREFS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_ALARM_ARMED, false)
+
         fun delayStart(context: Context, taskName: String, delaySecs: Long) {
             val intent = Intent(context, AlarmForegroundService::class.java).apply {
                 action = ACTION_DELAY_START
@@ -87,7 +115,22 @@ class AlarmForegroundService : Service() {
                 putExtra(EXTRA_REMAINING_SECS, 0L)
                 putExtra(EXTRA_TASK_TYPE, taskType)
             }
-            context.startService(intent)
+            // MUST use startForegroundService here — not startService.
+            //
+            // When the AlarmManager fires, the app has NO foreground service running
+            // (it was stopped when the app was killed or paused). On Android 8+,
+            // calling startService() from a background context throws
+            // IllegalStateException which is silently swallowed inside onReceive(),
+            // so the service never starts and the alarm never rings.
+            //
+            // startForegroundService() is legal from a BroadcastReceiver (the receiver
+            // window counts as a temporary foreground grant). The service MUST call
+            // startForeground() within 5 seconds — it does so in onCreate().
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
         fun timerPause(context: Context) {
@@ -165,11 +208,13 @@ class AlarmForegroundService : Service() {
                 putExtra(EXTRA_REMAINING_SECS, secs)
                 putExtra(EXTRA_TASK_TYPE, taskType)
             }
-            if (action == ACTION_TIMER_START) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    context.startForegroundService(intent)
-                else
-                    context.startService(intent)
+            // Always use startForegroundService on Android 8+ — the service calls
+            // startForeground() in onCreate() unconditionally, so it satisfies the
+            // 5-second rule regardless of which action triggered the start.
+            // Using startService() would fail silently if the app has no foreground
+            // component (e.g. PAUSE or STOP arriving while the app is backgrounded).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
@@ -189,12 +234,18 @@ class AlarmForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val taskName   = intent?.getStringExtra(EXTRA_TASK_NAME) ?: ""
-        val remaining  = intent?.getLongExtra(EXTRA_REMAINING_SECS, 0) ?: 0
-        val taskType   = intent?.getStringExtra(EXTRA_TASK_TYPE) ?: "DEFAULT"
-        val notifDelay = intent?.getLongExtra(EXTRA_NOTIF_DELAY, 0L) ?: 0L
+        // Guard: Android can deliver a null intent when it restarts a service after
+        // an OOM kill with START_STICKY (we use NOT_STICKY so this is rare, but
+        // defensive). The service was already started foreground in onCreate() so
+        // we are safe to just return and wait for a real intent.
+        if (intent == null) return START_NOT_STICKY
 
-        when (intent?.action) {
+        val taskName   = intent.getStringExtra(EXTRA_TASK_NAME) ?: ""
+        val remaining  = intent.getLongExtra(EXTRA_REMAINING_SECS, 0)
+        val taskType   = intent.getStringExtra(EXTRA_TASK_TYPE) ?: "DEFAULT"
+        val notifDelay = intent.getLongExtra(EXTRA_NOTIF_DELAY, 0L)
+
+        when (intent.action) {
             // Delay phase: show countdown notification until ViewModel fires the real timer
             ACTION_DELAY_START -> {
                 updateNotification(buildDelayNotification(taskName, notifDelay))
@@ -229,7 +280,17 @@ class AlarmForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        stopEverything()
+        // ONLY stop alarm sound and release the wakelock on destroy.
+        // Do NOT call stopEverything() here — that would call stopForeground() and
+        // stopSelf() which are no-ops at this point (service is already being destroyed)
+        // but also clears isAlarmRinging. More importantly, it is semantically wrong:
+        // if the OS kills the service while the timer is still running (not yet expired),
+        // we must NOT cancel the AlarmManager alarm — it needs to fire later.
+        // The AlarmManager entry lives in the system process and survives app death
+        // regardless of what we do here.
+        VibrationManager.stop(this)
+        SoundManager.stop(this)
+        releaseWakeLock()
     }
 
     // ── Sound ──────────────────────────────────────────────────────────────────
