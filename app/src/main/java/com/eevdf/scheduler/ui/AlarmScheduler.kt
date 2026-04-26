@@ -113,7 +113,11 @@ object AlarmScheduler {
     fun onAlarmFired(context: Context): Boolean {
         return when (val state = AlarmState.read(context)) {
             is AlarmState.Scheduled -> {
-                AlarmState.write(context, AlarmState.Ringing(state.taskName, state.taskType))
+                AlarmState.write(context, AlarmState.Ringing(
+                    taskName   = state.taskName,
+                    taskType   = state.taskType,
+                    firedEpoch = System.currentTimeMillis()
+                ))
                 true
             }
             // State is Idle  → alarm was cancelled (pause/stop) before it fired.
