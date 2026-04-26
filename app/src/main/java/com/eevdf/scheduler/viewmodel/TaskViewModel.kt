@@ -15,6 +15,8 @@ import com.eevdf.scheduler.scheduler.TimerEngine
 import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.SchedulerStats
 import com.eevdf.scheduler.ui.AlarmForegroundService
+import com.eevdf.scheduler.ui.AlarmScheduler
+import com.eevdf.scheduler.ui.AlarmState
 import com.eevdf.scheduler.ui.SoundManager
 import kotlinx.coroutines.launch
 
@@ -433,6 +435,27 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _interruptTask.postValue(repository.getInterruptTask())
 
+            // ── Step 1: check if alarm is already ringing ─────────────────────
+            // AlarmState persists across process death. If state is Ringing it means
+            // the alarm fired and the service is playing sound, but the user killed
+            // the app before tapping Stop. The expire card must be restored so the
+            // user has a way to dismiss it. Without this check _alarmTaskName stays
+            // null and the card never appears even though the alarm is still ringing.
+            val alarmState = AlarmScheduler.currentState(getApplication())
+            if (alarmState is AlarmState.Ringing) {
+                // firedEpoch is the exact wall-clock ms when the alarm first fired,
+                // persisted to disk by AlarmScheduler.onAlarmFired(). Computing
+                // elapsed from it gives the correct total overrun across all reopens:
+                //   kill app 30s after fire, reopen 1 min later → shows 1:30, not 0:00
+                val elapsedSinceExpiry = ((System.currentTimeMillis() - alarmState.firedEpoch) / 1000L)
+                    .coerceAtLeast(0L)
+                _alarmTaskName.postValue(alarmState.taskName)
+                _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
+                startInAppOverrunCounter(alarmState.taskName, elapsedSinceExpiry)
+                return@launch
+            }
+
+            // ── Step 2: check if a task was mid-run when app was killed ───────
             val running = repository.getRunningTask()
             if (running != null) {
                 val nowMs       = System.currentTimeMillis()

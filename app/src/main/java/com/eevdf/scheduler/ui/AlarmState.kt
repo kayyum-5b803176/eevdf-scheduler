@@ -52,10 +52,13 @@ sealed class AlarmState {
     /**
      * The alarm has fired and the service is playing sound / holding WakeLock.
      * AlarmManager entry is gone (it already fired).
+     * [firedEpoch] = System.currentTimeMillis() at the moment onAlarmFired() ran,
+     * so elapsed overrun = now - firedEpoch on every app reopen.
      */
     data class Ringing(
         val taskName: String,
-        val taskType: String
+        val taskType: String,
+        val firedEpoch: Long
     ) : AlarmState()
 
     // ── Disk persistence ──────────────────────────────────────────────────────
@@ -67,6 +70,7 @@ sealed class AlarmState {
         private const val KEY_NAME  = "task_name"
         private const val KEY_EPOCH = "trigger_epoch"
         private const val KEY_TYPE  = "task_type"
+        private const val KEY_FIRED = "fired_epoch"
 
         /**
          * Read the current alarm state from disk.
@@ -82,8 +86,9 @@ sealed class AlarmState {
                     taskType     = p.getString(KEY_TYPE,  "DEFAULT") ?: "DEFAULT"
                 )
                 "RINGING" -> Ringing(
-                    taskName = p.getString(KEY_NAME, "") ?: "",
-                    taskType = p.getString(KEY_TYPE, "DEFAULT") ?: "DEFAULT"
+                    taskName   = p.getString(KEY_NAME, "") ?: "",
+                    taskType   = p.getString(KEY_TYPE, "DEFAULT") ?: "DEFAULT",
+                    firedEpoch = p.getLong(KEY_FIRED, System.currentTimeMillis())
                 )
                 else -> Idle
             }
@@ -118,8 +123,9 @@ sealed class AlarmState {
                     is Ringing -> {
                         putString(KEY_STATE, "RINGING")
                         putString(KEY_NAME,  state.taskName)
-                        remove(KEY_EPOCH)
                         putString(KEY_TYPE,  state.taskType)
+                        putLong(KEY_FIRED,   state.firedEpoch)
+                        remove(KEY_EPOCH)
                     }
                 }
             }.commit()   // synchronous
