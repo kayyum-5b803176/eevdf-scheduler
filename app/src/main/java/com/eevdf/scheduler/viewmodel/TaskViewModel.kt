@@ -893,15 +893,28 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val ctx = getApplication<Application>()
         _noticePhase.value = NoticePhase.Expired
 
-        // Reset the slice in DB here — this is the terminal Notice path called
-        // directly from waitTimer.onFinish() and is NOT preceded by
-        // onTimerFinished's repository.update(reset). Without this the DB task
-        // keeps remainingSeconds=0 / accumulatedMs=sliceMs and the card shows 0:00
-        // whenever the user reopens the timer after the alarm.
-        viewModelScope.launch { repository.update(task.withTimerState(TimerState.reset())) }
-
-        if (noticeSessionSeconds > 0) applyVruntimeUpdate(noticeSessionSeconds)
+        // Capture session total before clearing.
+        val sessionSecs = noticeSessionSeconds
         noticeSessionSeconds = 0L
+
+        // Run vruntime update and slice reset in ONE sequential coroutine.
+        //
+        // Root cause of 0:00 stuck bug:
+        //   updateVruntimeAfterRun internally calls dao.update(task) to persist
+        //   vruntime fields onto the task row. If reset ran in a separate coroutine
+        //   and landed first, this dao.update would overwrite it and put
+        //   remainingSeconds back to 0.
+        //
+        // Fix: single coroutine, reset runs AFTER updateVruntimeAfterRun so the
+        // final write is always the correct reset (remainingSeconds = sliceSeconds).
+        viewModelScope.launch {
+            if (sessionSecs > 0) {
+                repository.updateVruntimeAfterRun(task, sessionSecs)
+            }
+            repository.update(task.withTimerState(TimerState.reset()))
+            refreshSchedule()
+        }
+
         AlarmForegroundService.timerExpire(ctx, task.name, task.taskType)
         _alarmTaskName.postValue(task.name)
         _alarmElapsedSeconds.postValue(0L)
