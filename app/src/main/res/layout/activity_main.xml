@@ -176,7 +176,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="16dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
 
                     <!-- Header row -->
                     <LinearLayout
@@ -224,54 +226,72 @@
                             android:layout_marginStart="16dp" />
                     </LinearLayout>
 
-                    <!-- Control buttons -->
-                    <LinearLayout
+                    <!-- Control buttons + phase underline overlay -->
+                    <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
                         android:layout_marginTop="12dp"
-                        android:gravity="center">
+                        android:clipChildren="false"
+                        android:clipToPadding="false">
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnScheduleNext"
-                            android:layout_width="wrap_content"
+                        <!-- 3 buttons -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Next"
-                            android:textColor="@android:color/white"
-                            app:backgroundTint="@android:color/transparent"
-                            android:layout_marginEnd="8dp"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            app:strokeColor="@android:color/white" />
+                            android:orientation="horizontal"
+                            android:gravity="center">
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnStartPause"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Start"
-                            app:backgroundTint="@color/timerGreen"
-                            android:textColor="@android:color/white"
-                            android:layout_marginHorizontal="4dp" />
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnScheduleNext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Next"
+                                android:textColor="@android:color/white"
+                                app:backgroundTint="@android:color/transparent"
+                                android:layout_marginEnd="8dp"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                app:strokeColor="@android:color/white" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnInt"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Int"
-                            android:textColor="@color/colorPrimary"
-                            android:textStyle="bold"
-                            android:layout_marginStart="8dp"
-                            app:backgroundTint="@android:color/white" />
-                    </LinearLayout>
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnStartPause"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Start"
+                                app:backgroundTint="@color/timerGreen"
+                                android:textColor="@android:color/white"
+                                android:layout_marginHorizontal="4dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnInt"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Int"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold"
+                                android:layout_marginStart="8dp"
+                                app:backgroundTint="@android:color/white" />
+                        </LinearLayout>
+
+                        <!-- Phase underline: overlays just below the button row.
+                             layout_gravity=bottom anchors to the bottom of the FrameLayout
+                             (height = button row height, wrap_content).
+                             translationY=5dp draws it 5dp below that bottom edge.
+                             clipChildren=false on this FrameLayout and its parent
+                             LinearLayout allows drawing outside bounds — no card
+                             height change because layout measurement is unaffected
+                             by translationY (it is a draw-only transform). -->
+                        <View
+                            android:id="@+id/viewPhaseStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="5dp"
+                            android:layout_gravity="bottom"
+                            android:translationY="5dp"
+                            android:background="#4CAF50"
+                            android:visibility="gone" />
+
+                    </FrameLayout>
                 </LinearLayout>
-
-                <!-- Phase status bar: full card width, green = wait, red = delay -->
-                <View
-                    android:id="@+id/viewPhaseStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="4dp"
-                    android:background="#4CAF50"
-                    android:visibility="gone" />
 
             </LinearLayout>
         </androidx.cardview.widget.CardView>
