@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.scheduler.R
 import com.eevdf.scheduler.adapter.TaskAdapter
+import com.eevdf.scheduler.model.NoticePhase
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.viewmodel.TaskViewModel
 import com.google.android.material.button.MaterialButton
@@ -230,9 +231,14 @@ class MainActivity : AppCompatActivity() {
             haptic(it)
             viewModel.stopAlarmSound()
             when {
-                viewModel.timerRunning.value == true -> viewModel.pauseTimer()
-                viewModel.delayRunning.value == true -> viewModel.pauseTimer()
-                viewModel.waitRunning.value  == true -> viewModel.pauseTimer()
+                // cancelNotice() routes internally:
+                //   Delay   → cancelDelayPhase()  ("Cancel")
+                //   Execute → pauseTimer()         ("Pause")
+                //   Wait    → cancelWaitPhase()    ("Cancel")
+                //   Idle    → no-op (falls to startTimer below)
+                viewModel.noticePhase.value !is NoticePhase.Idle &&
+                viewModel.noticePhase.value !is NoticePhase.Expired ->
+                    viewModel.cancelNotice()
                 else -> viewModel.startTimer()
             }
         }
@@ -293,9 +299,71 @@ class MainActivity : AppCompatActivity() {
                 String.format("%02d:%02d", m, s)
         }
 
+        // Single observer drives the button label, colour, and phase status bar.
+        // noticePhase is always Idle for non-Notice tasks, so timerRunning handles those below.
+        viewModel.noticePhase.observe(this) { phase ->
+            when (phase) {
+                is NoticePhase.Idle -> {
+                    // Label is controlled by timerRunning observer for non-Notice tasks.
+                    // For Notice tasks in Idle, show "Start" explicitly.
+                    if (viewModel.currentTask.value?.taskType == "NOTIFICATION") {
+                        btnStartPause.text = "Start"
+                        btnStartPause.backgroundTintList =
+                            android.content.res.ColorStateList.valueOf(
+                                androidx.core.content.ContextCompat.getColor(this, R.color.timerGreen)
+                            )
+                        btnStartPause.jumpDrawablesToCurrentState()
+                    }
+                    viewPhaseStatus.visibility = View.GONE
+                }
+                is NoticePhase.Delay -> {
+                    btnStartPause.text = "Cancel"
+                    btnStartPause.backgroundTintList =
+                        android.content.res.ColorStateList.valueOf(
+                            androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
+                        )
+                    btnStartPause.jumpDrawablesToCurrentState()
+                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#F44336"))
+                    viewPhaseStatus.visibility = View.VISIBLE
+                    // Display delay countdown in the timer display
+                    val secs = phase.remainingSecs
+                    val m = secs / 60; val s = secs % 60
+                    tvTimerDisplay.text = "%02d:%02d".format(m, s)
+                }
+                is NoticePhase.Execute -> {
+                    btnStartPause.text = "Pause"
+                    btnStartPause.backgroundTintList =
+                        android.content.res.ColorStateList.valueOf(
+                            androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
+                        )
+                    btnStartPause.jumpDrawablesToCurrentState()
+                    viewPhaseStatus.visibility = View.GONE
+                }
+                is NoticePhase.Wait -> {
+                    btnStartPause.text = "Cancel"
+                    btnStartPause.backgroundTintList =
+                        android.content.res.ColorStateList.valueOf(
+                            androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
+                        )
+                    btnStartPause.jumpDrawablesToCurrentState()
+                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#4CAF50"))
+                    viewPhaseStatus.visibility = View.VISIBLE
+                    // Display wait countdown in the timer display
+                    val secs = phase.remainingSecs
+                    val m = secs / 60; val s = secs % 60
+                    tvTimerDisplay.text = "%02d:%02d".format(m, s)
+                }
+                is NoticePhase.Expired -> {
+                    viewPhaseStatus.visibility = View.GONE
+                }
+                else -> Unit
+            }
+        }
+
+        // Non-Notice timer running state — only updates label when noticePhase is Idle
+        // (i.e. for regular tasks, or a Notice task that is not in a phase yet).
         viewModel.timerRunning.observe(this) { running ->
-            // Don't overwrite button state while delay is active
-            if (viewModel.delayRunning.value == true) return@observe
+            if (viewModel.noticePhase.value != NoticePhase.Idle) return@observe
             btnStartPause.text = if (running) "Pause" else "Start"
             btnStartPause.icon = null
             val tintColor = if (running) R.color.timerYellow else R.color.timerGreen
@@ -304,61 +372,12 @@ class MainActivity : AppCompatActivity() {
                     androidx.core.content.ContextCompat.getColor(this, tintColor)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
-            // Hide status bar when normal timer running or idle
-            if (!running && viewModel.delayRunning.value != true && viewModel.waitRunning.value != true) {
-                viewPhaseStatus.visibility = View.GONE
-            }
+            if (!running) viewPhaseStatus.visibility = View.GONE
         }
 
-        viewModel.waitRunning.observe(this) { inWait ->
-            if (inWait) {
-                btnStartPause.text = "Pause"
-                btnStartPause.icon = null
-                btnStartPause.backgroundTintList =
-                    android.content.res.ColorStateList.valueOf(
-                        androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
-                    )
-                btnStartPause.jumpDrawablesToCurrentState()
-                // Green status bar for wait phase
-                viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#4CAF50"))
-                viewPhaseStatus.visibility = View.VISIBLE
-            } else {
-                viewPhaseStatus.visibility = View.GONE
-            }
-        }
-
-        viewModel.waitSecondsRemaining.observe(this) { secs ->
-            if (viewModel.waitRunning.value == true) {
-                val m = secs / 60; val s = secs % 60
-                tvTimerDisplay.text = "%02d:%02d".format(m, s)
-            }
-        }
-
-        viewModel.delayRunning.observe(this) { inDelay ->
-            if (inDelay) {
-                btnStartPause.text = "Pause"
-                btnStartPause.icon = null
-                btnStartPause.backgroundTintList =
-                    android.content.res.ColorStateList.valueOf(
-                        androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
-                    )
-                btnStartPause.jumpDrawablesToCurrentState()
-                // Red status bar for delay phase
-                viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#F44336"))
-                viewPhaseStatus.visibility = View.VISIBLE
-            } else {
-                viewPhaseStatus.visibility = View.GONE
-                // Delay just ended — button state corrected momentarily by timerRunning observer
-            }
-        }
-
-        viewModel.delaySecondsRemaining.observe(this) { secs ->
-            if (viewModel.delayRunning.value == true) {
-                val m = secs / 60
-                val s = secs % 60
-                tvTimerDisplay.text = "%02d:%02d".format(m, s)
-            }
-        }
+        // Keep timerSeconds updating display for the execute phase
+        // (noticePhase.Execute updates happen via timerSeconds observer below,
+        //  Delay and Wait updates happen in the noticePhase observer above).
 
         viewModel.stats.observe(this) { stats ->
             tvStats.text    = "Active: ${stats.activeTasks}  |  Done: ${stats.completedTasks}  |  Weight: ${"%.1f".format(stats.totalWeight)}"
