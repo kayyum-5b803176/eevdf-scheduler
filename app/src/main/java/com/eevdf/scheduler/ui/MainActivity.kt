@@ -231,14 +231,15 @@ class MainActivity : AppCompatActivity() {
             haptic(it)
             viewModel.stopAlarmSound()
             when {
-                // cancelNotice() routes internally:
-                //   Delay   → cancelDelayPhase()  ("Cancel")
-                //   Execute → pauseTimer()         ("Pause")
-                //   Wait    → cancelWaitPhase()    ("Cancel")
-                //   Idle    → no-op (falls to startTimer below)
+                // Notice task active phase → route through cancelNotice
+                // (Delay/Wait → Cancel, Execute → Pause)
                 viewModel.noticePhase.value !is NoticePhase.Idle &&
                 viewModel.noticePhase.value !is NoticePhase.Expired ->
                     viewModel.cancelNotice()
+                // Any task currently running (DEFAULT / Alert / Custom) → pause
+                viewModel.timerRunning.value == true ->
+                    viewModel.pauseTimer()
+                // Idle → start
                 else -> viewModel.startTimer()
             }
         }
@@ -304,9 +305,10 @@ class MainActivity : AppCompatActivity() {
         viewModel.noticePhase.observe(this) { phase ->
             when (phase) {
                 is NoticePhase.Idle -> {
-                    // Label is controlled by timerRunning observer for non-Notice tasks.
-                    // For Notice tasks in Idle, show "Start" explicitly.
-                    if (viewModel.currentTask.value?.taskType == "NOTIFICATION") {
+                    // Only update button if timer is not already running.
+                    // For running non-Notice tasks the timerRunning observer
+                    // owns the label — don't overwrite it with "Start" here.
+                    if (viewModel.timerRunning.value != true) {
                         btnStartPause.text = "Start"
                         btnStartPause.backgroundTintList =
                             android.content.res.ColorStateList.valueOf(
