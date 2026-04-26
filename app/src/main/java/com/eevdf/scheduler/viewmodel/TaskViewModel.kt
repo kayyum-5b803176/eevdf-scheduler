@@ -682,7 +682,27 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
         val task      = _currentTask.value ?: return
         val remaining = _timerSeconds.value ?: task.remainingSeconds
-        if (remaining <= 0) return
+
+        if (remaining <= 0) {
+            // Slice already expired — the user paused at or after 0:00 before the
+            // engine's CountDownTimer.onFinish() could fire. stopTicker() cancelled
+            // the CountDownTimer so expiredTask never emitted. Trigger expiry now.
+            //
+            // Compute when the slice actually hit zero so the overrun counter starts
+            // from the correct elapsed time (not always 0):
+            //   expiryEpoch = now − overrunMs
+            //   overrunMs   = accumulatedMs − sliceMs  (engine is Paused after pauseTimer)
+            val sliceMs = task.timeSliceSeconds * 1000L
+            val overrunMs = when (val state = timerEngine.currentState()) {
+                is TimerState.Paused  -> (state.accumulatedMs - sliceMs).coerceAtLeast(0L)
+                is TimerState.Expired -> 0L
+                else                  -> 0L
+            }
+            val expiryEpochMs = System.currentTimeMillis() - overrunMs
+            timerEngine.clear()   // engine already stopped; make Idle explicit
+            onTimerFinished(task, expiryEpochMs, vruntimeAlreadyApplied = true)
+            return
+        }
 
         val delaySecs = if (task.taskType == "NOTIFICATION") task.notificationDelaySeconds else 0L
 
@@ -928,7 +948,11 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * by the time onTimerFinished() is called on the same thread).  Every other call
      * site leaves [taskOverride] null and relies on _currentTask.value as before.
      */
-    private fun onTimerFinished(taskOverride: Task? = null, expiryEpochMs: Long = System.currentTimeMillis()) {
+    private fun onTimerFinished(
+        taskOverride: Task? = null,
+        expiryEpochMs: Long = System.currentTimeMillis(),
+        vruntimeAlreadyApplied: Boolean = false
+    ) {
         val task = taskOverride ?: _currentTask.value ?: return
         val ctx = getApplication<Application>()
 
@@ -947,10 +971,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         timerEngine.clear()
 
         viewModelScope.launch {
-            if (task.taskType != "NOTIFICATION") {
-                repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
-            } else {
-                noticeSessionSeconds += task.timeSliceSeconds
+            // vruntimeAlreadyApplied = true when the caller reached here via
+            // startTimer's remaining<=0 branch: pauseTimer() already called
+            // applyVruntimeUpdate(sessionElapsed) so the elapsed time is credited.
+            // Calling updateVruntimeAfterRun here too would double-count the full slice.
+            if (!vruntimeAlreadyApplied) {
+                if (task.taskType != "NOTIFICATION") {
+                    repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
+                } else {
+                    noticeSessionSeconds += task.timeSliceSeconds
+                }
             }
             repository.update(task.withTimerState(TimerState.reset()))
             _toastMessage.postValue("Time slice done for \"${task.name}\"")
