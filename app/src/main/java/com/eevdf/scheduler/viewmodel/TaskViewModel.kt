@@ -417,7 +417,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             // Capture now before any suspend — this is the expiry moment for the
             // normal (app-alive) path. elapsed will be ~0s.
             val expiryEpochMs = System.currentTimeMillis()
-            viewModelScope.launch { repository.update(expired) }
+            // DO NOT write `expired` to DB here. That would push remainingSeconds=0
+            // to Room, which immediately notifies activeTasks LiveData. If the user
+            // taps the task before onTimerFinished's reset write lands, setCurrentTask
+            // receives the stale 0:00 task and _timerSeconds gets stuck at 0.
+            // onTimerFinished is the sole DB writer — it writes the correct reset
+            // (remainingSeconds=timeSliceSeconds) in a single atomic update.
             _timerRunning.postValue(false)
             _currentTask.value = expired
             onTimerFinished(expiryEpochMs = expiryEpochMs)
@@ -833,6 +838,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val updated     = task.withTimerState(running)
 
         _timerRunning.value = true
+        // MUST update _currentTask with the Running state so the tick observer's
+        //   _currentTask.postValue(t.copy(remainingSeconds = X))
+        // carries the correct startTimeEpoch into each copy.
+        // Without this, `t` in the tick observer still has startTimeEpoch=0 (the
+        // pre-start task), so liveElapsedMs = accumulatedMs (fixed), and progressPercent
+        // never moves while the timer is running — it only jumps to the correct value
+        // on pause when _currentTask is explicitly updated with the paused task.
+        _currentTask.value = updated
         viewModelScope.launch { repository.update(updated) }
         AlarmForegroundService.timerStart(getApplication(), task.name, remaining, task.taskType)
         timerEngine.start(updated)
@@ -925,6 +938,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         //   data, so elapsedSinceExpiry reflects real wall-clock time since expiry    ✓
         val elapsedSinceExpiry = ((System.currentTimeMillis() - expiryEpochMs) / 1000L)
             .coerceAtLeast(0L)
+
+        // Clear the engine immediately — synchronously, before any coroutine or suspend call.
+        // CRITICAL: setCurrentTask() calls pauseTimer() which calls timerEngine.pause().
+        // If the engine still holds TimerState.Expired when that happens, pause() computes
+        // Paused(sliceMs) → withTimerState sets remainingSeconds=0 → _timerSeconds stuck at 0:00.
+        // Clearing here ensures the engine is in Idle state before the user can interact.
+        timerEngine.clear()
 
         viewModelScope.launch {
             if (task.taskType != "NOTIFICATION") {
