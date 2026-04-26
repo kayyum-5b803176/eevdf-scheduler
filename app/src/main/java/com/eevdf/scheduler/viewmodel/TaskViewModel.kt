@@ -1107,8 +1107,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        stopAlarmSound()
+        // Stop in-process timers and engine only.
+        // Must NOT call stopAlarmSound() here — that calls AlarmScheduler.cancel()
+        // which removes the AlarmManager entry.  If the ViewModel is cleared while
+        // the timer is still running (app killed, config change), the alarm must
+        // survive to fire at expiry.  AlarmManager lives in the system process and
+        // is unaffected by ViewModel death — but calling cancel() here kills it.
         timerEngine.clear()
+        overrunTimer?.cancel()
+        delayTimer?.cancel()
+        waitTimer?.cancel()
     }
 
     // ── DB export / import ────────────────────────────────────────────────────
