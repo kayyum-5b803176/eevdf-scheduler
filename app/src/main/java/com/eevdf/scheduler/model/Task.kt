@@ -74,10 +74,89 @@ data class Task(
      */
     val internalWeight: Double? = null,
 
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    // ── Quota / cgroup CPU bandwidth control ─────────────────────────────────
+    //
+    // Mirrors Linux's cpu.cfs_quota_us / cpu.cfs_period_us per cgroup.
+    //
+    // quotaSeconds      — max allowed runtime per period; 0 = unlimited (no quota).
+    // quotaPeriodSeconds— length of the rolling window; default 86400 s (1 day).
+    // quotaPeriodStart  — epoch ms when the current accounting period started;
+    //                     0 = quota tracking has never started for this task.
+    // quotaUsedSeconds  — seconds consumed within the current period.
+    //
+    // A new period opens automatically the first time the task runs after the
+    // previous period has fully elapsed (handled in TaskRepository).
+
+    val quotaSeconds: Long = 0L,
+    val quotaPeriodSeconds: Long = 86400L,
+    var quotaPeriodStartEpoch: Long = 0L,
+    var quotaUsedSeconds: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()
+
+    // ── Quota helpers ─────────────────────────────────────────────────────────
+
+    /** True when this task has an active quota configured (quotaSeconds > 0). */
+    val isQuotaEnabled: Boolean get() = quotaSeconds > 0L
+
+    /**
+     * True when the current accounting period has fully elapsed and should be
+     * rolled over. Once the period is rolled the used counter resets to zero.
+     */
+    val isQuotaPeriodExpired: Boolean
+        get() = quotaPeriodStartEpoch > 0L &&
+            (System.currentTimeMillis() - quotaPeriodStartEpoch) >=
+            quotaPeriodSeconds * 1_000L
+
+    /**
+     * Effective seconds used this period.
+     * Returns 0 when the period has expired (the next write will roll it over).
+     */
+    val effectiveQuotaUsed: Long
+        get() = if (isQuotaPeriodExpired) 0L else quotaUsedSeconds
+
+    /**
+     * True when the task has consumed ≥ its quota for the current period.
+     * False if quota is disabled or the period has already expired.
+     */
+    val isQuotaExceeded: Boolean
+        get() = isQuotaEnabled && !isQuotaPeriodExpired &&
+            quotaUsedSeconds >= quotaSeconds
+
+    /**
+     * True when quota usage is in the "warning zone" (≥ 80 % but not yet exceeded).
+     * Used for an amber pre-warning tint on the card.
+     */
+    val isQuotaWarning: Boolean
+        get() = isQuotaEnabled && !isQuotaPeriodExpired &&
+            quotaUsedSeconds >= (quotaSeconds * 0.8).toLong() &&
+            quotaUsedSeconds < quotaSeconds
+
+    /**
+     * Remaining quota seconds in the current period.
+     *  -1  → quota not enabled
+     *   0  → exceeded or exactly at limit
+     *  > 0 → time left
+     */
+    val quotaRemainingSeconds: Long
+        get() = when {
+            !isQuotaEnabled         -> -1L
+            isQuotaPeriodExpired    -> quotaSeconds
+            else                    -> (quotaSeconds - quotaUsedSeconds).coerceAtLeast(0L)
+        }
+
+    /**
+     * 0–100 progress of quota consumption for the current period.
+     * 0 when quota not enabled or period expired.
+     */
+    val quotaProgressPercent: Int
+        get() {
+            if (!isQuotaEnabled || isQuotaPeriodExpired || quotaSeconds == 0L) return 0
+            return (quotaUsedSeconds * 100L / quotaSeconds).toInt().coerceIn(0, 100)
+        }
 
     val timeSliceDisplay: String get() {
         val h = timeSliceSeconds / 3600

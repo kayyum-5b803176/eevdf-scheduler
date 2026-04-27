@@ -313,20 +313,26 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             return tasks
                 .filter { !it.isGroup }
                 .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
-                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0) }
+                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0,
+                    effectiveQuotaExceeded = it.isQuotaExceeded,
+                    effectiveQuotaWarning  = it.isQuotaWarning) }
         }
         val result = mutableListOf<TaskDisplayItem>()
-        fun addLevel(parentId: String?, depth: Int) {
+        fun addLevel(parentId: String?, depth: Int, parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
             val children = tasks
                 .filter { it.parentId == parentId }
                 .sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
             for (task in children) {
                 val dc = tasks.filter { it.parentId == task.id }
-                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0))
-                if (task.isGroup && (queueExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
+                val quotaExceeded = parentQuotaExceeded || task.isQuotaExceeded
+                val quotaWarning  = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime },
+                    shares[task.id] ?: 0.0, quotaExceeded, quotaWarning))
+                if (task.isGroup && (queueExpandState[task.id] ?: true))
+                    addLevel(task.id, depth + 1, quotaExceeded, quotaWarning)
             }
         }
-        addLevel(null, 0)
+        addLevel(null, 0, false, false)
         return result
     }
 
@@ -341,20 +347,26 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             return tasks
                 .filter { !it.isGroup }
                 .sortedBy { it.virtualDeadline }
-                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0) }
+                .map { TaskDisplayItem(it, 0, cpuShare = shares[it.id] ?: 0.0,
+                    effectiveQuotaExceeded = it.isQuotaExceeded,
+                    effectiveQuotaWarning  = it.isQuotaWarning) }
         }
         val result = mutableListOf<TaskDisplayItem>()
-        fun addLevel(parentId: String?, depth: Int) {
+        fun addLevel(parentId: String?, depth: Int, parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
             val children = tasks
                 .filter { it.parentId == parentId }
                 .sortedBy { it.virtualDeadline }
             for (task in children) {
                 val dc = tasks.filter { it.parentId == task.id }
-                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime }, shares[task.id] ?: 0.0))
-                if (task.isGroup && (scheduleExpandState[task.id] ?: true)) addLevel(task.id, depth + 1)
+                val quotaExceeded = parentQuotaExceeded || task.isQuotaExceeded
+                val quotaWarning  = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
+                result.add(TaskDisplayItem(task, depth, dc.size, dc.sumOf { it.totalRunTime },
+                    shares[task.id] ?: 0.0, quotaExceeded, quotaWarning))
+                if (task.isGroup && (scheduleExpandState[task.id] ?: true))
+                    addLevel(task.id, depth + 1, quotaExceeded, quotaWarning)
             }
         }
-        addLevel(null, 0)
+        addLevel(null, 0, false, false)
         return result
     }
 

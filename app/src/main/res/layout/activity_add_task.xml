@@ -313,6 +313,181 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- Quota Limit Card ────────────────────────────────────────────────
+                 Mirrors Linux cpu.cfs_quota_us / cpu.cfs_period_us.
+                 Format for both fields: NdNhNmNs  e.g. "1d", "30m", "2h30m"
+             ─────────────────────────────────────────────────────────────────── -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Header row: title + enable switch -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="CPU Quota Limit"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/colorPrimary" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Max time allowed per period (like Linux cgroup quota)"
+                                android:textSize="11sp"
+                                android:textColor="#9E9E9E"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchQuotaEnabled"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <!-- Fields (hidden when switch is OFF) -->
+                    <LinearLayout
+                        android:id="@+id/layoutQuotaFields"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="14dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginBottom="14dp" />
+
+                        <!-- Quota field -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Quota (max run time)"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:id="@+id/tvQuotaPreview"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:textSize="13sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Format: NdNhNmNs  e.g. 30m · 2h · 1d4h · 7d (1s–365d)"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Quota  (e.g. 2h, 30m, 1d)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="16dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuota"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:digits="0123456789dDhHmMsS "
+                                android:maxLength="20" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- Period field -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Period (time window)"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:id="@+id/tvPeriodPreview"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="1d"
+                                android:textSize="13sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Rolling window for the quota; resets automatically (1s–365d)"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Period  (e.g. 1d, 7d, 1h)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etPeriod"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:digits="0123456789dDhHmMsS "
+                                android:text="1d"
+                                android:maxLength="20" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- Validation error -->
+                        <TextView
+                            android:id="@+id/tvQuotaError"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="12sp"
+                            android:textColor="#F44336"
+                            android:layout_marginTop="6dp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- Task Type Card -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"

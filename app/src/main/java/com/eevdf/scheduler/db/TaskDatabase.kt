@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.eevdf.scheduler.model.Task
 
-@Database(entities = [Task::class], version = 9, exportSchema = false)
+@Database(entities = [Task::class], version = 10, exportSchema = false)
 abstract class TaskDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
@@ -137,6 +137,23 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 9 → 10 — CPU bandwidth quota (mirrors Linux cgroup cpu.cfs_quota_us).
+         *
+         *   quotaSeconds       — max runtime per period; 0 = unlimited.
+         *   quotaPeriodSeconds — rolling window length; default 86400 (1 day).
+         *   quotaPeriodStartEpoch — epoch ms when current accounting period started; 0 = not started.
+         *   quotaUsedSeconds   — seconds consumed in the current period.
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds         INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodSeconds   INTEGER NOT NULL DEFAULT 86400")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodStartEpoch INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaUsedSeconds     INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -144,7 +161,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .build()
                 INSTANCE = instance
                 instance
