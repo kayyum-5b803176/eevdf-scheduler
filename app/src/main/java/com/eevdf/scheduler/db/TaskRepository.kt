@@ -112,10 +112,16 @@ class TaskRepository(private val dao: TaskDao) {
         } else {
             val elapsed = nowMs - task.quotaPeriodStartEpoch
             if (elapsed >= periodMs) {
-                // One or more full periods have passed — roll forward to the current period
+                // Advance the window start to the current period boundary
                 val periodsElapsed = elapsed / periodMs
-                task.quotaPeriodStartEpoch = task.quotaPeriodStartEpoch + periodsElapsed * periodMs
-                task.quotaUsedSeconds      = secondsRan.coerceAtLeast(0L)
+                task.quotaPeriodStartEpoch += periodsElapsed * periodMs
+
+                // Decay used by quotaSeconds per elapsed period instead of hard-resetting.
+                // This keeps overflow visible across subsequent periods until the debt is
+                // fully paid off — mirrors a leaky-bucket / token-replenishment model.
+                val decayed = (task.quotaUsedSeconds - task.quotaSeconds * periodsElapsed)
+                    .coerceAtLeast(0L)
+                task.quotaUsedSeconds = decayed + secondsRan.coerceAtLeast(0L)
             } else {
                 task.quotaUsedSeconds = (task.quotaUsedSeconds + secondsRan).coerceAtLeast(0L)
             }
