@@ -171,10 +171,12 @@ class TaskAdapter(
             val remaining = task.quotaRemainingSeconds
             holder.tvQuotaRemaining.visibility = View.VISIBLE
             holder.tvQuotaRemaining.text = when {
-                quotaExceeded             -> "quota exceeded"
-                quotaWarning              -> "${formatQuota(remaining)} quota left"
-                remaining >= 0            -> "${formatQuota(remaining)} quota"
-                else                      -> ""
+                quotaExceeded -> {
+                    // How far over budget: negative sign
+                    val over = task.quotaUsedSeconds - task.quotaSeconds
+                    "-${formatQuota(over)}"
+                }
+                else -> "+${formatQuota(remaining)}"
             }
             holder.tvQuotaRemaining.setTextColor(
                 when {
