@@ -75,14 +75,32 @@
                         android:textColor="#9E9E9E" />
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/tvPriority"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Priority: 5/10"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:layout_marginStart="8dp" />
+                    android:orientation="vertical"
+                    android:gravity="end"
+                    android:layout_marginStart="8dp">
+
+                    <TextView
+                        android:id="@+id/tvPriority"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Priority: 5/10"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvQuotaRemaining"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="10sp"
+                        android:textColor="#757575"
+                        android:layout_marginTop="2dp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Progress bar -->
@@ -92,11 +110,24 @@
                 android:layout_width="match_parent"
                 android:layout_height="6dp"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginBottom="2dp"
                 android:max="100"
                 android:progress="0"
                 android:progressTint="@color/colorPrimary"
                 android:progressBackgroundTint="#E0E0E0" />
+
+            <!-- Quota usage bar — visible only when quota is enabled for this task/group -->
+            <ProgressBar
+                android:id="@+id/progressQuota"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginBottom="4dp"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="#FFA000"
+                android:progressBackgroundTint="#FFF3E0"
+                android:visibility="gone" />
 
             <!-- Row 2: Time info -->
             <LinearLayout

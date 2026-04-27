@@ -60,10 +60,15 @@ class TaskRepository(private val dao: TaskDao) {
      * Updates the leaf task, then propagates elapsed time upward through all
      * ancestor groups — exactly like Linux cgroups crediting the task's CPU
      * time to every cgroup it belongs to.
+     *
+     * Also rolls the quota accounting window forward and credits [secondsRan]
+     * against the quota budget for the leaf and every ancestor that has quota
+     * enabled — mirroring Linux's cpu.cfs_quota_us throttle per cgroup.
      */
     suspend fun updateVruntimeAfterRun(task: Task, secondsRan: Long) = withContext(Dispatchers.IO) {
         // Update leaf task (also increments runCount via EEVDFScheduler)
         EEVDFScheduler.updateVruntime(task, secondsRan)
+        applyQuotaAccounting(task, secondsRan)
         dao.update(task)
 
         // Propagate up the ancestor chain — credit time but do NOT increment runCount
@@ -74,6 +79,7 @@ class TaskRepository(private val dao: TaskDao) {
             if (parent.weight > 0) {
                 parent.vruntime += secondsRan.toDouble() / parent.weight
             }
+            applyQuotaAccounting(parent, secondsRan)
             dao.update(parent)
             parentId = parent.parentId
         }
@@ -81,6 +87,39 @@ class TaskRepository(private val dao: TaskDao) {
         val allActive = dao.getActiveTasksSync()
         EEVDFScheduler.recalculate(allActive)
         allActive.forEach { dao.update(it) }
+    }
+
+    /**
+     * Rolls the quota accounting period forward if it has expired, then credits
+     * [secondsRan] to [task.quotaUsedSeconds].
+     *
+     * The task object is mutated in-place (var fields); the caller persists it.
+     *
+     * Period roll-over logic (mirrors Linux cgroup bandwidth controller):
+     *   - If no period has started yet (quotaPeriodStartEpoch == 0), open a fresh period now.
+     *   - If the current period has elapsed, advance the start epoch by however many complete
+     *     periods have passed so the window tracks real wall-clock time precisely.
+     */
+    private fun applyQuotaAccounting(task: Task, secondsRan: Long) {
+        if (!task.isQuotaEnabled) return
+        val nowMs    = System.currentTimeMillis()
+        val periodMs = task.quotaPeriodSeconds * 1_000L
+
+        if (task.quotaPeriodStartEpoch == 0L) {
+            // First ever run — open the accounting window
+            task.quotaPeriodStartEpoch = nowMs
+            task.quotaUsedSeconds      = secondsRan.coerceAtLeast(0L)
+        } else {
+            val elapsed = nowMs - task.quotaPeriodStartEpoch
+            if (elapsed >= periodMs) {
+                // One or more full periods have passed — roll forward to the current period
+                val periodsElapsed = elapsed / periodMs
+                task.quotaPeriodStartEpoch = task.quotaPeriodStartEpoch + periodsElapsed * periodMs
+                task.quotaUsedSeconds      = secondsRan.coerceAtLeast(0L)
+            } else {
+                task.quotaUsedSeconds = (task.quotaUsedSeconds + secondsRan).coerceAtLeast(0L)
+            }
+        }
     }
 
     /**

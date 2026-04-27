@@ -58,6 +58,15 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var etPinnedShare:         TextInputEditText
     private lateinit var tvPinnedShareWarning:  TextView
 
+    // Quota limit section
+    private lateinit var switchQuotaEnabled:    com.google.android.material.switchmaterial.SwitchMaterial
+    private lateinit var layoutQuotaFields:     LinearLayout
+    private lateinit var etQuota:               TextInputEditText
+    private lateinit var tvQuotaPreview:        TextView
+    private lateinit var etPeriod:              TextInputEditText
+    private lateinit var tvPeriodPreview:       TextView
+    private lateinit var tvQuotaError:          TextView
+
     private val taskTypeLabels = listOf("Default", "Notice", "Alert", "Custom")
     private val taskTypeValues = listOf("DEFAULT", "NOTIFICATION", "ALARM", "CUSTOM")
     private var selectedTaskType = "DEFAULT"
@@ -98,6 +107,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupInterruptSwitch()
         setupTaskTypeSection()
         setupPinnedShare()
+        setupQuotaSection()
 
         // Observe activeTasks here (not just in validation) so .value is populated
         // the moment the user opens this screen and types a pinned share value.
@@ -138,6 +148,14 @@ class AddTaskActivity : AppCompatActivity() {
         etNoticeRepeat       = findViewById(R.id.etNoticeRepeat)
         etPinnedShare        = findViewById(R.id.etPinnedShare)
         tvPinnedShareWarning = findViewById(R.id.tvPinnedShareWarning)
+
+        switchQuotaEnabled = findViewById(R.id.switchQuotaEnabled)
+        layoutQuotaFields  = findViewById(R.id.layoutQuotaFields)
+        etQuota            = findViewById(R.id.etQuota)
+        tvQuotaPreview     = findViewById(R.id.tvQuotaPreview)
+        etPeriod           = findViewById(R.id.etPeriod)
+        tvPeriodPreview    = findViewById(R.id.tvPeriodPreview)
+        tvQuotaError       = findViewById(R.id.tvQuotaError)
 
         btnSave.setOnClickListener { saveTask() }
         btnCancel.setOnClickListener { finish() }
@@ -286,6 +304,14 @@ class AddTaskActivity : AppCompatActivity() {
         }
         // Pinned share
         task.pinnedShare?.let { etPinnedShare.setText(it.toString()) }
+
+        // Quota limit
+        if (task.isQuotaEnabled) {
+            switchQuotaEnabled.isChecked = true
+            layoutQuotaFields.visibility = View.VISIBLE
+            etQuota.setText(formatQuotaDuration(task.quotaSeconds))
+            etPeriod.setText(formatQuotaDuration(task.quotaPeriodSeconds))
+        }
     }
 
     private fun setupInterruptSwitch() {
@@ -446,6 +472,81 @@ class AddTaskActivity : AppCompatActivity() {
         else       -> "${secs / 60}m ${secs % 60}s"
     }
 
+    // ── Quota limit section ───────────────────────────────────────────────────
+
+    private fun setupQuotaSection() {
+        // Toggle visibility of the detail fields
+        switchQuotaEnabled.setOnCheckedChangeListener { _, checked ->
+            layoutQuotaFields.visibility = if (checked) View.VISIBLE else View.GONE
+            tvQuotaError.visibility = View.GONE
+        }
+
+        // Live preview for quota field
+        etQuota.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val secs = parseQuotaInput(s?.toString() ?: "")
+                tvQuotaPreview.text = if (secs > 0) formatQuotaDuration(secs) else ""
+            }
+        })
+
+        // Live preview for period field
+        etPeriod.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val secs = parseQuotaInput(s?.toString() ?: "")
+                tvPeriodPreview.text = if (secs > 0) formatQuotaDuration(secs) else ""
+            }
+        })
+
+        // Initialise period preview with default value
+        tvPeriodPreview.text = formatQuotaDuration(86400L)
+    }
+
+    /**
+     * Parses a human-readable duration string into seconds.
+     *
+     * Accepted formats (case-insensitive, spaces optional):
+     *   • "NdNhNmNs"  e.g.  "1d", "2h30m", "7d12h", "30m", "90s", "365d"
+     *
+     * Returns the clamped value in [1, 365 * 86400] (1 second to 365 days).
+     * Returns 0 if the input is empty or cannot be parsed.
+     */
+    private fun parseQuotaInput(raw: String): Long {
+        val s = raw.trim().lowercase()
+        if (s.isEmpty()) return 0L
+        val d = Regex("""(\d+)\s*d""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val h = Regex("""(\d+)\s*h""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val m = Regex("""(\d+)\s*m(?!o)""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val sec = Regex("""(\d+)\s*s""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val total = d * 86_400L + h * 3_600L + m * 60L + sec
+        // Bare number with no unit → treat as seconds
+        val bare = if (d == 0L && h == 0L && m == 0L && sec == 0L)
+            s.toLongOrNull() else null
+        val result = bare ?: total
+        if (result <= 0L) return 0L
+        val maxSecs = 365L * 86_400L
+        return result.coerceIn(1L, maxSecs)
+    }
+
+    private fun formatQuotaDuration(totalSec: Long): String {
+        if (totalSec <= 0L) return "0s"
+        var rem = totalSec
+        val d = rem / 86_400L; rem %= 86_400L
+        val h = rem /  3_600L; rem %=  3_600L
+        val m = rem /     60L
+        val s = rem %     60L
+        val parts = buildList {
+            if (d > 0) add("${d}d")
+            if (h > 0) add("${h}h")
+            if (m > 0) add("${m}m")
+            if (s > 0) add("${s}s")
+        }
+        return parts.joinToString(" ").ifEmpty { "0s" }
+    }
+
     private fun saveTask() {
         val name = etName.text.toString().trim()
         if (name.isEmpty()) { etName.error = "Task name required"; return }
@@ -491,6 +592,39 @@ class AddTaskActivity : AppCompatActivity() {
         // the task falls back to the slider-based integer priority for weight calculation.
         val internalWeight: Double? = if (pinnedShare != null) autoCalcWeight else null
 
+        // ── Quota limit ───────────────────────────────────────────────────────
+        val quotaEnabled = switchQuotaEnabled.isChecked
+        val quotaSeconds: Long
+        val quotaPeriodSeconds: Long
+        if (quotaEnabled) {
+            val rawQuota  = parseQuotaInput(etQuota.text.toString())
+            val rawPeriod = parseQuotaInput(etPeriod.text.toString())
+            if (rawQuota <= 0L) {
+                tvQuotaError.text = "Quota must be at least 1 second (e.g. 30m, 2h, 1d)"
+                tvQuotaError.visibility = View.VISIBLE
+                layoutQuotaFields.visibility = View.VISIBLE
+                return
+            }
+            if (rawPeriod <= 0L) {
+                tvQuotaError.text = "Period must be at least 1 second (e.g. 1d, 7d)"
+                tvQuotaError.visibility = View.VISIBLE
+                layoutQuotaFields.visibility = View.VISIBLE
+                return
+            }
+            if (rawQuota > rawPeriod) {
+                tvQuotaError.text = "Quota (${formatQuotaDuration(rawQuota)}) cannot exceed period (${formatQuotaDuration(rawPeriod)})"
+                tvQuotaError.visibility = View.VISIBLE
+                layoutQuotaFields.visibility = View.VISIBLE
+                return
+            }
+            tvQuotaError.visibility = View.GONE
+            quotaSeconds       = rawQuota
+            quotaPeriodSeconds = rawPeriod
+        } else {
+            quotaSeconds       = 0L
+            quotaPeriodSeconds = 86400L
+        }
+
         if (existingTask != null) {
             val updated = existingTask!!.copy(
                 name             = name,
@@ -505,7 +639,9 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
                 pinnedShare      = pinnedShare,
-                internalWeight   = internalWeight
+                internalWeight   = internalWeight,
+                quotaSeconds       = quotaSeconds,
+                quotaPeriodSeconds = quotaPeriodSeconds
             )
             // Handle interrupt assignment
         if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(updated)
@@ -526,7 +662,9 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
                 pinnedShare      = pinnedShare,
-                internalWeight   = internalWeight
+                internalWeight   = internalWeight,
+                quotaSeconds       = quotaSeconds,
+                quotaPeriodSeconds = quotaPeriodSeconds
             )
             viewModel.addTask(task)
             if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(task)

@@ -43,12 +43,14 @@ class TaskAdapter(
         val tvName:         TextView    = itemView.findViewById(R.id.tvTaskName)
         val tvCategory:     TextView    = itemView.findViewById(R.id.tvCategory)
         val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
+        val tvQuotaRemaining: TextView  = itemView.findViewById(R.id.tvQuotaRemaining)
         val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
         val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
         val tvVdeadline:    TextView    = itemView.findViewById(R.id.tvVdeadline)
         val tvCpuShare:     TextView    = itemView.findViewById(R.id.tvCpuShare)
         val progressBar:    ProgressBar = itemView.findViewById(R.id.progressTask)
+        val progressQuota:  ProgressBar = itemView.findViewById(R.id.progressQuota)
         val btnDelete:      ImageButton = itemView.findViewById(R.id.btnDelete)
         val btnComplete:    ImageButton = itemView.findViewById(R.id.btnComplete)
         val btnRun:         ImageButton = itemView.findViewById(R.id.btnRun)
@@ -162,13 +164,49 @@ class TaskAdapter(
         }
         holder.tvPriority.setTextColor(priorityColor)
 
+        // ── Quota display ──────────────────────────────────────────────────────
+        val quotaExceeded = item.effectiveQuotaExceeded
+        val quotaWarning  = item.effectiveQuotaWarning
+        if (task.isQuotaEnabled) {
+            val remaining = task.quotaRemainingSeconds
+            holder.tvQuotaRemaining.visibility = View.VISIBLE
+            holder.tvQuotaRemaining.text = when {
+                quotaExceeded             -> "quota exceeded"
+                quotaWarning              -> "${formatQuota(remaining)} quota left"
+                remaining >= 0            -> "${formatQuota(remaining)} quota"
+                else                      -> ""
+            }
+            holder.tvQuotaRemaining.setTextColor(
+                when {
+                    quotaExceeded -> Color.parseColor("#E65100")
+                    quotaWarning  -> Color.parseColor("#F57C00")
+                    else          -> Color.parseColor("#757575")
+                }
+            )
+            // Quota progress bar
+            holder.progressQuota.visibility = View.VISIBLE
+            holder.progressQuota.progress   = task.quotaProgressPercent
+            val quotaBarTint = when {
+                quotaExceeded -> "#E53935"
+                quotaWarning  -> "#FFA000"
+                else          -> "#66BB6A"
+            }
+            holder.progressQuota.progressTintList =
+                android.content.res.ColorStateList.valueOf(Color.parseColor(quotaBarTint))
+        } else {
+            holder.tvQuotaRemaining.visibility = View.GONE
+            holder.progressQuota.visibility    = View.GONE
+        }
+
         // ── Card highlight ─────────────────────────────────────────────────────
         holder.card.cardElevation = if (isRunning) 12f else 4f
         holder.card.setCardBackgroundColor(
             when {
-                isRunning   -> Color.parseColor("#E3F2FD")
-                task.isGroup -> Color.parseColor("#F5F5F5")
-                else         -> Color.WHITE
+                isRunning        -> Color.parseColor("#E3F2FD")  // light-blue (selected/running)
+                quotaExceeded    -> Color.parseColor("#FFFDE7")  // light-yellow (quota exceeded)
+                quotaWarning     -> Color.parseColor("#FFF8E1")  // light-amber  (quota warning)
+                task.isGroup     -> Color.parseColor("#F5F5F5")
+                else             -> Color.WHITE
             }
         )
 
@@ -206,6 +244,26 @@ class TaskAdapter(
             if (seconds > 0) add("${seconds}s")
         }
         return parts.joinToString(" ")
+    }
+
+    /**
+     * Compact human-readable duration for quota remaining.
+     * Shows the two most significant units: "1d 3h", "45m", "30s", etc.
+     */
+    private fun formatQuota(totalSec: Long): String {
+        if (totalSec <= 0L) return "0s"
+        var rem = totalSec
+        val days    = rem / 86_400L; rem %= 86_400L
+        val hours   = rem /  3_600L; rem %=  3_600L
+        val minutes = rem /     60L
+        val seconds = rem %     60L
+        val parts = buildList {
+            if (days    > 0) add("${days}d")
+            if (hours   > 0) add("${hours}h")
+            if (minutes > 0) add("${minutes}m")
+            if (seconds > 0) add("${seconds}s")
+        }
+        return parts.take(2).joinToString(" ")
     }
 
     class DiffCallback : DiffUtil.ItemCallback<TaskDisplayItem>() {
