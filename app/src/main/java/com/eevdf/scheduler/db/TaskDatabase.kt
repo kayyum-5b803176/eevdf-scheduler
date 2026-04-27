@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.eevdf.scheduler.model.Task
 
-@Database(entities = [Task::class], version = 10, exportSchema = false)
+@Database(entities = [Task::class], version = 11, exportSchema = false)
 abstract class TaskDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
@@ -154,6 +154,34 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 10 → 11 — schema repair / idempotent quota columns.
+         *
+         * A previous debug build may have stamped version 10 onto a database that
+         * is missing some or all of the four quota columns (hash mismatch crash).
+         * This migration adds each column only when it is absent by inspecting
+         * PRAGMA table_info — SQLite has no "ALTER TABLE … ADD COLUMN IF NOT EXISTS".
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                val existing = mutableSetOf<String>()
+                val cursor = database.query("PRAGMA table_info(tasks)")
+                cursor.use {
+                    val nameIdx = it.getColumnIndex("name")
+                    while (it.moveToNext()) existing.add(it.getString(nameIdx))
+                }
+
+                if ("quotaSeconds" !in existing)
+                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds          INTEGER NOT NULL DEFAULT 0")
+                if ("quotaPeriodSeconds" !in existing)
+                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodSeconds    INTEGER NOT NULL DEFAULT 86400")
+                if ("quotaPeriodStartEpoch" !in existing)
+                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodStartEpoch INTEGER NOT NULL DEFAULT 0")
+                if ("quotaUsedSeconds" !in existing)
+                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaUsedSeconds      INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -161,7 +189,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .build()
                 INSTANCE = instance
                 instance
