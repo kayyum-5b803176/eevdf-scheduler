@@ -103,59 +103,66 @@ data class Task(
     val isQuotaEnabled: Boolean get() = quotaSeconds > 0L
 
     /**
-     * True when the current accounting period has fully elapsed and should be
-     * rolled over. Once the period is rolled the used counter resets to zero.
+     * Current effective used seconds, decayed by wall-clock time.
+     *
+     * Each full period that has elapsed since [quotaPeriodStartEpoch] reduces the
+     * used counter by [quotaSeconds] (floored at 0). This is computed purely from
+     * the stored fields and the current clock — no run is needed to update it.
+     *
+     * Example: quota=5min, period=10min, used=20min
+     *   • t+0min  → currentQuotaUsed = 20  (−15min shown)
+     *   • t+10min → currentQuotaUsed = 15  (−10min shown)
+     *   • t+20min → currentQuotaUsed = 10  (−5min shown)
+     *   • t+30min → currentQuotaUsed = 5   (0 shown — exactly at quota)
+     *   • t+40min → currentQuotaUsed = 0   (+5min shown — full budget restored)
      */
-    val isQuotaPeriodExpired: Boolean
-        get() = quotaPeriodStartEpoch > 0L &&
-            (System.currentTimeMillis() - quotaPeriodStartEpoch) >=
-            quotaPeriodSeconds * 1_000L
+    val currentQuotaUsed: Long
+        get() {
+            if (!isQuotaEnabled || quotaPeriodStartEpoch == 0L) return 0L
+            val nowMs       = System.currentTimeMillis()
+            val periodMs    = quotaPeriodSeconds * 1_000L
+            val elapsed     = (nowMs - quotaPeriodStartEpoch).coerceAtLeast(0L)
+            val periods     = elapsed / periodMs
+            return (quotaUsedSeconds - quotaSeconds * periods).coerceAtLeast(0L)
+        }
 
-    /**
-     * Effective seconds used this period.
-     * Returns 0 when the period has expired (the next write will roll it over).
-     */
-    val effectiveQuotaUsed: Long
-        get() = if (isQuotaPeriodExpired) 0L else quotaUsedSeconds
-
-    /**
-     * True when the task has consumed ≥ its quota for the current period.
-     * False if quota is disabled or the period has already expired.
-     */
+    /** True when the task has consumed ≥ its quota for the current period. */
     val isQuotaExceeded: Boolean
-        get() = isQuotaEnabled && !isQuotaPeriodExpired &&
-            quotaUsedSeconds >= quotaSeconds
+        get() = isQuotaEnabled && currentQuotaUsed >= quotaSeconds
 
     /**
-     * True when quota usage is in the "warning zone" (≥ 80 % but not yet exceeded).
-     * Used for an amber pre-warning tint on the card.
+     * True when quota usage is in the warning zone (≥ 80 % but not yet exceeded).
      */
     val isQuotaWarning: Boolean
-        get() = isQuotaEnabled && !isQuotaPeriodExpired &&
-            quotaUsedSeconds >= (quotaSeconds * 0.8).toLong() &&
-            quotaUsedSeconds < quotaSeconds
+        get() = isQuotaEnabled &&
+            currentQuotaUsed >= (quotaSeconds * 0.8).toLong() &&
+            currentQuotaUsed < quotaSeconds
 
     /**
-     * Remaining quota seconds in the current period.
+     * Remaining quota seconds relative to the current decayed used value.
      *  -1  → quota not enabled
      *   0  → exceeded or exactly at limit
      *  > 0 → time left
      */
     val quotaRemainingSeconds: Long
         get() = when {
-            !isQuotaEnabled         -> -1L
-            isQuotaPeriodExpired    -> quotaSeconds
-            else                    -> (quotaSeconds - quotaUsedSeconds).coerceAtLeast(0L)
+            !isQuotaEnabled -> -1L
+            else            -> (quotaSeconds - currentQuotaUsed).coerceAtLeast(0L)
         }
 
     /**
+     * Overflow seconds beyond quota (positive when exceeded, else 0).
+     */
+    val quotaOverflowSeconds: Long
+        get() = if (isQuotaEnabled) (currentQuotaUsed - quotaSeconds).coerceAtLeast(0L) else 0L
+
+    /**
      * 0–100 progress of quota consumption for the current period.
-     * 0 when quota not enabled or period expired.
      */
     val quotaProgressPercent: Int
         get() {
-            if (!isQuotaEnabled || isQuotaPeriodExpired || quotaSeconds == 0L) return 0
-            return (quotaUsedSeconds * 100L / quotaSeconds).toInt().coerceIn(0, 100)
+            if (!isQuotaEnabled || quotaSeconds == 0L) return 0
+            return (currentQuotaUsed * 100L / quotaSeconds).toInt().coerceIn(0, 100)
         }
 
     val timeSliceDisplay: String get() {
