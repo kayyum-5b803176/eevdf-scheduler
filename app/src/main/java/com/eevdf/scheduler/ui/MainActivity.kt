@@ -59,6 +59,17 @@ class MainActivity : AppCompatActivity() {
     private var currentTab = 0
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", android.content.Context.MODE_PRIVATE) }
 
+    // ── Quota real-time ticker ─────────────────────────────────────────────────
+    // Fires every second while the activity is resumed. Sends a lightweight
+    // PAYLOAD_QUOTA_TICK to visible items only — no full rebind, no flicker.
+    private val quotaTickHandler  = android.os.Handler(android.os.Looper.getMainLooper())
+    private val quotaTickRunnable = object : Runnable {
+        override fun run() {
+            tickQuotaOnVisibleItems()
+            quotaTickHandler.postDelayed(this, 1_000L)
+        }
+    }
+
     /** Convenience: fire haptic feedback on [v] if enabled in prefs. */
     private fun haptic(v: android.view.View) {
         if (!prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)) return
@@ -128,8 +139,34 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(alarmStopReceiver)
     }
 
-    override fun onResume() { super.onResume() }
-    override fun onPause()  { super.onPause() }
+    override fun onResume() {
+        super.onResume()
+        quotaTickHandler.post(quotaTickRunnable)
+    }
+    override fun onPause()  {
+        super.onPause()
+        quotaTickHandler.removeCallbacks(quotaTickRunnable)
+    }
+
+    /**
+     * Sends PAYLOAD_QUOTA_TICK to every currently visible item in the active
+     * RecyclerView. Only tasks with quota enabled need a redraw — the adapter's
+     * partial-bind handler skips all other views untouched.
+     */
+    private fun tickQuotaOnVisibleItems() {
+        val lm      = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val adapter = when (currentTab) {
+            0    -> activeAdapter
+            1    -> scheduleAdapter
+            else -> completedAdapter
+        }
+        val first = lm.findFirstVisibleItemPosition()
+        val last  = lm.findLastVisibleItemPosition()
+        if (first == RecyclerView.NO_POSITION || last < first) return
+        for (i in first..last) {
+            adapter.notifyItemChanged(i, TaskAdapter.PAYLOAD_QUOTA_TICK)
+        }
+    }
 
     private fun setupToolbar() {
         val toolbar = findViewById<Toolbar>(R.id.toolbar)

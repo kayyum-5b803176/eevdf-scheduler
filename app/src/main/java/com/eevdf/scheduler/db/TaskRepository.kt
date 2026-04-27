@@ -102,30 +102,15 @@ class TaskRepository(private val dao: TaskDao) {
      */
     private fun applyQuotaAccounting(task: Task, secondsRan: Long) {
         if (!task.isQuotaEnabled) return
-        val nowMs    = System.currentTimeMillis()
-        val periodMs = task.quotaPeriodSeconds * 1_000L
+        val nowMs = System.currentTimeMillis()
 
-        if (task.quotaPeriodStartEpoch == 0L) {
-            // First ever run — open the accounting window
-            task.quotaPeriodStartEpoch = nowMs
-            task.quotaUsedSeconds      = secondsRan.coerceAtLeast(0L)
-        } else {
-            val elapsed = nowMs - task.quotaPeriodStartEpoch
-            if (elapsed >= periodMs) {
-                // Advance the window start to the current period boundary
-                val periodsElapsed = elapsed / periodMs
-                task.quotaPeriodStartEpoch += periodsElapsed * periodMs
+        // Snapshot the continuously-decayed value at this instant, then reset the
+        // anchor to now.  This means the next tick in currentQuotaUsed always starts
+        // from the correct baseline rather than accumulating floating-point drift.
+        val decayedNow = if (task.quotaPeriodStartEpoch == 0L) 0L else task.currentQuotaUsed
 
-                // Decay used by quotaSeconds per elapsed period instead of hard-resetting.
-                // This keeps overflow visible across subsequent periods until the debt is
-                // fully paid off — mirrors a leaky-bucket / token-replenishment model.
-                val decayed = (task.quotaUsedSeconds - task.quotaSeconds * periodsElapsed)
-                    .coerceAtLeast(0L)
-                task.quotaUsedSeconds = decayed + secondsRan.coerceAtLeast(0L)
-            } else {
-                task.quotaUsedSeconds = (task.quotaUsedSeconds + secondsRan).coerceAtLeast(0L)
-            }
-        }
+        task.quotaPeriodStartEpoch = nowMs
+        task.quotaUsedSeconds      = (decayedNow + secondsRan).coerceAtLeast(0L)
     }
 
     /**

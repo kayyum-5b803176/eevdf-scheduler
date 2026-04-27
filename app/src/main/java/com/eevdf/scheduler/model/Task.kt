@@ -103,27 +103,28 @@ data class Task(
     val isQuotaEnabled: Boolean get() = quotaSeconds > 0L
 
     /**
-     * Current effective used seconds, decayed by wall-clock time.
+     * Current effective quota used, decayed continuously by wall-clock time.
      *
-     * Each full period that has elapsed since [quotaPeriodStartEpoch] reduces the
-     * used counter by [quotaSeconds] (floored at 0). This is computed purely from
-     * the stored fields and the current clock — no run is needed to update it.
+     * Budget replenishes at a constant rate of (quotaSeconds / quotaPeriodSeconds)
+     * seconds per second — a linear drain that produces a smooth reverse-clock effect.
      *
-     * Example: quota=5min, period=10min, used=20min
-     *   • t+0min  → currentQuotaUsed = 20  (−15min shown)
-     *   • t+10min → currentQuotaUsed = 15  (−10min shown)
-     *   • t+20min → currentQuotaUsed = 10  (−5min shown)
-     *   • t+30min → currentQuotaUsed = 5   (0 shown — exactly at quota)
-     *   • t+40min → currentQuotaUsed = 0   (+5min shown — full budget restored)
+     * On every run, TaskRepository snapshots this value and resets quotaPeriodStartEpoch
+     * to the current time, so the decay always restarts cleanly from the new baseline.
+     *
+     * Example: quota=5min=300s, period=10min=600s, used=20min=1200s
+     *   rate = 300/600 = 0.5 s/s
+     *   t+0min  → 1200 − 0   = 1200s (−15m)
+     *   t+5min  → 1200 − 150 = 1050s (−12m 30s)
+     *   t+10min → 1200 − 300 =  900s (−10m)
+     *   t+30min → 1200 − 900 =  300s (0  — at quota)
+     *   t+40min → 1200 −1200 =    0s (+5m — full budget)
      */
     val currentQuotaUsed: Long
         get() {
-            if (!isQuotaEnabled || quotaPeriodStartEpoch == 0L) return 0L
-            val nowMs       = System.currentTimeMillis()
-            val periodMs    = quotaPeriodSeconds * 1_000L
-            val elapsed     = (nowMs - quotaPeriodStartEpoch).coerceAtLeast(0L)
-            val periods     = elapsed / periodMs
-            return (quotaUsedSeconds - quotaSeconds * periods).coerceAtLeast(0L)
+            if (!isQuotaEnabled || quotaPeriodStartEpoch == 0L) return quotaUsedSeconds.coerceAtLeast(0L)
+            val elapsedSeconds = (System.currentTimeMillis() - quotaPeriodStartEpoch) / 1_000L
+            val replenished    = elapsedSeconds * quotaSeconds / quotaPeriodSeconds
+            return (quotaUsedSeconds - replenished).coerceAtLeast(0L)
         }
 
     /** True when the task has consumed ≥ its quota for the current period. */
@@ -157,12 +158,19 @@ data class Task(
         get() = if (isQuotaEnabled) (currentQuotaUsed - quotaSeconds).coerceAtLeast(0L) else 0L
 
     /**
-     * 0–100 progress of quota consumption for the current period.
+     * 0–100 bar progress.
+     *
+     * Normal  (not exceeded): usage fraction, 0→100 as budget fills.
+     * Exceeded               : overflow fraction, drains from >0 back to 0 as debt
+     *                          replenishes — gives a reverse-clock feel on the bar.
      */
     val quotaProgressPercent: Int
         get() {
             if (!isQuotaEnabled || quotaSeconds == 0L) return 0
-            return (currentQuotaUsed * 100L / quotaSeconds).toInt().coerceIn(0, 100)
+            return if (isQuotaExceeded)
+                (quotaOverflowSeconds * 100L / quotaSeconds).toInt().coerceIn(0, 100)
+            else
+                (currentQuotaUsed * 100L / quotaSeconds).toInt().coerceIn(0, 100)
         }
 
     val timeSliceDisplay: String get() {
