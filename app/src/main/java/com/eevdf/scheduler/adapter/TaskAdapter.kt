@@ -191,6 +191,8 @@ class TaskAdapter(
             }
             holder.progressQuota.progressTintList =
                 android.content.res.ColorStateList.valueOf(Color.parseColor(quotaBarTint))
+            // Tighten gap when both bars are showing; restore normal spacing when alone
+            setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE)
         } else {
             holder.tvQuotaRemaining.visibility = View.GONE
             holder.progressQuota.visibility    = View.GONE
@@ -264,6 +266,20 @@ class TaskAdapter(
         return parts.take(2).joinToString(" ")
     }
 
+    /**
+     * Adjusts progressQuota's top margin based on whether progressTask is also visible.
+     *
+     * One bar  (group card): 8dp top — same spacing as progressTask, centred in card.
+     * Two bars (task card) : 3dp top — close enough to read as a pair, far enough to
+     *                        distinguish colours, negligible effect on card height.
+     */
+    private fun setQuotaBarTopMargin(holder: TaskViewHolder, bothBarsVisible: Boolean) {
+        val lp    = holder.progressQuota.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        val density = holder.progressQuota.context.resources.displayMetrics.density
+        lp.topMargin = ((if (bothBarsVisible) 3f else 8f) * density + 0.5f).toInt()
+        holder.progressQuota.layoutParams = lp
+    }
+
     /** Payload used for the 1-second quota tick — skips full rebind to avoid flicker. */
     companion object { const val PAYLOAD_QUOTA_TICK = "quota_tick" }
 
@@ -319,6 +335,7 @@ class TaskAdapter(
                 quotaWarning  -> "#FFA000"
                 else          -> "#66BB6A"
             }))
+        setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE)
 
         // Card background can transition as quota decays between full binds
         val isRunning = task.id == runningTaskId
