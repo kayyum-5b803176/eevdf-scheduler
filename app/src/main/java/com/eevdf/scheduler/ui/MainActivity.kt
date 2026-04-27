@@ -325,7 +325,7 @@ class MainActivity : AppCompatActivity() {
                             androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
                         )
                     btnStartPause.jumpDrawablesToCurrentState()
-                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#F44336"))
+                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#FFB300"))
                     viewPhaseStatus.visibility = View.VISIBLE
                     // Display delay countdown in the timer display
                     val secs = phase.remainingSecs
