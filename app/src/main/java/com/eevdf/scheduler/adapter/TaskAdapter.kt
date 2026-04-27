@@ -264,6 +264,73 @@ class TaskAdapter(
         return parts.take(2).joinToString(" ")
     }
 
+    /** Payload used for the 1-second quota tick — skips full rebind to avoid flicker. */
+    companion object { const val PAYLOAD_QUOTA_TICK = "quota_tick" }
+
+    /**
+     * Fast partial rebind triggered by the 1-second ticker in MainActivity.
+     * Only updates quota label, progress bar and card background colour.
+     * Falls through to full bind when payloads list is empty or unknown.
+     */
+    override fun onBindViewHolder(
+        holder: TaskViewHolder, position: Int, payloads: MutableList<Any>
+    ) {
+        if (payloads.any { it == PAYLOAD_QUOTA_TICK }) {
+            val item = getItem(position) ?: return
+            bindQuotaOnly(holder, item)
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    private fun bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplayItem) {
+        val task = item.task
+
+        // Always use the live-computed properties here — item.effectiveQuotaExceeded
+        // was stamped when the list was last submitted and stays stale until the next
+        // DB emission, which would keep the card yellow even after full replenishment.
+        val quotaExceeded = task.isQuotaExceeded
+        val quotaWarning  = task.isQuotaWarning
+
+        if (!task.isQuotaEnabled) {
+            holder.tvQuotaRemaining.visibility = View.GONE
+            holder.progressQuota.visibility    = View.GONE
+            return
+        }
+
+        holder.tvQuotaRemaining.visibility = View.VISIBLE
+        holder.progressQuota.visibility    = View.VISIBLE
+
+        holder.tvQuotaRemaining.text = when {
+            quotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds)}"
+            else          -> "+${formatQuota(task.quotaRemainingSeconds)}"
+        }
+        holder.tvQuotaRemaining.setTextColor(
+            when {
+                quotaExceeded -> Color.parseColor("#E65100")
+                quotaWarning  -> Color.parseColor("#F57C00")
+                else          -> Color.parseColor("#757575")
+            }
+        )
+        holder.progressQuota.progress = task.quotaProgressPercent
+        holder.progressQuota.progressTintList =
+            android.content.res.ColorStateList.valueOf(Color.parseColor(when {
+                quotaExceeded -> "#E53935"
+                quotaWarning  -> "#FFA000"
+                else          -> "#66BB6A"
+            }))
+
+        // Card background can transition as quota decays between full binds
+        val isRunning = task.id == runningTaskId
+        holder.card.setCardBackgroundColor(Color.parseColor(when {
+            isRunning     -> "#E3F2FD"
+            quotaExceeded -> "#FFFDE7"
+            quotaWarning  -> "#FFF8E1"
+            task.isGroup  -> "#F5F5F5"
+            else          -> "#FFFFFF"
+        }))
+    }
+
     class DiffCallback : DiffUtil.ItemCallback<TaskDisplayItem>() {
         override fun areItemsTheSame(old: TaskDisplayItem, new: TaskDisplayItem) =
             old.task.id == new.task.id
