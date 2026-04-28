@@ -47,6 +47,12 @@
             Settings screen — import / export data backup.
         -->
         <activity
+            android:name=".ui.StatsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"

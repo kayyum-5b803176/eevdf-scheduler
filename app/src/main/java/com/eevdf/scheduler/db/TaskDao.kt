@@ -69,7 +69,11 @@ interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY createdAt ASC")
     suspend fun getAllTasksForBackup(): List<Task>
 
-    /** Removes every task row — used before restoring a backup. */
+    /** All tasks for stats — every row, no filter. */
+    @Query("SELECT * FROM tasks ORDER BY totalRunTime DESC")
+    suspend fun getAllTasksForStats(): List<Task>
+
+    /** Delete everything — used before restoring a backup. */
     @Query("DELETE FROM tasks")
     suspend fun deleteAllTasks()
 }
