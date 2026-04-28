@@ -9,10 +9,12 @@ import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.scheduler.R
+import com.eevdf.scheduler.db.RunLogDao
 import com.eevdf.scheduler.db.TaskDatabase
+import com.eevdf.scheduler.model.RunDailySummary
+import com.eevdf.scheduler.model.RunLogEntry
 import com.eevdf.scheduler.model.Task
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -21,34 +23,30 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.roundToInt
 
 class StatsActivity : AppCompatActivity() {
 
-    // ── Views ─────────────────────────────────────────────────────────────────
-    private lateinit var etWindowRange:  TextInputEditText
-    private lateinit var btnApplyWindow: MaterialButton
-    private lateinit var tvWindowLabel:  TextView
-    private lateinit var tvTotalRuntime: TextView
-    private lateinit var tvTotalRuns:    TextView
-    private lateinit var tvActiveTasks:  TextView
-    private lateinit var tvAvgRun:       TextView
+    private lateinit var etWindowRange:   TextInputEditText
+    private lateinit var btnApplyWindow:  MaterialButton
+    private lateinit var tvWindowLabel:   TextView
+    private lateinit var tvTotalRuntime:  TextView
+    private lateinit var tvTotalRuns:     TextView
+    private lateinit var tvActiveTasks:   TextView
+    private lateinit var tvAvgRun:        TextView
 
-    private lateinit var llDistribution:  LinearLayout
-    private lateinit var llMostFrequent:  LinearLayout
-    private lateinit var llLeastFrequent: LinearLayout
-    private lateinit var llUntouched:     LinearLayout
-    private lateinit var llQuotaViolators:LinearLayout
-    private lateinit var llSwitching:     LinearLayout
-    private lateinit var llWindowActivity:LinearLayout
-    private lateinit var llPeakDay:       LinearLayout
+    private lateinit var llDistribution:   LinearLayout
+    private lateinit var llMostFrequent:   LinearLayout
+    private lateinit var llLeastFrequent:  LinearLayout
+    private lateinit var llUntouched:      LinearLayout
+    private lateinit var llQuotaViolators: LinearLayout
+    private lateinit var llSwitching:      LinearLayout
+    private lateinit var llWindowActivity: LinearLayout
+    private lateinit var llPeakDay:        LinearLayout
+    private lateinit var llWeekday:        LinearLayout
+    private lateinit var llStreak:         LinearLayout
 
-    // ── State ─────────────────────────────────────────────────────────────────
-    /** Current analysis window in seconds. Default 7 days. */
     private var windowSeconds: Long = 7L * 86_400L
     private val dateFmt = SimpleDateFormat("EEE d MMM", Locale.getDefault())
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,399 +73,370 @@ class StatsActivity : AppCompatActivity() {
         llSwitching      = findViewById(R.id.llSwitching)
         llWindowActivity = findViewById(R.id.llWindowActivity)
         llPeakDay        = findViewById(R.id.llPeakDay)
+        llWeekday        = findViewById(R.id.llWeekday)
+        llStreak         = findViewById(R.id.llStreak)
 
         btnApplyWindow.setOnClickListener {
-            val parsed = parseRangeInput(etWindowRange.text.toString())
-            if (parsed > 0) {
-                windowSeconds = parsed
-                loadStats()
-            } else {
-                etWindowRange.error = "Invalid range"
-            }
+            val p = parseRangeInput(etWindowRange.text.toString())
+            if (p > 0) { windowSeconds = p; loadStats() }
+            else etWindowRange.error = "Invalid range"
         }
-
         loadStats()
     }
 
-    // ── Data loading ──────────────────────────────────────────────────────────
-
     private fun loadStats() {
-        val dao = TaskDatabase.getDatabase(this).taskDao()
+        val db  = TaskDatabase.getDatabase(this)
+        val dao = db.taskDao()
+        val rld = db.runLogDao()
         lifecycleScope.launch {
-            val tasks = withContext(Dispatchers.IO) { dao.getAllTasksForStats() }
-            renderStats(tasks)
+            val nowMs  = System.currentTimeMillis()
+            val fromMs = nowMs - windowSeconds * 1_000L
+            val tasks       = withContext(Dispatchers.IO) { dao.getAllTasksForStats() }
+            val logEntries  = withContext(Dispatchers.IO) { rld.getEntriesInRange(fromMs, nowMs) }
+            val dailyAll    = withContext(Dispatchers.IO) { rld.getDailyInRange(0L) }
+            val weekdayTots = withContext(Dispatchers.IO) { rld.getGlobalWeekdayTotals() }
+            renderStats(tasks, logEntries, dailyAll, weekdayTots, fromMs, nowMs)
         }
     }
 
-    private fun renderStats(tasks: List<Task>) {
-        if (tasks.isEmpty()) {
-            tvTotalRuntime.text = "0s"
-            tvTotalRuns.text    = "0"
-            tvActiveTasks.text  = "0"
-            tvAvgRun.text       = "0s"
-            return
-        }
-
-        val nowMs       = System.currentTimeMillis()
-        val windowMs    = windowSeconds * 1_000L
-        val windowStart = nowMs - windowMs
-
-        // Label
-        tvWindowLabel.text = "Showing last ${formatDuration(windowSeconds)}"
-
-        // Leaf tasks only for most metrics (exclude pure groups)
-        val leafTasks    = tasks.filter { !it.isGroup && it.runCount > 0 }
-        val allLeaf      = tasks.filter { !it.isGroup }
-
-        // ── Overview tiles ────────────────────────────────────────────────────
-        val totalRuntime = tasks.sumOf { it.totalRunTime }
-        val totalRuns    = tasks.sumOf { it.runCount }
-        val activeTasks  = tasks.count { !it.isCompleted && !it.isGroup }
-        val avgRunPerTask = if (leafTasks.isNotEmpty())
-            leafTasks.sumOf { it.totalRunTime } / leafTasks.size else 0L
-
-        tvTotalRuntime.text = formatDuration(totalRuntime)
+    private fun renderStats(
+        tasks: List<Task>, logEntries: List<RunLogEntry>,
+        dailyAll: List<RunDailySummary>,
+        weekdayTots: List<RunLogDao.WeekdayTotal>,
+        fromMs: Long, nowMs: Long
+    ) {
+        tvWindowLabel.text = "Showing last ${formatDur(windowSeconds)}"
+        val leafTasks  = tasks.filter { !it.isGroup }
+        val ranTasks   = leafTasks.filter { it.runCount > 0 }
+        val totalRT    = leafTasks.sumOf { it.totalRunTime }
+        val totalRuns  = leafTasks.sumOf { it.runCount }
+        val active     = leafTasks.count { !it.isCompleted }
+        val avgPerTask = if (ranTasks.isNotEmpty()) totalRT / ranTasks.size else 0L
+        tvTotalRuntime.text = formatDur(totalRT)
         tvTotalRuns.text    = "$totalRuns"
-        tvActiveTasks.text  = "$activeTasks"
-        tvAvgRun.text       = formatDuration(avgRunPerTask)
+        tvActiveTasks.text  = "$active"
+        tvAvgRun.text       = formatDur(avgPerTask)
 
-        // ── Time distribution bars ────────────────────────────────────────────
-        val byRuntime = allLeaf.sortedByDescending { it.totalRunTime }
-        val maxRuntime = byRuntime.firstOrNull()?.totalRunTime ?: 1L
+        val taskById = tasks.associateBy { it.id }
+
+        renderDistribution(leafTasks, totalRT)
+        renderFrequency(ranTasks)
+        renderUntouched(leafTasks, nowMs)
+        renderQuotaViolators(tasks)
+        renderSwitching(logEntries, taskById)
+        renderWindowActivity(logEntries, dailyAll, taskById, fromMs)
+        renderPeakDay(dailyAll, taskById)
+        renderWeekdayHeatmap(weekdayTots)
+        renderStreaks(dailyAll, taskById, nowMs)
+    }
+
+    private fun renderDistribution(leafTasks: List<Task>, totalRT: Long) {
         llDistribution.removeAllViews()
-        byRuntime.take(10).forEach { task ->
-            val pct = if (maxRuntime > 0) (task.totalRunTime * 100L / maxRuntime).toInt() else 0
-            val globalPct = if (totalRuntime > 0) (task.totalRunTime * 100.0 / totalRuntime * 10).roundToInt() / 10.0 else 0.0
-            llDistribution.addView(makeBarRow(
-                context      = this,
-                label        = task.name,
-                sublabel     = "${formatDuration(task.totalRunTime)}  ($globalPct%)",
-                percent      = pct,
-                barColor     = priorityColor(task.priority),
-                showDivider  = byRuntime.take(10).last() != task
-            ))
+        val sorted = leafTasks.sortedByDescending { it.totalRunTime }
+        val maxS   = sorted.firstOrNull()?.totalRunTime?.coerceAtLeast(1L) ?: 1L
+        sorted.take(10).forEachIndexed { i, t ->
+            val pct  = (t.totalRunTime * 100L / maxS).toInt()
+            val gPct = if (totalRT > 0) (t.totalRunTime * 1000L / totalRT) / 10.0 else 0.0
+            llDistribution.addView(makeBarRow(t.name,
+                "${formatDur(t.totalRunTime)}  ($gPct%)",
+                pct, priorityColor(t.priority), i < minOf(9, sorted.size - 1)))
         }
-        if (byRuntime.isEmpty()) llDistribution.addView(makeEmptyNote(this, "No runtime data yet"))
+        if (sorted.isEmpty()) llDistribution.addView(makeEmpty("No runtime data yet"))
+    }
 
-        // ── Most frequent ─────────────────────────────────────────────────────
-        val mostFreq = leafTasks.sortedByDescending { it.runCount }.take(5)
+    private fun renderFrequency(ranTasks: List<Task>) {
         llMostFrequent.removeAllViews()
-        mostFreq.forEach { task ->
-            val avgPerRun = if (task.runCount > 0) task.totalRunTime / task.runCount else 0L
-            llMostFrequent.addView(makeStatRow(
-                this,
-                primary   = task.name,
-                valueText = "${task.runCount} runs",
-                meta      = "avg ${formatDuration(avgPerRun)}/run",
-                accent    = "#1B5E20"
-            ))
+        ranTasks.sortedByDescending { it.runCount }.take(5).forEach { t ->
+            val avg = if (t.runCount > 0) t.totalRunTime / t.runCount else 0L
+            llMostFrequent.addView(makeStatRow(t.name, "${t.runCount} runs",
+                "avg ${formatDur(avg)}/run", "#1B5E20"))
         }
-        if (mostFreq.isEmpty()) llMostFrequent.addView(makeEmptyNote(this, "No run data yet"))
+        if (ranTasks.isEmpty()) llMostFrequent.addView(makeEmpty("No run data yet"))
 
-        // ── Least frequent (ran at least once) ────────────────────────────────
-        val leastFreq = leafTasks.filter { it.runCount > 0 }.sortedBy { it.runCount }.take(5)
         llLeastFrequent.removeAllViews()
-        leastFreq.forEach { task ->
-            llLeastFrequent.addView(makeStatRow(
-                this,
-                primary   = task.name,
-                valueText = "${task.runCount} run${if (task.runCount == 1) "" else "s"}",
-                meta      = formatDuration(task.totalRunTime) + " total",
-                accent    = "#B71C1C"
-            ))
+        ranTasks.sortedBy { it.runCount }.take(5).forEach { t ->
+            llLeastFrequent.addView(makeStatRow(t.name,
+                "${t.runCount} run${if (t.runCount == 1) "" else "s"}",
+                "${formatDur(t.totalRunTime)} total", "#B71C1C"))
         }
-        if (leastFreq.isEmpty()) llLeastFrequent.addView(makeEmptyNote(this, "No run data yet"))
+        if (ranTasks.isEmpty()) llLeastFrequent.addView(makeEmpty("No run data yet"))
+    }
 
-        // ── Longest untouched ─────────────────────────────────────────────────
-        //
-        // "Last touched" = startTimeEpoch when it was last run (> 0), else createdAt.
-        // Tasks never run are included and shown as "never run".
-        val untouched = allLeaf
-            .filter { !it.isCompleted }
+    private fun renderUntouched(leafTasks: List<Task>, nowMs: Long) {
+        llUntouched.removeAllViews()
+        leafTasks.filter { !it.isCompleted }
             .sortedBy { if (it.startTimeEpoch > 0) it.startTimeEpoch else it.createdAt }
             .take(5)
-        llUntouched.removeAllViews()
-        untouched.forEach { task ->
-            val lastMs = if (task.startTimeEpoch > 0) task.startTimeEpoch else 0L
-            val idleSec = if (lastMs > 0) (nowMs - lastMs) / 1_000L else -1L
-            val dateStr = if (lastMs > 0) dateFmt.format(Date(lastMs)) else "never run"
-            val idleStr = if (idleSec >= 0) "idle ${formatDuration(idleSec)}" else "never run"
-            llUntouched.addView(makeStatRow(
-                this,
-                primary   = task.name,
-                valueText = idleStr,
-                meta      = dateStr,
-                accent    = "#5D4037"
-            ))
-        }
-        if (untouched.isEmpty()) llUntouched.addView(makeEmptyNote(this, "No tasks"))
-
-        // ── Quota violators ───────────────────────────────────────────────────
-        val violators = tasks.filter { it.isQuotaEnabled && it.isQuotaExceeded }
-            .sortedByDescending { it.quotaOverflowSeconds }
-        llQuotaViolators.removeAllViews()
-        violators.forEach { task ->
-            val overPct = if (task.quotaSeconds > 0)
-                (task.quotaOverflowSeconds * 100L / task.quotaSeconds).toInt() else 0
-            llQuotaViolators.addView(makeStatRow(
-                this,
-                primary   = task.name,
-                valueText = "-${formatDuration(task.quotaOverflowSeconds)} over",
-                meta      = "+$overPct% over quota (limit: ${formatDuration(task.quotaSeconds)})",
-                accent    = "#E65100"
-            ))
-        }
-        // Also show tasks approaching (warning zone, not yet exceeded)
-        val warnTasks = tasks.filter { it.isQuotaEnabled && it.isQuotaWarning }
-            .sortedByDescending { it.quotaProgressPercent }
-        warnTasks.forEach { task ->
-            llQuotaViolators.addView(makeStatRow(
-                this,
-                primary   = task.name,
-                valueText = "${task.quotaProgressPercent}% used",
-                meta      = "${formatDuration(task.quotaRemainingSeconds)} remaining (limit: ${formatDuration(task.quotaSeconds)})",
-                accent    = "#F57C00"
-            ))
-        }
-        if (violators.isEmpty() && warnTasks.isEmpty())
-            llQuotaViolators.addView(makeEmptyNote(this, "No quota violations"))
-
-        // ── Task switching overhead ───────────────────────────────────────────
-        //
-        // Estimated as: for any task that was started then stopped (runCount > 0 and
-        // startTimeEpoch was reset), each run session includes a small context-switch
-        // penalty.  We approximate average session length and flag tasks with very
-        // short average runs (< 30 s) as high-churn / high-switching overhead.
-        //
-        // Total estimated switch overhead = runCount × 0 (can't measure directly),
-        // but we surface tasks whose average run is very short as a proxy indicator.
-        llSwitching.removeAllViews()
-        val switchStats = leafTasks.filter { it.runCount > 1 }
-            .map { task ->
-                val avgSec = if (task.runCount > 0) task.totalRunTime / task.runCount else 0L
-                Triple(task, avgSec, task.runCount)
+            .forEach { t ->
+                val lastMs  = if (t.startTimeEpoch > 0) t.startTimeEpoch else 0L
+                val idleSec = if (lastMs > 0) (nowMs - lastMs) / 1_000L else -1L
+                val date    = if (lastMs > 0) dateFmt.format(Date(lastMs)) else "never run"
+                val idle    = if (idleSec >= 0) "idle ${formatDur(idleSec)}" else "never run"
+                llUntouched.addView(makeStatRow(t.name, idle, date, "#5D4037"))
             }
-            .sortedBy { it.second }  // shortest avg run first = most switching
-
-        val totalSessions     = leafTasks.sumOf { it.runCount }
-        val totalTaskRuntime  = leafTasks.sumOf { it.totalRunTime }
-        val globalAvgSession  = if (totalSessions > 0) totalTaskRuntime / totalSessions else 0L
-        llSwitching.addView(makeLabelRow(this, "Avg session length across all tasks: ${formatDuration(globalAvgSession)}"))
-
-        val highChurn = switchStats.filter { it.second < 60L }.take(5)
-        if (highChurn.isNotEmpty()) {
-            llSwitching.addView(makeLabelRow(this, "High-churn tasks (avg session < 1m):"))
-            highChurn.forEach { (task, avg, runs) ->
-                llSwitching.addView(makeStatRow(
-                    this,
-                    primary   = task.name,
-                    valueText = "${formatDuration(avg)}/run",
-                    meta      = "$runs sessions — frequent context switches",
-                    accent    = "#B71C1C"
-                ))
-            }
-        }
-        val lowChurn = switchStats.filter { it.second >= 60L }.takeLast(3).reversed()
-        if (lowChurn.isNotEmpty()) {
-            llSwitching.addView(makeLabelRow(this, "Longest focused tasks:"))
-            lowChurn.forEach { (task, avg, _) ->
-                llSwitching.addView(makeStatRow(
-                    this,
-                    primary   = task.name,
-                    valueText = "${formatDuration(avg)}/run",
-                    meta      = "deep focus sessions",
-                    accent    = "#1B5E20"
-                ))
-            }
-        }
-        if (switchStats.isEmpty()) llSwitching.addView(makeEmptyNote(this, "Not enough run history"))
-
-        // ── Runtime in window ─────────────────────────────────────────────────
-        //
-        // For tasks whose last run started within the window, we attribute totalRunTime
-        // (not a per-window slice — the app has no per-session log table).
-        // Tasks whose startTimeEpoch is within the window are flagged as "recently active".
-        llWindowActivity.removeAllViews()
-        val windowActive = allLeaf
-            .filter { it.startTimeEpoch in (windowStart + 1)..nowMs || it.isRunning }
-            .sortedByDescending { it.totalRunTime }
-        if (windowActive.isNotEmpty()) {
-            val windowTotal = windowActive.sumOf { it.totalRunTime }
-            val maxW = windowActive.first().totalRunTime.coerceAtLeast(1L)
-            windowActive.take(8).forEach { task ->
-                val pct = (task.totalRunTime * 100L / maxW).toInt()
-                llWindowActivity.addView(makeBarRow(
-                    context     = this,
-                    label       = task.name,
-                    sublabel    = formatDuration(task.totalRunTime) +
-                                  if (windowTotal > 0) "  (${(task.totalRunTime * 100L / windowTotal)}%)" else "",
-                    percent     = pct,
-                    barColor    = "#1565C0",
-                    showDivider = windowActive.take(8).last() != task
-                ))
-            }
-        } else {
-            llWindowActivity.addView(makeEmptyNote(this, "No activity in selected window"))
-        }
-
-        // ── Peak day per task ─────────────────────────────────────────────────
-        //
-        // Since there is no per-session log, we show the day-of-week of the last run
-        // as a lightweight indicator of typical usage day, plus total runs as context.
-        llPeakDay.removeAllViews()
-        val dayFmt = SimpleDateFormat("EEEE", Locale.getDefault())
-        val peakCandidates = leafTasks.filter { it.startTimeEpoch > 0 }
-            .sortedByDescending { it.runCount }
-            .take(8)
-        peakCandidates.forEach { task ->
-            val day   = dayFmt.format(Date(task.startTimeEpoch))
-            val date  = dateFmt.format(Date(task.startTimeEpoch))
-            llPeakDay.addView(makeStatRow(
-                this,
-                primary   = task.name,
-                valueText = day,
-                meta      = "last run: $date  |  ${task.runCount} total runs",
-                accent    = "#4A148C"
-            ))
-        }
-        if (peakCandidates.isEmpty()) llPeakDay.addView(makeEmptyNote(this, "No run history"))
+        if (leafTasks.isEmpty()) llUntouched.addView(makeEmpty("No tasks"))
     }
 
-    // ── View factory helpers ──────────────────────────────────────────────────
+    private fun renderQuotaViolators(tasks: List<Task>) {
+        llQuotaViolators.removeAllViews()
+        tasks.filter { it.isQuotaEnabled && it.isQuotaExceeded }
+            .sortedByDescending { it.quotaOverflowSeconds }
+            .forEach { t ->
+                val over = if (t.quotaSeconds > 0) (t.quotaOverflowSeconds * 100L / t.quotaSeconds).toInt() else 0
+                llQuotaViolators.addView(makeStatRow(t.name,
+                    "-${formatDur(t.quotaOverflowSeconds)} over",
+                    "+$over% over limit  (${formatDur(t.quotaSeconds)})", "#E65100"))
+            }
+        tasks.filter { it.isQuotaEnabled && it.isQuotaWarning }
+            .sortedByDescending { it.quotaProgressPercent }
+            .forEach { t ->
+                llQuotaViolators.addView(makeStatRow(t.name,
+                    "${t.quotaProgressPercent}% used",
+                    "${formatDur(t.quotaRemainingSeconds)} left  (${formatDur(t.quotaSeconds)})", "#F57C00"))
+            }
+        if (llQuotaViolators.childCount == 0)
+            llQuotaViolators.addView(makeEmpty("No quota violations"))
+    }
 
-    /**
-     * Horizontal bar row: task name + sublabel on left, filled bar underneath.
-     */
-    private fun makeBarRow(
-        context:     Context,
-        label:       String,
-        sublabel:    String,
-        percent:     Int,
-        barColor:    String,
-        showDivider: Boolean
-    ): View {
-        val dp = context.resources.displayMetrics.density
-        val root = LinearLayout(context).apply {
+    private fun renderSwitching(entries: List<RunLogEntry>, taskById: Map<String, Task>) {
+        llSwitching.removeAllViews()
+        if (entries.isEmpty()) {
+            llSwitching.addView(makeEmpty("No run history in selected window"))
+            return
+        }
+        val avgSession = entries.sumOf { it.durationSecs } / entries.size
+        llSwitching.addView(makeLabel("Avg session length: ${formatDur(avgSession)}"))
+
+        data class Pair(val from: String, val to: String)
+        val pairCount  = mutableMapOf<Pair, Int>()
+        val switchIns  = mutableMapOf<String, Int>()
+        for (e in entries) {
+            if (e.prevTaskId == null || e.prevTaskId == e.taskId) continue
+            val p = Pair(e.prevTaskId, e.taskId)
+            pairCount[p] = (pairCount[p] ?: 0) + 1
+            switchIns[e.taskId] = (switchIns[e.taskId] ?: 0) + 1
+        }
+        llSwitching.addView(makeLabel("Total context switches: ${pairCount.values.sum()}"))
+
+        pairCount.entries.sortedByDescending { it.value }.take(5).forEach { (p, n) ->
+            val from = taskById[p.from]?.name ?: p.from.take(10)
+            val to   = taskById[p.to]?.name   ?: p.to.take(10)
+            llSwitching.addView(makeStatRow("$from  →  $to", "${n}x",
+                "switched $n time${if (n == 1) "" else "s"}", "#1565C0"))
+        }
+        switchIns.entries.sortedByDescending { it.value }.take(3).let { list ->
+            if (list.isNotEmpty()) {
+                llSwitching.addView(makeLabel("Most interrupted:"))
+                list.forEach { (id, n) ->
+                    llSwitching.addView(makeStatRow(
+                        taskById[id]?.name ?: id.take(10), "$n switch-ins", "in window", "#B71C1C"))
+                }
+            }
+        }
+        entries.groupBy { it.taskId }
+            .mapValues { (_, es) -> es.sumOf { it.durationSecs } / es.size }
+            .entries.filter { entries.count { e -> e.taskId == it.key } >= 3 }
+            .sortedByDescending { it.value }.take(3).let { list ->
+                if (list.isNotEmpty()) {
+                    llSwitching.addView(makeLabel("Deepest focus (avg session):"))
+                    list.forEach { (id, avg) ->
+                        llSwitching.addView(makeStatRow(
+                            taskById[id]?.name ?: id.take(10),
+                            "${formatDur(avg)}/run", "deep focus", "#1B5E20"))
+                    }
+                }
+            }
+    }
+
+    private fun renderWindowActivity(
+        logEntries: List<RunLogEntry>, dailyAll: List<RunDailySummary>,
+        taskById: Map<String, Task>, fromMs: Long
+    ) {
+        llWindowActivity.removeAllViews()
+        val secs = mutableMapOf<String, Long>()
+        logEntries.forEach { e -> secs[e.taskId] = (secs[e.taskId] ?: 0L) + e.durationSecs }
+        dailyAll.filter { it.dayEpoch >= fromMs }
+            .forEach { d -> secs[d.taskId] = (secs[d.taskId] ?: 0L) + d.totalSecs }
+        val sorted = secs.entries.sortedByDescending { it.value }
+        val total  = sorted.sumOf { it.value }.coerceAtLeast(1L)
+        val maxS   = sorted.firstOrNull()?.value?.coerceAtLeast(1L) ?: 1L
+        if (sorted.isEmpty()) {
+            llWindowActivity.addView(makeEmpty("No activity in selected window"))
+            return
+        }
+        sorted.take(10).forEachIndexed { i, (id, s) ->
+            llWindowActivity.addView(makeBarRow(
+                taskById[id]?.name ?: id.take(10),
+                "${formatDur(s)}  (${s * 100L / total}%)",
+                (s * 100L / maxS).toInt(), "#1565C0", i < minOf(9, sorted.size - 1)))
+        }
+    }
+
+    private fun renderPeakDay(dailyAll: List<RunDailySummary>, taskById: Map<String, Task>) {
+        llPeakDay.removeAllViews()
+        val dayFmt = SimpleDateFormat("EEE d MMM", Locale.getDefault())
+        val dn = listOf("","Sun","Mon","Tue","Wed","Thu","Fri","Sat")
+        dailyAll.groupBy { it.taskId }
+            .mapValues { (_, rows) -> rows.maxByOrNull { it.totalSecs }!! }
+            .entries.sortedByDescending { it.value.totalSecs }.take(8)
+            .forEach { (id, row) ->
+                llPeakDay.addView(makeStatRow(
+                    taskById[id]?.name ?: id.take(10),
+                    formatDur(row.totalSecs),
+                    "${dn.getOrElse(row.weekDay){"?"}} ${dayFmt.format(Date(row.dayEpoch))}" +
+                    "  |  ${row.runCount} run${if (row.runCount == 1) "" else "s"}",
+                    "#4A148C"))
+            }
+        if (dailyAll.isEmpty()) llPeakDay.addView(makeEmpty("No daily history yet"))
+    }
+
+    private fun renderWeekdayHeatmap(tots: List<RunLogDao.WeekdayTotal>) {
+        llWeekday.removeAllViews()
+        if (tots.isEmpty()) { llWeekday.addView(makeEmpty("Not enough history yet")); return }
+        val dn    = listOf("","Sun","Mon","Tue","Wed","Thu","Fri","Sat")
+        val maxS  = tots.maxOf { it.totalSecs }.coerceAtLeast(1L)
+        val map   = tots.associateBy { it.weekDay }
+        for (d in 1..7) {
+            val row  = map[d]
+            val secs = row?.totalSecs ?: 0L
+            val pct  = (secs * 100L / maxS).toInt()
+            llWeekday.addView(makeBarRow(
+                dn.getOrElse(d) { "?" },
+                if (secs > 0) "${formatDur(secs)}  (${row?.runCount ?: 0} runs)" else "no data",
+                pct,
+                when { pct >= 80 -> "#1B5E20"; pct >= 50 -> "#388E3C"
+                       pct >= 20 -> "#66BB6A"; pct > 0   -> "#A5D6A7"; else -> "#E0E0E0" },
+                d < 7))
+        }
+    }
+
+    private fun renderStreaks(
+        dailyAll: List<RunDailySummary>, taskById: Map<String, Task>, nowMs: Long
+    ) {
+        llStreak.removeAllViews()
+        if (dailyAll.isEmpty()) { llStreak.addView(makeEmpty("Not enough history yet")); return }
+        val utc   = TimeZone.getTimeZone("UTC")
+        val dayMs = 86_400_000L
+        fun startOfDay(ms: Long): Long {
+            val c = Calendar.getInstance(utc); c.timeInMillis = ms
+            c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0)
+            c.set(Calendar.SECOND, 0);      c.set(Calendar.MILLISECOND, 0)
+            return c.timeInMillis
+        }
+        val today = startOfDay(nowMs)
+        val daysByTask = dailyAll.groupBy { it.taskId }
+            .mapValues { (_, rows) -> rows.map { it.dayEpoch }.toSortedSet() }
+        daysByTask.mapValues { (_, days) ->
+            var s = 0; var cur = today
+            while (days.contains(cur)) { s++; cur -= dayMs }; s
+        }.entries.filter { it.value > 0 }.sortedByDescending { it.value }.take(8)
+            .forEach { (id, streak) ->
+                val total = daysByTask[id]?.size ?: 0
+                llStreak.addView(makeStatRow(
+                    taskById[id]?.name ?: id.take(10),
+                    "$streak day${if (streak == 1) "" else "s"}",
+                    "current streak  |  $total total active days",
+                    when { streak >= 30 -> "#1B5E20"; streak >= 7 -> "#388E3C"
+                           streak >= 3  -> "#F57C00"; else -> "#757575" }))
+            }
+        if (llStreak.childCount == 0) llStreak.addView(makeEmpty("No active streaks"))
+    }
+
+    // ── View helpers ──────────────────────────────────────────────────────────
+
+    private fun makeBarRow(label: String, sublabel: String,
+                           percent: Int, barColor: String, showDivider: Boolean): View {
+        val dp   = resources.displayMetrics.density
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).also { it.bottomMargin = (10 * dp).toInt() }
         }
-        // Label row
-        val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(TextView(context).apply {
-            text = label
-            textSize = 13f
-            setTypeface(null, Typeface.BOLD)
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row.addView(TextView(this).apply {
+            text = label; textSize = 13f; setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#212121"))
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
-        row.addView(TextView(context).apply {
-            text = sublabel
-            textSize = 11f
-            setTextColor(Color.parseColor("#757575"))
+        row.addView(TextView(this).apply {
+            text = sublabel; textSize = 11f; setTextColor(Color.parseColor("#757575"))
         })
         root.addView(row)
-        // Bar
-        val barBg = FrameLayout(context).apply {
+        val track = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, (6 * dp).toInt()
             ).also { it.topMargin = (4 * dp).toInt() }
             setBackgroundColor(Color.parseColor("#E0E0E0"))
         }
-        val barFill = View(context).apply {
+        track.addView(View(this).apply {
             layoutParams = FrameLayout.LayoutParams(
-                (percent.coerceIn(0, 100) / 100.0 *
-                    resources.displayMetrics.widthPixels).toInt().coerceAtLeast((2 * dp).toInt()),
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
+                (percent.coerceIn(0,100) / 100f *
+                    resources.displayMetrics.widthPixels).toInt().coerceAtLeast((2*dp).toInt()),
+                FrameLayout.LayoutParams.MATCH_PARENT)
             setBackgroundColor(Color.parseColor(barColor))
-        }
-        barBg.addView(barFill)
-        root.addView(barBg)
-        if (showDivider) root.addView(makeDivider(context))
+        })
+        root.addView(track)
+        if (showDivider) root.addView(divider())
         return root
     }
 
-    /**
-     * Simple two-line stat row: name | value (right-aligned), meta subtitle.
-     */
-    private fun makeStatRow(
-        context:   Context,
-        primary:   String,
-        valueText: String,
-        meta:      String,
-        accent:    String
-    ): View {
-        val dp   = context.resources.displayMetrics.density
-        val root = LinearLayout(context).apply {
+    private fun makeStatRow(primary: String, valueText: String,
+                            meta: String, accent: String): View {
+        val dp   = resources.displayMetrics.density
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).also { it.bottomMargin = (10 * dp).toInt() }
         }
-        val topRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-        topRow.addView(TextView(context).apply {
-            text = primary
-            textSize = 13f
-            setTypeface(null, Typeface.BOLD)
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        top.addView(TextView(this).apply {
+            text = primary; textSize = 13f; setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#212121"))
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
-        topRow.addView(TextView(context).apply {
-            text = valueText
-            textSize = 13f
-            setTypeface(null, Typeface.BOLD)
+        top.addView(TextView(this).apply {
+            text = valueText; textSize = 13f; setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor(accent))
         })
-        root.addView(topRow)
-        root.addView(TextView(context).apply {
-            text = meta
-            textSize = 11f
-            setTextColor(Color.parseColor("#9E9E9E"))
+        root.addView(top)
+        root.addView(TextView(this).apply {
+            text = meta; textSize = 11f; setTextColor(Color.parseColor("#9E9E9E"))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).also { it.topMargin = (1 * dp).toInt() }
         })
-        root.addView(makeDivider(context))
+        root.addView(divider())
         return root
     }
 
-    private fun makeLabelRow(context: Context, text: String): TextView =
-        TextView(context).apply {
-            this.text = text
-            textSize  = 12f
-            setTypeface(null, Typeface.BOLD)
+    private fun makeLabel(text: String): TextView {
+        val dp = resources.displayMetrics.density
+        return TextView(this).apply {
+            this.text = text; textSize = 12f; setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#616161"))
-            val dp = context.resources.displayMetrics.density
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.topMargin    = (6  * dp).toInt()
-            lp.bottomMargin = (4  * dp).toInt()
-            layoutParams = lp
-        }
-
-    private fun makeEmptyNote(context: Context, msg: String): TextView =
-        TextView(context).apply {
-            text = msg
-            textSize = 12f
-            setTextColor(Color.parseColor("#BDBDBD"))
-            gravity = Gravity.CENTER
-            val dp = context.resources.displayMetrics.density
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = (4 * dp).toInt(); it.bottomMargin = (4 * dp).toInt() }
+            ).also { it.topMargin = (6 * dp).toInt(); it.bottomMargin = (4 * dp).toInt() }
         }
+    }
 
-    private fun makeDivider(context: Context): View {
-        val dp = context.resources.displayMetrics.density
-        return View(context).apply {
+    private fun makeEmpty(msg: String) = TextView(this).apply {
+        text = msg; textSize = 12f; setTextColor(Color.parseColor("#BDBDBD")); gravity = Gravity.CENTER
+        val dp = resources.displayMetrics.density
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).also { it.topMargin = (4 * dp).toInt(); it.bottomMargin = (4 * dp).toInt() }
+    }
+
+    private fun divider(): View {
+        val dp = resources.displayMetrics.density
+        return View(this).apply {
             setBackgroundColor(Color.parseColor("#EEEEEE"))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, (1 * dp).toInt()
@@ -475,46 +444,32 @@ class StatsActivity : AppCompatActivity() {
         }
     }
 
-    // ── Formatting helpers ────────────────────────────────────────────────────
-
-    private fun formatDuration(totalSec: Long): String {
-        if (totalSec <= 0L) return "0s"
-        var rem = totalSec
-        val d = rem / 86_400L; rem %= 86_400L
-        val h = rem /  3_600L; rem %=  3_600L
-        val m = rem /     60L
-        val s = rem %     60L
-        val parts = buildList {
-            if (d > 0) add("${d}d")
-            if (h > 0) add("${h}h")
-            if (m > 0) add("${m}m")
-            if (s > 0) add("${s}s")
-        }
-        return parts.take(2).joinToString(" ").ifEmpty { "0s" }
+    private fun formatDur(s: Long): String {
+        if (s <= 0L) return "0s"
+        var r = s
+        val d = r / 86_400L; r %= 86_400L
+        val h = r / 3_600L;  r %= 3_600L
+        val m = r / 60L;     val sec = r % 60L
+        return buildList {
+            if (d > 0) add("${d}d"); if (h > 0) add("${h}h")
+            if (m > 0) add("${m}m"); if (sec > 0) add("${sec}s")
+        }.take(2).joinToString(" ").ifEmpty { "0s" }
     }
 
     private fun parseRangeInput(raw: String): Long {
-        val s = raw.trim().lowercase()
-        if (s.isEmpty()) return 0L
+        val s   = raw.trim().lowercase()
         val d   = Regex("""(\d+)\s*d""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
         val h   = Regex("""(\d+)\s*h""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
         val m   = Regex("""(\d+)\s*m(?!o)""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
         val sec = Regex("""(\d+)\s*s""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-        val total = d * 86_400L + h * 3_600L + m * 60L + sec
-        val bare  = if (d == 0L && h == 0L && m == 0L && sec == 0L) s.toLongOrNull() else null
-        val result = bare ?: total
-        if (result <= 0L) return 0L
-        return result.coerceIn(1L, 365L * 86_400L)
+        val tot = d * 86_400L + h * 3_600L + m * 60L + sec
+        val bare= if (d == 0L && h == 0L && m == 0L && sec == 0L) s.toLongOrNull() else null
+        return (bare ?: tot).coerceIn(1L, 365L * 86_400L)
     }
 
-    private fun priorityColor(priority: Int): String = when (priority) {
-        1    -> "#9C27B0"
-        2    -> "#3F51B5"
-        3    -> "#2196F3"
-        4    -> "#4CAF50"
-        5    -> "#FF9800"
-        6    -> "#F57F17"
-        7    -> "#F44336"
-        else -> "#1565C0"
+    private fun priorityColor(p: Int) = when (p) {
+        1 -> "#9C27B0"; 2 -> "#3F51B5"; 3 -> "#2196F3"
+        4 -> "#4CAF50"; 5 -> "#FF9800"; 6 -> "#F57F17"
+        7 -> "#F44336"; else -> "#1565C0"
     }
 }

@@ -425,7 +425,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val db = TaskDatabase.getDatabase(application)
-        repository = TaskRepository(db.taskDao())
+        repository = TaskRepository(db.taskDao(), application)
         allTasks       = repository.allTasks
         activeTasks    = repository.activeTasks
         completedTasks = repository.completedTasks

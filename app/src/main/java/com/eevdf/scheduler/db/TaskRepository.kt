@@ -1,17 +1,20 @@
 package com.eevdf.scheduler.db
 
+import android.content.Context
 import androidx.lifecycle.LiveData
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class TaskRepository(private val dao: TaskDao) {
+class TaskRepository(private val dao: TaskDao, context: Context) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
     val activeTasks: LiveData<List<Task>> = dao.getActiveTasks()
     val completedTasks: LiveData<List<Task>> = dao.getCompletedTasks()
     val activeGroups: LiveData<List<Task>> = dao.getActiveGroups()
+
+    private val runLog = RunLogRepository(context)
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
         val existing = dao.getActiveTasksSync().toMutableList()
@@ -66,7 +69,14 @@ class TaskRepository(private val dao: TaskDao) {
      * enabled — mirroring Linux's cpu.cfs_quota_us throttle per cgroup.
      */
     suspend fun updateVruntimeAfterRun(task: Task, secondsRan: Long) = withContext(Dispatchers.IO) {
-        // Update leaf task (also increments runCount via EEVDFScheduler)
+        // Record this session in the RunLog before any other mutation.
+        // startEpoch = now − duration gives a good-enough approximation when the
+        // exact start timestamp is not carried through to this call site.
+        if (secondsRan > 0 && !task.isGroup) {
+            val startEpoch = System.currentTimeMillis() - secondsRan * 1_000L
+            runLog.recordRun(task.id, startEpoch, secondsRan)
+        }
+
         EEVDFScheduler.updateVruntime(task, secondsRan)
         applyQuotaAccounting(task, secondsRan)
         dao.update(task)
