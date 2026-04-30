@@ -132,10 +132,27 @@
                         android:id="@+id/switchIsInterrupt"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Assign as Interrupt task" />
+                        android:text="Assign as INT-A" />
 
                     <TextView
                         android:id="@+id/tvInterruptOwner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="#F44336"
+                        android:layout_marginTop="4dp"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchIsInterruptB"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Assign as INT-B"
+                        android:layout_marginTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/tvInterruptOwnerB"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text=""

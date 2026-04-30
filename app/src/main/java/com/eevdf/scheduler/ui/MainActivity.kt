@@ -281,6 +281,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
         btnInt.setOnClickListener { haptic(it); viewModel.jumpToInterrupt() }
+        // Hold → toggle active interrupt slot (INT-A ↔ INT-B)
+        btnInt.setOnLongClickListener { haptic(it); viewModel.toggleInterruptSlot(); true }
         btnScheduleNext.setOnClickListener { haptic(it); viewModel.nextSibling(onQueueTab = currentTab == 0) }
         // Hold → toggle Auto mode (button label + Global Rotate state flip)
         btnScheduleNext.setOnLongClickListener { haptic(it); viewModel.toggleAutoMode(); true }
@@ -462,16 +464,22 @@ class MainActivity : AppCompatActivity() {
             btnScheduleNext.text = if (auto) "Auto" else "Next"
             globalRotateMenuItem?.isEnabled = !auto
         }
-        // When interrupt is assigned: red text on white bg.
-        // When no interrupt: primary-color text on white bg (default).
-        viewModel.interruptTask.observe(this) { interrupt ->
-            val textColor = if (interrupt != null)
+        // INT button: label = "INT-A" or "INT-B"; color = red when active slot has a task assigned.
+        fun refreshIntButton() {
+            val slot      = viewModel.activeInterruptSlot.value ?: "A"
+            val taskForSlot = if (slot == "A") viewModel.interruptTask.value
+                              else             viewModel.interruptTaskB.value
+            btnInt.text = "INT-$slot"
+            val textColor = if (taskForSlot != null)
                 android.graphics.Color.parseColor("#F44336")
             else
                 androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary)
             btnInt.setTextColor(textColor)
             btnInt.jumpDrawablesToCurrentState()
         }
+        viewModel.activeInterruptSlot.observe(this) { refreshIntButton() }
+        viewModel.interruptTask.observe(this)       { refreshIntButton() }
+        viewModel.interruptTaskB.observe(this)      { refreshIntButton() }
     }
 
     /**

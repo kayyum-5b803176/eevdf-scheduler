@@ -41,14 +41,33 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentTask = MutableLiveData<Task?>(null)
     val currentTask: LiveData<Task?> = _currentTask
 
-    // ── Interrupt task ────────────────────────────────────────────────────────
+    // ── Interrupt task (INT-A / INT-B) ────────────────────────────────────────
 
-    /** The task currently flagged as the interrupt destination. */
+    /**
+     * Which interrupt slot the INT button currently points to.
+     * "A" by default; hold the INT button to toggle to "B" and back.
+     */
+    private val _activeInterruptSlot = MutableLiveData<String>("A")
+    val activeInterruptSlot: LiveData<String> = _activeInterruptSlot
+
+    /** Toggle the active slot between "A" and "B". */
+    fun toggleInterruptSlot() {
+        _activeInterruptSlot.value = if (_activeInterruptSlot.value == "A") "B" else "A"
+    }
+
+    /** The task currently flagged as INT-A interrupt destination. */
     private val _interruptTask = MutableLiveData<Task?>(null)
-    val interruptTask: LiveData<Task?> = _interruptTask
+    val interruptTask: LiveData<Task?> = _interruptTask   // kept for compat (= INT-A)
 
-    /** Saved card to return to after visiting the interrupt task. */
+    /** The task currently flagged as INT-B interrupt destination. */
+    private val _interruptTaskB = MutableLiveData<Task?>(null)
+    val interruptTaskB: LiveData<Task?> = _interruptTaskB
+
+    /** Saved card to return to after visiting the INT-A interrupt task. */
     private var savedTaskBeforeInterrupt: Task? = null
+
+    /** Saved card to return to after visiting the INT-B interrupt task. */
+    private var savedTaskBeforeInterruptB: Task? = null
 
     private val _timerSeconds = MutableLiveData<Long>()
     val timerSeconds: LiveData<Long> = _timerSeconds
@@ -223,42 +242,83 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Interrupt task operations ─────────────────────────────────────────────
 
-    /** Sets [task] as the single interrupt task; clears any previous assignment. */
+    /** Sets [task] as the INT-A interrupt task; clears previous INT-A assignment. */
     fun assignInterruptTask(task: Task) = viewModelScope.launch {
-        repository.setInterruptTask(task)
-        _interruptTask.postValue(task.copy(isInterrupt = true))
+        repository.setInterruptTask(task, slot = "A")
+        _interruptTask.postValue(task.copy(isInterrupt = true, interruptSlot = "A"))
         refreshSchedule()
     }
 
-    /** Clears the interrupt assignment from all tasks. */
+    /** Sets [task] as the INT-B interrupt task; clears previous INT-B assignment. */
+    fun assignInterruptTaskB(task: Task) = viewModelScope.launch {
+        repository.setInterruptTask(task, slot = "B")
+        _interruptTaskB.postValue(task.copy(isInterrupt = true, interruptSlot = "B"))
+        refreshSchedule()
+    }
+
+    /** Clears the INT-A interrupt assignment. */
     fun clearInterruptTask() = viewModelScope.launch {
-        repository.clearInterruptTask()
+        repository.clearInterruptTask(slot = "A")
         _interruptTask.postValue(null)
         refreshSchedule()
     }
 
+    /** Clears the INT-B interrupt assignment. */
+    fun clearInterruptTaskB() = viewModelScope.launch {
+        repository.clearInterruptTask(slot = "B")
+        _interruptTaskB.postValue(null)
+        refreshSchedule()
+    }
+
     /**
-     * Int button logic:
-     * - If not currently on the interrupt task → save current card, jump to interrupt.
-     * - If currently on the interrupt task → jump back to saved card.
+     * INT button tap logic — delegates to whichever slot is currently active.
      */
     fun jumpToInterrupt() {
-        val interrupt = _interruptTask.value
-            ?: activeTasks.value?.firstOrNull { it.isInterrupt && !it.isCompleted }
+        if (_activeInterruptSlot.value == "B") jumpToInterruptB() else jumpToInterruptA()
+    }
+
+    /**
+     * INT-A slot jump:
+     * - Not on INT-A task → save current card, jump to INT-A.
+     * - On INT-A task → jump back to saved card.
+     */
+    fun jumpToInterruptA() = jumpToInterruptSlot(
+        interruptLiveData   = _interruptTask,
+        savedSlotField      = { savedTaskBeforeInterrupt },
+        setSavedSlot        = { savedTaskBeforeInterrupt = it },
+        slotLabel           = "A"
+    )
+
+    /**
+     * INT-B button tap logic (mirrors INT-A).
+     */
+    fun jumpToInterruptB() = jumpToInterruptSlot(
+        interruptLiveData   = _interruptTaskB,
+        savedSlotField      = { savedTaskBeforeInterruptB },
+        setSavedSlot        = { savedTaskBeforeInterruptB = it },
+        slotLabel           = "B"
+    )
+
+    private fun jumpToInterruptSlot(
+        interruptLiveData: MutableLiveData<Task?>,
+        savedSlotField:    () -> Task?,
+        setSavedSlot:      (Task?) -> Unit,
+        slotLabel:         String
+    ) {
+        val interrupt = interruptLiveData.value
+            ?: activeTasks.value?.firstOrNull { it.isInterrupt && it.interruptSlot == slotLabel && !it.isCompleted }
             ?: run {
-                _toastMessage.value = "No interrupt task assigned"
+                _toastMessage.value = "No INT-$slotLabel task assigned"
                 return
             }
-        if (_interruptTask.value == null) _interruptTask.value = interrupt
+        if (interruptLiveData.value == null) interruptLiveData.value = interrupt
         val current = _currentTask.value
         if (current?.id == interrupt.id) {
-            val back = savedTaskBeforeInterrupt
-            savedTaskBeforeInterrupt = null
+            val back = savedSlotField()
+            setSavedSlot(null)
             if (back != null) {
                 pauseTimer()
-                // Sync _interruptTask with the just-paused state so it has the correct
-                // remainingSeconds when the user jumps back to it later.
-                _currentTask.value?.let { paused -> _interruptTask.value = paused }
+                _currentTask.value?.let { paused -> interruptLiveData.value = paused }
                 _currentTask.value = back
                 _timerSeconds.value = back.remainingSeconds
                 _toastMessage.value = "Returned to \"${back.name}\""
@@ -266,17 +326,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _toastMessage.value = "No saved task to return to"
             }
         } else {
-            savedTaskBeforeInterrupt = current
+            setSavedSlot(current)
             pauseTimer()
-            // Prefer fresh interrupt data from activeTasks LiveData (Room keeps this
-            // up-to-date from the DB, so remainingSeconds reflects the last persisted
-            // value rather than the potentially stale in-memory _interruptTask copy).
-            val freshInterrupt = activeTasks.value?.firstOrNull { it.isInterrupt && !it.isCompleted }
+            val freshInterrupt = activeTasks.value
+                ?.firstOrNull { it.isInterrupt && it.interruptSlot == slotLabel && !it.isCompleted }
                 ?: interrupt
-            _interruptTask.value = freshInterrupt
+            interruptLiveData.value = freshInterrupt
             _currentTask.value = freshInterrupt
             _timerSeconds.value = freshInterrupt.remainingSeconds
-            _toastMessage.value = "Jumped to interrupt: \"${freshInterrupt.name}\""
+            _toastMessage.value = "Jumped to INT-$slotLabel: \"${freshInterrupt.name}\""
         }
     }
 
@@ -459,6 +517,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             _interruptTask.postValue(repository.getInterruptTask())
+            _interruptTaskB.postValue(repository.getInterruptTaskB())
 
             // ── Step 1: check if alarm is already ringing ─────────────────────
             // AlarmState persists across process death. If state is Ringing it means

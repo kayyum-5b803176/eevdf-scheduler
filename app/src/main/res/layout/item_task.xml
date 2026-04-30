@@ -90,6 +90,21 @@
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
+                    <!-- Interrupt slot badge — shows "INT-A" or "INT-B" when assigned -->
+                    <TextView
+                        android:id="@+id/tvInterruptSlot"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="INT-A"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF"
+                        android:background="#F44336"
+                        android:paddingHorizontal="5dp"
+                        android:paddingVertical="2dp"
+                        android:layout_marginTop="3dp"
+                        android:visibility="gone" />
+
                     <TextView
                         android:id="@+id/tvQuotaRemaining"
                         android:layout_width="wrap_content"

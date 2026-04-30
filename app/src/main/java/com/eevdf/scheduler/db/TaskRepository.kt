@@ -167,16 +167,30 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
 
     suspend fun getRunningTask(): Task? = withContext(Dispatchers.IO) { dao.getRunningTask() }
 
+    /** Returns the INT-A interrupt task (legacy default slot). */
     suspend fun getInterruptTask(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTask() }
 
-    /** Atomically clears all interrupt flags then sets isInterrupt=true on [task]. */
-    suspend fun setInterruptTask(task: Task) = withContext(Dispatchers.IO) {
-        dao.clearAllInterrupts()
-        dao.update(task.copy(isInterrupt = true))
+    /** Returns the INT-B interrupt task. */
+    suspend fun getInterruptTaskB(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTaskB() }
+
+    /**
+     * Atomically clears all interrupt flags in [slot] then marks [task] as that slot's interrupt.
+     * [slot] must be "A" or "B".
+     */
+    suspend fun setInterruptTask(task: Task, slot: String = "A") = withContext(Dispatchers.IO) {
+        dao.clearInterruptsForSlot(slot)
+        dao.update(task.copy(isInterrupt = true, interruptSlot = slot))
     }
 
-    /** Clears interrupt flag from all tasks. */
-    suspend fun clearInterruptTask() = withContext(Dispatchers.IO) { dao.clearAllInterrupts() }
+    /** Clears interrupt flag for the given slot ("A" or "B"). */
+    suspend fun clearInterruptTask(slot: String = "A") = withContext(Dispatchers.IO) {
+        dao.clearInterruptsForSlot(slot)
+    }
+
+    /** Clears interrupt flags for ALL slots. */
+    suspend fun clearAllInterruptTasks() = withContext(Dispatchers.IO) {
+        dao.clearAllInterrupts()
+    }
 
     // ── Backup / Restore ──────────────────────────────────────────────────────
 

@@ -37,8 +37,10 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var tvPriorityInfo:  TextView
 
     // Interrupt section
-    private lateinit var switchIsInterrupt: SwitchMaterial
-    private lateinit var tvInterruptOwner:  TextView
+    private lateinit var switchIsInterrupt:  SwitchMaterial
+    private lateinit var tvInterruptOwner:   TextView
+    private lateinit var switchIsInterruptB: SwitchMaterial
+    private lateinit var tvInterruptOwnerB:  TextView
 
     // Groups section
     private lateinit var groupSection:    LinearLayout
@@ -135,6 +137,8 @@ class AddTaskActivity : AppCompatActivity() {
         btnCancel        = findViewById(R.id.btnCancel)
         switchIsInterrupt = findViewById(R.id.switchIsInterrupt)
         tvInterruptOwner  = findViewById(R.id.tvInterruptOwner)
+        switchIsInterruptB = findViewById(R.id.switchIsInterruptB)
+        tvInterruptOwnerB  = findViewById(R.id.tvInterruptOwnerB)
         tvPriorityInfo   = findViewById(R.id.tvPriorityInfo)
         groupSection     = findViewById(R.id.groupSection)
         switchIsGroup    = findViewById(R.id.switchIsGroup)
@@ -298,9 +302,15 @@ class AddTaskActivity : AppCompatActivity() {
             etNoticeRepeat.setText(if (task.notificationRepeatCount == 0) "" else task.notificationRepeatCount.toString())
         }
         if (task.isInterrupt) {
-            switchIsInterrupt.isChecked = true
-            switchIsInterrupt.isEnabled = true
-            tvInterruptOwner.visibility = android.view.View.GONE
+            if (task.interruptSlot == "B") {
+                switchIsInterruptB.isChecked = true
+                switchIsInterruptB.isEnabled = true
+                tvInterruptOwnerB.visibility = android.view.View.GONE
+            } else {
+                switchIsInterrupt.isChecked = true
+                switchIsInterrupt.isEnabled = true
+                tvInterruptOwner.visibility = android.view.View.GONE
+            }
         }
         // Pinned share
         task.pinnedShare?.let { etPinnedShare.setText(it.toString()) }
@@ -315,23 +325,59 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     private fun setupInterruptSwitch() {
-        // Show which task currently owns the interrupt slot
-        lifecycleScope.launch {
-            val current = viewModel.interruptTask.value
-                ?: repository_getInterrupt()
-            if (current != null && current.id != existingTaskId) {
-                tvInterruptOwner.text = "Currently assigned to: \"${current.name}\""
+        // ── Bug fix: observe LiveData instead of reading .value once ──────────
+        // Previously used lifecycleScope.launch { viewModel.interruptTask.value }
+        // which races with the ViewModel's own startup coroutine — value is null
+        // on first open but populated after a rotation (ViewModel is retained).
+        // Observing the LiveData means we always get the correct value as soon as
+        // it is posted, whether on first open or after rotation.
+
+        viewModel.interruptTask.observe(this) { currentA ->
+            val isEditingA = existingTask?.interruptSlot == "A" && existingTask?.isInterrupt == true
+            if (currentA != null && currentA.id != existingTaskId) {
+                tvInterruptOwner.text = "Currently assigned to: \"${currentA.name}\""
                 tvInterruptOwner.visibility = android.view.View.VISIBLE
-                switchIsInterrupt.isEnabled = false  // can't steal without clearing first
+                switchIsInterrupt.isEnabled = false   // must clear INT-A first
+            } else {
+                tvInterruptOwner.visibility = android.view.View.GONE
+                switchIsInterrupt.isEnabled = true
+            }
+            // When editing the INT-A task itself, show it checked
+            if (isEditingA) {
+                switchIsInterrupt.isChecked = true
+                switchIsInterrupt.isEnabled = true
+                tvInterruptOwner.visibility = android.view.View.GONE
             }
         }
-        // If editing the interrupt task itself, show checked
-        existingTask?.let { if (it.isInterrupt) switchIsInterrupt.isChecked = true }
+
+        viewModel.interruptTaskB.observe(this) { currentB ->
+            val isEditingB = existingTask?.interruptSlot == "B" && existingTask?.isInterrupt == true
+            if (currentB != null && currentB.id != existingTaskId) {
+                tvInterruptOwnerB.text = "Currently assigned to: \"${currentB.name}\""
+                tvInterruptOwnerB.visibility = android.view.View.VISIBLE
+                switchIsInterruptB.isEnabled = false  // must clear INT-B first
+            } else {
+                tvInterruptOwnerB.visibility = android.view.View.GONE
+                switchIsInterruptB.isEnabled = true
+            }
+            if (isEditingB) {
+                switchIsInterruptB.isChecked = true
+                switchIsInterruptB.isEnabled = true
+                tvInterruptOwnerB.visibility = android.view.View.GONE
+            }
+        }
+
+        // Mutual-exclusion: can't assign the same task to both slots at once
+        switchIsInterrupt.setOnCheckedChangeListener { _, checked ->
+            if (checked) switchIsInterruptB.isChecked = false
+        }
+        switchIsInterruptB.setOnCheckedChangeListener { _, checked ->
+            if (checked) switchIsInterrupt.isChecked = false
+        }
     }
 
-    /** Inline helper — avoids exposing repository directly, uses ViewModel. */
+    /** Inline helper — no longer used for interrupt (replaced by observer above), kept for parity. */
     private suspend fun repository_getInterrupt(): Task? {
-        // Use ViewModel's LiveData value (already loaded on init)
         return viewModel.interruptTask.value
     }
 
@@ -644,8 +690,12 @@ class AddTaskActivity : AppCompatActivity() {
                 quotaPeriodSeconds = quotaPeriodSeconds
             )
             // Handle interrupt assignment
-        if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(updated)
-        else if (updated.isInterrupt) viewModel.clearInterruptTask()
+        when {
+            switchIsInterrupt.isChecked  -> viewModel.assignInterruptTask(updated)
+            switchIsInterruptB.isChecked -> viewModel.assignInterruptTaskB(updated)
+            updated.isInterrupt && updated.interruptSlot == "B" -> viewModel.clearInterruptTaskB()
+            updated.isInterrupt -> viewModel.clearInterruptTask()
+        }
         viewModel.updateTask(updated)
         } else {
             val task = Task(
@@ -667,7 +717,10 @@ class AddTaskActivity : AppCompatActivity() {
                 quotaPeriodSeconds = quotaPeriodSeconds
             )
             viewModel.addTask(task)
-            if (switchIsInterrupt.isChecked) viewModel.assignInterruptTask(task)
+            when {
+                switchIsInterrupt.isChecked  -> viewModel.assignInterruptTask(task)
+                switchIsInterruptB.isChecked -> viewModel.assignInterruptTaskB(task)
+            }
         }
         finish()
     }

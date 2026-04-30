@@ -43,6 +43,7 @@ class TaskAdapter(
         val tvName:         TextView    = itemView.findViewById(R.id.tvTaskName)
         val tvCategory:     TextView    = itemView.findViewById(R.id.tvCategory)
         val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
+        val tvInterruptSlot: TextView   = itemView.findViewById(R.id.tvInterruptSlot)
         val tvQuotaRemaining: TextView  = itemView.findViewById(R.id.tvQuotaRemaining)
         val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
@@ -80,6 +81,14 @@ class TaskAdapter(
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
+
+        // ── Interrupt slot badge ───────────────────────────────────────────────
+        if (task.isInterrupt && !task.isCompleted) {
+            holder.tvInterruptSlot.text       = "INT-${task.interruptSlot}"
+            holder.tvInterruptSlot.visibility = View.VISIBLE
+        } else {
+            holder.tvInterruptSlot.visibility = View.GONE
+        }
         holder.tvPriority.text = if (task.internalWeight != null) {
             // Auto-calculated from pinned share — show the effective decimal weight
             "Priority: ${"%.2f".format(task.weight)}"

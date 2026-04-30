@@ -35,6 +35,13 @@ data class Task(
 
     val isInterrupt: Boolean = false,
 
+    /**
+     * Which interrupt slot this task occupies when [isInterrupt] is true.
+     * "A" = INT-A slot (legacy default), "B" = INT-B slot.
+     * Ignored when [isInterrupt] is false.
+     */
+    val interruptSlot: String = "A",
+
     // Task type — drives which sound/vibration profile fires on expiry
     // Values: "DEFAULT" | "NOTIFICATION" | "ALARM" | "CUSTOM"
     val taskType: String = "DEFAULT",

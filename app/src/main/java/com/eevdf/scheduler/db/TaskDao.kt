@@ -48,9 +48,17 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
     fun getActiveGroups(): LiveData<List<Task>>
 
+    /** Returns the task/group flagged as interrupt for slot A, or null if none assigned. */
+    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND interruptSlot = 'A' AND isCompleted = 0 LIMIT 1")
+    suspend fun getInterruptTask(): Task?
+
+    /** Returns the task/group flagged as interrupt for slot B, or null if none assigned. */
+    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND interruptSlot = 'B' AND isCompleted = 0 LIMIT 1")
+    suspend fun getInterruptTaskB(): Task?
+
     /** Returns the task/group flagged as interrupt, or null if none assigned. */
     @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND isCompleted = 0 LIMIT 1")
-    suspend fun getInterruptTask(): Task?
+    suspend fun getAnyInterruptTask(): Task?
 
     /** Returns the task currently running with a live epoch anchor, or null.
      *  startTimeEpoch > 0 is the canonical "timer is active" signal — isRunning
@@ -62,6 +70,10 @@ interface TaskDao {
     /** Clears the interrupt flag on all tasks (used before setting a new one). */
     @Query("UPDATE tasks SET isInterrupt = 0")
     suspend fun clearAllInterrupts()
+
+    /** Clears the interrupt flag only on tasks in the given slot. */
+    @Query("UPDATE tasks SET isInterrupt = 0 WHERE interruptSlot = :slot")
+    suspend fun clearInterruptsForSlot(slot: String)
 
     // ── Backup / Restore ──────────────────────────────────────────────────────
 

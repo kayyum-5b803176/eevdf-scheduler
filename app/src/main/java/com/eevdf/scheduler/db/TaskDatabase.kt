@@ -14,7 +14,7 @@ import com.eevdf.scheduler.model.Task
 
 @Database(
     entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class],
-    version  = 13,
+    version  = 14,
     exportSchema = false
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -302,6 +302,18 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 13 → 14 — INT-A / INT-B dual interrupt slots.
+         * Adds interruptSlot column to tasks; existing interrupt task defaults to "A".
+         */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE tasks ADD COLUMN interruptSlot TEXT NOT NULL DEFAULT 'A'"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -309,7 +321,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .build()
                 INSTANCE = instance
                 instance
