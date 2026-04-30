@@ -32,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnExport:          MaterialButton
     private lateinit var btnImport:          MaterialButton
     private lateinit var btnOpenSoundVib:    MaterialButton
+    private lateinit var btnOpenAutoSwitch:  MaterialButton
     private lateinit var progressBar:        ProgressBar
     private lateinit var tvStatus:           TextView
 
@@ -55,6 +56,7 @@ class SettingsActivity : AppCompatActivity() {
         btnExport       = findViewById(R.id.btnExport)
         btnImport       = findViewById(R.id.btnImport)
         btnOpenSoundVib = findViewById(R.id.btnOpenSoundVibration)
+        btnOpenAutoSwitch = findViewById(R.id.btnOpenAutoSwitch)
         progressBar     = findViewById(R.id.settingsProgress)
         tvStatus        = findViewById(R.id.tvSettingsStatus)
 
@@ -62,6 +64,9 @@ class SettingsActivity : AppCompatActivity() {
         btnImport.setOnClickListener { launchImport() }
         btnOpenSoundVib.setOnClickListener {
             startActivity(Intent(this, SoundVibrationActivity::class.java))
+        }
+        btnOpenAutoSwitch.setOnClickListener {
+            startActivity(Intent(this, AutoSwitchActivity::class.java))
         }
     }
 

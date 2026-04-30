@@ -338,7 +338,49 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Exposed for adapter rotation icon — returns Queue expand state for [taskId]. */
+    // ── Auto Switch — Call Detection ──────────────────────────────────────────
+
+    /** Task we were running before a call interrupted us. Null = no call in progress. */
+    private var savedTaskBeforeCall: Task? = null
+
+    /**
+     * Called by MainActivity when [CallEvents] posts CALL_STARTED.
+     * Pauses the current task and switches to the call-assigned task.
+     * [callTaskId] comes from [AutoSwitchPrefs.getCallTaskId].
+     */
+    fun handleCallStarted(callTaskId: String) {
+        if (savedTaskBeforeCall != null) return   // already in a call, ignore nested events
+
+        val callTask = activeTasks.value
+            ?.firstOrNull { it.id == callTaskId && !it.isCompleted }
+            ?: run {
+                _toastMessage.value = "Call task not found — check Auto Switch settings"
+                return
+            }
+
+        savedTaskBeforeCall = _currentTask.value
+        pauseTimer()
+        _currentTask.value  = callTask
+        _timerSeconds.value = callTask.remainingSeconds
+        startTimer()
+        _toastMessage.value = "Call started → \"${callTask.name}\""
+    }
+
+    /**
+     * Called by MainActivity when [CallEvents] posts CALL_ENDED.
+     * Stops the call task, returns to the saved card and resumes.
+     */
+    fun handleCallEnded() {
+        val returnTo = savedTaskBeforeCall ?: return
+        savedTaskBeforeCall = null
+        pauseTimer()
+        _currentTask.value  = returnTo
+        _timerSeconds.value = returnTo.remainingSeconds
+        startTimer()
+        _toastMessage.value = "Call ended → resumed \"${returnTo.name}\""
+    }
+
+
     fun getQueueExpanded(taskId: String): Boolean = queueExpandState[taskId] ?: true
 
     /** Exposed for adapter rotation icon — returns Schedule expand state for [taskId]. */

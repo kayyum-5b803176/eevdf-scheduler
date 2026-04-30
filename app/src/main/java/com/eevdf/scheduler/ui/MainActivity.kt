@@ -13,6 +13,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
+import com.eevdf.scheduler.ui.AutoSwitchPrefs
+import com.eevdf.scheduler.ui.CallEvents
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -289,6 +291,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupObservers() {
+        // ── Auto Switch — Call Detection ──────────────────────────────────────
+        CallEvents.event.observe(this) { type ->
+            if (type == null) return@observe
+            val callTaskId = AutoSwitchPrefs.getCallTaskId(this) ?: return@observe
+            when (type) {
+                CallEvents.Type.CALL_STARTED -> viewModel.handleCallStarted(callTaskId)
+                CallEvents.Type.CALL_ENDED   -> viewModel.handleCallEnded()
+            }
+            CallEvents.event.value = null   // consume
+        }
+
         // Queue tab — flat group-aware list
         viewModel.flatActiveTasks.observe(this) { items ->
             activeAdapter.submitList(items)
