@@ -340,16 +340,28 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Auto Switch — Call Detection ──────────────────────────────────────────
 
-    /** Task we were running before a call interrupted us. Null = no call in progress. */
+    /**
+     * True while a call is in progress. Separate from [savedTaskBeforeCall] because
+     * savedTaskBeforeCall can legitimately be null (no task card was open before the call).
+     */
+    private var callInProgress: Boolean = false
+
+    /** The task that was showing before the call started. Null means no card was open. */
     private var savedTaskBeforeCall: Task? = null
 
     /**
+     * Whether the timer was actively running when the call arrived.
+     * Used to restore the exact paused/running state when the call ends.
+     */
+    private var wasTimerRunningBeforeCall: Boolean = false
+
+    /**
      * Called by MainActivity when [CallEvents] posts CALL_STARTED.
-     * Pauses the current task and switches to the call-assigned task.
+     * Pauses the current task (if any) and switches to the call-assigned task.
      * [callTaskId] comes from [AutoSwitchPrefs.getCallTaskId].
      */
     fun handleCallStarted(callTaskId: String) {
-        if (savedTaskBeforeCall != null) return   // already in a call, ignore nested events
+        if (callInProgress) return   // already in a call, ignore nested events
 
         val callTask = activeTasks.value
             ?.firstOrNull { it.id == callTaskId && !it.isCompleted }
@@ -358,7 +370,11 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
 
-        savedTaskBeforeCall = _currentTask.value
+        // Snapshot state before we touch anything
+        callInProgress           = true
+        savedTaskBeforeCall      = _currentTask.value
+        wasTimerRunningBeforeCall = _timerRunning.value == true
+
         pauseTimer()
         _currentTask.value  = callTask
         _timerSeconds.value = callTask.remainingSeconds
@@ -368,16 +384,41 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Called by MainActivity when [CallEvents] posts CALL_ENDED.
-     * Stops the call task, returns to the saved card and resumes.
+     * Pauses the call task, then restores the previous task in its original state:
+     *  - If no task was open before → close the timer card (set current to null).
+     *  - If a task was paused before → return to it but do NOT start the timer.
+     *  - If a task was running before → return to it and resume the timer.
      */
     fun handleCallEnded() {
-        val returnTo = savedTaskBeforeCall ?: return
-        savedTaskBeforeCall = null
+        if (!callInProgress) return
+        callInProgress = false
+
+        val returnTo    = savedTaskBeforeCall   // may be null — that's valid
+        val wasRunning  = wasTimerRunningBeforeCall
+
+        savedTaskBeforeCall       = null
+        wasTimerRunningBeforeCall = false
+
         pauseTimer()
+
+        if (returnTo == null) {
+            // No task card was open before the call → close the card
+            _currentTask.value  = null
+            _toastMessage.value = "Call ended"
+            return
+        }
+
+        // Restore the previous task card
         _currentTask.value  = returnTo
         _timerSeconds.value = returnTo.remainingSeconds
-        startTimer()
-        _toastMessage.value = "Call ended → resumed \"${returnTo.name}\""
+
+        if (wasRunning) {
+            startTimer()
+            _toastMessage.value = "Call ended → resumed \"${returnTo.name}\""
+        } else {
+            // Was paused before — leave it paused
+            _toastMessage.value = "Call ended → \"${returnTo.name}\" (paused)"
+        }
     }
 
 
