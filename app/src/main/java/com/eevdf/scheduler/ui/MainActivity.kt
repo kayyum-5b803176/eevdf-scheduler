@@ -464,22 +464,42 @@ class MainActivity : AppCompatActivity() {
             btnScheduleNext.text = if (auto) "Auto" else "Next"
             globalRotateMenuItem?.isEnabled = !auto
         }
-        // INT button: label = "INT-A" or "INT-B"; color = red when active slot has a task assigned.
-        fun refreshIntButton() {
-            val slot      = viewModel.activeInterruptSlot.value ?: "A"
-            val taskForSlot = if (slot == "A") viewModel.interruptTask.value
-                              else             viewModel.interruptTaskB.value
+        // INT button color rules:
+        //   INT-A active + task assigned → red  (#F44336)
+        //   INT-B active + task assigned → blue (#2196F3)
+        //   active slot has no task      → default primary color
+        //
+        // Each observer passes its own fresh value directly — avoids re-reading
+        // .value from a different LiveData that may not have dispatched yet,
+        // which was causing the occasional color swap on slot toggle.
+        fun applyIntButtonState(slot: String, taskA: Task?, taskB: Task?) {
             btnInt.text = "INT-$slot"
-            val textColor = if (taskForSlot != null)
-                android.graphics.Color.parseColor("#F44336")
-            else
-                androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary)
-            btnInt.setTextColor(textColor)
+            val color = when {
+                slot == "A" && taskA != null ->
+                    android.graphics.Color.parseColor("#F44336")
+                slot == "B" && taskB != null ->
+                    android.graphics.Color.parseColor("#2196F3")
+                else ->
+                    androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary)
+            }
+            btnInt.setTextColor(color)
             btnInt.jumpDrawablesToCurrentState()
         }
-        viewModel.activeInterruptSlot.observe(this) { refreshIntButton() }
-        viewModel.interruptTask.observe(this)       { refreshIntButton() }
-        viewModel.interruptTaskB.observe(this)      { refreshIntButton() }
+        viewModel.activeInterruptSlot.observe(this) { slot ->
+            applyIntButtonState(slot,
+                viewModel.interruptTask.value,
+                viewModel.interruptTaskB.value)
+        }
+        viewModel.interruptTask.observe(this) { taskA ->
+            applyIntButtonState(viewModel.activeInterruptSlot.value ?: "A",
+                taskA,
+                viewModel.interruptTaskB.value)
+        }
+        viewModel.interruptTaskB.observe(this) { taskB ->
+            applyIntButtonState(viewModel.activeInterruptSlot.value ?: "A",
+                viewModel.interruptTask.value,
+                taskB)
+        }
     }
 
     /**
