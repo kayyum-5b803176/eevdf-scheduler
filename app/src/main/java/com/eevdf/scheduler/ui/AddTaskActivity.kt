@@ -461,7 +461,7 @@ class AddTaskActivity : AppCompatActivity() {
             }
             total == 100 -> {
                 tvPinnedShareWarning.text =
-                    "Warning: all 100% is pinned. Floating tasks will receive 0% CPU share."
+                    "Warning: all 100% is pinned. Floating tasks will receive 0% share."
                 tvPinnedShareWarning.visibility = android.view.View.VISIBLE
             }
             else -> {

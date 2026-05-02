@@ -331,7 +331,7 @@
             </androidx.cardview.widget.CardView>
 
             <!-- Quota Limit Card ────────────────────────────────────────────────
-                 Mirrors Linux cpu.cfs_quota_us / cpu.cfs_period_us.
+                 Mirrors Linux cfs_quota_us / cfs_period_us.
                  Format for both fields: NdNhNmNs  e.g. "1d", "30m", "2h30m"
              ─────────────────────────────────────────────────────────────────── -->
             <androidx.cardview.widget.CardView
@@ -363,7 +363,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="CPU Quota Limit"
+                                android:text="Quota Limit"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/colorPrimary" />
