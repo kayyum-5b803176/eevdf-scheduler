@@ -69,6 +69,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     /** Saved card to return to after visiting the INT-B interrupt task. */
     private var savedTaskBeforeInterruptB: Task? = null
 
+    // BUG FIX: Named observer references kept so onCleared() can remove them.
+    // Anonymous observeForever lambdas cannot be unregistered, which allowed
+    // duplicate observers to accumulate across ViewModel recreation.
+    private lateinit var tickObserver: androidx.lifecycle.Observer<Long>
+    private lateinit var expiredObserver: androidx.lifecycle.Observer<Task>
+
     private val _timerSeconds = MutableLiveData<Long>()
     val timerSeconds: LiveData<Long> = _timerSeconds
 
@@ -323,6 +329,20 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _timerSeconds.value = back.remainingSeconds
                 _toastMessage.value = "Returned to \"${back.name}\""
             } else {
+                // BUG FIX: When the user jumped to the interrupt slot while no task
+                // card was open (e.g. after timer expiry), savedTaskBeforeInterrupt
+                // was saved as null.  The original code only posted a toast and left
+                // _currentTask unchanged, so subsequent INT taps kept seeing
+                // current?.id == interrupt.id → kept trying to "return" with a null
+                // back → infinite stuck loop.
+                //
+                // Fix: pause + close the timer card so _currentTask becomes null.
+                // The next INT tap will then enter the JUMP branch instead of RETURN,
+                // breaking the loop.  Also restore interruptLiveData so the interrupt
+                // task reference is preserved for the next jump.
+                pauseTimer()
+                interruptLiveData.value = interrupt   // preserve interrupt reference
+                _currentTask.value = null             // close card, exits stuck loop
                 _toastMessage.value = "No saved task to return to"
             }
         } else {
@@ -574,14 +594,19 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
         // ── Wire TimerEngine outputs ──────────────────────────────────────────
 
-        timerEngine.tickSeconds.observeForever { remainingSecs ->
+        // BUG FIX: Keep named references so onCleared() can remove them.
+        // Previously these were anonymous lambdas passed to observeForever, which
+        // meant they could never be unregistered. On ViewModel recreation (config
+        // change) a second pair of observers would be added while the old pair kept
+        // firing, causing duplicate ticks, double vruntime credits, and stale-state
+        // navigation bugs that only cleared on a full app kill.
+        tickObserver = androidx.lifecycle.Observer { remainingSecs: Long ->
             _timerSeconds.postValue(remainingSecs)
             _currentTask.value?.let { t ->
                 _currentTask.postValue(t.copy(remainingSeconds = remainingSecs))
             }
         }
-
-        timerEngine.expiredTask.observeForever { expired ->
+        expiredObserver = androidx.lifecycle.Observer { expired: Task ->
             // Capture now before any suspend — this is the expiry moment for the
             // normal (app-alive) path. elapsed will be ~0s.
             val expiryEpochMs = System.currentTimeMillis()
@@ -595,6 +620,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             _currentTask.value = expired
             onTimerFinished(expiryEpochMs = expiryEpochMs)
         }
+        timerEngine.tickSeconds.observeForever(tickObserver)
+        timerEngine.expiredTask.observeForever(expiredObserver)
 
         // ── Startup / app-kill recovery ───────────────────────────────────────
 
@@ -752,6 +779,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun nextSibling(onQueueTab: Boolean = false) {
         pauseTimer()
+        // BUG FIX: When no task card is open (_currentTask is null — e.g. after
+        // timer expiry or pauseAndDismiss), rotateSiblings/rotateGlobal both
+        // compute parentId = null and indexOf = -1, which makes every press
+        // silently jump to the first root task or show "No other siblings" and
+        // get stuck.  Fall back to jumpToFirst so the behaviour is predictable
+        // and consistent with what the user actually wants: "give me something".
+        if (_currentTask.value == null) {
+            jumpToFirst(onQueueTab)
+            return
+        }
         if (_globalRotateEnabled.value == true) {
             rotateGlobal(onQueueTab)
         } else {
@@ -1124,6 +1161,38 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             _currentTask.value  = paused
             _timerSeconds.value = paused.remainingSeconds
             viewModelScope.launch { repository.update(paused) }
+            // BUG FIX (root cause of Next stuck / schedule-next random-jump):
+            //
+            // timerEngine.pause() returns the engine's own activeTask copy and also
+            // keeps it stored as activeTask.  Every future pauseTimer() call —
+            // including the one at the top of nextSibling(), jumpToInterruptSlot(),
+            // and pauseAndDismiss() — calls timerEngine.pause() again.  Because
+            // activeTask is never cleared, pause() returns the STALE previous task
+            // and the line above silently overwrites _currentTask with it.
+            //
+            // Concrete next-button failure:
+            //   1. Start A, pause   → engine.activeTask = A
+            //   2. Tap Next         → nextSibling() calls pauseTimer()
+            //                          → timerEngine.pause() returns A
+            //                          → _currentTask = A  (overwrites current)
+            //                          → rotateSiblings reads current=A → picks B
+            //   3. Tap Next again   → same: _currentTask restored to A → picks B again
+            //   Result: stuck in A→B loop.
+            //
+            // Concrete schedule-next-hold failure (pauseAndDismiss):
+            //   1. Start A, pause   → engine.activeTask = A
+            //   2. Select card B    → _currentTask = B
+            //   3. Hold schedule-next → pauseAndDismiss() → pauseTimer()
+            //                            → timerEngine.pause() returns A
+            //                            → _currentTask = A  (spurious A)
+            //                            → then _currentTask = null
+            //   The brief A assignment fires currentTask observer → scrollToTask(A.id)
+            //   which scrolls the list — looking like a "random jump".
+            //
+            // Fix: clear the engine right after the state is saved so activeTask
+            // becomes null.  startTimer() rebuilds the engine from _currentTask
+            // directly, so clearing here does not break resume.
+            timerEngine.clear()
         }
 
         if (task != null && task.taskType == "NOTIFICATION") {
@@ -1348,6 +1417,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // the timer is still running (app killed, config change), the alarm must
         // survive to fire at expiry.  AlarmManager lives in the system process and
         // is unaffected by ViewModel death — but calling cancel() here kills it.
+        // BUG FIX: Remove named observers registered in init{} via observeForever.
+        // Without explicit removal, observers linger after ViewModel destruction and
+        // a new ViewModel instance adds a second pair — causing doubled timer ticks,
+        // double vruntime credits, and stale navigation state.
+        timerEngine.tickSeconds.removeObserver(tickObserver)
+        timerEngine.expiredTask.removeObserver(expiredObserver)
         timerEngine.clear()
         overrunTimer?.cancel()
         delayTimer?.cancel()
