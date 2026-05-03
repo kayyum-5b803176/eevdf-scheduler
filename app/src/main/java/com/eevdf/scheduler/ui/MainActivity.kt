@@ -468,6 +468,7 @@ class MainActivity : AppCompatActivity() {
         }
         viewModel.allowEditEnabled.observe(this) { enabled ->
             allowEditMenuItem?.isChecked = enabled
+            fabAdd.visibility = if (enabled) View.VISIBLE else View.GONE
         }
         viewModel.autoScrollEnabled.observe(this) { enabled ->
             autoScrollMenuItem?.isChecked = enabled
