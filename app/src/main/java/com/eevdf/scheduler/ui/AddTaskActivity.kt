@@ -44,8 +44,13 @@ class AddTaskActivity : AppCompatActivity() {
 
     // Groups section
     private lateinit var groupSection:    LinearLayout
+    private lateinit var groupTypeSection: LinearLayout
     private lateinit var switchIsGroup:   SwitchMaterial
     private lateinit var spinnerParent:   Spinner
+
+    // Realtime share section
+    private lateinit var switchRealtimeShare:      SwitchMaterial
+    private lateinit var layoutRealtimeShareFields: LinearLayout
 
     // Task type section
     private lateinit var spinnerTaskType:       Spinner
@@ -109,6 +114,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupInterruptSwitch()
         setupTaskTypeSection()
         setupPinnedShare()
+        setupRealtimeShare()
         setupQuotaSection()
 
         // Observe activeTasks here (not just in validation) so .value is populated
@@ -141,6 +147,7 @@ class AddTaskActivity : AppCompatActivity() {
         tvInterruptOwnerB  = findViewById(R.id.tvInterruptOwnerB)
         tvPriorityInfo   = findViewById(R.id.tvPriorityInfo)
         groupSection     = findViewById(R.id.groupSection)
+        groupTypeSection = findViewById(R.id.groupTypeSection)
         switchIsGroup    = findViewById(R.id.switchIsGroup)
         spinnerParent    = findViewById(R.id.spinnerParentGroup)
         spinnerTaskType      = findViewById(R.id.spinnerTaskType)
@@ -152,6 +159,8 @@ class AddTaskActivity : AppCompatActivity() {
         etNoticeRepeat       = findViewById(R.id.etNoticeRepeat)
         etPinnedShare        = findViewById(R.id.etPinnedShare)
         tvPinnedShareWarning = findViewById(R.id.tvPinnedShareWarning)
+        switchRealtimeShare       = findViewById(R.id.switchRealtimeShare)
+        layoutRealtimeShareFields = findViewById(R.id.layoutRealtimeShareFields)
 
         switchQuotaEnabled = findViewById(R.id.switchQuotaEnabled)
         layoutQuotaFields  = findViewById(R.id.layoutQuotaFields)
@@ -168,9 +177,11 @@ class AddTaskActivity : AppCompatActivity() {
     private fun setupGroupSection() {
         if (!groupsEnabled) {
             groupSection.visibility = View.GONE
+            groupTypeSection.visibility = View.GONE
             return
         }
         groupSection.visibility = View.VISIBLE
+        groupTypeSection.visibility = View.VISIBLE
 
         // Observe available groups and populate spinner
         viewModel.activeGroups.observe(this) { groups ->
@@ -312,8 +323,12 @@ class AddTaskActivity : AppCompatActivity() {
                 tvInterruptOwner.visibility = android.view.View.GONE
             }
         }
-        // Pinned share
-        task.pinnedShare?.let { etPinnedShare.setText(it.toString()) }
+        // Pinned share + realtime share toggle
+        task.pinnedShare?.let {
+            switchRealtimeShare.isChecked = true
+            layoutRealtimeShareFields.visibility = View.VISIBLE
+            etPinnedShare.setText(it.toString())
+        }
 
         // Quota limit
         if (task.isQuotaEnabled) {
@@ -516,6 +531,15 @@ class AddTaskActivity : AppCompatActivity() {
         secs < 60  -> "${secs}s"
         secs % 60 == 0L -> "${secs / 60} min"
         else       -> "${secs / 60}m ${secs % 60}s"
+    }
+
+    // ── Realtime share section ────────────────────────────────────────────────
+
+    private fun setupRealtimeShare() {
+        switchRealtimeShare.setOnCheckedChangeListener { _, checked ->
+            layoutRealtimeShareFields.visibility = if (checked) View.VISIBLE else View.GONE
+            if (!checked) etPinnedShare.text?.clear()
+        }
     }
 
     // ── Quota limit section ───────────────────────────────────────────────────

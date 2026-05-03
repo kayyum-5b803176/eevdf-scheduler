@@ -29,7 +29,7 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Task Name Card -->
+            <!-- ── Task Detail ──────────────────────────────────────────────── -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -46,7 +46,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Task Details"
+                        android:text="Task Detail"
                         android:textSize="14sp"
                         android:textStyle="bold"
                         android:textColor="@color/colorPrimary"
@@ -58,7 +58,6 @@
                         android:hint="Task Name *"
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_marginBottom="12dp">
-
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etTaskName"
                             android:layout_width="match_parent"
@@ -71,8 +70,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="Description (optional)"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_marginBottom="4dp">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etDescription"
                             android:layout_width="match_parent"
@@ -82,7 +81,7 @@
                             android:maxLines="4" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Groups section — shown only when groups mode is enabled -->
+                    <!-- Parent group — shown only when groups mode is enabled -->
                     <LinearLayout
                         android:id="@+id/groupSection"
                         android:layout_width="match_parent"
@@ -97,19 +96,12 @@
                             android:background="#E0E0E0"
                             android:layout_marginBottom="12dp" />
 
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchIsGroup"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="This is a group (container)" />
-
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Parent Group"
                             android:textSize="12sp"
                             android:textColor="#616161"
-                            android:layout_marginTop="14dp"
                             android:layout_marginBottom="4dp" />
 
                         <Spinner
@@ -120,51 +112,98 @@
                             android:padding="8dp" />
                     </LinearLayout>
 
-                    <!-- Interrupt assignment -->
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="#E0E0E0"
-                        android:layout_marginTop="16dp"
-                        android:layout_marginBottom="12dp" />
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchIsInterrupt"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Assign as INT-A" />
-
-                    <TextView
-                        android:id="@+id/tvInterruptOwner"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text=""
-                        android:textSize="12sp"
-                        android:textColor="#F44336"
-                        android:layout_marginTop="4dp"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchIsInterruptB"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Assign as INT-B"
-                        android:layout_marginTop="8dp" />
-
-                    <TextView
-                        android:id="@+id/tvInterruptOwnerB"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text=""
-                        android:textSize="12sp"
-                        android:textColor="#F44336"
-                        android:layout_marginTop="4dp"
-                        android:visibility="gone" />
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Priority Card -->
+            <!-- ── Time Slice ───────────────────────────────────────────────── -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Time Slice"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="HH"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginEnd="8dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etHours"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="0"
+                                android:gravity="center" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="h" android:textSize="16sp" android:layout_marginEnd="8dp"/>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="MM"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginEnd="8dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etMinutes"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="25"
+                                android:gravity="center" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="m" android:textSize="16sp" android:layout_marginEnd="8dp"/>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="SS"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etSeconds"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="0"
+                                android:gravity="center" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="s" android:textSize="16sp" android:layout_marginStart="8dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ── Schedule Priority ────────────────────────────────────────── -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -188,7 +227,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Scheduling Priority"
+                            android:text="Schedule Priority"
                             android:textSize="14sp"
                             android:textStyle="bold"
                             android:textColor="@color/colorPrimary" />
@@ -239,273 +278,7 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Time Slice Card -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="3dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Time Slice (allocated work time)"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/colorPrimary"
-                        android:layout_marginBottom="12dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:hint="HH"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                            android:layout_marginEnd="8dp">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etHours"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="number"
-                                android:text="0"
-                                android:gravity="center" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="h" android:textSize="16sp" android:layout_marginEnd="8dp"/>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:hint="MM"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                            android:layout_marginEnd="8dp">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etMinutes"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="number"
-                                android:text="25"
-                                android:gravity="center" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="m" android:textSize="16sp" android:layout_marginEnd="8dp"/>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:hint="SS"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etSeconds"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="number"
-                                android:text="0"
-                                android:gravity="center" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="s" android:textSize="16sp" android:layout_marginStart="8dp"/>
-                    </LinearLayout>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Quota Limit Card ────────────────────────────────────────────────
-                 Mirrors Linux cfs_quota_us / cfs_period_us.
-                 Format for both fields: NdNhNmNs  e.g. "1d", "30m", "2h30m"
-             ─────────────────────────────────────────────────────────────────── -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="3dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <!-- Header row: title + enable switch -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Quota Limit"
-                                android:textSize="14sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/colorPrimary" />
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Max time allowed per period (like Linux cgroup quota)"
-                                android:textSize="11sp"
-                                android:textColor="#9E9E9E"
-                                android:layout_marginTop="2dp" />
-                        </LinearLayout>
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchQuotaEnabled"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Fields (hidden when switch is OFF) -->
-                    <LinearLayout
-                        android:id="@+id/layoutQuotaFields"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:layout_marginTop="14dp"
-                        android:visibility="gone">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="1dp"
-                            android:background="#E0E0E0"
-                            android:layout_marginBottom="14dp" />
-
-                        <!-- Quota field -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="4dp">
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Quota (max run time)"
-                                android:textSize="13sp"
-                                android:textColor="#212121"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:id="@+id/tvQuotaPreview"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text=""
-                                android:textSize="13sp"
-                                android:textColor="@color/colorPrimary"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Format: NdNhNmNs  e.g. 30m · 2h · 1d4h · 7d (1s–365d)"
-                            android:textSize="11sp"
-                            android:textColor="#9E9E9E"
-                            android:layout_marginBottom="6dp" />
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="Quota  (e.g. 2h, 30m, 1d)"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                            android:layout_marginBottom="16dp">
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etQuota"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="text"
-                                android:digits="0123456789dDhHmMsS "
-                                android:maxLength="20" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <!-- Period field -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="4dp">
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Period (time window)"
-                                android:textSize="13sp"
-                                android:textColor="#212121"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:id="@+id/tvPeriodPreview"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="1d"
-                                android:textSize="13sp"
-                                android:textColor="@color/colorPrimary"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Rolling window for the quota; resets automatically (1s–365d)"
-                            android:textSize="11sp"
-                            android:textColor="#9E9E9E"
-                            android:layout_marginBottom="6dp" />
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="Period  (e.g. 1d, 7d, 1h)"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etPeriod"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="text"
-                                android:digits="0123456789dDhHmMsS "
-                                android:text="1d"
-                                android:maxLength="20" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <!-- Validation error -->
-                        <TextView
-                            android:id="@+id/tvQuotaError"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text=""
-                            android:textSize="12sp"
-                            android:textColor="#F44336"
-                            android:layout_marginTop="6dp"
-                            android:visibility="gone" />
-
-                    </LinearLayout>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Task Type Card -->
+            <!-- ── Task Type ─────────────────────────────────────────────────── -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -526,15 +299,73 @@
                         android:textSize="14sp"
                         android:textStyle="bold"
                         android:textColor="@color/colorPrimary"
-                        android:layout_marginBottom="4dp" />
+                        android:layout_marginBottom="12dp" />
 
+                    <!-- Group + Interrupt options — hidden when groups disabled -->
+                    <LinearLayout
+                        android:id="@+id/groupTypeSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchIsGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Assign as group (container)" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchIsInterrupt"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Assign as INT-A"
+                            android:layout_marginTop="8dp" />
+
+                        <TextView
+                            android:id="@+id/tvInterruptOwner"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="12sp"
+                            android:textColor="#F44336"
+                            android:layout_marginTop="4dp"
+                            android:visibility="gone" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchIsInterruptB"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Assign as INT-B"
+                            android:layout_marginTop="8dp" />
+
+                        <TextView
+                            android:id="@+id/tvInterruptOwnerB"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="12sp"
+                            android:textColor="#F44336"
+                            android:layout_marginTop="4dp"
+                            android:visibility="gone" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="14dp" />
+
+                    </LinearLayout>
+
+                    <!-- Sound & Vibration Profile -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Selects the sound &amp; vibration profile used when this timer expires"
+                        android:text="Sound &amp; Vibration Profile"
                         android:textSize="12sp"
                         android:textColor="#616161"
-                        android:layout_marginBottom="12dp" />
+                        android:layout_marginBottom="4dp" />
 
                     <Spinner
                         android:id="@+id/spinnerTaskType"
@@ -543,7 +374,7 @@
                         android:background="@drawable/abc_spinner_mtrl_am_alpha"
                         android:padding="8dp" />
 
-                    <!-- Notice-only fields — hidden for other types -->
+                    <!-- Notice-only extra fields -->
                     <LinearLayout
                         android:id="@+id/layoutNotifDelay"
                         android:layout_width="match_parent"
@@ -558,7 +389,6 @@
                             android:background="#E0E0E0"
                             android:layout_marginBottom="12dp" />
 
-                        <!-- Delay row -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -604,7 +434,6 @@
                                 android:maxLength="5" />
                         </com.google.android.material.textfield.TextInputLayout>
 
-                        <!-- Wait row -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -650,7 +479,6 @@
                                 android:maxLength="5" />
                         </com.google.android.material.textfield.TextInputLayout>
 
-                        <!-- Repeat row -->
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -678,12 +506,279 @@
                                 android:inputType="number"
                                 android:maxLength="2" />
                         </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ── Realtime Share ────────────────────────────────────────────── -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Header row: title + toggle -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Realtime Share"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/colorPrimary" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Fix this task's CPU share to an exact %"
+                                android:textSize="11sp"
+                                android:textColor="#9E9E9E"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchRealtimeShare"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <!-- Fields: shown when toggle is ON -->
+                    <LinearLayout
+                        android:id="@+id/layoutRealtimeShareFields"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="14dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginBottom="14dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Leave empty to float automatically based on priority weight."
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="8dp" />
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Pinned share % (1–99, empty = auto)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="8dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etPinnedShare"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:maxLength="2" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView
+                            android:id="@+id/tvPinnedShareWarning"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="12sp"
+                            android:textColor="#F44336"
+                            android:visibility="gone" />
 
                     </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Category Card -->
+            <!-- ── Quota Limit ───────────────────────────────────────────────── -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Quota Limit"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/colorPrimary" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Max time allowed per period (like Linux cgroup quota)"
+                                android:textSize="11sp"
+                                android:textColor="#9E9E9E"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchQuotaEnabled"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layoutQuotaFields"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="14dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginBottom="14dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Quota (max run time)"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:id="@+id/tvQuotaPreview"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:textSize="13sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Format: NdNhNmNs  e.g. 30m · 2h · 1d4h · 7d (1s–365d)"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Quota  (e.g. 2h, 30m, 1d)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="16dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuota"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:digits="0123456789dDhHmMsS "
+                                android:maxLength="20" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Period (time window)"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:id="@+id/tvPeriodPreview"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="1d"
+                                android:textSize="13sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Rolling window for the quota; resets automatically (1s–365d)"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Period  (e.g. 1d, 7d, 1h)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etPeriod"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:digits="0123456789dDhHmMsS "
+                                android:text="1d"
+                                android:maxLength="20" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView
+                            android:id="@+id/tvQuotaError"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="12sp"
+                            android:textColor="#F44336"
+                            android:layout_marginTop="6dp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ── Category ──────────────────────────────────────────────────── -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -711,64 +806,6 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:singleSelection="true" />
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Pinned Share Card -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="3dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Realtime Share"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/colorPrimary"
-                        android:layout_marginBottom="4dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Fix this task's realtime share to an exact %. Leave empty to float automatically based on priority weight."
-                        android:textSize="11sp"
-                        android:textColor="#9E9E9E"
-                        android:layout_marginBottom="12dp" />
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="Pinned share % (1–99, empty = auto)"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_marginBottom="8dp">
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etPinnedShare"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:maxLength="2" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Live warning: shown when pinned totals would exceed 100 -->
-                    <TextView
-                        android:id="@+id/tvPinnedShareWarning"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text=""
-                        android:textSize="12sp"
-                        android:textColor="#F44336"
-                        android:visibility="gone" />
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
