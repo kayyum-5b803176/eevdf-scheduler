@@ -8,6 +8,7 @@ import com.eevdf.scheduler.db.TaskDatabase
 import com.eevdf.scheduler.db.TaskRepository
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.model.NoticePhase
+import com.eevdf.scheduler.model.RunSession
 import com.eevdf.scheduler.model.TimerState
 import com.eevdf.scheduler.model.TimerCardAction
 import com.eevdf.scheduler.model.IntButtonState
@@ -76,8 +77,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // Named observer references kept so onCleared() can remove them.
     // Anonymous observeForever lambdas cannot be unregistered, which would allow
     // duplicate observers to accumulate across ViewModel recreation.
-    private lateinit var tickObserver: androidx.lifecycle.Observer<Long>
-    private lateinit var expiredObserver: androidx.lifecycle.Observer<Task>
+    private lateinit var tickObserver:           androidx.lifecycle.Observer<Long>
+    private lateinit var expiredObserver:        androidx.lifecycle.Observer<Task>
+    private lateinit var expiredSessionObserver: androidx.lifecycle.Observer<RunSession>
 
     private val _timerSeconds = MutableLiveData<Long>()
     val timerSeconds: LiveData<Long> = _timerSeconds
@@ -662,14 +664,21 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
 
     /** Elapsed seconds accumulated across delay + execute + wait phases this session. */
-    private var delayElapsedSeconds:  Long = 0L
-    private var waitElapsedSeconds:   Long = 0L
+    private var delayElapsedSeconds:      Long = 0L
+    private var waitElapsedSeconds:       Long = 0L
     /**
      * Running total of every second consumed by the notice state machine in the
      * current session (delay + all execute cycles + all wait cycles).
      * Applied to vruntime in a single shot on expire or pause — never per-cycle.
      */
-    private var noticeSessionSeconds: Long = 0L
+    private var noticeSessionSeconds:     Long = 0L
+    /**
+     * Real wall-clock epoch ms when the current notice cycle started (before the
+     * delay phase).  Used as RunSession.NoticeSession.startEpochMs so the RunLog
+     * always has the correct start time regardless of how many phase transitions
+     * occurred within the cycle.
+     */
+    private var noticeSessionStartEpochMs: Long = 0L
 
     /** Tracks completed repeat cycles for the current Notice task session. */
     private var currentRepeatIteration = 0
@@ -701,21 +710,24 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _currentTask.postValue(t.copy(remainingSeconds = remainingSecs))
             }
         }
+        // expiredSession arrives from the engine in the same postValue batch as expiredTask.
+        // Store it so expiredObserver can pass it to onTimerFinished.
+        var pendingExpiredSession: RunSession? = null
+        expiredSessionObserver = androidx.lifecycle.Observer { session: RunSession ->
+            pendingExpiredSession = session
+        }
         expiredObserver = androidx.lifecycle.Observer { expired: Task ->
-            // Capture now before any suspend — this is the expiry moment for the
-            // normal (app-alive) path. elapsed will be ~0s.
-            val expiryEpochMs = System.currentTimeMillis()
-            // DO NOT write `expired` to DB here. That would push remainingSeconds=0
-            // to Room, which immediately notifies activeTasks LiveData. If the user
-            // taps the task before onTimerFinished's reset write lands, setCurrentTask
-            // receives the stale 0:00 task and _timerSeconds gets stuck at 0.
-            // onTimerFinished is the sole DB writer — it writes the correct reset
-            // (remainingSeconds=timeSliceSeconds) in a single atomic update.
+            // Pair this task event with the session the engine emitted at the same time.
+            // pendingExpiredSession is null only on the remaining<=0 path (vruntime already
+            // applied by pauseTimer) — passing null to onTimerFinished signals that.
+            val session = pendingExpiredSession
+            pendingExpiredSession = null
             _timerRunning.postValue(false)
             _currentTask.value = expired
-            onTimerFinished(expiryEpochMs = expiryEpochMs)
+            onTimerFinished(session = session)
         }
         timerEngine.tickSeconds.observeForever(tickObserver)
+        timerEngine.expiredSession.observeForever(expiredSessionObserver)
         timerEngine.expiredTask.observeForever(expiredObserver)
 
         // ── Startup / app-kill recovery ───────────────────────────────────────
@@ -760,14 +772,17 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                     timerEngine.restoreFromDb(corrected)
                 } else {
                     // Timer expired while the app was dead.
-                    // Compute the exact wall-clock epoch when the slice ran out so the
-                    // expire card shows the correct elapsed time (e.g. 0:10, not 0:01).
-                    //   expiryEpoch = startTimeEpoch + sliceMs - accumulatedMs
-                    // This is the moment liveElapsedMs first equalled timeSliceSeconds * 1000.
-                    val state = running.timerState as TimerState.Running
+                    // Build a Recovered session using the real DB-stored start epoch so
+                    // wallClockSeconds = remaining slice at kill time, not timeSliceSeconds.
+                    val state         = running.timerState as TimerState.Running
                     val expiryEpochMs = state.startTimeEpoch +
                         running.timeSliceSeconds * 1000L - state.accumulatedMs
-                    onTimerFinished(running, expiryEpochMs)
+                    val session = RunSession.Recovered(
+                        taskId       = running.id,
+                        startEpochMs = state.startTimeEpoch,
+                        endEpochMs   = expiryEpochMs
+                    )
+                    onTimerFinished(running, session = session)
                 }
             }
         }
@@ -1075,21 +1090,24 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 is TimerState.Expired -> 0L
                 else                  -> 0L
             }
-            val expiryEpochMs = System.currentTimeMillis() - overrunMs
             timerEngine.clear()   // engine already stopped; make Idle explicit
-            onTimerFinished(task, expiryEpochMs, vruntimeAlreadyApplied = true)
+            // session = null → vruntime already applied by pauseTimer() above.
+            // Passing a fake session here would double-count the elapsed time.
+            onTimerFinished(task, session = null)
             return
         }
 
         val delaySecs = if (task.taskType == "NOTIFICATION") task.notificationDelaySeconds else 0L
 
         if (delaySecs > 0) {
-            currentRepeatIteration = 0   // fresh session — reset repeat counter
-            noticeSessionSeconds   = 0L
+            currentRepeatIteration    = 0   // fresh session — reset repeat counter
+            noticeSessionSeconds      = 0L
+            noticeSessionStartEpochMs = System.currentTimeMillis()
             startDelayPhase(task, remaining, delaySecs)
         } else {
-            currentRepeatIteration = 0
-            noticeSessionSeconds   = 0L
+            currentRepeatIteration    = 0
+            noticeSessionSeconds      = 0L
+            noticeSessionStartEpochMs = System.currentTimeMillis()
             startActualTimer(task, remaining)
         }
     }
@@ -1200,7 +1218,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         currentRepeatIteration       = 0
         noticeSessionSeconds         = 0L
         _noticePhase.value           = NoticePhase.Idle
-        if (elapsed > 0) applyVruntimeUpdate(elapsed)
+        if (elapsed > 0) {
+            val nowMs = System.currentTimeMillis()
+            applyVruntimeUpdate(RunSession.NoticeSession(
+                taskId         = _currentTask.value?.id ?: "",
+                startEpochMs   = noticeSessionStartEpochMs,
+                endEpochMs     = nowMs,
+                totalPhaseSecs = elapsed
+            ))
+        }
         AlarmForegroundService.timerPause(getApplication())
     }
 
@@ -1220,7 +1246,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _noticePhase.value          = NoticePhase.Idle
         val totalConsumed = noticeSessionSeconds + waitElapsedSeconds
         noticeSessionSeconds = 0L
-        if (totalConsumed > 0) applyVruntimeUpdate(totalConsumed)
+        if (totalConsumed > 0) {
+            val nowMs = System.currentTimeMillis()
+            applyVruntimeUpdate(RunSession.NoticeSession(
+                taskId         = task?.id ?: "",
+                startEpochMs   = noticeSessionStartEpochMs,
+                endEpochMs     = nowMs,
+                totalPhaseSecs = totalConsumed
+            ))
+        }
         // Restore execute slice so Start restarts from the full slice
         val sliceSecs = task?.timeSliceSeconds ?: 0L
         _timerSeconds.value = sliceSecs
@@ -1250,7 +1284,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // final write is always the correct reset (remainingSeconds = sliceSeconds).
         viewModelScope.launch {
             if (sessionSecs > 0) {
-                repository.updateVruntimeAfterRun(task, sessionSecs)
+                val nowMs = System.currentTimeMillis()
+                repository.updateVruntimeAfterRun(task, RunSession.NoticeSession(
+                    taskId         = task.id,
+                    startEpochMs   = noticeSessionStartEpochMs,
+                    endEpochMs     = nowMs,
+                    totalPhaseSecs = sessionSecs
+                ))
             }
             repository.update(task.withTimerState(TimerState.reset()))
             refreshSchedule()
@@ -1295,19 +1335,18 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
         stopAlarmSound()
 
-        val nowMs  = System.currentTimeMillis()
+        val nowMs = System.currentTimeMillis()
 
-        // Seconds consumed this execute session — used for vruntime
-        val sessionElapsed = when (val state = timerEngine.currentState()) {
-            is TimerState.Running -> ((nowMs - state.startTimeEpoch) / 1000L).coerceAtLeast(0L)
-            else                  -> 0L
-        }
-
-        val paused = timerEngine.pause(nowMs)
+        // Use RunSession from the engine — startEpochMs is the real wall-clock
+        // epoch when Start was last tapped.  wallClockSeconds = (nowMs - startEpoch) / 1000,
+        // so we never accidentally charge timeSliceSeconds for a resumed partial session.
+        val result  = timerEngine.pause(nowMs)
+        val session = result?.second   // RunSession.Paused; null if engine was already idle
         _timerRunning.value = false
 
         val task = _currentTask.value
-        if (paused != null) {
+        if (result != null) {
+            val paused = result.first
             _currentTask.value  = paused
             _timerSeconds.value = paused.remainingSeconds
             viewModelScope.launch { repository.update(paused) }
@@ -1320,25 +1359,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             // activeTask is never cleared, pause() returns the STALE previous task
             // and the line above silently overwrites _currentTask with it.
             //
-            // Concrete next-button failure:
-            //   1. Start A, pause   → engine.activeTask = A
-            //   2. Tap Next         → nextSibling() calls pauseTimer()
-            //                          → timerEngine.pause() returns A
-            //                          → _currentTask = A  (overwrites current)
-            //                          → rotateSiblings reads current=A → picks B
-            //   3. Tap Next again   → same: _currentTask restored to A → picks B again
-            //   Result: stuck in A→B loop.
-            //
-            // Concrete schedule-next-hold failure (pauseAndDismiss):
-            //   1. Start A, pause   → engine.activeTask = A
-            //   2. Select card B    → _currentTask = B
-            //   3. Hold schedule-next → pauseAndDismiss() → pauseTimer()
-            //                            → timerEngine.pause() returns A
-            //                            → _currentTask = A  (spurious A)
-            //                            → then _currentTask = null
-            //   The brief A assignment fires currentTask observer → scrollToTask(A.id)
-            //   which scrolls the list — looking like a "random jump".
-            //
             // Fix: clear the engine right after the state is saved so activeTask
             // becomes null.  startTimer() rebuilds the engine from _currentTask
             // directly, so clearing here does not break resume.
@@ -1346,18 +1366,28 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (task != null && task.taskType == "NOTIFICATION") {
-            val totalConsumed = noticeSessionSeconds + sessionElapsed
-            noticeSessionSeconds = 0L
-            _noticePhase.value = NoticePhase.Idle
-            if (totalConsumed > 0) applyVruntimeUpdate(totalConsumed)
-        } else {
-            val total = sessionElapsed + delayElapsedSeconds + waitElapsedSeconds
-            if (total > 0) applyVruntimeUpdate(total)
+            val executeSeconds    = session?.wallClockSeconds ?: 0L
+            val totalConsumed     = noticeSessionSeconds + executeSeconds
+            noticeSessionSeconds  = 0L
+            _noticePhase.value    = NoticePhase.Idle
+            if (totalConsumed > 0) {
+                applyVruntimeUpdate(RunSession.NoticeSession(
+                    taskId         = task.id,
+                    startEpochMs   = noticeSessionStartEpochMs,
+                    endEpochMs     = nowMs,
+                    totalPhaseSecs = totalConsumed
+                ))
+            }
+        } else if (session != null && session.wallClockSeconds > 0) {
+            // For non-Notice tasks delayElapsedSeconds/waitElapsedSeconds are always 0,
+            // so session.wallClockSeconds is the complete elapsed time this run.
+            applyVruntimeUpdate(session)
         }
         delayElapsedSeconds = 0L
         waitElapsedSeconds  = 0L
         AlarmForegroundService.timerPause(getApplication())
     }
+
 
     fun resetTimer() {
         pauseTimer()
@@ -1404,16 +1434,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun onTimerFinished(
         taskOverride: Task? = null,
-        expiryEpochMs: Long = System.currentTimeMillis(),
-        vruntimeAlreadyApplied: Boolean = false
+        session: RunSession? = null   // null = vruntime already applied by caller (remaining<=0 path)
     ) {
         val task = taskOverride ?: _currentTask.value ?: return
-        val ctx = getApplication<Application>()
+        val ctx  = getApplication<Application>()
 
         // How long ago did the slice actually expire?
-        // - Normal path (app alive): expiryEpochMs ≈ now → elapsedSinceExpiry ≈ 0  ✓
-        // - Recovery path (app killed): expiryEpochMs is computed from the stored epoch
-        //   data, so elapsedSinceExpiry reflects real wall-clock time since expiry    ✓
+        // session.endEpochMs is the real wall-clock moment the engine fired onFinish(),
+        // so elapsedSinceExpiry reflects actual overrun time in both live and recovered paths.
+        val expiryEpochMs      = session?.endEpochMs ?: System.currentTimeMillis()
         val elapsedSinceExpiry = ((System.currentTimeMillis() - expiryEpochMs) / 1000L)
             .coerceAtLeast(0L)
 
@@ -1425,15 +1454,20 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         timerEngine.clear()
 
         viewModelScope.launch {
-            // vruntimeAlreadyApplied = true when the caller reached here via
-            // startTimer's remaining<=0 branch: pauseTimer() already called
-            // applyVruntimeUpdate(sessionElapsed) so the elapsed time is credited.
-            // Calling updateVruntimeAfterRun here too would double-count the full slice.
-            if (!vruntimeAlreadyApplied) {
+            // session == null means the remaining<=0 branch in startTimer() already
+            // called applyVruntimeUpdate() via pauseTimer().  Passing null here prevents
+            // double-counting.
+            //
+            // When session is non-null, session.wallClockSeconds = actual remaining slice
+            // = (endEpoch - startEpoch) / 1000.  This is the fix for the core bug:
+            //   task-A 10s slice, paused at 7s → resumed → expires after 3s.
+            //   OLD: credits task.timeSliceSeconds = 10s. Total: 7+10 = 17s. WRONG.
+            //   NEW: credits session.wallClockSeconds = 3s.  Total: 7+3 = 10s. CORRECT.
+            if (session != null) {
                 if (task.taskType != "NOTIFICATION") {
-                    repository.updateVruntimeAfterRun(task, task.timeSliceSeconds)
+                    repository.updateVruntimeAfterRun(task, session)
                 } else {
-                    noticeSessionSeconds += task.timeSliceSeconds
+                    noticeSessionSeconds += session.wallClockSeconds
                 }
             }
             repository.update(task.withTimerState(TimerState.reset()))
@@ -1535,10 +1569,10 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun applyVruntimeUpdate(ranSeconds: Long) {
+    private fun applyVruntimeUpdate(session: RunSession) {
         val task = _currentTask.value ?: return
         viewModelScope.launch {
-            repository.updateVruntimeAfterRun(task, ranSeconds)
+            repository.updateVruntimeAfterRun(task, session)
             refreshSchedule()
         }
     }
@@ -1589,6 +1623,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // is unaffected by ViewModel death — but calling cancel() here kills it.
         // Remove named observers to prevent accumulation across ViewModel recreation.
         timerEngine.tickSeconds.removeObserver(tickObserver)
+        timerEngine.expiredSession.removeObserver(expiredSessionObserver)
         timerEngine.expiredTask.removeObserver(expiredObserver)
         timerEngine.clear()
         overrunTimer?.cancel()

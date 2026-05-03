@@ -2,6 +2,7 @@ package com.eevdf.scheduler.db
 
 import android.content.Context
 import androidx.lifecycle.LiveData
+import com.eevdf.scheduler.model.RunSession
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import kotlinx.coroutines.Dispatchers
@@ -64,17 +65,25 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
      * ancestor groups — exactly like Linux cgroups crediting the task's CPU
      * time to every cgroup it belongs to.
      *
-     * Also rolls the quota accounting window forward and credits [secondsRan]
-     * against the quota budget for the leaf and every ancestor that has quota
-     * enabled — mirroring Linux's cpu.cfs_quota_us throttle per cgroup.
+     * Also rolls the quota accounting window forward and credits session.wallClockSeconds
+     * against the quota budget for the leaf and every ancestor that has quota enabled.
+     *
+     * [session] is the authoritative source for both:
+     *   • seconds to credit → session.wallClockSeconds  (timestamp diff, never a config value)
+     *   • RunLog start time → session.startEpochMs      (real wall-clock, never approximated)
+     *
+     * This fixes two compounding bugs in the old Long-based API:
+     *   1. Caller passed task.timeSliceSeconds instead of actual elapsed → vruntime over-credited.
+     *   2. RunLog start was approximated as (now - secondsRan*1000) → off by any pause delay.
      */
-    suspend fun updateVruntimeAfterRun(task: Task, secondsRan: Long) = withContext(Dispatchers.IO) {
-        // Record this session in the RunLog before any other mutation.
-        // startEpoch = now − duration gives a good-enough approximation when the
-        // exact start timestamp is not carried through to this call site.
+    suspend fun updateVruntimeAfterRun(task: Task, session: RunSession) = withContext(Dispatchers.IO) {
+        val secondsRan = session.wallClockSeconds
+
+        // Record this session in the RunLog with the REAL start epoch.
+        // Old code: startEpoch = System.currentTimeMillis() - secondsRan * 1_000L  (approximation)
+        // New code: startEpoch = session.startEpochMs                              (exact)
         if (secondsRan > 0 && !task.isGroup) {
-            val startEpoch = System.currentTimeMillis() - secondsRan * 1_000L
-            runLog.recordRun(task.id, startEpoch, secondsRan)
+            runLog.recordRun(task.id, session.startEpochMs, secondsRan)
         }
 
         EEVDFScheduler.updateVruntime(task, secondsRan)
