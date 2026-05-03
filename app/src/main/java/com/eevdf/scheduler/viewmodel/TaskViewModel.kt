@@ -814,23 +814,35 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val current  = _currentTask.value
         val allTasks = (if (onQueueTab) flatActiveTasks else flatScheduleOrder)
             .value?.map { it.task } ?: return
+
+        // Check parent group type — NOTIFICATION always jumps to lowest VDL, never rotates.
+        val parentId   = current?.parentId
+        val parentType = allTasks.find { it.id == parentId }?.taskType
+
         val base = allTasks
-            .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == current?.parentId }
+            .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
         val siblings = if (onQueueTab)
             base.sortedWith(compareBy({ extractNumber(it.name) }, { it.name }))
         else
             base.sortedBy { it.virtualDeadline }
+
         if (siblings.size <= 1) {
-            // Only one task in this sibling group — stay on the current task
-            // rather than handing off to scheduleNext() which would close the card.
             _toastMessage.value = "No other siblings to rotate"
             return
         }
-        val idx  = siblings.indexOfFirst { it.id == current?.id }
-        val next = siblings[(idx + 1) % siblings.size]
+
+        val next = if (parentType == "NOTIFICATION") {
+            // NOTIFICATION parent: always the sibling with the lowest virtual deadline.
+            // No rotation — same target every tap, consistent with auto mode behaviour.
+            base.sortedBy { it.virtualDeadline }.first()
+        } else {
+            val idx = siblings.indexOfFirst { it.id == current?.id }
+            siblings[(idx + 1) % siblings.size]
+        }
+
         _currentTask.value  = next
         _timerSeconds.value = next.remainingSeconds
-        _toastMessage.value = "Next: \"${next.name}\" (${(idx + 2) % siblings.size + 1}/${siblings.size})"
+        _toastMessage.value = "Next: \"${next.name}\""
         viewModelScope.launch { refreshSchedule() }
     }
 
@@ -891,6 +903,49 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         if (task.parentId == null) return task
         val parent = tasks.find { it.id == task.parentId } ?: return task
         return rootAncestorOf(tasks, parent)
+    }
+
+    /**
+     * Selects the next task to run when Auto mode is active, using the parent
+     * group's taskType to choose the appropriate sibling-navigation strategy.
+     *
+     * | Parent taskType | Strategy                                             |
+     * |-----------------|------------------------------------------------------|
+     * | DEFAULT         | Next sibling by VDL order, looping back to first     |
+     * | NOTIFICATION    | VDL-first sibling (lowest virtual deadline)          |
+     * | ALERT / CUSTOM  | null → caller falls back to global selectNextTask()  |
+     * | no parent group | null → caller falls back to global selectNextTask()  |
+     *
+     * @param task      The task whose slice just expired.
+     * @param allTasks  Snapshot of active tasks (activeTasks.value).
+     * @return The chosen sibling, or null if no parent-aware rule applies.
+     */
+    private fun selectAutoNextTask(task: Task, allTasks: List<Task>): Task? {
+        val parentId = task.parentId ?: return null   // root task — no parent type to inherit
+        val parent   = allTasks.find { it.id == parentId } ?: return null
+
+        // All non-group, non-completed, non-interrupt siblings inside the same parent,
+        // sorted by virtualDeadline (scheduler order) for consistent selection.
+        val siblings = allTasks
+            .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
+            .sortedBy { it.virtualDeadline }
+
+        if (siblings.isEmpty()) return null
+
+        return when (parent.taskType) {
+            "DEFAULT" -> {
+                // Rotate: next sibling in VDL order, wrapping back to the first.
+                // indexOfFirst returns -1 if task is not found (e.g. already removed);
+                // (-1 + 1) % size = 0 safely falls back to the first sibling.
+                val idx = siblings.indexOfFirst { it.id == task.id }
+                siblings[(idx + 1) % siblings.size]
+            }
+            "NOTIFICATION" -> {
+                // Always jump to the sibling with the lowest virtual deadline.
+                siblings.first()
+            }
+            else -> null   // ALERT, CUSTOM — not yet defined; fall back to global scheduler
+        }
     }
 
     fun scheduleNext() = viewModelScope.launch {
@@ -1303,7 +1358,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             refreshSchedule()
 
             if (_autoMode.value == true) {
-                val next = repository.selectNextTask()
+                // Select the next task using the parent group's taskType strategy.
+                // selectAutoNextTask() returns null when there is no parent group or
+                // the type is not yet handled (ALERT, CUSTOM) — in those cases fall
+                // back to the global EEVDF scheduler (selectNextTask).
+                val allTasks = activeTasks.value ?: emptyList()
+                val next = selectAutoNextTask(task, allTasks) ?: repository.selectNextTask()
                 if (next != null) {
                     pendingAutoStart = true
                     _currentTask.postValue(next)
