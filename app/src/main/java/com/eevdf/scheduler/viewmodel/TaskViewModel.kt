@@ -158,6 +158,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingAutoStart = false
 
     /**
+     * Holds the reset-state task while the expire card is visible.
+     * Set in onTimerFinished when the timer card closes and the expire card opens.
+     * Consumed in stopAlarmSound() to reopen the timer card with the default timer.
+     * Null at all other times.
+     */
+    private var taskToRestoreAfterExpire: Task? = null
+
+    /**
      * Global Rotate state saved on entering Auto mode so it can be restored on exit.
      * Persisted to prefs so the value survives an app kill while Auto mode is active.
      * Without persistence: global_rotate=false is saved when Auto turns on; on relaunch
@@ -1389,6 +1397,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _alarmTaskName.postValue(task.name)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(task.name, elapsedSinceExpiry)
+                // Proper one-at-a-time card transition:
+                //   1. Close timer card  (_currentTask = null)
+                //   2. Open expire card  (_alarmTaskName already posted above)
+                // When user taps Stop, stopAlarmSound() closes the expire card and
+                // reopens the timer card with the reset (default) state — never both visible.
+                taskToRestoreAfterExpire = task.withTimerState(TimerState.reset())
                 _currentTask.postValue(null)
             }
         }
@@ -1420,6 +1434,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _alarmTaskName.postValue(null)
         _alarmElapsedSeconds.postValue(0L)
         AlarmForegroundService.stopAlarm(getApplication())
+        // Reopen the timer card with the reset (default) state after the expire card closes.
+        // taskToRestoreAfterExpire is null when stopAlarmSound is called for reasons other
+        // than a slice expiry (e.g. alarm from a previous session on app relaunch), so the
+        // null check prevents accidentally reopening a card the user never had open.
+        taskToRestoreAfterExpire?.let { resetTask ->
+            _currentTask.postValue(resetTask)
+            _timerSeconds.postValue(resetTask.timeSliceSeconds)
+            taskToRestoreAfterExpire = null
+        }
     }
 
     private fun stopTimer(completed: Boolean) {
