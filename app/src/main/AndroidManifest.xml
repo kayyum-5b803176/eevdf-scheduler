@@ -61,6 +61,12 @@
             android:parentActivityName=".ui.MainActivity" />
 
         <activity
+            android:name=".ui.DataBackupActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.SettingsActivity" />
+
+        <activity
             android:name=".ui.ProfileSettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
