@@ -26,6 +26,9 @@ import com.eevdf.scheduler.R
 import com.eevdf.scheduler.adapter.TaskAdapter
 import com.eevdf.scheduler.model.NoticePhase
 import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.TimerCardAction
+import com.eevdf.scheduler.model.IntButtonState
+import com.eevdf.scheduler.model.NextButtonState
 import com.eevdf.scheduler.viewmodel.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -266,27 +269,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupTimerCard() {
+        // ── Start / Pause / Cancel ────────────────────────────────────────────
+        // CRITICAL: dispatch from timerCardAction — the pre-derived, already-settled
+        // value — NEVER from viewModel.timerRunning.value or viewModel.noticePhase.value
+        // read at click time.  Reading two separate LiveData at tap time is the root
+        // cause of "button stuck at Start" and "button dispatches the wrong action":
+        // if the tap lands between two LiveData dispatches, one value is stale.
         btnStartPause.setOnClickListener {
             haptic(it)
             viewModel.stopAlarmSound()
-            when {
-                // Notice task active phase → route through cancelNotice
-                // (Delay/Wait → Cancel, Execute → Pause)
-                viewModel.noticePhase.value !is NoticePhase.Idle &&
-                viewModel.noticePhase.value !is NoticePhase.Expired ->
-                    viewModel.cancelNotice()
-                // Any task currently running (DEFAULT / Alert / Custom) → pause
-                viewModel.timerRunning.value == true ->
-                    viewModel.pauseTimer()
-                // Idle → start
-                else -> viewModel.startTimer()
+            when (viewModel.timerCardAction.value) {
+                TimerCardAction.Start       -> viewModel.startTimer()
+                TimerCardAction.Pause       -> viewModel.pauseTimer()
+                TimerCardAction.Cancel      -> viewModel.cancelNotice()
+                TimerCardAction.Unavailable -> Unit   // disabled — no-op
+                null                        -> Unit   // not yet derived — no-op
             }
         }
-        btnInt.setOnClickListener { haptic(it); viewModel.jumpToInterrupt() }
-        // Hold → toggle active interrupt slot (INT-A ↔ INT-B)
-        btnInt.setOnLongClickListener { haptic(it); viewModel.toggleInterruptSlot(); true }
-        btnScheduleNext.setOnClickListener { haptic(it); viewModel.nextSibling(onQueueTab = currentTab == 0) }
-        // Hold → toggle Auto mode (button label + Global Rotate state flip)
+
+        // ── INT button ────────────────────────────────────────────────────────
+        btnInt.setOnClickListener      { haptic(it); viewModel.jumpToInterrupt() }
+        btnInt.setOnLongClickListener  { haptic(it); viewModel.toggleInterruptSlot(); true }
+
+        // ── Next / Auto button ────────────────────────────────────────────────
+        btnScheduleNext.setOnClickListener    { haptic(it); viewModel.nextSibling(onQueueTab = currentTab == 0) }
         btnScheduleNext.setOnLongClickListener { haptic(it); viewModel.toggleAutoMode(); true }
     }
 
@@ -352,86 +358,43 @@ class MainActivity : AppCompatActivity() {
                 String.format("%02d:%02d", m, s)
         }
 
-        // Single observer drives the button label, colour, and phase status bar.
-        // noticePhase is always Idle for non-Notice tasks, so timerRunning handles those below.
-        viewModel.noticePhase.observe(this) { phase ->
-            when (phase) {
-                is NoticePhase.Idle -> {
-                    // Only update button if timer is not already running.
-                    // For running non-Notice tasks the timerRunning observer
-                    // owns the label — don't overwrite it with "Start" here.
-                    if (viewModel.timerRunning.value != true) {
-                        btnStartPause.text = "Start"
-                        btnStartPause.backgroundTintList =
-                            android.content.res.ColorStateList.valueOf(
-                                androidx.core.content.ContextCompat.getColor(this, R.color.timerGreen)
-                            )
-                        btnStartPause.jumpDrawablesToCurrentState()
-                    }
-                    viewPhaseStatus.visibility = View.GONE
-                }
-                is NoticePhase.Delay -> {
-                    btnStartPause.text = "Cancel"
-                    btnStartPause.backgroundTintList =
-                        android.content.res.ColorStateList.valueOf(
-                            androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
-                        )
-                    btnStartPause.jumpDrawablesToCurrentState()
-                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#FFB300"))
-                    viewPhaseStatus.visibility = View.VISIBLE
-                    // Display delay countdown in the timer display
-                    val secs = phase.remainingSecs
-                    val m = secs / 60; val s = secs % 60
-                    tvTimerDisplay.text = "%02d:%02d".format(m, s)
-                }
-                is NoticePhase.Execute -> {
-                    btnStartPause.text = "Pause"
-                    btnStartPause.backgroundTintList =
-                        android.content.res.ColorStateList.valueOf(
-                            androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
-                        )
-                    btnStartPause.jumpDrawablesToCurrentState()
-                    viewPhaseStatus.visibility = View.GONE
-                }
-                is NoticePhase.Wait -> {
-                    btnStartPause.text = "Cancel"
-                    btnStartPause.backgroundTintList =
-                        android.content.res.ColorStateList.valueOf(
-                            androidx.core.content.ContextCompat.getColor(this, R.color.timerYellow)
-                        )
-                    btnStartPause.jumpDrawablesToCurrentState()
-                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#4CAF50"))
-                    viewPhaseStatus.visibility = View.VISIBLE
-                    // Display wait countdown in the timer display
-                    val secs = phase.remainingSecs
-                    val m = secs / 60; val s = secs % 60
-                    tvTimerDisplay.text = "%02d:%02d".format(m, s)
-                }
-                is NoticePhase.Expired -> {
-                    viewPhaseStatus.visibility = View.GONE
-                }
-                else -> Unit
-            }
-        }
-
-        // Non-Notice timer running state — only updates label when noticePhase is Idle
-        // (i.e. for regular tasks, or a Notice task that is not in a phase yet).
-        viewModel.timerRunning.observe(this) { running ->
-            if (viewModel.noticePhase.value != NoticePhase.Idle) return@observe
-            btnStartPause.text = if (running) "Pause" else "Start"
-            btnStartPause.icon = null
-            val tintColor = if (running) R.color.timerYellow else R.color.timerGreen
+        // ── Start / Pause / Cancel button ─────────────────────────────────────
+        //
+        // Single observer on timerCardAction. The ViewModel has already combined
+        // noticePhase + timerRunning + currentTask into one atomic value, so this
+        // fires ONCE per logical state change — not once per individual LiveData
+        // update.  The click handler (setupTimerCard) dispatches from the same
+        // object, so UI and behaviour are guaranteed to match.
+        viewModel.timerCardAction.observe(this) { action ->
+            btnStartPause.text    = action.label
+            btnStartPause.icon    = null
+            btnStartPause.isEnabled = action.enabled
             btnStartPause.backgroundTintList =
                 android.content.res.ColorStateList.valueOf(
-                    androidx.core.content.ContextCompat.getColor(this, tintColor)
+                    androidx.core.content.ContextCompat.getColor(this, action.colorRes)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
-            if (!running) viewPhaseStatus.visibility = View.GONE
         }
 
-        // Keep timerSeconds updating display for the execute phase
-        // (noticePhase.Execute updates happen via timerSeconds observer below,
-        //  Delay and Wait updates happen in the noticePhase observer above).
+        // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)
+        // that TimerCardAction intentionally omits, so driven separately here.
+        viewModel.noticePhase.observe(this) { phase ->
+            when (phase) {
+                is NoticePhase.Delay -> {
+                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#FFB300"))
+                    viewPhaseStatus.visibility = View.VISIBLE
+                    val m = phase.remainingSecs / 60; val s = phase.remainingSecs % 60
+                    tvTimerDisplay.text = "%02d:%02d".format(m, s)
+                }
+                is NoticePhase.Wait -> {
+                    viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#4CAF50"))
+                    viewPhaseStatus.visibility = View.VISIBLE
+                    val m = phase.remainingSecs / 60; val s = phase.remainingSecs % 60
+                    tvTimerDisplay.text = "%02d:%02d".format(m, s)
+                }
+                else -> viewPhaseStatus.visibility = View.GONE
+            }
+        }
 
         viewModel.stats.observe(this) { stats ->
             tvStats.text    = "Active: ${stats.activeTasks}  |  Done: ${stats.completedTasks}  |  Weight: ${"%.1f".format(stats.totalWeight)}"
@@ -473,46 +436,30 @@ class MainActivity : AppCompatActivity() {
         viewModel.autoScrollEnabled.observe(this) { enabled ->
             autoScrollMenuItem?.isChecked = enabled
         }
-        // Auto mode: flip "Next" ↔ "Auto" label; lock Global Rotate menu item while active
+
+        // ── Next / Auto button ────────────────────────────────────────────────
+        viewModel.nextButtonState.observe(this) { state ->
+            btnScheduleNext.text = state.label
+        }
+        // Lock Global Rotate menu item while Auto mode is active
         viewModel.autoMode.observe(this) { auto ->
-            btnScheduleNext.text = if (auto) "Auto" else "Next"
             globalRotateMenuItem?.isEnabled = !auto
         }
-        // INT button color rules:
-        //   INT-A active + task assigned → red  (#F44336)
-        //   INT-B active + task assigned → blue (#2196F3)
-        //   active slot has no task      → default primary color
+
+        // ── INT button ────────────────────────────────────────────────────────
         //
-        // Each observer passes its own fresh value directly — avoids re-reading
-        // .value from a different LiveData that may not have dispatched yet,
-        // which was causing the occasional color swap on slot toggle.
-        fun applyIntButtonState(slot: String, taskA: Task?, taskB: Task?) {
-            btnInt.text = "INT-$slot"
-            val color = when {
-                slot == "A" && taskA != null ->
-                    android.graphics.Color.parseColor("#F44336")
-                slot == "B" && taskB != null ->
-                    android.graphics.Color.parseColor("#2196F3")
-                else ->
-                    androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary)
-            }
+        // Previously three separate observers (slot, taskA, taskB) each read
+        // the other two LiveData via .value at dispatch time — if dispatches
+        // interleaved, the color and label could be set from mismatched values
+        // for one frame.  Single observer on intButtonState fixes that.
+        viewModel.intButtonState.observe(this) { state ->
+            btnInt.text = state.label
+            val color = if (state.textColorHex.isNotEmpty())
+                android.graphics.Color.parseColor(state.textColorHex)
+            else
+                androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary)
             btnInt.setTextColor(color)
             btnInt.jumpDrawablesToCurrentState()
-        }
-        viewModel.activeInterruptSlot.observe(this) { slot ->
-            applyIntButtonState(slot,
-                viewModel.interruptTask.value,
-                viewModel.interruptTaskB.value)
-        }
-        viewModel.interruptTask.observe(this) { taskA ->
-            applyIntButtonState(viewModel.activeInterruptSlot.value ?: "A",
-                taskA,
-                viewModel.interruptTaskB.value)
-        }
-        viewModel.interruptTaskB.observe(this) { taskB ->
-            applyIntButtonState(viewModel.activeInterruptSlot.value ?: "A",
-                viewModel.interruptTask.value,
-                taskB)
         }
     }
 
@@ -522,6 +469,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun scrollToTask(taskId: String) {
         // Only scroll within the currently visible tab — never switch tabs
+
         val currentAdapter = when (currentTab) {
             0    -> activeAdapter
             1    -> scheduleAdapter

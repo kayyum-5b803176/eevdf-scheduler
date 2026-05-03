@@ -9,6 +9,9 @@ import com.eevdf.scheduler.db.TaskRepository
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.model.NoticePhase
 import com.eevdf.scheduler.model.TimerState
+import com.eevdf.scheduler.model.TimerCardAction
+import com.eevdf.scheduler.model.IntButtonState
+import com.eevdf.scheduler.model.NextButtonState
 import com.eevdf.scheduler.model.timerState
 import com.eevdf.scheduler.model.withTimerState
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
@@ -585,6 +588,78 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val _noticePhase = MutableLiveData<NoticePhase>(NoticePhase.Idle)
     val noticePhase: LiveData<NoticePhase> = _noticePhase
+
+    // ── Derived button-state LiveData — single sources of truth ──────────────
+    //
+    // Each MediatorLiveData combines ALL inputs that affect a button into ONE
+    // settled value.  The UI observer reads this value to set label + color.
+    // The click handler dispatches from this value — never from .value of the
+    // raw LiveData — eliminating the race window between two LiveData dispatches.
+
+    /**
+     * Start/Pause/Cancel button — derived from noticePhase + timerRunning + currentTask.
+     *
+     * Derivation order:
+     *  1. No task selected           → Unavailable  (no card, button hidden/disabled)
+     *  2. Notice Delay phase active  → Cancel
+     *  3. Notice Wait  phase active  → Cancel
+     *  4. Notice Execute phase       → Pause   (same as normal running)
+     *  5. Notice Expired             → Unavailable  (alarm banner owns the action)
+     *  6. Timer running              → Pause
+     *  7. Everything else            → Start
+     *
+     * Never reads timerRunning and noticePhase separately at different points in time.
+     */
+    val timerCardAction: MediatorLiveData<TimerCardAction> =
+        MediatorLiveData<TimerCardAction>().apply {
+            fun derive() {
+                val phase   = _noticePhase.value  ?: NoticePhase.Idle
+                val running = _timerRunning.value ?: false
+                val task    = _currentTask.value
+                value = when {
+                    task == null                  -> TimerCardAction.Unavailable
+                    phase is NoticePhase.Delay    -> TimerCardAction.Cancel
+                    phase is NoticePhase.Wait     -> TimerCardAction.Cancel
+                    phase is NoticePhase.Execute  -> TimerCardAction.Pause
+                    phase is NoticePhase.Expired  -> TimerCardAction.Unavailable
+                    running                       -> TimerCardAction.Pause
+                    else                          -> TimerCardAction.Start
+                }
+            }
+            addSource(_noticePhase)  { derive() }
+            addSource(_timerRunning) { derive() }
+            addSource(_currentTask)  { derive() }
+        }
+
+    /**
+     * INT button label + colour — derived from activeInterruptSlot + interruptTask + interruptTaskB.
+     * Replaces the three separate applyIntButtonState observers in MainActivity.
+     */
+    val intButtonState: MediatorLiveData<IntButtonState> =
+        MediatorLiveData<IntButtonState>().apply {
+            fun derive() {
+                val slot    = _activeInterruptSlot.value ?: "A"
+                val taskA   = _interruptTask.value
+                val taskB   = _interruptTaskB.value
+                val hasTask = if (slot == "A") taskA != null else taskB != null
+                value = IntButtonState(slot = slot, hasTask = hasTask)
+            }
+            addSource(_activeInterruptSlot) { derive() }
+            addSource(_interruptTask)       { derive() }
+            addSource(_interruptTaskB)      { derive() }
+        }
+
+    /**
+     * Next / Auto button label — derived from autoMode.
+     * Exists as a named type so future states can be added without touching the click handler.
+     */
+    val nextButtonState: MediatorLiveData<NextButtonState> =
+        MediatorLiveData<NextButtonState>().apply {
+            fun derive() {
+                value = if (_autoMode.value == true) NextButtonState.Auto else NextButtonState.Next
+            }
+            addSource(_autoMode) { derive() }
+        }
 
     /** Elapsed seconds accumulated across delay + execute + wait phases this session. */
     private var delayElapsedSeconds:  Long = 0L
