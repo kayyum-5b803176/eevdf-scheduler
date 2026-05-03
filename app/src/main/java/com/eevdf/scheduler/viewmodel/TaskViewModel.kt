@@ -29,6 +29,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val KEY_ALLOW_EDIT     = "allow_edit_enabled"
     private val KEY_AUTO_SCROLL    = "auto_scroll_enabled"
     private val KEY_AUTO_MODE      = "auto_mode"
+    private val KEY_GLOBAL_ROTATE_BEFORE_AUTO = "global_rotate_before_auto"
 
     private val repository: TaskRepository
     val allTasks: LiveData<List<Task>>
@@ -69,8 +70,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     /** Saved card to return to after visiting the INT-B interrupt task. */
     private var savedTaskBeforeInterruptB: Task? = null
 
-    // BUG FIX: Named observer references kept so onCleared() can remove them.
-    // Anonymous observeForever lambdas cannot be unregistered, which allowed
+    // Named observer references kept so onCleared() can remove them.
+    // Anonymous observeForever lambdas cannot be unregistered, which would allow
     // duplicate observers to accumulate across ViewModel recreation.
     private lateinit var tickObserver: androidx.lifecycle.Observer<Long>
     private lateinit var expiredObserver: androidx.lifecycle.Observer<Task>
@@ -156,8 +157,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     /** Set to true by onTimerFinished when auto mode queues the next task; consumed by MainActivity. */
     private var pendingAutoStart = false
 
-    /** Global Rotate state saved on entering Auto mode so it can be restored on exit. */
-    private var savedGlobalRotateBeforeAuto: Boolean = false
+    /**
+     * Global Rotate state saved on entering Auto mode so it can be restored on exit.
+     * Persisted to prefs so the value survives an app kill while Auto mode is active.
+     * Without persistence: global_rotate=false is saved when Auto turns on; on relaunch
+     * savedGlobalRotateBeforeAuto defaults to false; toggling Auto off restores false
+     * instead of the original true — silently losing the user's Global Rotate setting.
+     */
+    private var savedGlobalRotateBeforeAuto: Boolean =
+        prefs.getBoolean(KEY_GLOBAL_ROTATE_BEFORE_AUTO, false)
 
     /**
      * Toggles Auto mode on/off (bound to long-press of the "Next" button).
@@ -168,12 +176,21 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val next = !(_autoMode.value ?: false)
         if (next) {
             savedGlobalRotateBeforeAuto = _globalRotateEnabled.value ?: false
-            prefs.edit().putBoolean(KEY_GLOBAL_ROTATE, false).apply()
+            // Persist the pre-auto value so it survives an app kill.
+            prefs.edit()
+                .putBoolean(KEY_GLOBAL_ROTATE_BEFORE_AUTO, savedGlobalRotateBeforeAuto)
+                .putBoolean(KEY_GLOBAL_ROTATE, false)
+                .apply()
             _globalRotateEnabled.value = false
             _toastMessage.value = "Auto mode ON — Global Rotate disabled"
         } else {
-            prefs.edit().putBoolean(KEY_GLOBAL_ROTATE, savedGlobalRotateBeforeAuto).apply()
+            // Restore and clear the saved value — no longer needed once Auto is off.
+            prefs.edit()
+                .putBoolean(KEY_GLOBAL_ROTATE, savedGlobalRotateBeforeAuto)
+                .remove(KEY_GLOBAL_ROTATE_BEFORE_AUTO)
+                .apply()
             _globalRotateEnabled.value = savedGlobalRotateBeforeAuto
+            savedGlobalRotateBeforeAuto = false
             _toastMessage.value = "Auto mode OFF — Global Rotate restored"
         }
         prefs.edit().putBoolean(KEY_AUTO_MODE, next).apply()
@@ -594,12 +611,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
         // ── Wire TimerEngine outputs ──────────────────────────────────────────
 
-        // BUG FIX: Keep named references so onCleared() can remove them.
-        // Previously these were anonymous lambdas passed to observeForever, which
-        // meant they could never be unregistered. On ViewModel recreation (config
-        // change) a second pair of observers would be added while the old pair kept
-        // firing, causing duplicate ticks, double vruntime credits, and stale-state
-        // navigation bugs that only cleared on a full app kill.
+        // Wire TimerEngine outputs via named observers so onCleared() can remove them.
         tickObserver = androidx.lifecycle.Observer { remainingSecs: Long ->
             _timerSeconds.postValue(remainingSecs)
             _currentTask.value?.let { t ->
@@ -1417,10 +1429,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // the timer is still running (app killed, config change), the alarm must
         // survive to fire at expiry.  AlarmManager lives in the system process and
         // is unaffected by ViewModel death — but calling cancel() here kills it.
-        // BUG FIX: Remove named observers registered in init{} via observeForever.
-        // Without explicit removal, observers linger after ViewModel destruction and
-        // a new ViewModel instance adds a second pair — causing doubled timer ticks,
-        // double vruntime credits, and stale navigation state.
+        // Remove named observers to prevent accumulation across ViewModel recreation.
         timerEngine.tickSeconds.removeObserver(tickObserver)
         timerEngine.expiredTask.removeObserver(expiredObserver)
         timerEngine.clear()
