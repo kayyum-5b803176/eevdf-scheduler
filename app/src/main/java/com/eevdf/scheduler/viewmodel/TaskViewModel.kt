@@ -9,6 +9,7 @@ import com.eevdf.scheduler.db.TaskRepository
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.model.NoticePhase
 import com.eevdf.scheduler.model.RunSession
+import com.eevdf.scheduler.model.TimerStartEvent
 import com.eevdf.scheduler.model.TimerState
 import com.eevdf.scheduler.model.TimerCardAction
 import com.eevdf.scheduler.model.IntButtonState
@@ -1310,10 +1311,23 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Single entry point for starting an execute countdown.
      */
     private fun startActualTimer(task: Task, remaining: Long) {
-        val nowMs       = System.currentTimeMillis()
-        val accumulated = (task.timeSliceSeconds - remaining) * 1000L
-        val running     = TimerState.Running(accumulatedMs = accumulated, startTimeEpoch = nowMs)
-        val updated     = task.withTimerState(running)
+        // Build the start event from the task's exact sealed state.
+        //
+        // OLD (buggy):
+        //   val accumulated = (task.timeSliceSeconds - remaining) * 1000L
+        //   remaining comes from _timerSeconds.value (integer seconds, truncated).
+        //   Start→Pause in < 1s: remaining shows 9 even if only 50ms elapsed.
+        //   accumulated = (10-9)*1000 = 1000ms — charges 1000ms for a 50ms tap.
+        //   Each spam tap loses 1 display-second regardless of real time passing.
+        //
+        // NEW (fixed):
+        //   TimerStartEvent.from reads accumulatedMs directly from the engine's
+        //   Paused state (exact ms), never from a seconds-rounded display value.
+        //   Start→Pause in 50ms → Paused(50ms) → next Start reads 50ms → correct.
+        val nowMs   = System.currentTimeMillis()
+        val event   = TimerStartEvent.from(task.timerState, nowMs)
+        val running = event.toRunning
+        val updated = task.withTimerState(running)
 
         _timerRunning.value = true
         // MUST update _currentTask with the Running state so the tick observer's
