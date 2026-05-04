@@ -71,7 +71,7 @@ data class Task(
     var startTimeEpoch: Long = 0L,
 
     // CPU share pinning — null = auto-float (EEVDF weight-based), 0–100 = fixed %
-    val pinnedShare: Int? = null,
+    val pinnedShare: Double? = null,
 
     /**
      * Auto-calculated internal scheduling weight derived from [pinnedShare].

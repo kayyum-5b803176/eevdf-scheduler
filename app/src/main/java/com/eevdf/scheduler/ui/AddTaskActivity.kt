@@ -327,7 +327,7 @@ class AddTaskActivity : AppCompatActivity() {
         task.pinnedShare?.let {
             switchRealtimeShare.isChecked = true
             layoutRealtimeShareFields.visibility = View.VISIBLE
-            etPinnedShare.setText(it.toString())
+            etPinnedShare.setText("%.2f".format(it))
         }
 
         // Quota limit
@@ -403,8 +403,8 @@ class AddTaskActivity : AppCompatActivity() {
      * null snapshot).
      */
     private fun recalcWeightFromPinned() {
-        val value = etPinnedShare.text?.toString()?.toIntOrNull()
-        autoCalcWeight = if (value != null && value in 1..99) calcInternalWeight(value) else null
+        val value = etPinnedShare.text?.toString()?.toDoubleOrNull()
+        autoCalcWeight = if (value != null && value in 0.01..99.99) calcInternalWeight(value) else null
         applySliderLock(value)
         updatePriorityDisplay()
     }
@@ -414,7 +414,7 @@ class AddTaskActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
-                validatePinnedShare(s?.toString()?.toIntOrNull())
+                validatePinnedShare(s?.toString()?.toDoubleOrNull())
                 recalcWeightFromPinned()
             }
         })
@@ -424,7 +424,7 @@ class AddTaskActivity : AppCompatActivity() {
      * Locks or unlocks the priority slider based on whether a pinned share is set.
      * When locked the slider is visually dimmed so the user can see it is not interactive.
      */
-    private fun applySliderLock(pinnedValue: Int?) {
+    private fun applySliderLock(pinnedValue: Double?) {
         val locked = pinnedValue != null
         sliderPriority.isEnabled = !locked
         sliderPriority.alpha     = if (locked) 0.38f else 1.0f
@@ -437,7 +437,7 @@ class AddTaskActivity : AppCompatActivity() {
      * Keeping this wrapper here lets the Activity pass the slider value as the
      * fallback weight (reasonable default for a task that has no float siblings yet).
      */
-    private fun calcInternalWeight(targetShare: Int): Double {
+    private fun calcInternalWeight(targetShare: Double): Double {
         val tasks = viewModel.activeTasks.value ?: emptyList()
 
         val selectedParentId: String? = if (groupsEnabled) {
@@ -446,7 +446,7 @@ class AddTaskActivity : AppCompatActivity() {
         } else null
 
         return EEVDFScheduler.calcPinnedWeight(
-            targetShare    = targetShare.toDouble(),
+            targetShare    = targetShare,
             parentId       = selectedParentId,
             excludeId      = existingTaskId,
             allTasks       = tasks,
@@ -454,34 +454,36 @@ class AddTaskActivity : AppCompatActivity() {
         )
     }
 
-    private fun validatePinnedShare(newValue: Int?) {
+    private fun validatePinnedShare(newValue: Double?) {
         if (newValue == null) {
-            // Empty = auto-float, no warning needed
             tvPinnedShareWarning.visibility = android.view.View.GONE
             return
         }
         val tasks = viewModel.activeTasks.value ?: emptyList()
-        val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId)
+        val selectedParentId: String? = if (groupsEnabled) {
+            val idx = spinnerParent.selectedItemPosition
+            groupsList.getOrNull(idx)?.id
+        } else null
+        val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId, selectedParentId)
         val total = otherPinned + newValue
         when {
-            newValue < 1 || newValue > 99 -> {
-                tvPinnedShareWarning.text = "Value must be between 1 and 99."
+            newValue < 0.01 || newValue > 99.99 -> {
+                tvPinnedShareWarning.text = "Value must be between 0.01 and 99.99."
                 tvPinnedShareWarning.visibility = android.view.View.VISIBLE
             }
-            total > 100 -> {
+            total > 100.0 -> {
                 tvPinnedShareWarning.text =
-                    "Total pinned share would be $total% (other tasks: $otherPinned%). " +
-                    "Reduce this or other pinned tasks so total ≤ 100%."
+                    "Total pinned share would be ${"%.2f".format(total)}% " +
+                    "(siblings: ${"%.2f".format(otherPinned)}%). " +
+                    "Reduce this or sibling pinned tasks so total ≤ 100%."
                 tvPinnedShareWarning.visibility = android.view.View.VISIBLE
             }
-            total == 100 -> {
+            total >= 99.99 -> {
                 tvPinnedShareWarning.text =
                     "Warning: all 100% is pinned. Floating tasks will receive 0% share."
                 tvPinnedShareWarning.visibility = android.view.View.VISIBLE
             }
-            else -> {
-                tvPinnedShareWarning.visibility = android.view.View.GONE
-            }
+            else -> tvPinnedShareWarning.visibility = android.view.View.GONE
         }
     }
 
@@ -642,20 +644,26 @@ class AddTaskActivity : AppCompatActivity() {
         val notifRestSecs   = if (selectedTaskType == "NOTIFICATION") parseDelayInput(etNoticeRest.text.toString()) else 0L
         val notifRepeat     = if (selectedTaskType == "NOTIFICATION") (etNoticeRepeat.text.toString().toIntOrNull() ?: 0).coerceIn(0, 12) else 0
 
-        // Pinned share — null if field empty (auto-float), else validated 1–99
-        val pinnedShareRaw = etPinnedShare.text.toString().toIntOrNull()
-        val pinnedShare: Int? = if (pinnedShareRaw != null) {
-            val clamped     = pinnedShareRaw.coerceIn(1, 99)
+        // Pinned share — null if field empty (auto-float), else validated 0.01–99.99
+        val pinnedShareRaw = etPinnedShare.text.toString().toDoubleOrNull()
+        val pinnedShare: Double? = if (pinnedShareRaw != null) {
+            val clamped     = pinnedShareRaw.coerceIn(0.01, 99.99)
             val tasks       = viewModel.activeTasks.value ?: emptyList()
-            val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId)
-            if (otherPinned + clamped > 100) {
+            val selectedParentId: String? = if (groupsEnabled) {
+                val idx = spinnerParent.selectedItemPosition
+                groupsList.getOrNull(idx)?.id
+            } else null
+            val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId, selectedParentId)
+            if (otherPinned + clamped > 100.0) {
                 tvPinnedShareWarning.text =
-                    "Cannot save: total pinned share would be ${otherPinned + clamped}%. " +
-                    "Reduce this or other pinned tasks so total ≤ 100%."
+                    "Cannot save: total sibling pinned share would be " +
+                    "${"%.2f".format(otherPinned + clamped)}%. " +
+                    "Reduce this or sibling pinned tasks so total ≤ 100%."
                 tvPinnedShareWarning.visibility = android.view.View.VISIBLE
                 return
             }
-            clamped
+            // Round to 2dp so DB and display are always consistent
+            "%.2f".format(clamped).toDouble()
         } else null
 
         // internalWeight is set only when pinnedShare is active; cleared otherwise so

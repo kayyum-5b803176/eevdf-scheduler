@@ -587,15 +587,15 @@
                         <com.google.android.material.textfield.TextInputLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="Pinned share % (1–99, empty = auto)"
+                            android:hint="Pinned share % (0.01–99.99, empty = auto)"
                             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                             android:layout_marginBottom="8dp">
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etPinnedShare"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:inputType="number"
-                                android:maxLength="2" />
+                                android:inputType="numberDecimal"
+                                android:maxLength="6" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <TextView

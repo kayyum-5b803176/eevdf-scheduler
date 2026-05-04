@@ -14,7 +14,7 @@ import com.eevdf.scheduler.model.Task
 
 @Database(
     entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class],
-    version  = 14,
+    version  = 15,
     exportSchema = false
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -314,6 +314,79 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 14 → 15 — pinnedShare promoted from INTEGER to REAL so the UI
+         * can accept fractional values (e.g. 33.33%).
+         *
+         * SQLite cannot change column affinity in-place, so we recreate the table:
+         *   1. Create tasks_new with pinnedShare REAL.
+         *   2. Copy all rows — CAST(pinnedShare AS REAL) converts existing integers.
+         *   3. Drop tasks, rename tasks_new → tasks.
+         *   4. Recreate indices that existed on tasks.
+         *
+         * No data is lost: integer 25 → 25.0.
+         */
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 1. Create new table with pinnedShare REAL (correct column names from Task entity)
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tasks_new (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        timeSliceSeconds INTEGER NOT NULL DEFAULT 1500,
+                        remainingSeconds INTEGER NOT NULL DEFAULT 1500,
+                        vruntime REAL NOT NULL DEFAULT 0.0,
+                        totalRunTime INTEGER NOT NULL DEFAULT 0,
+                        priority INTEGER NOT NULL DEFAULT 4,
+                        isCompleted INTEGER NOT NULL DEFAULT 0,
+                        isRunning INTEGER NOT NULL DEFAULT 0,
+                        accumulatedMs INTEGER NOT NULL DEFAULT 0,
+                        startTimeEpoch INTEGER NOT NULL DEFAULT 0,
+                        runCount INTEGER NOT NULL DEFAULT 0,
+                        virtualDeadline REAL NOT NULL DEFAULT 0.0,
+                        isGroup INTEGER NOT NULL DEFAULT 0,
+                        parentId TEXT,
+                        isGroupExpanded INTEGER NOT NULL DEFAULT 1,
+                        taskType TEXT NOT NULL DEFAULT 'DEFAULT',
+                        color INTEGER NOT NULL DEFAULT 0,
+                        eligibleTime REAL NOT NULL DEFAULT 0.0,
+                        lag REAL NOT NULL DEFAULT 0.0,
+                        notificationDelaySeconds INTEGER NOT NULL DEFAULT 0,
+                        notificationRestSeconds INTEGER NOT NULL DEFAULT 0,
+                        notificationRepeatCount INTEGER NOT NULL DEFAULT 0,
+                        pinnedShare REAL,
+                        internalWeight REAL,
+                        quotaSeconds INTEGER NOT NULL DEFAULT 0,
+                        quotaPeriodSeconds INTEGER NOT NULL DEFAULT 86400,
+                        quotaPeriodStartEpoch INTEGER NOT NULL DEFAULT 0,
+                        quotaUsedSeconds INTEGER NOT NULL DEFAULT 0,
+                        isInterrupt INTEGER NOT NULL DEFAULT 0,
+                        interruptSlot TEXT NOT NULL DEFAULT 'A',
+                        category TEXT NOT NULL DEFAULT 'General',
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                // 2. Copy all rows; CAST converts existing integer pinnedShare to REAL
+                database.execSQL("""
+                    INSERT INTO tasks_new SELECT
+                        id, name, description, timeSliceSeconds, remainingSeconds,
+                        vruntime, totalRunTime, priority, isCompleted, isRunning,
+                        accumulatedMs, startTimeEpoch, runCount, virtualDeadline,
+                        isGroup, parentId, isGroupExpanded, taskType,
+                        color, eligibleTime, lag,
+                        notificationDelaySeconds, notificationRestSeconds, notificationRepeatCount,
+                        CAST(pinnedShare AS REAL), internalWeight,
+                        quotaSeconds, quotaPeriodSeconds, quotaPeriodStartEpoch, quotaUsedSeconds,
+                        isInterrupt, interruptSlot, category, createdAt
+                    FROM tasks
+                """.trimIndent())
+                // 3. Swap tables
+                database.execSQL("DROP TABLE tasks")
+                database.execSQL("ALTER TABLE tasks_new RENAME TO tasks")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -321,7 +394,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                     .build()
                 INSTANCE = instance
                 instance

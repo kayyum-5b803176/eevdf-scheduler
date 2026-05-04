@@ -183,13 +183,22 @@ object EEVDFScheduler {
     }
 
     /**
-     * Validate that all pinned shares across [tasks] (excluding [excludeId]) plus
-     * [newValue] do not exceed 100.
-     * Returns the sum of all OTHER pinned shares so the caller can compare.
+     * Sum of pinned shares of all OTHER tasks that are siblings of [taskId]
+     * (same [parentId]) — excluding [excludeId] itself.
+     *
+     * Scoped to siblings only so that a child group's pinned shares are validated
+     * independently of root-level tasks. Root-level tasks at 100% do NOT block a
+     * child task inside a group from setting its own pinned share.
+     *
+     * Returns Double so callers can compare against 100.0 with 2dp precision.
      */
-    fun otherPinnedTotal(tasks: List<Task>, excludeId: String?): Int =
-        tasks.filter { !it.isCompleted && it.pinnedShare != null && it.id != excludeId }
-             .sumOf  { it.pinnedShare!! }
+    fun otherPinnedTotal(tasks: List<Task>, excludeId: String?, parentId: String?): Double =
+        tasks.filter {
+            !it.isCompleted &&
+            it.pinnedShare != null &&
+            it.id != excludeId &&
+            it.parentId == parentId
+        }.sumOf { it.pinnedShare!! }
 
     /**
      * Back-calculates the EEVDF internal weight that would produce [targetShare]% CPU
