@@ -277,6 +277,55 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _scheduleExpandTrigger.value = (_scheduleExpandTrigger.value ?: 0) + 1
     }
 
+    /**
+     * Recursively collect IDs of every descendant group of [parentId].
+     * Walks the full [allTasks] list — depth is unbounded.
+     */
+    private fun collectDescendantGroupIds(parentId: String, allTasks: List<Task>): List<String> {
+        val result = mutableListOf<String>()
+        val directChildren = allTasks.filter { it.parentId == parentId && it.isGroup }
+        for (child in directChildren) {
+            result += child.id
+            result += collectDescendantGroupIds(child.id, allTasks)
+        }
+        return result
+    }
+
+    /**
+     * Long-press on Queue tab group chevron:
+     * Toggles the tapped group AND every descendant group to the same new state.
+     * Ex: parent closed → parent + all child groups + grandchild groups all close.
+     */
+    fun deepToggleQueueGroupExpanded(group: Task) {
+        val next     = !(queueExpandState[group.id] ?: true)
+        val allTasks = activeTasks.value ?: emptyList()
+        val targets  = listOf(group.id) + collectDescendantGroupIds(group.id, allTasks)
+        val editor   = prefs.edit()
+        for (id in targets) {
+            queueExpandState[id] = next
+            editor.putBoolean(QUEUE_EXPAND_PREFIX + id, next)
+        }
+        editor.apply()
+        _queueExpandTrigger.value = (_queueExpandTrigger.value ?: 0) + 1
+    }
+
+    /**
+     * Long-press on Schedule tab group chevron:
+     * Toggles the tapped group AND every descendant group to the same new state.
+     */
+    fun deepToggleScheduleGroupExpanded(group: Task) {
+        val next     = !(scheduleExpandState[group.id] ?: true)
+        val allTasks = activeTasks.value ?: emptyList()
+        val targets  = listOf(group.id) + collectDescendantGroupIds(group.id, allTasks)
+        val editor   = prefs.edit()
+        for (id in targets) {
+            scheduleExpandState[id] = next
+            editor.putBoolean(SCHEDULE_EXPAND_PREFIX + id, next)
+        }
+        editor.apply()
+        _scheduleExpandTrigger.value = (_scheduleExpandTrigger.value ?: 0) + 1
+    }
+
     // ── Interrupt task operations ─────────────────────────────────────────────
 
     /** Sets [task] as the INT-A interrupt task; clears previous INT-A assignment. */

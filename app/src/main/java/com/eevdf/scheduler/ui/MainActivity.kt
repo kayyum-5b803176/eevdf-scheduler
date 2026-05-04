@@ -219,6 +219,8 @@ class MainActivity : AppCompatActivity() {
         onRunClick           = { viewModel.setCurrentTask(it) },
         onGroupToggle        = { if (scheduleTab) viewModel.toggleScheduleGroupExpanded(it)
                                  else viewModel.toggleQueueGroupExpanded(it) },
+        onGroupToggleDeep    = { if (scheduleTab) viewModel.deepToggleScheduleGroupExpanded(it)
+                                 else viewModel.deepToggleQueueGroupExpanded(it) },
         onResetSliceClick    = { viewModel.resetSlice(it) },
         showScheduleRank     = showRank,
         expandStateProvider  = { id -> if (scheduleTab) viewModel.getScheduleExpanded(id)

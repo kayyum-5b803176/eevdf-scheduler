@@ -21,7 +21,8 @@ class TaskAdapter(
     private val onDeleteClick:      (Task) -> Unit,
     private val onCompleteClick:    (Task) -> Unit,
     private val onRunClick:         (Task) -> Unit,
-    private val onGroupToggle:      (Task) -> Unit,   // expand / collapse a group
+    private val onGroupToggle:      (Task) -> Unit,   // expand / collapse this group only
+    private val onGroupToggleDeep:  (Task) -> Unit = {},  // expand / collapse this group + all descendants (long-press)
     private val onResetSliceClick:  (Task) -> Unit = {},
     private val onRevertClick:      (Task) -> Unit = {},
     private val showScheduleRank:   Boolean = false,
@@ -111,6 +112,7 @@ class TaskAdapter(
             // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
             holder.btnGroupToggle.rotation = if (expandStateProvider(task.id)) 180f else 0f
             holder.btnGroupToggle.setOnClickListener { onGroupToggle(task) }
+            holder.btnGroupToggle.setOnLongClickListener { onGroupToggleDeep(task); true }
         } else {
             // Leaf task row
             holder.tvCategory.text  = task.category
