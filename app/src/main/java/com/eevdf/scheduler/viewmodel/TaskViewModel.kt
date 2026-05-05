@@ -326,6 +326,53 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         _scheduleExpandTrigger.value = (_scheduleExpandTrigger.value ?: 0) + 1
     }
 
+    /**
+     * Hold Schedule Next while no timer card is active — Queue tab visible.
+     * Rule (mirrors single-group hold): if ANY root group is closed → open all.
+     *                                   if ALL root groups are open  → close all.
+     * Applies to every root group AND all their descendants so the visual result
+     * matches what the user expects ("everything opens" / "everything closes").
+     */
+    fun toggleAllQueueGroupsExpanded() {
+        val allTasks    = activeTasks.value ?: emptyList()
+        val rootGroups  = allTasks.filter { it.isGroup && it.parentId == null }
+        if (rootGroups.isEmpty()) return
+        val anyCollapsed = rootGroups.any { !(queueExpandState[it.id] ?: true) }
+        val next   = anyCollapsed   // open all if any closed; close all if all open
+        val editor = prefs.edit()
+        for (group in rootGroups) {
+            val targets = listOf(group.id) + collectDescendantGroupIds(group.id, allTasks)
+            for (id in targets) {
+                queueExpandState[id] = next
+                editor.putBoolean(QUEUE_EXPAND_PREFIX + id, next)
+            }
+        }
+        editor.apply()
+        _queueExpandTrigger.value = (_queueExpandTrigger.value ?: 0) + 1
+    }
+
+    /**
+     * Hold Schedule Next while no timer card is active — Schedule tab visible.
+     * Same open/close rule as [toggleAllQueueGroupsExpanded].
+     */
+    fun toggleAllScheduleGroupsExpanded() {
+        val allTasks    = activeTasks.value ?: emptyList()
+        val rootGroups  = allTasks.filter { it.isGroup && it.parentId == null }
+        if (rootGroups.isEmpty()) return
+        val anyCollapsed = rootGroups.any { !(scheduleExpandState[it.id] ?: true) }
+        val next   = anyCollapsed
+        val editor = prefs.edit()
+        for (group in rootGroups) {
+            val targets = listOf(group.id) + collectDescendantGroupIds(group.id, allTasks)
+            for (id in targets) {
+                scheduleExpandState[id] = next
+                editor.putBoolean(SCHEDULE_EXPAND_PREFIX + id, next)
+            }
+        }
+        editor.apply()
+        _scheduleExpandTrigger.value = (_scheduleExpandTrigger.value ?: 0) + 1
+    }
+
     // ── Interrupt task operations ─────────────────────────────────────────────
 
     /** Sets [task] as the INT-A interrupt task; clears previous INT-A assignment. */

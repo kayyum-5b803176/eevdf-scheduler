@@ -531,10 +531,15 @@ class MainActivity : AppCompatActivity() {
                 haptic(view)
                 viewModel.jumpToFirst(onQueueTab = currentTab == 0)
             }
-            // Hold → pause timer + close card (state saved to DB)
+            // Hold → if timer card active: pause + dismiss. If no active task: toggle all groups on visible tab.
             view.setOnLongClickListener {
                 haptic(view)
-                viewModel.pauseAndDismiss()
+                if (cardTimer.visibility == View.VISIBLE) {
+                    viewModel.pauseAndDismiss()
+                } else {
+                    if (currentTab == 0) viewModel.toggleAllQueueGroupsExpanded()
+                    else                 viewModel.toggleAllScheduleGroupsExpanded()
+                }
                 true
             }
         }
