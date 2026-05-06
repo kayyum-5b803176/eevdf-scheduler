@@ -78,9 +78,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // Named observer references kept so onCleared() can remove them.
     // Anonymous observeForever lambdas cannot be unregistered, which would allow
     // duplicate observers to accumulate across ViewModel recreation.
-    private lateinit var tickObserver:           androidx.lifecycle.Observer<Long>
-    private lateinit var expiredObserver:        androidx.lifecycle.Observer<Task>
-    private lateinit var expiredSessionObserver: androidx.lifecycle.Observer<RunSession>
+    private lateinit var tickObserver:           Observer<Long>
+    private lateinit var expiredObserver:        Observer<Task>
+    private lateinit var expiredSessionObserver: Observer<RunSession>
 
     private val _timerSeconds = MutableLiveData<Long>()
     val timerSeconds: LiveData<Long> = _timerSeconds
@@ -801,7 +801,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // ── Wire TimerEngine outputs ──────────────────────────────────────────
 
         // Wire TimerEngine outputs via named observers so onCleared() can remove them.
-        tickObserver = androidx.lifecycle.Observer { remainingSecs: Long ->
+        tickObserver = Observer { remainingSecs: Long ->
             _timerSeconds.postValue(remainingSecs)
             _currentTask.value?.let { t ->
                 _currentTask.postValue(t.copy(remainingSeconds = remainingSecs))
@@ -810,10 +810,10 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // expiredSession arrives from the engine in the same postValue batch as expiredTask.
         // Store it so expiredObserver can pass it to onTimerFinished.
         var pendingExpiredSession: RunSession? = null
-        expiredSessionObserver = androidx.lifecycle.Observer { session: RunSession ->
+        expiredSessionObserver = Observer { session: RunSession ->
             pendingExpiredSession = session
         }
-        expiredObserver = androidx.lifecycle.Observer { expired: Task ->
+        expiredObserver = Observer { expired: Task ->
             // Pair this task event with the session the engine emitted at the same time.
             // pendingExpiredSession is null only on the remaining<=0 path (vruntime already
             // applied by pauseTimer) — passing null to onTimerFinished signals that.
@@ -1182,7 +1182,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             //   expiryEpoch = now − overrunMs
             //   overrunMs   = accumulatedMs − sliceMs  (engine is Paused after pauseTimer)
             val sliceMs = task.timeSliceSeconds * 1000L
-            val overrunMs = when (val state = timerEngine.currentState()) {
+            when (val state = timerEngine.currentState()) {
                 is TimerState.Paused  -> (state.accumulatedMs - sliceMs).coerceAtLeast(0L)
                 is TimerState.Expired -> 0L
                 else                  -> 0L

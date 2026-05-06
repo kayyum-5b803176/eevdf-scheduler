@@ -38,7 +38,7 @@ class TaskAdapter(
         notifyDataSetChanged()
     }
 
-    inner class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val card:           CardView    = itemView.findViewById(R.id.cardTask)
         val tvRank:         TextView    = itemView.findViewById(R.id.tvRank)
         val tvName:         TextView    = itemView.findViewById(R.id.tvTaskName)
@@ -92,8 +92,8 @@ class TaskAdapter(
         val pinned = task.pinnedShare != null
         holder.tvCpuShare.text = "RS: ${"%.1f".format(item.cpuShare)}"
         holder.tvCpuShare.setTextColor(
-            if (pinned) android.graphics.Color.parseColor("#FF9800")
-            else        android.graphics.Color.parseColor("#BDBDBD")
+            if (pinned) Color.parseColor("#FF9800")
+            else        Color.parseColor("#BDBDBD")
         )
 
         // ── Group vs leaf rendering ────────────────────────────────────────────

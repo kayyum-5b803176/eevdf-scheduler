@@ -66,7 +66,7 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var tvPinnedShareWarning:  TextView
 
     // Quota limit section
-    private lateinit var switchQuotaEnabled:    com.google.android.material.switchmaterial.SwitchMaterial
+    private lateinit var switchQuotaEnabled:    SwitchMaterial
     private lateinit var layoutQuotaFields:     LinearLayout
     private lateinit var etQuota:               TextInputEditText
     private lateinit var tvQuotaPreview:        TextView
@@ -94,7 +94,7 @@ class AddTaskActivity : AppCompatActivity() {
 
     private val categories = listOf("Work", "Study", "Health", "Personal", "Project", "Meeting", "General")
 
-    private val prefs by lazy { getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE) }
+    private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
     private val groupsEnabled get() = prefs.getBoolean("groups_enabled", false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -305,7 +305,7 @@ class AddTaskActivity : AppCompatActivity() {
         spinnerTaskType.setSelection(typeIdx)
         selectedTaskType = task.taskType
         if (task.taskType == "NOTIFICATION") {
-            layoutNoticeSection.visibility = android.view.View.VISIBLE
+            layoutNoticeSection.visibility = View.VISIBLE
             val dm = task.notificationDelaySeconds
             etNotifDelay.setText(if (dm == 0L) "" else "%02d-%02d".format(dm / 60, dm % 60))
             val rm = task.notificationRestSeconds
@@ -316,11 +316,11 @@ class AddTaskActivity : AppCompatActivity() {
             if (task.interruptSlot == "B") {
                 switchIsInterruptB.isChecked = true
                 switchIsInterruptB.isEnabled = true
-                tvInterruptOwnerB.visibility = android.view.View.GONE
+                tvInterruptOwnerB.visibility = View.GONE
             } else {
                 switchIsInterrupt.isChecked = true
                 switchIsInterrupt.isEnabled = true
-                tvInterruptOwner.visibility = android.view.View.GONE
+                tvInterruptOwner.visibility = View.GONE
             }
         }
         // Pinned share + realtime share toggle
@@ -351,17 +351,17 @@ class AddTaskActivity : AppCompatActivity() {
             val isEditingA = existingTask?.interruptSlot == "A" && existingTask?.isInterrupt == true
             if (currentA != null && currentA.id != existingTaskId) {
                 tvInterruptOwner.text = "Currently assigned to: \"${currentA.name}\""
-                tvInterruptOwner.visibility = android.view.View.VISIBLE
+                tvInterruptOwner.visibility = View.VISIBLE
                 switchIsInterrupt.isEnabled = false   // must clear INT-A first
             } else {
-                tvInterruptOwner.visibility = android.view.View.GONE
+                tvInterruptOwner.visibility = View.GONE
                 switchIsInterrupt.isEnabled = true
             }
             // When editing the INT-A task itself, show it checked
             if (isEditingA) {
                 switchIsInterrupt.isChecked = true
                 switchIsInterrupt.isEnabled = true
-                tvInterruptOwner.visibility = android.view.View.GONE
+                tvInterruptOwner.visibility = View.GONE
             }
         }
 
@@ -369,16 +369,16 @@ class AddTaskActivity : AppCompatActivity() {
             val isEditingB = existingTask?.interruptSlot == "B" && existingTask?.isInterrupt == true
             if (currentB != null && currentB.id != existingTaskId) {
                 tvInterruptOwnerB.text = "Currently assigned to: \"${currentB.name}\""
-                tvInterruptOwnerB.visibility = android.view.View.VISIBLE
+                tvInterruptOwnerB.visibility = View.VISIBLE
                 switchIsInterruptB.isEnabled = false  // must clear INT-B first
             } else {
-                tvInterruptOwnerB.visibility = android.view.View.GONE
+                tvInterruptOwnerB.visibility = View.GONE
                 switchIsInterruptB.isEnabled = true
             }
             if (isEditingB) {
                 switchIsInterruptB.isChecked = true
                 switchIsInterruptB.isEnabled = true
-                tvInterruptOwnerB.visibility = android.view.View.GONE
+                tvInterruptOwnerB.visibility = View.GONE
             }
         }
 
@@ -456,7 +456,7 @@ class AddTaskActivity : AppCompatActivity() {
 
     private fun validatePinnedShare(newValue: Double?) {
         if (newValue == null) {
-            tvPinnedShareWarning.visibility = android.view.View.GONE
+            tvPinnedShareWarning.visibility = View.GONE
             return
         }
         val tasks = viewModel.activeTasks.value ?: emptyList()
@@ -469,21 +469,21 @@ class AddTaskActivity : AppCompatActivity() {
         when {
             newValue < 0.01 || newValue > 99.99 -> {
                 tvPinnedShareWarning.text = "Value must be between 0.01 and 99.99."
-                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+                tvPinnedShareWarning.visibility = View.VISIBLE
             }
             total > 100.0 -> {
                 tvPinnedShareWarning.text =
                     "Total pinned share would be ${"%.2f".format(total)}% " +
                     "(siblings: ${"%.2f".format(otherPinned)}%). " +
                     "Reduce this or sibling pinned tasks so total ≤ 100%."
-                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+                tvPinnedShareWarning.visibility = View.VISIBLE
             }
             total >= 99.99 -> {
                 tvPinnedShareWarning.text =
                     "Warning: all 100% is pinned. Floating tasks will receive 0% share."
-                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+                tvPinnedShareWarning.visibility = View.VISIBLE
             }
-            else -> tvPinnedShareWarning.visibility = android.view.View.GONE
+            else -> tvPinnedShareWarning.visibility = View.GONE
         }
     }
 
@@ -493,13 +493,13 @@ class AddTaskActivity : AppCompatActivity() {
         spinnerTaskType.adapter = adapter
         spinnerTaskType.setSelection(taskTypeValues.indexOf(selectedTaskType).coerceAtLeast(0))
 
-        spinnerTaskType.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, pos: Int, id: Long) {
+        spinnerTaskType.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View?, pos: Int, id: Long) {
                 selectedTaskType = taskTypeValues.getOrElse(pos) { "DEFAULT" }
                 layoutNoticeSection.visibility =
-                    if (selectedTaskType == "NOTIFICATION") android.view.View.VISIBLE else android.view.View.GONE
+                    if (selectedTaskType == "NOTIFICATION") View.VISIBLE else View.GONE
             }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>) {}
+            override fun onNothingSelected(parent: AdapterView<*>) {}
         }
 
         fun watchDelay(et: TextInputEditText, preview: TextView) {
@@ -659,7 +659,7 @@ class AddTaskActivity : AppCompatActivity() {
                     "Cannot save: total sibling pinned share would be " +
                     "${"%.2f".format(otherPinned + clamped)}%. " +
                     "Reduce this or sibling pinned tasks so total ≤ 100%."
-                tvPinnedShareWarning.visibility = android.view.View.VISIBLE
+                tvPinnedShareWarning.visibility = View.VISIBLE
                 return
             }
             // Round to 2dp so DB and display are always consistent

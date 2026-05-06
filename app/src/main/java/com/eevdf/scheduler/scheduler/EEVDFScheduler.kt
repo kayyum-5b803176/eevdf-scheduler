@@ -70,7 +70,7 @@ object EEVDFScheduler {
         val candidates = tasks.filter { !it.isCompleted && !it.isRunning }
         if (candidates.isEmpty()) return null
 
-        val avgVr = averageVruntime(tasks)
+        averageVruntime(tasks)
 
         // Eligible tasks: vruntime ≤ avgVruntime (lag ≥ 0)
         val eligible = candidates.filter { it.lag >= 0 }
@@ -103,7 +103,7 @@ object EEVDFScheduler {
         recalculate(tasks)
         val active = tasks.filter { !it.isCompleted }.toMutableList()
         val result = mutableListOf<Task>()
-        val avgVr = averageVruntime(tasks)
+        averageVruntime(tasks)
 
         // Sort: eligible first (by virtual deadline), then ineligible (by vruntime)
         val eligible = active.filter { it.lag >= 0 }.sortedBy { it.virtualDeadline }

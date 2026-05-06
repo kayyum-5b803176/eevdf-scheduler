@@ -56,13 +56,13 @@ class ProfileSettingsActivity : AppCompatActivity() {
     private lateinit var sliderActionVolume:   Slider
     private lateinit var tvActionVolumeLabel:  TextView
 
-    private val prefs by lazy { getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE) }
+    private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
 
     // ── Sound picker launchers ─────────────────────────────────────────────────
     private val profileSoundLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == RESULT_OK) {
             val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             prefs.edit().putString(soundUriKeyFor(currentProfileIdx), uri?.toString()).apply()
             updateSoundName()
@@ -71,7 +71,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
     private val executeSoundLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == RESULT_OK) {
             val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             prefs.edit().putString(SoundManager.KEY_EXECUTE_SOUND_URI, uri?.toString()).apply()
             updateExecuteSoundName()
@@ -80,7 +80,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
     private val waitSoundLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == RESULT_OK) {
             val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             prefs.edit().putString(SoundManager.KEY_WAIT_SOUND_URI, uri?.toString()).apply()
             updateWaitSoundName()
@@ -162,7 +162,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
             tvFadeInLabel.text = if (v.toInt() == 0) "Off" else formatTimeout(v.toInt())
         }
         spinnerVibPattern.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: android.widget.AdapterView<*>, v: android.view.View?, pos: Int, id: Long) {
+            override fun onItemSelected(p: android.widget.AdapterView<*>, v: View?, pos: Int, id: Long) {
                 prefs.edit().putInt(vibPatternKeyFor(currentProfileIdx), pos).apply()
             }
             override fun onNothingSelected(p: android.widget.AdapterView<*>) {}

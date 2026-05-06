@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewPhaseStatus:     View
 
     private var currentTab = 0
-    private val prefs by lazy { getSharedPreferences("eevdf_prefs", android.content.Context.MODE_PRIVATE) }
+    private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
 
     // ── Quota real-time ticker ─────────────────────────────────────────────────
     // Fires every second while the activity is resumed. Sends a lightweight
@@ -76,7 +76,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Convenience: fire haptic feedback on [v] if enabled in prefs. */
-    private fun haptic(v: android.view.View) {
+    private fun haptic(v: View) {
         if (!prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)) return
         v.performHapticFeedback(
             android.view.HapticFeedbackConstants.VIRTUAL_KEY,
@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
             // completes and items are visible — a LiveData observer fires too
             // early (before DiffUtil finishes).
             scheduleAdapter.registerAdapterDataObserver(
-                object : androidx.recyclerview.widget.RecyclerView.AdapterDataObserver() {
+                object : RecyclerView.AdapterDataObserver() {
                     override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
                         if (itemCount > 0) {
                             tabLayout.getTabAt(savedTab)?.select()
@@ -373,7 +373,7 @@ class MainActivity : AppCompatActivity() {
             btnStartPause.isEnabled = action.enabled
             btnStartPause.backgroundTintList =
                 android.content.res.ColorStateList.valueOf(
-                    androidx.core.content.ContextCompat.getColor(this, action.colorRes)
+                    ContextCompat.getColor(this, action.colorRes)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
         }
@@ -459,7 +459,7 @@ class MainActivity : AppCompatActivity() {
             val color = if (state.textColorHex.isNotEmpty())
                 android.graphics.Color.parseColor(state.textColorHex)
             else
-                androidx.core.content.ContextCompat.getColor(this, R.color.colorPrimary)
+                ContextCompat.getColor(this, R.color.colorPrimary)
             btnInt.setTextColor(color)
             btnInt.jumpDrawablesToCurrentState()
         }

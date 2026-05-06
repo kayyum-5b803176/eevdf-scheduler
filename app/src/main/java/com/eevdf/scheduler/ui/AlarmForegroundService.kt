@@ -210,7 +210,7 @@ class AlarmForegroundService : Service() {
                     isAlarmRinging = true
                     acquireWakeLock()
                     showExpiredNotification(taskName)
-                    val prefs = getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE)
+                    val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
                     SoundManager.startAlarmForType(this, prefs, taskType)
                     VibrationManager.startAlarmForType(this, prefs, taskType)
                 }
@@ -242,7 +242,7 @@ class AlarmForegroundService : Service() {
 
     private fun acquireWakeLock() {
         releaseWakeLock()
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
         @Suppress("DEPRECATION")
         wakeLock = pm.newWakeLock(
             PowerManager.FULL_WAKE_LOCK          or
@@ -328,7 +328,7 @@ class AlarmForegroundService : Service() {
     }
 
     private fun updateNotification(notification: Notification) {
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIF_ID, notification)
     }
 
@@ -364,7 +364,7 @@ class AlarmForegroundService : Service() {
 
     private fun createChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL_TIMER, "Task Timer", NotificationManager.IMPORTANCE_LOW).apply {
                     setSound(null, null); enableVibration(false)

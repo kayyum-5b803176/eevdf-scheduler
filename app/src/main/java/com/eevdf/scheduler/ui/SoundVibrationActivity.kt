@@ -12,7 +12,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 
 class SoundVibrationActivity : AppCompatActivity() {
 
-    private val prefs by lazy { getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE) }
+    private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
