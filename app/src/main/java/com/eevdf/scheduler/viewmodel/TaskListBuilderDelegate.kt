@@ -65,7 +65,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
-                .sortedWith(compareBy({ TaskSortHelper.extractNumber(it.name) }, { it.name }))
+                .sortedWith(TaskSortHelper.taskNameComparator)
                 .map {
                     TaskDisplayItem(it, 0,
                         cpuShare               = shares[it.id] ?: 0.0,
@@ -78,7 +78,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                      parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
             val children = tasks
                 .filter { it.parentId == parentId }
-                .sortedWith(compareBy({ TaskSortHelper.extractNumber(it.name) }, { it.name }))
+                .sortedWith(TaskSortHelper.taskNameComparator)
             for (task in children) {
                 val dc             = tasks.filter { it.parentId == task.id }
                 val quotaExceeded  = parentQuotaExceeded || task.isQuotaExceeded

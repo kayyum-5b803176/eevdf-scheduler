@@ -187,11 +187,14 @@ class AddTaskActivity : AppCompatActivity() {
         viewModel.activeGroups.observe(this) { groups ->
             groupsList.clear()
             groupsList.add(null)  // index 0 = no parent
-            groupsList.addAll(groups.filter { it.id != existingTaskId }) // can't parent to self
 
-            val labels = listOf("None (root level)") + groups
+            // Sort groups with the same rule as the Queue tab: numbers → letters → symbols
+            val filteredSorted = groups
                 .filter { it.id != existingTaskId }
-                .map { it.name }
+                .sortedWith(com.eevdf.scheduler.viewmodel.TaskSortHelper.taskNameComparator)
+            groupsList.addAll(filteredSorted)
+
+            val labels = listOf("None (root level)") + filteredSorted.map { it.name }
 
             spinnerParent.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, labels).also {
                 it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)

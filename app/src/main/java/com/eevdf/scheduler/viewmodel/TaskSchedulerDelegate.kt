@@ -147,7 +147,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         val base = allTasks
             .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
         val siblings = if (onQueueTab)
-            base.sortedWith(compareBy({ TaskSortHelper.extractNumber(it.name) }, { it.name }))
+            base.sortedWith(TaskSortHelper.taskNameComparator)
         else
             base.sortedBy { it.virtualDeadline }
 
@@ -182,7 +182,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
 
         val base = allTasks.filter { it.parentId == null && !it.isCompleted && !it.isInterrupt }
         val rootEntries = if (onQueueTab)
-            base.sortedWith(compareBy({ TaskSortHelper.extractNumber(it.name) }, { it.name }))
+            base.sortedWith(TaskSortHelper.taskNameComparator)
         else
             base.sortedBy { it.virtualDeadline }
 
