@@ -13,7 +13,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "1.12.3"
+        versionName "1.13.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -79,6 +79,12 @@ dependencies {
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+
+    // MPAndroidChart — rich charting library
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    // ViewPager2 for tab paging
+    implementation 'androidx.viewpager2:viewpager2:1.0.0'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
