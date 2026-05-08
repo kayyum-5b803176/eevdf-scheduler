@@ -95,8 +95,7 @@ class StatsActivity : AppCompatActivity() {
             val logEntries     = withContext(Dispatchers.IO) { rld.getEntriesInRange(fromMs, nowMs) }
             val allLogEntries  = withContext(Dispatchers.IO) { rld.getEntriesInRange(0L, nowMs) }
             val dailyAll       = withContext(Dispatchers.IO) { rld.getDailyInRange(0L) }
-            val weekdayTots    = withContext(Dispatchers.IO) { rld.getGlobalWeekdayTotals() }
-            renderStats(tasks, logEntries, allLogEntries, dailyAll, weekdayTots, fromMs, nowMs)
+            renderStats(tasks, logEntries, allLogEntries, dailyAll, fromMs, nowMs)
         }
     }
 
@@ -104,37 +103,56 @@ class StatsActivity : AppCompatActivity() {
         tasks: List<Task>, logEntries: List<RunLogEntry>,
         allLogEntries: List<RunLogEntry>,
         dailyAll: List<RunDailySummary>,
-        weekdayTots: List<RunLogDao.WeekdayTotal>,
         fromMs: Long, nowMs: Long
     ) {
         tvWindowLabel.text = "Showing last ${formatDur(windowSeconds)}"
-        val leafTasks  = tasks.filter { !it.isGroup }
-        val ranTasks   = leafTasks.filter { it.runCount > 0 }
-        val totalRT    = leafTasks.sumOf { it.totalRunTime }
-        val totalRuns  = leafTasks.sumOf { it.runCount }
-        val active     = leafTasks.count { !it.isCompleted }
-        val avgPerTask = if (ranTasks.isNotEmpty()) totalRT / ranTasks.size else 0L
-        tvTotalRuntime.text = formatDur(totalRT)
-        tvTotalRuns.text    = "$totalRuns"
-        tvActiveTasks.text  = "$active"
-        tvAvgRun.text       = formatDur(avgPerTask)
+
+        val leafTasks = tasks.filter { !it.isGroup }
 
         val taskById = tasks.associateBy { it.id }
 
-        // Merge run_log (recent, not yet compacted) into the daily/weekday structures
-        // so peak day, day-of-week pattern, and streak all see data < 30 days old.
-        val effectiveDailyAll    = buildEffectiveDailyAll(allLogEntries, dailyAll)
-        val effectiveWeekdayTots = buildEffectiveWeekdayTots(allLogEntries, weekdayTots)
+        // All-time effective daily (for streak / peak — uses full history)
+        val effectiveDailyAll = buildEffectiveDailyAll(allLogEntries, dailyAll)
 
-        renderDistribution(leafTasks, totalRT)
-        renderFrequency(ranTasks)
-        renderUntouched(leafTasks, nowMs)
+        // Window-filtered slices of effective daily
+        // logEntries = run_log rows already scoped to [fromMs, nowMs]
+        // windowDailyRows = compacted run_daily rows whose day falls in the window
+        // They never overlap: run_log holds < 30 d data; run_daily holds ≥ 30 d data.
+        val windowDailyRows = dailyAll.filter { it.dayEpoch >= fromMs }
+
+        // ── Window-scoped header stats (no group double-count) ────────────────
+        // Only leaf-task log entries (groups never appear in run_log directly).
+        val leafIds         = leafTasks.map { it.id }.toHashSet()
+        val leafLogEntries  = logEntries.filter { it.taskId in leafIds }
+        val leafWindowDaily = windowDailyRows.filter { it.taskId in leafIds }
+
+        val windowRunSecs  = leafLogEntries.sumOf { it.durationSecs } +
+                             leafWindowDaily.sumOf { it.totalSecs }
+        val windowRunCount = leafLogEntries.size + leafWindowDaily.sumOf { it.runCount }
+        val windowTaskIds  = (leafLogEntries.map { it.taskId } +
+                              leafWindowDaily.map { it.taskId }).distinct()
+        val avgPerTask     = if (windowTaskIds.isNotEmpty()) windowRunSecs / windowTaskIds.size else 0L
+
+        tvTotalRuntime.text = formatDur(windowRunSecs)
+        tvTotalRuns.text    = "$windowRunCount"
+        tvActiveTasks.text  = "${windowTaskIds.size}"   // tasks active in selected window
+        tvAvgRun.text       = formatDur(avgPerTask)
+
+        // Window-scoped weekday totals (rebuilt from window data only)
+        val windowWeekdayTots = buildEffectiveWeekdayTots(leafLogEntries, windowDailyRows)
+
+        // Window-scoped effective daily (for peak day / streaks / frequency)
+        val windowEffectiveDaily = buildEffectiveDailyAll(leafLogEntries, windowDailyRows)
+
+        renderDistribution(leafTasks, leafTasks.sumOf { it.totalRunTime }) // all-time — intentional
+        renderFrequency(leafLogEntries, windowDailyRows, taskById)
+        renderUntouched(leafTasks, leafLogEntries, windowDailyRows, nowMs)
         renderQuotaViolators(tasks)
         renderSwitching(logEntries, taskById)
-        renderWindowActivity(logEntries, dailyAll, taskById, fromMs)
-        renderPeakDay(effectiveDailyAll, taskById)
-        renderWeekdayHeatmap(effectiveWeekdayTots)
-        renderStreaks(effectiveDailyAll, taskById, nowMs)
+        renderWindowActivity(leafLogEntries, windowDailyRows, taskById)
+        renderPeakDay(windowEffectiveDaily, taskById)
+        renderWeekdayHeatmap(windowWeekdayTots)
+        renderStreaks(windowEffectiveDaily, taskById, nowMs)
     }
 
     private fun renderDistribution(leafTasks: List<Task>, totalRT: Long) {
@@ -151,37 +169,89 @@ class StatsActivity : AppCompatActivity() {
         if (sorted.isEmpty()) llDistribution.addView(makeEmpty("No runtime data yet"))
     }
 
-    private fun renderFrequency(ranTasks: List<Task>) {
+    private fun renderFrequency(
+        logEntries: List<RunLogEntry>,
+        windowDailyRows: List<RunDailySummary>,
+        taskById: Map<String, Task>
+    ) {
         llMostFrequent.removeAllViews()
-        ranTasks.sortedByDescending { it.runCount }.take(5).forEach { t ->
-            val avg = if (t.runCount > 0) t.totalRunTime / t.runCount else 0L
-            llMostFrequent.addView(makeStatRow(t.name, "${t.runCount} runs",
+        llLeastFrequent.removeAllViews()
+
+        // Aggregate window data per task: merge logEntries + windowDailyRows
+        data class Stat(val secs: Long, val runs: Int)
+        val statsMap = mutableMapOf<String, Stat>()
+        logEntries.forEach { e ->
+            val c = statsMap[e.taskId] ?: Stat(0L, 0)
+            statsMap[e.taskId] = Stat(c.secs + e.durationSecs, c.runs + 1)
+        }
+        windowDailyRows.forEach { d ->
+            val c = statsMap[d.taskId] ?: Stat(0L, 0)
+            statsMap[d.taskId] = Stat(c.secs + d.totalSecs, c.runs + d.runCount)
+        }
+
+        if (statsMap.isEmpty()) {
+            llMostFrequent.addView(makeEmpty("No run data in selected window"))
+            llLeastFrequent.addView(makeEmpty("No run data in selected window"))
+            return
+        }
+
+        val sorted = statsMap.entries.sortedByDescending { it.value.runs }
+        sorted.take(5).forEach { (id, stat) ->
+            val avg = if (stat.runs > 0) stat.secs / stat.runs else 0L
+            llMostFrequent.addView(makeStatRow(
+                taskById[id]?.name ?: "[deleted]", "${stat.runs} runs",
                 "avg ${formatDur(avg)}/run", "#1B5E20"))
         }
-        if (ranTasks.isEmpty()) llMostFrequent.addView(makeEmpty("No run data yet"))
-
-        llLeastFrequent.removeAllViews()
-        ranTasks.sortedBy { it.runCount }.take(5).forEach { t ->
-            llLeastFrequent.addView(makeStatRow(t.name,
-                "${t.runCount} run${if (t.runCount == 1) "" else "s"}",
-                "${formatDur(t.totalRunTime)} total", "#B71C1C"))
+        sorted.reversed().take(5).forEach { (id, stat) ->
+            llLeastFrequent.addView(makeStatRow(
+                taskById[id]?.name ?: "[deleted]",
+                "${stat.runs} run${if (stat.runs == 1) "" else "s"}",
+                "${formatDur(stat.secs)} total", "#B71C1C"))
         }
-        if (ranTasks.isEmpty()) llLeastFrequent.addView(makeEmpty("No run data yet"))
     }
 
-    private fun renderUntouched(leafTasks: List<Task>, nowMs: Long) {
+    private fun renderUntouched(
+        leafTasks: List<Task>,
+        logEntries: List<RunLogEntry>,
+        windowDailyRows: List<RunDailySummary>,
+        nowMs: Long
+    ) {
         llUntouched.removeAllViews()
-        leafTasks.filter { !it.isCompleted }
-            .sortedBy { if (it.startTimeEpoch > 0) it.startTimeEpoch else it.createdAt }
-            .take(5)
-            .forEach { t ->
+        val lastRunFmt     = SimpleDateFormat("EEE dd-MM-yyyy", Locale.getDefault())
+        val activeInWindow = (logEntries.map { it.taskId } +
+                              windowDailyRows.map { it.taskId }).toHashSet()
+
+        data class UntouchedRow(
+            val task: Task,
+            val idleSec: Long,   // -1 = never run
+            val lastMs: Long     //  0 = never run
+        )
+
+        val rows = leafTasks
+            .filter { !it.isCompleted && it.id !in activeInWindow }
+            .map { t ->
                 val lastMs  = if (t.startTimeEpoch > 0) t.startTimeEpoch else 0L
                 val idleSec = if (lastMs > 0) (nowMs - lastMs) / 1_000L else -1L
-                val date    = if (lastMs > 0) dateFmt.format(Date(lastMs)) else "never run"
-                val idle    = if (idleSec >= 0) "idle ${formatDur(idleSec)}" else "never run"
-                llUntouched.addView(makeStatRow(t.name, idle, date, "#5D4037"))
+                UntouchedRow(t, idleSec, lastMs)
             }
-        if (leafTasks.isEmpty()) llUntouched.addView(makeEmpty("No tasks"))
+            // longest idle first; never-run tasks go to the bottom
+            .sortedWith(compareByDescending<UntouchedRow> { it.idleSec >= 0 }
+                .thenByDescending { it.idleSec })
+            .take(8)
+
+        rows.forEach { (t, idleSec, lastMs) ->
+            val idleStr  = if (idleSec >= 0) "idle ${formatDur(idleSec)}" else "never run"
+            val rtStr    = formatDur(t.totalRunTime / 1_000L)   // Task stores ms; convert to secs
+            val rightVal = if (t.totalRunTime > 0) "$rtStr  ·  $idleStr" else idleStr
+            val meta     = if (lastMs > 0)
+                "${lastRunFmt.format(Date(lastMs))}  last run"
+            else
+                "never run"
+            llUntouched.addView(makeStatRow(t.name, rightVal, meta, "#5D4037"))
+        }
+
+        if (llUntouched.childCount == 0)
+            llUntouched.addView(makeEmpty("All tasks active in selected window"))
     }
 
     private fun renderQuotaViolators(tasks: List<Task>) {
@@ -256,14 +326,14 @@ class StatsActivity : AppCompatActivity() {
     }
 
     private fun renderWindowActivity(
-        logEntries: List<RunLogEntry>, dailyAll: List<RunDailySummary>,
-        taskById: Map<String, Task>, fromMs: Long
+        logEntries: List<RunLogEntry>,
+        windowDailyRows: List<RunDailySummary>,
+        taskById: Map<String, Task>
     ) {
         llWindowActivity.removeAllViews()
         val secs = mutableMapOf<String, Long>()
         logEntries.forEach { e -> secs[e.taskId] = (secs[e.taskId] ?: 0L) + e.durationSecs }
-        dailyAll.filter { it.dayEpoch >= fromMs }
-            .forEach { d -> secs[d.taskId] = (secs[d.taskId] ?: 0L) + d.totalSecs }
+        windowDailyRows.forEach { d -> secs[d.taskId] = (secs[d.taskId] ?: 0L) + d.totalSecs }
         val sorted = secs.entries.sortedByDescending { it.value }
         val total  = sorted.sumOf { it.value }.coerceAtLeast(1L)
         val maxS   = sorted.firstOrNull()?.value?.coerceAtLeast(1L) ?: 1L
@@ -281,8 +351,8 @@ class StatsActivity : AppCompatActivity() {
 
     private fun renderPeakDay(dailyAll: List<RunDailySummary>, taskById: Map<String, Task>) {
         llPeakDay.removeAllViews()
-        val dayFmt = SimpleDateFormat("EEE d MMM", Locale.getDefault())
-        val dn = listOf("","Sun","Mon","Tue","Wed","Thu","Fri","Sat")
+        // "EEE dd-MM-yyyy" produces e.g. "Wed 29-04-2026" — no separate dn prefix needed
+        val dayFmt = SimpleDateFormat("EEE dd-MM-yyyy", Locale.getDefault())
         dailyAll.groupBy { it.taskId }
             .mapValues { (_, rows) -> rows.maxByOrNull { it.totalSecs }!! }
             .entries.sortedByDescending { it.value.totalSecs }.take(8)
@@ -290,11 +360,11 @@ class StatsActivity : AppCompatActivity() {
                 llPeakDay.addView(makeStatRow(
                     taskById[id]?.name ?: "[deleted]",
                     formatDur(row.totalSecs),
-                    "${dn.getOrElse(row.weekDay){"?"}} ${dayFmt.format(Date(row.dayEpoch))}" +
+                    "${dayFmt.format(Date(row.dayEpoch))}" +
                     "  |  ${row.runCount} run${if (row.runCount == 1) "" else "s"}",
                     "#4A148C"))
             }
-        if (dailyAll.isEmpty()) llPeakDay.addView(makeEmpty("No daily history yet"))
+        if (dailyAll.isEmpty()) llPeakDay.addView(makeEmpty("No daily history in selected window"))
     }
 
     private fun renderWeekdayHeatmap(tots: List<RunLogDao.WeekdayTotal>) {
@@ -490,13 +560,14 @@ class StatsActivity : AppCompatActivity() {
     }
 
     /**
-     * Merges weekday totals derived from recent [RunLogEntry] rows into the
-     * already-compacted [weekdayTots].  Entries where [RunLogEntry.weekDay] is 0
-     * (legacy rows) have their weekday recomputed from [RunLogEntry.startEpoch].
+     * Builds weekday totals by merging [RunLogEntry] rows and [RunDailySummary] rows.
+     * Both sources are expected to already be scoped to the desired time window.
+     * Entries where [RunLogEntry.weekDay] is 0 have their weekday recomputed from
+     * [RunLogEntry.startEpoch].
      */
     private fun buildEffectiveWeekdayTots(
         logEntries: List<RunLogEntry>,
-        weekdayTots: List<RunLogDao.WeekdayTotal>
+        dailyRows: List<RunDailySummary>
     ): List<RunLogDao.WeekdayTotal> {
         val utc = TimeZone.getTimeZone("UTC")
         fun weekDayOf(entry: RunLogEntry): Int {
@@ -504,24 +575,24 @@ class StatsActivity : AppCompatActivity() {
             val c = Calendar.getInstance(utc).also { it.timeInMillis = entry.startEpoch }
             return c.get(Calendar.DAY_OF_WEEK)
         }
-        // Aggregate run_log entries by weekday
-        val logByDay = logEntries
-            .groupBy { weekDayOf(it) }
-            .map { (day, entries) ->
-                RunLogDao.WeekdayTotal(
-                    weekDay   = day,
-                    totalSecs = entries.sumOf { it.durationSecs },
-                    runCount  = entries.size
-                )
-            }
-        // Merge into the compacted totals
-        val merged = weekdayTots.associateBy { it.weekDay }.toMutableMap()
-        for (row in logByDay) {
-            val existing = merged[row.weekDay]
-            merged[row.weekDay] = if (existing == null) row else RunLogDao.WeekdayTotal(
-                weekDay   = row.weekDay,
-                totalSecs = existing.totalSecs + row.totalSecs,
-                runCount  = existing.runCount  + row.runCount
+        val merged = mutableMapOf<Int, RunLogDao.WeekdayTotal>()
+        // Seed from compacted daily rows (weekDay already stored)
+        dailyRows.groupBy { it.weekDay }.forEach { (day, rows) ->
+            if (day > 0) merged[day] = RunLogDao.WeekdayTotal(
+                weekDay   = day,
+                totalSecs = rows.sumOf { it.totalSecs },
+                runCount  = rows.sumOf { it.runCount }
+            )
+        }
+        // Merge run_log entries (recent, not yet compacted)
+        logEntries.groupBy { weekDayOf(it) }.forEach { (day, entries) ->
+            val existing = merged[day]
+            merged[day] = if (existing == null)
+                RunLogDao.WeekdayTotal(day, entries.sumOf { it.durationSecs }, entries.size)
+            else RunLogDao.WeekdayTotal(
+                weekDay   = day,
+                totalSecs = existing.totalSecs + entries.sumOf { it.durationSecs },
+                runCount  = existing.runCount  + entries.size
             )
         }
         return merged.values.sortedBy { it.weekDay }
