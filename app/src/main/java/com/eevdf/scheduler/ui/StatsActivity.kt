@@ -217,41 +217,47 @@ class StatsActivity : AppCompatActivity() {
         nowMs: Long
     ) {
         llUntouched.removeAllViews()
-        val lastRunFmt     = SimpleDateFormat("EEE dd-MM-yyyy", Locale.getDefault())
+        val lastRunFmt   = SimpleDateFormat("EEE dd-MM-yyyy", Locale.getDefault())
+
+        // Tasks active in the analysis window
         val activeInWindow = (logEntries.map { it.taskId } +
                               windowDailyRows.map { it.taskId }).toHashSet()
 
-        data class UntouchedRow(
-            val task: Task,
-            val idleSec: Long,   // -1 = never run
-            val lastMs: Long     //  0 = never run
-        )
+        // Most recent run-end epoch per task (from window log entries)
+        // endMs = startEpoch + durationSecs * 1000
+        val lastEndByTask = logEntries
+            .groupBy { it.taskId }
+            .mapValues { (_, entries) ->
+                entries.maxOf { it.startEpoch + it.durationSecs * 1_000L }
+            }
+
+        data class Row(val task: Task, val lastRunEndMs: Long, val idleSec: Long)
 
         val rows = leafTasks
-            .filter { !it.isCompleted && it.id !in activeInWindow }
+            // Rule 1: must have run ≥ 1 s total ever
+            .filter { it.totalRunTime >= 1_000L }
+            // Rule 2: must have appeared in the analysis window
+            .filter { it.id in activeInWindow }
             .map { t ->
-                val lastMs  = if (t.startTimeEpoch > 0) t.startTimeEpoch else 0L
-                val idleSec = if (lastMs > 0) (nowMs - lastMs) / 1_000L else -1L
-                UntouchedRow(t, idleSec, lastMs)
+                // Prefer computed end-of-last-run; fall back to task's startTimeEpoch
+                val endMs   = lastEndByTask[t.id] ?: t.startTimeEpoch.coerceAtLeast(0L)
+                val idleSec = if (endMs > 0L) (nowMs - endMs) / 1_000L else -1L
+                Row(t, endMs, idleSec)
             }
-            // longest idle first; never-run tasks go to the bottom
-            .sortedWith(compareByDescending<UntouchedRow> { it.idleSec >= 0 }
-                .thenByDescending { it.idleSec })
+            .sortedByDescending { it.idleSec }
             .take(8)
 
-        rows.forEach { (t, idleSec, lastMs) ->
-            val idleStr  = if (idleSec >= 0) "idle ${formatDur(idleSec)}" else "never run"
-            val rtStr    = formatDur(t.totalRunTime / 1_000L)   // Task stores ms; convert to secs
-            val rightVal = if (t.totalRunTime > 0) "$rtStr  ·  $idleStr" else idleStr
-            val meta     = if (lastMs > 0)
-                "${lastRunFmt.format(Date(lastMs))}  last run"
+        rows.forEach { (t, lastRunEndMs, idleSec) ->
+            val rightVal = if (idleSec >= 0L) formatDur(idleSec) else "never run"
+            val meta     = if (lastRunEndMs > 0L)
+                "${lastRunFmt.format(Date(lastRunEndMs))}  last run"
             else
                 "never run"
             llUntouched.addView(makeStatRow(t.name, rightVal, meta, "#5D4037"))
         }
 
         if (llUntouched.childCount == 0)
-            llUntouched.addView(makeEmpty("All tasks active in selected window"))
+            llUntouched.addView(makeEmpty("No qualifying tasks in selected window"))
     }
 
     private fun renderQuotaViolators(tasks: List<Task>) {
