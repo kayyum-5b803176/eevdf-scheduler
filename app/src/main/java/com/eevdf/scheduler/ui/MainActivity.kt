@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnScheduleNext:     MaterialButton
     private lateinit var tvStats:             TextView
     private lateinit var tvFairness:          TextView
+    private lateinit var tvScheduleRank:      TextView
     private lateinit var emptyView:           LinearLayout
     private lateinit var cardAlarmBanner:     CardView
     private lateinit var tvAlarmTaskName:     TextView
@@ -192,6 +193,7 @@ class MainActivity : AppCompatActivity() {
         btnScheduleNext   = findViewById(R.id.btnScheduleNext)
         tvStats           = findViewById(R.id.tvStats)
         tvFairness        = findViewById(R.id.tvFairness)
+        tvScheduleRank    = findViewById(R.id.tvScheduleRank)
         emptyView         = findViewById(R.id.emptyView)
         cardAlarmBanner   = findViewById(R.id.cardAlarmBanner)
         tvAlarmTaskName   = findViewById(R.id.tvAlarmTaskName)
@@ -321,6 +323,7 @@ class MainActivity : AppCompatActivity() {
         viewModel.flatScheduleOrder.observe(this) { items ->
             scheduleAdapter.submitList(items)
             scheduleAdapter.setRunningTask(viewModel.currentTask.value?.id)
+            updateScheduleRankBadge()
         }
 
         // Completed tab — flat (no group hierarchy for completed)
@@ -348,6 +351,7 @@ class MainActivity : AppCompatActivity() {
                 scheduleAdapter.setRunningTask(null)
                 tvTimerDisplay.text = "00:00"
             }
+            updateScheduleRankBadge()
         }
 
         viewModel.timerSeconds.observe(this) { seconds ->
@@ -481,6 +485,21 @@ class MainActivity : AppCompatActivity() {
         if (position >= 0) {
             (recyclerView.layoutManager as? LinearLayoutManager)
                 ?.smoothScrollToPosition(recyclerView, null, position)
+        }
+    }
+
+    private fun updateScheduleRankBadge() {
+        val runningId = viewModel.currentTask.value?.id
+        val number = if (runningId != null) {
+            viewModel.flatScheduleOrder.value
+                ?.find { it.task.id == runningId }
+                ?.queueNumber
+        } else null
+        if (!number.isNullOrEmpty()) {
+            tvScheduleRank.text       = "#$number"
+            tvScheduleRank.visibility = View.VISIBLE
+        } else {
+            tvScheduleRank.visibility = View.GONE
         }
     }
 

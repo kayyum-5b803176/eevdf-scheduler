@@ -143,13 +143,8 @@ class TaskAdapter(
             }
         }
 
-        // ── Schedule rank ──────────────────────────────────────────────────────
-        if (showScheduleRank) {
-            holder.tvRank.visibility = View.VISIBLE
-            holder.tvRank.text       = "#${position + 1}"
-        } else {
-            holder.tvRank.visibility = View.GONE
-        }
+        // ── Schedule / queue rank (stats row) ────────────────────────────────
+        holder.tvRank.visibility = View.GONE
 
         // ── Running state ──────────────────────────────────────────────────────
         holder.viewRunning.visibility = if (isRunning) View.VISIBLE else View.INVISIBLE

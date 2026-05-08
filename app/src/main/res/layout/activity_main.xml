@@ -26,25 +26,47 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/colorPrimaryDark"
-            android:orientation="vertical"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:paddingHorizontal="16dp"
             android:paddingVertical="6dp">
 
-            <TextView
-                android:id="@+id/tvStats"
-                android:layout_width="wrap_content"
+            <!-- Left column: two stats lines -->
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Active: 0  |  Done: 0  |  Weight: 0.0"
-                android:textColor="#CCFFFFFF"
-                android:textSize="11sp" />
+                android:layout_weight="1"
+                android:orientation="vertical">
 
+                <TextView
+                    android:id="@+id/tvStats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Active: 0  |  Done: 0  |  Weight: 0.0"
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/tvFairness"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fairness: 100%  |  Avg VRT: 0.00"
+                    android:textColor="#AAFFFFFF"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- Right: queue rank of current running task -->
             <TextView
-                android:id="@+id/tvFairness"
+                android:id="@+id/tvScheduleRank"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Fairness: 100%  |  Avg VRT: 0.00"
-                android:textColor="#AAFFFFFF"
-                android:textSize="11sp" />
+                android:text="#1"
+                android:textColor="@android:color/white"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:layout_marginStart="12dp"
+                android:visibility="gone" />
+
         </LinearLayout>
 
         <com.google.android.material.tabs.TabLayout

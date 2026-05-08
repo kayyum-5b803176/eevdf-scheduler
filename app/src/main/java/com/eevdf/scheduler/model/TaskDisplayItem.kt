@@ -22,5 +22,13 @@ data class TaskDisplayItem(
      * True when this task itself OR any ancestor group is in the quota warning zone
      * (≥ 80 % consumed but not yet exceeded). Shown as amber pre-warning tint.
      */
-    val effectiveQuotaWarning: Boolean = false
+    val effectiveQuotaWarning: Boolean = false,
+    /**
+     * Hierarchical queue position label for display in the schedule tab.
+     * Top-level: "1", "2", "3"
+     * First-level children: "1.1", "1.2", "2.1"
+     * Deeper children: "1.1.1", "1.1.2", etc.
+     * Empty string when no number is assigned (e.g. non-schedule tabs).
+     */
+    val queueNumber: String = ""
 )
