@@ -72,49 +72,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ── Pie Chart: Time Distribution ─────────────────────────── -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="TIME DISTRIBUTION"
-                    android:textSize="11sp"
-                    android:textColor="#9E9E9E"
-                    android:letterSpacing="0.12"
-                    android:layout_marginBottom="4dp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Share of total runtime per task"
-                    android:textSize="12sp"
-                    android:textColor="#212121"
-                    android:layout_marginBottom="10dp" />
-                <com.github.mikephil.charting.charts.PieChart
-                    android:id="@+id/pieChart"
-                    android:layout_width="match_parent"
-                    android:layout_height="280dp" />
-                <TextView
-                    android:id="@+id/tvPieEmpty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="No data in this period"
-                    android:textSize="13sp"
-                    android:textColor="#BDBDBD"
-                    android:gravity="center"
-                    android:visibility="gone"
-                    android:padding="20dp" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
         <!-- ── Bar Chart: Daily Activity ────────────────────────────── -->
         <androidx.cardview.widget.CardView
