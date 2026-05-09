@@ -23,7 +23,8 @@ class StatsActivity : AppCompatActivity() {
         toolbar.setNavigationOnClickListener { finish() }
 
         viewPager.adapter = StatsPagerAdapter(this)
-        viewPager.offscreenPageLimit = 2   // keep all 3 fragments alive
+        viewPager.offscreenPageLimit = 2      // keep all 3 fragments alive
+        viewPager.isUserInputEnabled  = false // tab-tap only — no swipe
 
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = when (position) {

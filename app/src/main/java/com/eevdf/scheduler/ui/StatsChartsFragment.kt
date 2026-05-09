@@ -19,8 +19,8 @@ import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.*
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.formatter.ValueFormatter
-import com.github.mikephil.charting.utils.ColorTemplate
-import com.google.android.material.chip.ChipGroup
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,8 +30,9 @@ import java.util.*
 class StatsChartsFragment : Fragment() {
 
     // ── Views ─────────────────────────────────────────────────────────────────
-    private lateinit var chipGroupPeriod:    ChipGroup
-    private lateinit var tvPeriodLabel:      TextView
+    private lateinit var etWindowRange:   TextInputEditText
+    private lateinit var btnApplyWindow:  MaterialButton
+    private lateinit var tvPeriodLabel:   TextView
 
     private lateinit var pieChart:           PieChart
     private lateinit var tvPieEmpty:         TextView
@@ -52,7 +53,7 @@ class StatsChartsFragment : Fragment() {
     private lateinit var tvScatterEmpty:     TextView
 
     // ── State ─────────────────────────────────────────────────────────────────
-    private var periodDays: Int = 7      // 7 | 30 | 90 | Int.MAX_VALUE (all)
+    private var windowSeconds: Long = 7L * 86_400L   // same unit as Overview
 
     // ── Palette: 10 distinct colors ───────────────────────────────────────────
     private val palette = intArrayOf(
@@ -76,12 +77,23 @@ class StatsChartsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         bindViews(view)
-        setupChipGroup()
+        btnApplyWindow.setOnClickListener {
+            val p = parseRangeInput(etWindowRange.text.toString())
+            if (p > 0) {
+                windowSeconds = p
+                tvPeriodLabel.text = "Showing last ${formatDur(windowSeconds)}"
+                loadAndRender()
+            } else {
+                etWindowRange.error = "Invalid range"
+            }
+        }
+        tvPeriodLabel.text = "Showing last ${formatDur(windowSeconds)}"
         loadAndRender()
     }
 
     private fun bindViews(v: View) {
-        chipGroupPeriod   = v.findViewById(R.id.chipGroupPeriod)
+        etWindowRange     = v.findViewById(R.id.etChartsWindowRange)
+        btnApplyWindow    = v.findViewById(R.id.btnChartsApplyWindow)
         tvPeriodLabel     = v.findViewById(R.id.tvChartsPeriodLabel)
         pieChart          = v.findViewById(R.id.pieChart)
         tvPieEmpty        = v.findViewById(R.id.tvPieEmpty)
@@ -97,21 +109,6 @@ class StatsChartsFragment : Fragment() {
         tvScatterEmpty    = v.findViewById(R.id.tvScatterEmpty)
     }
 
-    private fun setupChipGroup() {
-        chipGroupPeriod.setOnCheckedStateChangeListener { _, checkedIds ->
-            periodDays = when (checkedIds.firstOrNull()) {
-                R.id.chip7d  -> 7
-                R.id.chip30d -> 30
-                R.id.chip90d -> 90
-                R.id.chipAll -> Int.MAX_VALUE
-                else          -> 7
-            }
-            tvPeriodLabel.text = if (periodDays == Int.MAX_VALUE) "Showing all time"
-                                 else "Showing last $periodDays days"
-            loadAndRender()
-        }
-    }
-
     // ── Data loading ─────────────────────────────────────────────────────────
 
     private fun loadAndRender() {
@@ -121,8 +118,7 @@ class StatsChartsFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             val nowMs   = System.currentTimeMillis()
-            val fromMs  = if (periodDays == Int.MAX_VALUE) 0L
-                          else nowMs - periodDays * 86_400_000L
+            val fromMs  = nowMs - windowSeconds * 1_000L
 
             val tasks      = withContext(Dispatchers.IO) { td.getAllTasksForStats() }
             val logEntries = withContext(Dispatchers.IO) { rld.getEntriesInRange(fromMs, nowMs) }
@@ -602,5 +598,30 @@ class StatsChartsFragment : Fragment() {
                     runCount = ex.runCount + row.runCount)
         }
         return merged.values.sortedBy { it.weekDay }
+    }
+
+    // ── Input / formatting helpers ────────────────────────────────────────────
+
+    private fun parseRangeInput(raw: String): Long {
+        val s   = raw.trim().lowercase()
+        val d   = Regex("""(\d+)\s*d""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val h   = Regex("""(\d+)\s*h""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val m   = Regex("""(\d+)\s*m(?!o)""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val sec = Regex("""(\d+)\s*s""").find(s)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val tot = d * 86_400L + h * 3_600L + m * 60L + sec
+        val bare = if (d == 0L && h == 0L && m == 0L && sec == 0L) s.toLongOrNull() else null
+        return (bare ?: tot).coerceIn(1L, 365L * 86_400L)
+    }
+
+    private fun formatDur(s: Long): String {
+        if (s <= 0L) return "0s"
+        var r = s
+        val d = r / 86_400L; r %= 86_400L
+        val h = r / 3_600L;  r %= 3_600L
+        val m = r / 60L;     val sec = r % 60L
+        return buildList {
+            if (d > 0) add("${d}d"); if (h > 0) add("${h}h")
+            if (m > 0) add("${m}m"); if (sec > 0) add("${sec}s")
+        }.take(2).joinToString(" ").ifEmpty { "0s" }
     }
 }
