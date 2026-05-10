@@ -271,12 +271,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         flatScheduleOrder = listBuilder.flatScheduleOrder
 
         // ── Multi-user sync ───────────────────────────────────────────────────
-        MultiUserSyncManager.init(application, repository)
+        MultiUserSyncManager.init(application)
 
-        // When a remote sync import completes, refresh the in-memory timer state
-        // from the newly-updated Room DB so user-B sees user-A's running timer.
+        // When a remote sync import completes, the local DB file has been
+        // replaced. Signal MainActivity to restart the app so Room opens the
+        // new file with a clean singleton (same path as manual DB import).
         MultiUserSyncManager.importEvent.observeForever { _ ->
-            viewModelScope.launch { refreshCurrentTaskAfterSync() }
+            _restartNeeded.postValue(Unit)
         }
     }
 
@@ -721,52 +722,22 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // MULTI-USER SYNC
     // =========================================================================
 
-    /** Exposes sync state for the toolbar icon observer in MainActivity. */
+    /** Exposes sync state LiveData for the toolbar dot observer in MainActivity. */
     val syncState = MultiUserSyncManager.syncState
+
+    /**
+     * Fires with Unit when a remote sync import has replaced the local DB file.
+     * MainActivity observes this and restarts the app so Room opens cleanly.
+     */
+    private val _restartNeeded = MutableLiveData<Unit>()
+    val restartNeeded: androidx.lifecycle.LiveData<Unit> = _restartNeeded
 
     /** Called from MainActivity.onResume to restart polling if it was stopped. */
     fun onSyncResume() = MultiUserSyncManager.onResume()
 
     /**
      * Triggers a debounced export after any local DB write.
-     * Called from every action that modifies the task list or timer state.
+     * Also used for the Sync Now toolbar tap.
      */
     fun triggerSyncExport() = MultiUserSyncManager.scheduleExport()
-
-    /**
-     * Called after a remote sync import completes (via [MultiUserSyncManager.importEvent]).
-     *
-     * Re-reads the running task from Room and reconciles the in-memory ViewModel
-     * state so the UI reflects what the other user just did:
-     *   • Another user started a timer  → start showing it locally
-     *   • Another user stopped a timer  → hide the local timer card
-     */
-    private suspend fun refreshCurrentTaskAfterSync() {
-        val running = repository.getRunningTask()
-        if (running != null) {
-            val nowMs       = System.currentTimeMillis()
-            val secondsLeft = com.eevdf.scheduler.model.TimerState.remainingSecs(
-                running.timerState, running.timeSliceSeconds, nowMs
-            )
-            if (secondsLeft > 0L) {
-                val corrected = running.copy(remainingSeconds = secondsLeft)
-                repository.update(corrected)
-                _currentTask.postValue(corrected)
-                _timerSeconds.postValue(secondsLeft)
-                _timerRunning.postValue(true)
-                timerEngine.restoreFromDb(corrected)
-            } else {
-                // Slice expired — treat as finished
-                _timerRunning.postValue(false)
-                _currentTask.postValue(null)
-            }
-        } else {
-            // No running task in the imported DB — the other user stopped the timer
-            if (_timerRunning.value == true) {
-                timerEngine.cancel()
-                _timerRunning.postValue(false)
-                _currentTask.postValue(null)
-            }
-        }
-    }
 }

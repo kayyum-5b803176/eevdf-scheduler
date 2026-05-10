@@ -409,6 +409,19 @@ abstract class TaskDatabase : RoomDatabase() {
          * self-contained, then closes and nulls the singleton so Room does not
          * hold any file locks during the copy.
          */
+        /**
+         * Flushes WAL into the main .db file WITHOUT closing Room.
+         * Used by the sync export path — Room stays open and usable.
+         */
+        fun checkpointWal(context: Context) {
+            synchronized(this) {
+                try {
+                    INSTANCE?.openHelper?.writableDatabase
+                        ?.execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
+                } catch (_: Exception) { /* ignore */ }
+            }
+        }
+
         fun checkpointAndClose(context: Context) {
             synchronized(this) {
                 try {

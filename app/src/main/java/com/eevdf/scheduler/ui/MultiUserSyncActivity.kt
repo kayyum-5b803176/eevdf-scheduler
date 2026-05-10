@@ -91,7 +91,7 @@ class MultiUserSyncActivity : AppCompatActivity() {
 
         btnSyncNow.setOnClickListener {
             MultiUserSyncManager.scheduleExport()
-            tvSyncStatus.text = "Sync requested…"
+            tvSyncStatus.text = "Syncing…"
         }
 
         // Observe live sync state
@@ -107,7 +107,7 @@ class MultiUserSyncActivity : AppCompatActivity() {
                 resources.getColor(
                     when (state) {
                         is SyncState.Error -> android.R.color.holo_red_dark
-                        SyncState.OK       -> R.color.syncDotOK
+                        SyncState.OK       -> R.color.syncDotOK  // green
                         SyncState.Syncing  -> android.R.color.holo_orange_dark
                         else               -> R.color.textSecondary
                     },

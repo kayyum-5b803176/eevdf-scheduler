@@ -455,6 +455,22 @@ class MainActivity : AppCompatActivity() {
         // ── Sync state → toolbar dot color ────────────────────────────────────
         viewModel.syncState.observe(this) { state -> updateSyncIcon(state) }
 
+        // ── Remote sync import → restart app so Room opens the new DB cleanly ─
+        viewModel.restartNeeded.observe(this) {
+            android.widget.Toast.makeText(
+                this, "Sync received — reloading…", android.widget.Toast.LENGTH_SHORT
+            ).show()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                val intent = packageManager.getLaunchIntentForPackage(packageName)!!
+                intent.addFlags(
+                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                )
+                startActivity(intent)
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }, 600)
+        }
+
         // ── Next / Auto button ────────────────────────────────────────────────
         viewModel.nextButtonState.observe(this) { state ->
             btnScheduleNext.text = state.label
@@ -560,8 +576,9 @@ class MainActivity : AppCompatActivity() {
             syncDotView  = syncView.findViewById(R.id.viewSyncDot)
             syncIconView = syncView.findViewById(R.id.ivSyncIcon)
             syncView.setOnClickListener {
-                // Tap sync icon → open Multiuser Sync settings
-                startActivity(android.content.Intent(this, MultiUserSyncActivity::class.java))
+                // Tap sync icon → trigger an immediate sync export
+                viewModel.triggerSyncExport()
+                android.widget.Toast.makeText(this, "Syncing…", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
 
