@@ -91,6 +91,23 @@
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/tvSchedClass"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="9sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF"
+                        android:background="@drawable/bg_sched_class_badge"
+                        android:paddingStart="5dp"
+                        android:paddingEnd="5dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:layout_marginTop="3dp"
+                        android:gravity="center"
+                        android:visibility="gone" />
+
+                    <TextView
                         android:id="@+id/tvQuotaRemaining"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

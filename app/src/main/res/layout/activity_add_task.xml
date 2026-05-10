@@ -508,6 +508,289 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- ── Scheduler Class ──────────────────────────────────────────── -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Header -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Scheduler Class"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Mirrors Linux sched_setattr() policy — controls run-queue priority tier"
+                        android:textSize="11sp"
+                        android:textColor="#9E9E9E"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- Class spinner -->
+                    <Spinner
+                        android:id="@+id/spinnerSchedClass"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/abc_spinner_mtrl_am_alpha"
+                        android:padding="8dp" />
+
+                    <!-- Description label that updates with selection -->
+                    <TextView
+                        android:id="@+id/tvSchedClassDesc"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="11sp"
+                        android:textColor="#616161"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
+
+                    <!-- ── RT Priority (SCHED_FIFO / SCHED_RR) ──────────────── -->
+                    <LinearLayout
+                        android:id="@+id/layoutRtPriority"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="14dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginBottom="12dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="2dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="RT Priority"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+
+                            <TextView
+                                android:id="@+id/tvRtPriorityValue"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="50"
+                                android:textSize="13sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="1 = lowest · 99 = highest. Real-time tasks preempt all SCHED_NORMAL tasks."
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+
+                        <com.google.android.material.slider.Slider
+                            android:id="@+id/sliderRtPriority"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:valueFrom="1"
+                            android:valueTo="99"
+                            android:stepSize="1"
+                            android:value="50" />
+
+                    </LinearLayout>
+
+                    <!-- ── SCHED_DEADLINE parameters ────────────────────────── -->
+                    <LinearLayout
+                        android:id="@+id/layoutDeadlineParams"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="14dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginBottom="12dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Bandwidth reservation — constraint: Runtime ≤ Deadline ≤ Period"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="10dp" />
+
+                        <!-- Runtime -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Runtime"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:id="@+id/tvDlRuntimePreview"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:textSize="12sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Max CPU time consumed per period (e.g. 50ms, 5ms)"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Runtime (e.g. 50ms, 5000us)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="12dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etDlRuntime"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:maxLength="12" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- Deadline -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Deadline"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:id="@+id/tvDlDeadlinePreview"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:textSize="12sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Relative scheduling deadline within each period (≥ Runtime)"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Deadline (e.g. 100ms, 10000us)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="12dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etDlDeadline"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:maxLength="12" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- Period -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Period"
+                                android:textSize="13sp"
+                                android:textColor="#212121"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:id="@+id/tvDlPeriodPreview"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:textSize="12sp"
+                                android:textColor="@color/colorPrimary"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Recurrence window; CPU budget resets each period (≥ Deadline)"
+                            android:textSize="11sp"
+                            android:textColor="#9E9E9E"
+                            android:layout_marginBottom="6dp" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Period (e.g. 200ms, 1s)"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="8dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etDlPeriod"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:maxLength="12" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <TextView
+                            android:id="@+id/tvDeadlineError"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="12sp"
+                            android:textColor="#F44336"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- ── Realtime Share ────────────────────────────────────────────── -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"

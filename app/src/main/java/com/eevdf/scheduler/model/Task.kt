@@ -99,10 +99,70 @@ data class Task(
     val quotaSeconds: Long = 0L,
     val quotaPeriodSeconds: Long = 86400L,
     var quotaPeriodStartEpoch: Long = 0L,
-    var quotaUsedSeconds: Long = 0L
+    var quotaUsedSeconds: Long = 0L,
+
+    // ── Linux Scheduler Class ─────────────────────────────────────────────────
+    //
+    // Mirrors the Linux sched_setattr() scheduler policy field.
+    //
+    // Values (highest → lowest priority):
+    //   "SCHED_DEADLINE"  — real-time, EDF with bandwidth reservation
+    //   "SCHED_FIFO"      — real-time, first-in first-out
+    //   "SCHED_RR"        — real-time, round-robin with time slices
+    //   "SCHED_NORMAL"    — default CFS/EEVDF (this app's native algorithm)
+    //   "SCHED_BATCH"     — batch processing, slightly deprioritised
+    //   "SCHED_IDLE"      — absolute lowest priority
+    //
+    // The scheduler class is purely advisory within this app's EEVDF engine;
+    // real-time tasks are promoted to the front of the run-queue and IDLE tasks
+    // yield to everything else.
+
+    val schedulerClass: String = "SCHED_NORMAL",
+
+    // SCHED_FIFO / SCHED_RR — Linux sched_attr::sched_priority (1 = lowest, 99 = highest)
+    val rtPriority: Int = 1,
+
+    // SCHED_DEADLINE — Linux sched_attr fields, stored in microseconds.
+    //   rtRuntimeUs  — maximum CPU time the task may consume per period
+    //   rtDeadlineUs — relative deadline within each period (runtime ≤ deadline ≤ period)
+    //   rtPeriodUs   — recurrence period; task's CPU budget resets every period
+    //   All three are 0 when schedulerClass ≠ "SCHED_DEADLINE".
+    val rtRuntimeUs: Long = 0L,
+    val rtDeadlineUs: Long = 0L,
+    val rtPeriodUs: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()
+
+    /** True when this task uses a real-time scheduler class. */
+    val isRealTime: Boolean get() =
+        schedulerClass == "SCHED_DEADLINE" || schedulerClass == "SCHED_FIFO" || schedulerClass == "SCHED_RR"
+
+    /** True when schedulerClass requires FIFO/RR rt-priority parameter. */
+    val isRtPriorityClass: Boolean get() =
+        schedulerClass == "SCHED_FIFO" || schedulerClass == "SCHED_RR"
+
+    /** Short display label for the scheduler class badge. */
+    val schedClassBadge: String get() = when (schedulerClass) {
+        "SCHED_DEADLINE" -> "DL"
+        "SCHED_FIFO"     -> "RT-F"
+        "SCHED_RR"       -> "RT-R"
+        "SCHED_NORMAL"   -> ""           // default — no badge
+        "SCHED_BATCH"    -> "BATCH"
+        "SCHED_IDLE"     -> "IDLE"
+        else             -> ""
+    }
+
+    /** Numeric rank of the class for scheduling priority (lower = runs first). */
+    val schedClassRank: Int get() = when (schedulerClass) {
+        "SCHED_DEADLINE" -> 0
+        "SCHED_FIFO"     -> 1
+        "SCHED_RR"       -> 2
+        "SCHED_NORMAL"   -> 3
+        "SCHED_BATCH"    -> 4
+        "SCHED_IDLE"     -> 5
+        else             -> 3
+    }
 
     // ── Quota helpers ─────────────────────────────────────────────────────────
 

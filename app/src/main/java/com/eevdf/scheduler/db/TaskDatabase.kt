@@ -14,7 +14,7 @@ import com.eevdf.scheduler.model.Task
 
 @Database(
     entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class],
-    version  = 15,
+    version  = 16,
     exportSchema = false
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -387,6 +387,26 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 15 → 16 — Linux scheduler class support.
+         *
+         * Adds five new columns to the tasks table:
+         *   schedulerClass  — the scheduling policy (default SCHED_NORMAL)
+         *   rtPriority      — real-time priority 1–99 (SCHED_FIFO / SCHED_RR)
+         *   rtRuntimeUs     — SCHED_DEADLINE: runtime per period in microseconds
+         *   rtDeadlineUs    — SCHED_DEADLINE: relative deadline in microseconds
+         *   rtPeriodUs      — SCHED_DEADLINE: period length in microseconds
+         */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE tasks ADD COLUMN schedulerClass TEXT NOT NULL DEFAULT 'SCHED_NORMAL'")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPriority INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtRuntimeUs INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtDeadlineUs INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPeriodUs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -394,7 +414,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                     .build()
                 INSTANCE = instance
                 instance

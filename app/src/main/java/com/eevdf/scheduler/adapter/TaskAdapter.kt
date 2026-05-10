@@ -44,6 +44,7 @@ class TaskAdapter(
         val tvName:         TextView    = itemView.findViewById(R.id.tvTaskName)
         val tvCategory:     TextView    = itemView.findViewById(R.id.tvCategory)
         val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
+        val tvSchedClass:   TextView    = itemView.findViewById(R.id.tvSchedClass)
         val tvQuotaRemaining: TextView  = itemView.findViewById(R.id.tvQuotaRemaining)
         val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
@@ -161,7 +162,24 @@ class TaskAdapter(
         }
         holder.tvPriority.setTextColor(priorityColor)
 
-        // ── Quota display ──────────────────────────────────────────────────────
+        // ── Scheduler class badge ──────────────────────────────────────────────
+        val badge = task.schedClassBadge
+        if (badge.isNotEmpty() && !task.isGroup) {
+            holder.tvSchedClass.text       = badge
+            holder.tvSchedClass.visibility = View.VISIBLE
+            val badgeColor = when (task.schedulerClass) {
+                "SCHED_DEADLINE" -> android.graphics.Color.parseColor("#C62828") // deep red
+                "SCHED_FIFO"     -> android.graphics.Color.parseColor("#E65100") // deep orange
+                "SCHED_RR"       -> android.graphics.Color.parseColor("#F57F17") // amber
+                "SCHED_BATCH"    -> android.graphics.Color.parseColor("#1565C0") // blue
+                "SCHED_IDLE"     -> android.graphics.Color.parseColor("#424242") // grey
+                else             -> android.graphics.Color.parseColor("#7B1FA2")
+            }
+            (holder.tvSchedClass.background as? android.graphics.drawable.GradientDrawable)
+                ?.setColor(badgeColor)
+        } else {
+            holder.tvSchedClass.visibility = View.GONE
+        }
         val quotaExceeded = item.effectiveQuotaExceeded
         val quotaWarning  = item.effectiveQuotaWarning
         if (task.isQuotaEnabled) {

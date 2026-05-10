@@ -62,25 +62,65 @@ object EEVDFScheduler {
     }
 
     /**
-     * Select the next task to run using EEVDF policy:
-     * Among all eligible tasks, pick the one with the smallest virtual deadline.
-     * A task is eligible if lag >= 0 (it is owed CPU time or is on-time).
+     * Select the next task to run using a two-level policy:
+     *
+     * Level 1 — Scheduler class (mirrors Linux class priority):
+     *   SCHED_DEADLINE > SCHED_FIFO > SCHED_RR > SCHED_NORMAL/SCHED_BATCH > SCHED_IDLE
+     *   Real-time tasks always preempt lower-class tasks.
+     *
+     * Level 2 — Within each class:
+     *   DEADLINE  → earliest rtDeadlineUs (falls back to virtual deadline)
+     *   FIFO      → highest rtPriority, ties broken by createdAt (FIFO order)
+     *   RR        → highest rtPriority, ties broken by EEVDF virtual deadline
+     *   NORMAL    → standard EEVDF: eligible tasks by virtual deadline, else min vruntime
+     *   BATCH     → same EEVDF pool as NORMAL (lower natural weight keeps it behind)
+     *   IDLE      → min vruntime, only runs when every other class is empty
      */
     fun selectNext(tasks: List<Task>): Task? {
         val candidates = tasks.filter { !it.isCompleted && !it.isRunning }
         if (candidates.isEmpty()) return null
 
-        averageVruntime(tasks)
+        recalculate(candidates)
 
-        // Eligible tasks: vruntime ≤ avgVruntime (lag ≥ 0)
-        val eligible = candidates.filter { it.lag >= 0 }
-
-        return if (eligible.isNotEmpty()) {
-            eligible.minByOrNull { it.virtualDeadline }
-        } else {
-            // No eligible task: pick the one with the smallest vruntime (most behind)
-            candidates.minByOrNull { it.vruntime }
+        // ── SCHED_DEADLINE ──────────────────────────────────────────────────
+        val deadlineTasks = candidates.filter { it.schedulerClass == "SCHED_DEADLINE" }
+        if (deadlineTasks.isNotEmpty()) {
+            return deadlineTasks.minByOrNull {
+                if (it.rtDeadlineUs > 0) it.rtDeadlineUs.toDouble() else it.virtualDeadline
+            }
         }
+
+        // ── SCHED_FIFO ──────────────────────────────────────────────────────
+        val fifoTasks = candidates.filter { it.schedulerClass == "SCHED_FIFO" }
+        if (fifoTasks.isNotEmpty()) {
+            val maxPrio = fifoTasks.maxOf { it.rtPriority }
+            return fifoTasks.filter { it.rtPriority == maxPrio }.minByOrNull { it.createdAt }
+        }
+
+        // ── SCHED_RR ────────────────────────────────────────────────────────
+        val rrTasks = candidates.filter { it.schedulerClass == "SCHED_RR" }
+        if (rrTasks.isNotEmpty()) {
+            val maxPrio = rrTasks.maxOf { it.rtPriority }
+            val samePrio = rrTasks.filter { it.rtPriority == maxPrio }
+            val eligible = samePrio.filter { it.lag >= 0 }
+            return if (eligible.isNotEmpty()) eligible.minByOrNull { it.virtualDeadline }
+                   else samePrio.minByOrNull { it.vruntime }
+        }
+
+        // ── SCHED_NORMAL + SCHED_BATCH (standard EEVDF pool) ───────────────
+        val eevdfPool = candidates.filter {
+            it.schedulerClass == "SCHED_NORMAL" ||
+            it.schedulerClass == "SCHED_BATCH"  ||
+            it.schedulerClass.isEmpty()   // legacy tasks with no class set
+        }
+        if (eevdfPool.isNotEmpty()) {
+            val eligible = eevdfPool.filter { it.lag >= 0 }
+            return if (eligible.isNotEmpty()) eligible.minByOrNull { it.virtualDeadline }
+                   else eevdfPool.minByOrNull { it.vruntime }
+        }
+
+        // ── SCHED_IDLE — absolute last resort ──────────────────────────────
+        return candidates.minByOrNull { it.vruntime }
     }
 
     /**
@@ -97,19 +137,40 @@ object EEVDFScheduler {
     }
 
     /**
-     * Full schedule pass: returns tasks ordered by EEVDF priority.
+     * Full schedule pass: returns tasks ordered by scheduler class priority then EEVDF.
+     *
+     * Real-time tasks (DEADLINE > FIFO > RR) appear first, followed by the
+     * NORMAL/BATCH EEVDF pool, then IDLE tasks at the end.
      */
     fun getScheduleOrder(tasks: List<Task>): List<Task> {
         recalculate(tasks)
-        val active = tasks.filter { !it.isCompleted }.toMutableList()
+        val active = tasks.filter { !it.isCompleted }
         val result = mutableListOf<Task>()
-        averageVruntime(tasks)
 
-        // Sort: eligible first (by virtual deadline), then ineligible (by vruntime)
-        val eligible = active.filter { it.lag >= 0 }.sortedBy { it.virtualDeadline }
-        val ineligible = active.filter { it.lag < 0 }.sortedBy { it.vruntime }
+        // SCHED_DEADLINE — sorted by rtDeadlineUs (earliest first)
+        result.addAll(active.filter { it.schedulerClass == "SCHED_DEADLINE" }
+            .sortedBy { if (it.rtDeadlineUs > 0) it.rtDeadlineUs.toDouble() else it.virtualDeadline })
+
+        // SCHED_FIFO — sorted by descending rtPriority, then by createdAt
+        result.addAll(active.filter { it.schedulerClass == "SCHED_FIFO" }
+            .sortedWith(compareByDescending<Task> { it.rtPriority }.thenBy { it.createdAt }))
+
+        // SCHED_RR — sorted by descending rtPriority, then EEVDF virtual deadline
+        result.addAll(active.filter { it.schedulerClass == "SCHED_RR" }
+            .sortedWith(compareByDescending<Task> { it.rtPriority }.thenBy { it.virtualDeadline }))
+
+        // SCHED_NORMAL + SCHED_BATCH — standard EEVDF: eligible by vdeadline, then ineligible by vruntime
+        val eevdfPool = active.filter {
+            it.schedulerClass == "SCHED_NORMAL" || it.schedulerClass == "SCHED_BATCH" || it.schedulerClass.isEmpty()
+        }
+        val eligible   = eevdfPool.filter { it.lag >= 0 }.sortedBy { it.virtualDeadline }
+        val ineligible = eevdfPool.filter { it.lag < 0  }.sortedBy { it.vruntime }
         result.addAll(eligible)
         result.addAll(ineligible)
+
+        // SCHED_IDLE — always last
+        result.addAll(active.filter { it.schedulerClass == "SCHED_IDLE" }.sortedBy { it.vruntime })
+
         return result
     }
 
