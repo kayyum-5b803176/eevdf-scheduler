@@ -393,17 +393,17 @@ abstract class TaskDatabase : RoomDatabase() {
          * Adds five new columns to the tasks table:
          *   schedulerClass  — the scheduling policy (default SCHED_NORMAL)
          *   rtPriority      — real-time priority 1–99 (SCHED_FIFO / SCHED_RR)
-         *   rtRuntimeUs     — SCHED_DEADLINE: runtime per period in microseconds
-         *   rtDeadlineUs    — SCHED_DEADLINE: relative deadline in microseconds
-         *   rtPeriodUs      — SCHED_DEADLINE: period length in microseconds
+         *   rtRuntimeSeconds     — SCHED_DEADLINE: runtime per period in microseconds
+         *   rtDeadlineSeconds    — SCHED_DEADLINE: relative deadline in microseconds
+         *   rtPeriodSeconds      — SCHED_DEADLINE: period length in microseconds
          */
         private val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE tasks ADD COLUMN schedulerClass TEXT NOT NULL DEFAULT 'SCHED_NORMAL'")
                 database.execSQL("ALTER TABLE tasks ADD COLUMN rtPriority INTEGER NOT NULL DEFAULT 1")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtRuntimeUs INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtDeadlineUs INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPeriodUs INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtRuntimeSeconds INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtDeadlineSeconds INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPeriodSeconds INTEGER NOT NULL DEFAULT 0")
             }
         }
 

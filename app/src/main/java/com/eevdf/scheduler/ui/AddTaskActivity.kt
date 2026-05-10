@@ -75,6 +75,8 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var tvQuotaError:          TextView
 
     // Scheduler class section
+    private lateinit var switchSchedClassEnabled: SwitchMaterial
+    private lateinit var layoutSchedClassFields:  LinearLayout
     private lateinit var spinnerSchedClass:     Spinner
     private lateinit var tvSchedClassDesc:      TextView
     private lateinit var layoutRtPriority:      LinearLayout
@@ -201,6 +203,8 @@ class AddTaskActivity : AppCompatActivity() {
         tvPeriodPreview    = findViewById(R.id.tvPeriodPreview)
         tvQuotaError       = findViewById(R.id.tvQuotaError)
 
+        switchSchedClassEnabled = findViewById(R.id.switchSchedClassEnabled)
+        layoutSchedClassFields   = findViewById(R.id.layoutSchedClassFields)
         spinnerSchedClass    = findViewById(R.id.spinnerSchedClass)
         tvSchedClassDesc     = findViewById(R.id.tvSchedClassDesc)
         layoutRtPriority     = findViewById(R.id.layoutRtPriority)
@@ -389,6 +393,9 @@ class AddTaskActivity : AppCompatActivity() {
         // Restore scheduler class
         val classIdx = schedClassValues.indexOf(task.schedulerClass).coerceAtLeast(0)
         selectedSchedClass = task.schedulerClass
+        val isNonDefault = task.schedulerClass != "SCHED_NORMAL"
+        switchSchedClassEnabled.isChecked   = isNonDefault
+        layoutSchedClassFields.visibility   = if (isNonDefault) View.VISIBLE else View.GONE
         spinnerSchedClass.setSelection(classIdx)
         updateSchedClassUi()
         // Restore RT priority (FIFO / RR)
@@ -396,11 +403,11 @@ class AddTaskActivity : AppCompatActivity() {
             sliderRtPriority.value = task.rtPriority.coerceIn(1, 99).toFloat()
             tvRtPriorityValue.text = task.rtPriority.toString()
         }
-        // Restore SCHED_DEADLINE params
+        // Restore SCHED_DEADLINE params (stored as seconds, display as human-readable)
         if (task.schedulerClass == "SCHED_DEADLINE") {
-            if (task.rtRuntimeUs  > 0) etDlRuntime.setText(formatDlDuration(task.rtRuntimeUs))
-            if (task.rtDeadlineUs > 0) etDlDeadline.setText(formatDlDuration(task.rtDeadlineUs))
-            if (task.rtPeriodUs   > 0) etDlPeriod.setText(formatDlDuration(task.rtPeriodUs))
+            if (task.rtRuntimeSeconds  > 0) etDlRuntime.setText(formatDlSeconds(task.rtRuntimeSeconds))
+            if (task.rtDeadlineSeconds > 0) etDlDeadline.setText(formatDlSeconds(task.rtDeadlineSeconds))
+            if (task.rtPeriodSeconds   > 0) etDlPeriod.setText(formatDlSeconds(task.rtPeriodSeconds))
         }
     }
 
@@ -606,15 +613,27 @@ class AddTaskActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, schedClassLabels)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerSchedClass.adapter = adapter
+        spinnerSchedClass.setSelection(schedClassValues.indexOf("SCHED_NORMAL").coerceAtLeast(0))
 
-        // Default = SCHED_NORMAL (index 3)
-        spinnerSchedClass.setSelection(schedClassValues.indexOf(selectedSchedClass).coerceAtLeast(0))
+        // Toggle: when OFF → SCHED_NORMAL (no override), fields hidden
+        switchSchedClassEnabled.setOnCheckedChangeListener { _, checked ->
+            layoutSchedClassFields.visibility = if (checked) View.VISIBLE else View.GONE
+            if (!checked) {
+                selectedSchedClass = "SCHED_NORMAL"
+            } else {
+                val pos = spinnerSchedClass.selectedItemPosition
+                selectedSchedClass = schedClassValues.getOrElse(pos) { "SCHED_NORMAL" }
+                updateSchedClassUi()
+            }
+        }
 
         spinnerSchedClass.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, pos: Int, id: Long) {
-                selectedSchedClass = schedClassValues.getOrElse(pos) { "SCHED_NORMAL" }
-                updateSchedClassUi()
+                if (switchSchedClassEnabled.isChecked) {
+                    selectedSchedClass = schedClassValues.getOrElse(pos) { "SCHED_NORMAL" }
+                    updateSchedClassUi()
+                }
             }
         }
 
@@ -623,14 +642,14 @@ class AddTaskActivity : AppCompatActivity() {
         }
         tvRtPriorityValue.text = sliderRtPriority.value.toInt().toString()
 
-        // Live previews for deadline fields
+        // Live previews for deadline fields (human-readable seconds)
         fun attachDlPreview(et: TextInputEditText, preview: TextView) {
             et.addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
                 override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
                 override fun afterTextChanged(s: android.text.Editable?) {
-                    val us = parseDlInput(s?.toString() ?: "")
-                    preview.text = if (us > 0) formatDlDuration(us) else ""
+                    val secs = parseDlHumanTime(s?.toString() ?: "")
+                    preview.text = if (secs > 0) formatDlSeconds(secs) else ""
                 }
             })
         }
@@ -640,56 +659,82 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     private fun updateSchedClassUi() {
-        // Description text
         val desc = when (selectedSchedClass) {
             "SCHED_DEADLINE" -> "Highest priority. EDF with bandwidth reservation: runtime ≤ deadline ≤ period."
             "SCHED_FIFO"     -> "Real-time FIFO. Runs until complete; higher rt-priority always preempts lower."
             "SCHED_RR"       -> "Real-time round-robin. Time-sliced at equal rt-priority; higher priority preempts."
-            "SCHED_NORMAL"   -> "Default EEVDF scheduler. Fair CPU sharing weighted by priority."
-            "SCHED_BATCH"    -> "Batch processing. Participates in EEVDF but yields to SCHED_NORMAL tasks."
+            "SCHED_NORMAL"   -> "Default EEVDF scheduler. Fair sharing weighted by task priority."
+            "SCHED_BATCH"    -> "Batch processing. Same EEVDF pool as NORMAL but yields to interactive tasks."
             "SCHED_IDLE"     -> "Absolute lowest. Only runs when every other task is idle or complete."
             else             -> ""
         }
-        tvSchedClassDesc.text = desc
+        tvSchedClassDesc.text       = desc
         tvSchedClassDesc.visibility = if (desc.isNotEmpty()) View.VISIBLE else View.GONE
 
-        // Show RT priority slider only for FIFO / RR
         val showRt = selectedSchedClass == "SCHED_FIFO" || selectedSchedClass == "SCHED_RR"
         layoutRtPriority.visibility = if (showRt) View.VISIBLE else View.GONE
 
-        // Show deadline params only for SCHED_DEADLINE
         val showDl = selectedSchedClass == "SCHED_DEADLINE"
         layoutDeadlineParams.visibility = if (showDl) View.VISIBLE else View.GONE
         if (!showDl) tvDeadlineError.visibility = View.GONE
     }
 
     /**
-     * Parses a human-readable duration into microseconds.
-     * Accepted: "50ms" → 50_000 µs, "5000us" → 5_000 µs, "1s" → 1_000_000 µs,
-     *           "100" (bare number) → treated as ms → 100_000 µs.
-     * Returns 0 on empty / unparseable input.
+     * Parses a human-readable duration string into whole seconds.
+     *
+     * Accepted tokens (case-insensitive, can be combined with spaces):
+     *   Nd / N days / N day → days
+     *   Nh / N hours / N hr → hours
+     *   Nm / N min / N minutes / N' → minutes
+     *   Ns / N sec / N seconds → seconds
+     *
+     * Examples:
+     *   "15m"        → 900
+     *   "3h 15m"     → 11700
+     *   "4d"         → 345600
+     *   "1d 2h 30m"  → 95400
+     *   "90"         → 90 (bare number → seconds)
+     *
+     * Range: 1s – 365d. Returns 0 on empty/invalid input.
      */
-    private fun parseDlInput(raw: String): Long {
+    private fun parseDlHumanTime(raw: String): Long {
         val s = raw.trim().lowercase()
         if (s.isEmpty()) return 0L
-        val us  = Regex("""(\d+)\s*us""").find(s)?.groupValues?.get(1)?.toLongOrNull()
-        val ms  = Regex("""(\d+)\s*ms""").find(s)?.groupValues?.get(1)?.toLongOrNull()
-        val sec = Regex("""(\d+)\s*s(?!e)""").find(s)?.groupValues?.get(1)?.toLongOrNull()
-        return when {
-            us  != null -> us
-            ms  != null -> ms * 1_000L
-            sec != null -> sec * 1_000_000L
-            else        -> (s.toLongOrNull() ?: 0L) * 1_000L  // bare number → ms
-        }.coerceAtLeast(0L)
+
+        var total = 0L
+        val dayPat  = Regex("""(\d+)\s*(?:d(?:ays?)?)\b""")
+        val hrPat   = Regex("""(\d+)\s*(?:h(?:rs?|ours?)?)""")
+        val minPat  = Regex("""(\d+)\s*(?:m(?:in(?:utes?)?)?|')""")
+        val secPat  = Regex("""(\d+)\s*(?:s(?:ec(?:onds?)?)?)""")
+
+        dayPat.findAll(s).forEach  { total += it.groupValues[1].toLong() * 86400L }
+        hrPat.findAll(s).forEach   { total += it.groupValues[1].toLong() * 3600L  }
+        minPat.findAll(s).forEach  { total += it.groupValues[1].toLong() * 60L    }
+        secPat.findAll(s).forEach  { total += it.groupValues[1].toLong()           }
+
+        // Bare number with no unit → treat as seconds
+        if (total == 0L) total = s.toLongOrNull() ?: 0L
+
+        val maxSecs = 365L * 86400L
+        return total.coerceIn(0L, maxSecs)
     }
 
-    private fun formatDlDuration(us: Long): String {
-        return when {
-            us == 0L           -> "0µs"
-            us < 1_000L        -> "${us}µs"
-            us < 1_000_000L    -> "${us / 1_000}ms"
-            else               -> "${us / 1_000_000}s ${(us % 1_000_000) / 1_000}ms"
-        }
+    /**
+     * Formats seconds into a compact human-readable string.
+     * 86400 → "1d", 5400 → "1h 30m", 90 → "1m 30s", 45 → "45s"
+     */
+    private fun formatDlSeconds(secs: Long): String {
+        if (secs <= 0L) return "0s"
+        val d = secs / 86400L
+        val h = (secs % 86400L) / 3600L
+        val m = (secs % 3600L)  / 60L
+        val s = secs % 60L
+        return buildString {
+            if (d > 0) append("${d}d ")
+            if (h > 0) append("${h}h ")
+            if (m > 0) append("${m}m ")
+            if (s > 0) append("${s}s")
+        }.trim()
     }
 
     // ── Realtime share section ────────────────────────────────────────────────
@@ -862,50 +907,55 @@ class AddTaskActivity : AppCompatActivity() {
 
         // ── Scheduler class ───────────────────────────────────────────────────
         val rtPriority: Int
-        val rtRuntimeUs: Long
-        val rtDeadlineUs: Long
-        val rtPeriodUs: Long
+        val rtRuntimeSeconds: Long
+        val rtDeadlineSeconds: Long
+        val rtPeriodSeconds: Long
+
+        // When toggle is OFF, always save as SCHED_NORMAL with no RT params
+        if (!switchSchedClassEnabled.isChecked) {
+            selectedSchedClass = "SCHED_NORMAL"
+        }
 
         when (selectedSchedClass) {
             "SCHED_FIFO", "SCHED_RR" -> {
                 rtPriority   = sliderRtPriority.value.toInt().coerceIn(1, 99)
-                rtRuntimeUs  = 0L
-                rtDeadlineUs = 0L
-                rtPeriodUs   = 0L
+                rtRuntimeSeconds  = 0L
+                rtDeadlineSeconds = 0L
+                rtPeriodSeconds   = 0L
             }
             "SCHED_DEADLINE" -> {
                 rtPriority   = 1
-                val rawRuntime  = parseDlInput(etDlRuntime.text.toString())
-                val rawDeadline = parseDlInput(etDlDeadline.text.toString())
-                val rawPeriod   = parseDlInput(etDlPeriod.text.toString())
+                val rawRuntime  = parseDlHumanTime(etDlRuntime.text.toString())
+                val rawDeadline = parseDlHumanTime(etDlDeadline.text.toString())
+                val rawPeriod   = parseDlHumanTime(etDlPeriod.text.toString())
                 if (rawRuntime <= 0L) {
-                    tvDeadlineError.text = "Runtime must be > 0 (e.g. 50ms)"
+                    tvDeadlineError.text = "Runtime must be ≥ 1s (e.g. 15m, 1h)"
                     tvDeadlineError.visibility = View.VISIBLE
                     layoutDeadlineParams.visibility = View.VISIBLE
                     return
                 }
                 if (rawDeadline < rawRuntime) {
-                    tvDeadlineError.text = "Deadline (${formatDlDuration(rawDeadline)}) must be ≥ Runtime (${formatDlDuration(rawRuntime)})"
+                    tvDeadlineError.text = "Deadline (${formatDlSeconds(rawDeadline)}) must be ≥ Runtime (${formatDlSeconds(rawRuntime)})"
                     tvDeadlineError.visibility = View.VISIBLE
                     layoutDeadlineParams.visibility = View.VISIBLE
                     return
                 }
                 if (rawPeriod < rawDeadline) {
-                    tvDeadlineError.text = "Period (${formatDlDuration(rawPeriod)}) must be ≥ Deadline (${formatDlDuration(rawDeadline)})"
+                    tvDeadlineError.text = "Period (${formatDlSeconds(rawPeriod)}) must be ≥ Deadline (${formatDlSeconds(rawDeadline)})"
                     tvDeadlineError.visibility = View.VISIBLE
                     layoutDeadlineParams.visibility = View.VISIBLE
                     return
                 }
                 tvDeadlineError.visibility = View.GONE
-                rtRuntimeUs  = rawRuntime
-                rtDeadlineUs = rawDeadline
-                rtPeriodUs   = rawPeriod
+                rtRuntimeSeconds  = rawRuntime
+                rtDeadlineSeconds = rawDeadline
+                rtPeriodSeconds   = rawPeriod
             }
             else -> {
                 rtPriority   = 1
-                rtRuntimeUs  = 0L
-                rtDeadlineUs = 0L
-                rtPeriodUs   = 0L
+                rtRuntimeSeconds  = 0L
+                rtDeadlineSeconds = 0L
+                rtPeriodSeconds   = 0L
             }
         }
 
@@ -928,9 +978,9 @@ class AddTaskActivity : AppCompatActivity() {
                 quotaPeriodSeconds = quotaPeriodSeconds,
                 schedulerClass   = selectedSchedClass,
                 rtPriority       = rtPriority,
-                rtRuntimeUs      = rtRuntimeUs,
-                rtDeadlineUs     = rtDeadlineUs,
-                rtPeriodUs       = rtPeriodUs
+                rtRuntimeSeconds      = rtRuntimeSeconds,
+                rtDeadlineSeconds     = rtDeadlineSeconds,
+                rtPeriodSeconds       = rtPeriodSeconds
             )
             // Handle interrupt assignment
         when {
@@ -960,9 +1010,9 @@ class AddTaskActivity : AppCompatActivity() {
                 quotaPeriodSeconds = quotaPeriodSeconds,
                 schedulerClass   = selectedSchedClass,
                 rtPriority       = rtPriority,
-                rtRuntimeUs      = rtRuntimeUs,
-                rtDeadlineUs     = rtDeadlineUs,
-                rtPeriodUs       = rtPeriodUs
+                rtRuntimeSeconds      = rtRuntimeSeconds,
+                rtDeadlineSeconds     = rtDeadlineSeconds,
+                rtPeriodSeconds       = rtPeriodSeconds
             )
             viewModel.addTask(task)
             when {

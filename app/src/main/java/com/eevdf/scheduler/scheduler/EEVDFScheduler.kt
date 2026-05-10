@@ -69,7 +69,7 @@ object EEVDFScheduler {
      *   Real-time tasks always preempt lower-class tasks.
      *
      * Level 2 — Within each class:
-     *   DEADLINE  → earliest rtDeadlineUs (falls back to virtual deadline)
+     *   DEADLINE  → earliest rtDeadlineSeconds (falls back to virtual deadline)
      *   FIFO      → highest rtPriority, ties broken by createdAt (FIFO order)
      *   RR        → highest rtPriority, ties broken by EEVDF virtual deadline
      *   NORMAL    → standard EEVDF: eligible tasks by virtual deadline, else min vruntime
@@ -86,7 +86,7 @@ object EEVDFScheduler {
         val deadlineTasks = candidates.filter { it.schedulerClass == "SCHED_DEADLINE" }
         if (deadlineTasks.isNotEmpty()) {
             return deadlineTasks.minByOrNull {
-                if (it.rtDeadlineUs > 0) it.rtDeadlineUs.toDouble() else it.virtualDeadline
+                if (it.rtDeadlineSeconds > 0) it.rtDeadlineSeconds.toDouble() else it.virtualDeadline
             }
         }
 
@@ -147,9 +147,9 @@ object EEVDFScheduler {
         val active = tasks.filter { !it.isCompleted }
         val result = mutableListOf<Task>()
 
-        // SCHED_DEADLINE — sorted by rtDeadlineUs (earliest first)
+        // SCHED_DEADLINE — sorted by rtDeadlineSeconds (earliest first)
         result.addAll(active.filter { it.schedulerClass == "SCHED_DEADLINE" }
-            .sortedBy { if (it.rtDeadlineUs > 0) it.rtDeadlineUs.toDouble() else it.virtualDeadline })
+            .sortedBy { if (it.rtDeadlineSeconds > 0) it.rtDeadlineSeconds.toDouble() else it.virtualDeadline })
 
         // SCHED_FIFO — sorted by descending rtPriority, then by createdAt
         result.addAll(active.filter { it.schedulerClass == "SCHED_FIFO" }

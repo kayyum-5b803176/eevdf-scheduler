@@ -115,7 +115,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
 
         val siblings = allTasks
             .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
-            .sortedBy { it.virtualDeadline }
+            .sortedWith(compareBy({ it.schedClassRank }, { it.virtualDeadline }))
 
         if (siblings.isEmpty()) return null
 
@@ -149,7 +149,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         val siblings = if (onQueueTab)
             base.sortedWith(TaskSortHelper.taskNameComparator)
         else
-            base.sortedBy { it.virtualDeadline }
+            base.sortedWith(compareBy({ it.schedClassRank }, { it.virtualDeadline }))
 
         if (siblings.size <= 1) {
             vm._toastMessage.value = "No other siblings to rotate"
@@ -157,7 +157,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         }
 
         val next = if (parentType == "NOTIFICATION") {
-            base.sortedBy { it.virtualDeadline }.first()
+            base.sortedWith(compareBy({ it.schedClassRank }, { it.virtualDeadline })).first()
         } else {
             val idx = siblings.indexOfFirst { it.id == current?.id }
             siblings[(idx + 1) % siblings.size]
@@ -184,7 +184,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         val rootEntries = if (onQueueTab)
             base.sortedWith(TaskSortHelper.taskNameComparator)
         else
-            base.sortedBy { it.virtualDeadline }
+            base.sortedWith(compareBy({ it.schedClassRank }, { it.virtualDeadline }))
 
         val representatives = rootEntries.mapNotNull { root ->
             val leaf = if (!root.isGroup) root else firstLeafOf(allTasks, root.id)
@@ -205,11 +205,11 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
 
     // ── Tree traversal helpers ────────────────────────────────────────────────
 
-    /** Returns the first non-group, non-completed leaf under [parentId] in VDL order. */
+    /** Returns the first non-group, non-completed leaf under [parentId] in class-rank + VDL order. */
     private fun firstLeafOf(tasks: List<Task>, parentId: String?): Task? {
         val children = tasks
             .filter { it.parentId == parentId && !it.isCompleted && !it.isInterrupt }
-            .sortedBy { it.virtualDeadline }
+            .sortedWith(compareBy({ it.schedClassRank }, { it.virtualDeadline }))
         for (child in children) {
             if (!child.isGroup) return child
             val leaf = firstLeafOf(tasks, child.id)

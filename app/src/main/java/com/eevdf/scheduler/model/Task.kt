@@ -122,14 +122,14 @@ data class Task(
     // SCHED_FIFO / SCHED_RR — Linux sched_attr::sched_priority (1 = lowest, 99 = highest)
     val rtPriority: Int = 1,
 
-    // SCHED_DEADLINE — Linux sched_attr fields, stored in microseconds.
-    //   rtRuntimeUs  — maximum CPU time the task may consume per period
-    //   rtDeadlineUs — relative deadline within each period (runtime ≤ deadline ≤ period)
-    //   rtPeriodUs   — recurrence period; task's CPU budget resets every period
+    // SCHED_DEADLINE — Linux sched_attr fields, stored in seconds (range 1s–365d).
+    //   rtRuntimeSeconds  — maximum time the task may run per period
+    //   rtDeadlineSeconds — relative deadline within each period (runtime ≤ deadline ≤ period)
+    //   rtPeriodSeconds   — recurrence period; task's budget resets every period
     //   All three are 0 when schedulerClass ≠ "SCHED_DEADLINE".
-    val rtRuntimeUs: Long = 0L,
-    val rtDeadlineUs: Long = 0L,
-    val rtPeriodUs: Long = 0L
+    val rtRuntimeSeconds: Long = 0L,
+    val rtDeadlineSeconds: Long = 0L,
+    val rtPeriodSeconds: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()

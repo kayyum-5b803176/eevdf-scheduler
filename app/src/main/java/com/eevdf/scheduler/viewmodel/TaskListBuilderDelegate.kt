@@ -101,15 +101,23 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Schedule tab: tasks sorted by virtualDeadline (live EEVDF order).
-     * Groups are shown when [groupsEnabled] is true; only leaf tasks otherwise.
+     * Schedule tab: tasks sorted by scheduler class tier first (RT > NORMAL > BATCH > IDLE),
+     * then by EEVDF virtual deadline within each tier.
+     *
+     * Mirrors the two-level sort in EEVDFScheduler.getScheduleOrder:
+     *   1. schedClassRank  (0=DEADLINE < 1=FIFO < 2=RR < 3=NORMAL < 4=BATCH < 5=IDLE)
+     *   2. virtualDeadline (smallest = most urgent within the class)
+     *
+     * Previously only virtualDeadline was used, so changing the scheduler class
+     * had no visible effect on list order in the Schedule tab.
      */
     private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+        val schedOrder = compareBy<Task>({ it.schedClassRank }, { it.virtualDeadline })
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
-                .sortedBy { it.virtualDeadline }
+                .sortedWith(schedOrder)
                 .mapIndexed { index, it ->
                     TaskDisplayItem(it, 0,
                         cpuShare               = shares[it.id] ?: 0.0,
@@ -123,7 +131,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                      parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
             val children = tasks
                 .filter { it.parentId == parentId }
-                .sortedBy { it.virtualDeadline }
+                .sortedWith(schedOrder)
             children.forEachIndexed { index, task ->
                 val dc            = tasks.filter { it.parentId == task.id }
                 val quotaExceeded = parentQuotaExceeded || task.isQuotaExceeded
