@@ -218,4 +218,21 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
             dao.insert(task)
         }
     }
+
+    /**
+     * Live-sync variant of [restoreFromBackup].
+     *
+     * Differences from the regular backup restore:
+     *  • Does NOT pause the timer or restart the app — the ViewModel handles
+     *    any in-memory state update via [MultiUserSyncManager.importEvent].
+     *  • Preserves `isRunning`, `accumulatedMs`, and `startTimeEpoch` as-is
+     *    (they were serialised by [BackupManager.toSyncJson]).
+     */
+    suspend fun restoreFromSyncBackup(tasks: List<Task>) = withContext(Dispatchers.IO) {
+        dao.stopAllRunning()   // clear stale flags before the replace
+        dao.deleteAllTasks()
+        for (task in tasks) {
+            dao.insert(task)
+        }
+    }
 }

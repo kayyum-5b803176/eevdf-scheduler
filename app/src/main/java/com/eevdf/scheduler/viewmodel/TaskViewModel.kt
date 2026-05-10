@@ -23,6 +23,9 @@ import com.eevdf.scheduler.ui.AlarmForegroundService
 import com.eevdf.scheduler.ui.AlarmScheduler
 import com.eevdf.scheduler.ui.AlarmState
 import kotlinx.coroutines.launch
+import com.eevdf.scheduler.sync.MultiUserSyncManager
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 /**
  * Root coordinator ViewModel.
@@ -266,6 +269,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         listBuilder.setup()
         flatActiveTasks   = listBuilder.flatActiveTasks
         flatScheduleOrder = listBuilder.flatScheduleOrder
+
+        // ── Multi-user sync ───────────────────────────────────────────────────
+        MultiUserSyncManager.init(application, repository)
+
+        // When a remote sync import completes, refresh the in-memory timer state
+        // from the newly-updated Room DB so user-B sees user-A's running timer.
+        MultiUserSyncManager.importEvent.observeForever { _ ->
+            viewModelScope.launch { refreshCurrentTaskAfterSync() }
+        }
     }
 
     // =========================================================================
@@ -287,6 +299,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         repository.insert(task)
         syncPinnedWeights()
         refreshSchedule()
+        triggerSyncExport()
         _toastMessage.postValue("Task \"${task.name}\" added to scheduler")
     }
 
@@ -294,6 +307,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         repository.update(task)
         syncPinnedWeights()
         refreshSchedule()
+        triggerSyncExport()
     }
 
     fun deleteTask(task: Task) = viewModelScope.launch {
@@ -304,6 +318,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         repository.delete(task)
         syncPinnedWeights()
         refreshSchedule()
+        triggerSyncExport()
         _toastMessage.postValue("Task \"${task.name}\" deleted")
     }
 
@@ -315,6 +330,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markCompleted(task: Task) = viewModelScope.launch {
+        triggerSyncExport()               // notify other users: task completed
         if (task.id == _currentTask.value?.id) stopTimer(completed = true)
         else repository.markCompleted(task)
         syncPinnedWeights()
@@ -384,7 +400,10 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // Update _currentTask with the Running state so tick observer copies carry
         // the correct startTimeEpoch (needed for live progressPercent calculation).
         _currentTask.value = updated
-        viewModelScope.launch { repository.update(updated) }
+        viewModelScope.launch {
+            repository.update(updated)
+            triggerSyncExport()          // notify other users: timer started
+        }
         AlarmForegroundService.timerStart(app, task.name, remaining, task.taskType)
         timerEngine.start(updated)
     }
@@ -418,6 +437,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             applyVruntimeUpdate(session)
         }
         AlarmForegroundService.timerPause(app)
+        triggerSyncExport()               // notify other users: timer paused
     }
 
     fun resetTimer() {
@@ -695,5 +715,58 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         pauseTimer()
         _currentTask.postValue(null)
         TaskDatabase.checkpointAndClose(app)
+    }
+
+    // =========================================================================
+    // MULTI-USER SYNC
+    // =========================================================================
+
+    /** Exposes sync state for the toolbar icon observer in MainActivity. */
+    val syncState = MultiUserSyncManager.syncState
+
+    /** Called from MainActivity.onResume to restart polling if it was stopped. */
+    fun onSyncResume() = MultiUserSyncManager.onResume()
+
+    /**
+     * Triggers a debounced export after any local DB write.
+     * Called from every action that modifies the task list or timer state.
+     */
+    fun triggerSyncExport() = MultiUserSyncManager.scheduleExport()
+
+    /**
+     * Called after a remote sync import completes (via [MultiUserSyncManager.importEvent]).
+     *
+     * Re-reads the running task from Room and reconciles the in-memory ViewModel
+     * state so the UI reflects what the other user just did:
+     *   • Another user started a timer  → start showing it locally
+     *   • Another user stopped a timer  → hide the local timer card
+     */
+    private suspend fun refreshCurrentTaskAfterSync() {
+        val running = repository.getRunningTask()
+        if (running != null) {
+            val nowMs       = System.currentTimeMillis()
+            val secondsLeft = com.eevdf.scheduler.model.TimerState.remainingSecs(
+                running.timerState, running.timeSliceSeconds, nowMs
+            )
+            if (secondsLeft > 0L) {
+                val corrected = running.copy(remainingSeconds = secondsLeft)
+                repository.update(corrected)
+                _currentTask.postValue(corrected)
+                _timerSeconds.postValue(secondsLeft)
+                _timerRunning.postValue(true)
+                timerEngine.restoreFromDb(corrected)
+            } else {
+                // Slice expired — treat as finished
+                _timerRunning.postValue(false)
+                _currentTask.postValue(null)
+            }
+        } else {
+            // No running task in the imported DB — the other user stopped the timer
+            if (_timerRunning.value == true) {
+                timerEngine.cancel()
+                _timerRunning.postValue(false)
+                _currentTask.postValue(null)
+            }
+        }
     }
 }

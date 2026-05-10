@@ -10,9 +10,10 @@ import com.google.android.material.button.MaterialButton
 
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var btnOpenDataBackup:  MaterialButton
-    private lateinit var btnOpenSoundVib:    MaterialButton
-    private lateinit var btnOpenAutoSwitch:  MaterialButton
+    private lateinit var btnOpenDataBackup:    MaterialButton
+    private lateinit var btnOpenSoundVib:      MaterialButton
+    private lateinit var btnOpenAutoSwitch:    MaterialButton
+    private lateinit var btnOpenMultiUserSync: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,7 +26,8 @@ class SettingsActivity : AppCompatActivity() {
 
         btnOpenDataBackup = findViewById(R.id.btnOpenDataBackup)
         btnOpenSoundVib   = findViewById(R.id.btnOpenSoundVibration)
-        btnOpenAutoSwitch = findViewById(R.id.btnOpenAutoSwitch)
+        btnOpenAutoSwitch    = findViewById(R.id.btnOpenAutoSwitch)
+        btnOpenMultiUserSync = findViewById(R.id.btnOpenMultiUserSync)
 
         btnOpenDataBackup.setOnClickListener {
             startActivity(Intent(this, DataBackupActivity::class.java))
@@ -35,6 +37,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         btnOpenAutoSwitch.setOnClickListener {
             startActivity(Intent(this, AutoSwitchActivity::class.java))
+        }
+        btnOpenMultiUserSync.setOnClickListener {
+            startActivity(Intent(this, MultiUserSyncActivity::class.java))
         }
     }
 

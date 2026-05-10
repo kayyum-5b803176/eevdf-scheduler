@@ -31,6 +31,9 @@ import com.eevdf.scheduler.model.IntButtonState
 import com.eevdf.scheduler.model.NextButtonState
 import com.eevdf.scheduler.viewmodel.TaskViewModel
 import com.google.android.material.button.MaterialButton
+import android.animation.ObjectAnimator
+import android.content.res.ColorStateList
+import com.eevdf.scheduler.sync.SyncState
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
 
@@ -61,6 +64,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvAlarmSubtitle:     TextView
     private lateinit var btnStopAlarm:        MaterialButton
     private lateinit var viewPhaseStatus:     View
+
+    // ── Sync icon views (set in onCreateOptionsMenu after action view inflates) ──
+    private var syncDotView:  View?  = null
+    private var syncIconView: android.widget.ImageView? = null
+    private var syncSpinAnim: ObjectAnimator? = null
 
     private var currentTab = 0
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
@@ -148,6 +156,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         quotaTickHandler.post(quotaTickRunnable)
+        viewModel.onSyncResume()
     }
     override fun onPause()  {
         super.onPause()
@@ -443,6 +452,9 @@ class MainActivity : AppCompatActivity() {
             autoScrollMenuItem?.isChecked = enabled
         }
 
+        // ── Sync state → toolbar dot color ────────────────────────────────────
+        viewModel.syncState.observe(this) { state -> updateSyncIcon(state) }
+
         // ── Next / Auto button ────────────────────────────────────────────────
         viewModel.nextButtonState.observe(this) { state ->
             btnScheduleNext.text = state.label
@@ -543,6 +555,16 @@ class MainActivity : AppCompatActivity() {
         autoScrollMenuItem   = menu.findItem(R.id.action_auto_scroll)
         autoScrollMenuItem?.isChecked = viewModel.autoScrollEnabled.value ?: false
 
+        // ── Sync icon action view ─────────────────────────────────────────────
+        menu.findItem(R.id.action_sync)?.actionView?.let { syncView ->
+            syncDotView  = syncView.findViewById(R.id.viewSyncDot)
+            syncIconView = syncView.findViewById(R.id.ivSyncIcon)
+            syncView.setOnClickListener {
+                // Tap sync icon → open Multiuser Sync settings
+                startActivity(android.content.Intent(this, MultiUserSyncActivity::class.java))
+            }
+        }
+
         // Action view supports both tap and long-press; a plain MenuItem only fires tap.
         menu.findItem(R.id.action_schedule_next)?.actionView?.let { view ->
             // Tap → jump to first visible leaf task in the current tab
@@ -596,6 +618,53 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return null
+    }
+
+    // ── Sync icon update ──────────────────────────────────────────────────────
+
+    /**
+     * Updates the sync status dot color and the sync icon spin animation
+     * based on the current [SyncState].
+     *
+     *   Disabled / Idle  → gray dot,  no spin
+     *   Syncing          → gray dot,  spin animation
+     *   OK               → green dot, no spin
+     *   Error            → red dot,   no spin
+     */
+    private fun updateSyncIcon(state: SyncState) {
+        val dot  = syncDotView  ?: return
+        val icon = syncIconView ?: return
+
+        // Colors
+        val color = when (state) {
+            SyncState.OK       -> android.graphics.Color.parseColor("#4CAF50") // green
+            is SyncState.Error -> android.graphics.Color.parseColor("#F44336") // red
+            SyncState.Syncing  -> android.graphics.Color.parseColor("#FF9800") // amber
+            else               -> android.graphics.Color.parseColor("#9E9E9E") // gray
+        }
+        dot.backgroundTintList = ColorStateList.valueOf(color)
+
+        // Spin animation while syncing
+        if (state == SyncState.Syncing) {
+            if (syncSpinAnim?.isRunning != true) {
+                syncSpinAnim = ObjectAnimator.ofFloat(icon, "rotation", 0f, 360f).apply {
+                    duration    = 1000
+                    repeatCount = ObjectAnimator.INFINITE
+                    start()
+                }
+            }
+        } else {
+            syncSpinAnim?.cancel()
+            syncSpinAnim = null
+            icon.rotation = 0f
+        }
+
+        // Show a tooltip / snackbar on error so the user knows what went wrong
+        if (state is SyncState.Error) {
+            dot.contentDescription = "Sync error: ${state.message}"
+        } else {
+            dot.contentDescription = null
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
