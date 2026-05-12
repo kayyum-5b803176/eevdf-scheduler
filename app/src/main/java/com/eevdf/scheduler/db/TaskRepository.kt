@@ -19,6 +19,17 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
         val existing = dao.getActiveTasksSync().toMutableList()
+
+        // ── Bug fix: Linux EEVDF place_entity for new tasks ──────────────────
+        // Before this fix, every new task started with vruntime = 0.  The scheduler
+        // saw a huge positive lag (avgVr − 0) × weight and kept picking the new task
+        // first, starving all existing tasks until vruntime "caught up".
+        //
+        // Fix: mirrors Linux's place_entity(ENQUEUE_INITIAL) which clamps lag to 0
+        // for a never-run task → vruntime = avg_vruntime → lag = 0 → eligible
+        // immediately but with no scheduling advantage over existing tasks.
+        EEVDFScheduler.placeNewTask(task, existing)
+
         existing.add(task)
         EEVDFScheduler.recalculate(existing)
         dao.insert(task)

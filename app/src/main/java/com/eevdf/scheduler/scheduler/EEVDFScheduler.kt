@@ -84,6 +84,39 @@ object EEVDFScheduler {
     }
 
     /**
+     * Linux EEVDF `place_entity()` equivalent for brand-new tasks.
+     *
+     * Problem without this fix:
+     *   A task created with the default vruntime = 0 has a massive positive lag
+     *   ( lag = (avgVr − 0) × weight ) the moment it joins the run-queue.
+     *   The scheduler repeatedly picks it first until its vruntime "catches up"
+     *   to the average, starving every existing task in the interim.
+     *
+     * Linux solution — `place_entity()` with ENQUEUE_INITIAL:
+     *   For a task that has never run (exec_start == 0), the kernel explicitly
+     *   clamps lag to 0 before computing the initial placement:
+     *
+     *       lag  = 0                       // brand-new task, no history
+     *       se->vruntime = avg_vruntime     // start right on the mean
+     *       se->deadline = avg_vruntime + slice / weight
+     *
+     *   lag = 0  →  the task is immediately eligible (lag ≥ 0) but holds
+     *   no priority advantage over any existing task.
+     *
+     * Reference: kernel/sched/fair.c  place_entity(), ENQUEUE_INITIAL branch.
+     *
+     * @param task          The newly created task (vruntime must still be 0).
+     * @param existingTasks Active tasks already in the run-queue (excluding [task]).
+     *                      When the list is empty the first-ever task keeps vruntime = 0,
+     *                      which is correct — there is no average to place against.
+     */
+    fun placeNewTask(task: Task, existingTasks: List<Task>) {
+        if (existingTasks.isEmpty()) return   // first task ever — vruntime = 0 is correct
+        // Set vruntime = avg_vruntime → lag = 0 → eligible immediately, no unfair advantage.
+        task.vruntime = averageVruntime(existingTasks)
+    }
+
+    /**
      * Update vruntime after a task has run for [secondsRan] seconds.
      * vruntime increases by secondsRan / weight  (higher weight → slower vruntime growth)
      */
