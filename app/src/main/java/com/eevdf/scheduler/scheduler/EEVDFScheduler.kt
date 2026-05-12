@@ -111,9 +111,29 @@ object EEVDFScheduler {
      *                      which is correct — there is no average to place against.
      */
     fun placeNewTask(task: Task, existingTasks: List<Task>) {
-        if (existingTasks.isEmpty()) return   // first task ever — vruntime = 0 is correct
-        // Set vruntime = avg_vruntime → lag = 0 → eligible immediately, no unfair advantage.
-        task.vruntime = averageVruntime(existingTasks)
+        // ── Group-aware sibling scoping (cgroup hierarchy) ────────────────────
+        // Tasks only compete against peers at the SAME hierarchy level (same parentId),
+        // exactly as Linux cgroup scheduling scopes its run-queue per group.
+        //
+        // Without this filter, a new task added inside a group would be placed
+        // relative to the global average vruntime of ALL tasks — including tasks
+        // in completely different groups.  That average is meaningless for the
+        // new task: its scheduler (the group's run-queue) only sees its siblings.
+        //
+        // Example:
+        //   Group A  →  taskA1 vrt=100, taskA2 vrt=120   → sibling avg = 110
+        //   Group B  →  taskB1 vrt=5,   taskB2 vrt=8     → sibling avg =   6.5
+        //   Global avg = (100+120+5+8)/4 ≈ 58
+        //
+        //   New task added to Group B:
+        //     Before fix  → placed at vrt ≈ 58  (way above B's avg 6.5 → immediately starved)
+        //     After fix   → placed at vrt ≈ 6.5 (fair start within Group B)
+        val siblings = existingTasks.filter { !it.isCompleted && it.parentId == task.parentId }
+        if (siblings.isEmpty()) return   // first task at this cgroup level — vruntime = 0 is correct
+
+        // lag = 0 → eligible immediately, no scheduling advantage over siblings.
+        // Mirrors Linux place_entity(ENQUEUE_INITIAL): clamp lag to 0 → vruntime = avg_vruntime.
+        task.vruntime = averageVruntime(siblings)
     }
 
     /**
