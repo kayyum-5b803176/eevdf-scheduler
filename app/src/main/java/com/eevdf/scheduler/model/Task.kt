@@ -154,7 +154,29 @@ data class Task(
     // falls back to normal EEVDF ordering until the next period begins.
 
     var dlPeriodStartEpoch: Long = 0L,
-    var dlRuntimeUsedSeconds: Long = 0L
+    var dlRuntimeUsedSeconds: Long = 0L,
+
+    // ── SCHED_FIFO / SCHED_RR — realtime window scheduling ───────────────────
+    //
+    // Mirrors Linux rt_sched_class.  A task with schedulerClass == "rt_sched_class"
+    // is hoisted to rank #1 on the Schedule tab when the current wall-clock time
+    // falls inside its activation window on a selected day of week.
+    //
+    // rtPriority           — 1–99; higher preempts lower (Linux sched_priority)
+    // rtPolicy             — "FIFO" = no rotation, "RR" = round-robin among equals
+    // rtActiveDays         — bitmask: bit 0 = Sun, 1 = Mon … 6 = Sat; 0 = disabled
+    // rtActivationHour     — 0–23  wall-clock hour the window opens
+    // rtActivationMinute   — 0–59
+    // rtActivationSecond   — 0–59
+    // rtSliceTimeoutSeconds— 1–604800 (1s – 7d); how long the window stays open
+
+    val rtPriority: Int = 50,
+    val rtPolicy: String = "RR",
+    val rtActiveDays: Int = 0,
+    val rtActivationHour: Int = 0,
+    val rtActivationMinute: Int = 0,
+    val rtActivationSecond: Int = 0,
+    val rtSliceTimeoutSeconds: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()
@@ -245,6 +267,24 @@ data class Task(
     val isDlConfigured: Boolean
         get() = schedulerClass == "dl_sched_class" &&
             dlRuntimeSeconds > 0L && dlDeadlineSeconds > 0L
+
+    // ── SCHED_FIFO / SCHED_RR helpers ─────────────────────────────────────────
+
+    /**
+     * True when this task has a valid RT configuration: rt_sched_class selected,
+     * at least one day enabled, and a non-zero slice timeout.
+     */
+    val isRtConfigured: Boolean
+        get() = schedulerClass == "rt_sched_class" &&
+            rtActiveDays != 0 &&
+            rtSliceTimeoutSeconds > 0L
+
+    /**
+     * Activation time expressed as seconds-since-midnight for efficient window
+     * arithmetic inside RtScheduler.
+     */
+    val rtActivationSecondOfDay: Long
+        get() = rtActivationHour * 3_600L + rtActivationMinute * 60L + rtActivationSecond
 
     /**
      * Effective period in seconds: uses [dlPeriodSeconds] when set, otherwise

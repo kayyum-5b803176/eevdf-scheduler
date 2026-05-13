@@ -14,7 +14,7 @@ import com.eevdf.scheduler.model.Task
 
 @Database(
     entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class],
-    version  = 17,
+    version  = 18,
     exportSchema = false
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -431,6 +431,30 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 17 → 18 — SCHED_FIFO / SCHED_RR realtime window scheduling.
+         *
+         * New columns:
+         *   rtPriority            INTEGER  50   — 1–99 Linux sched_priority
+         *   rtPolicy              TEXT    "RR"  — "FIFO" or "RR"
+         *   rtActiveDays          INTEGER   0   — day-of-week bitmask (bit 0=Sun … bit 6=Sat)
+         *   rtActivationHour      INTEGER   0   — wall-clock hour  (0–23)
+         *   rtActivationMinute    INTEGER   0   — wall-clock minute (0–59)
+         *   rtActivationSecond    INTEGER   0   — wall-clock second (0–59)
+         *   rtSliceTimeoutSeconds INTEGER   0   — window duration in seconds (0 = not configured)
+         */
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPriority INTEGER NOT NULL DEFAULT 50")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPolicy TEXT NOT NULL DEFAULT 'RR'")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActiveDays INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationHour INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationMinute INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationSecond INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN rtSliceTimeoutSeconds INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -438,7 +462,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                     .build()
                 INSTANCE = instance
                 instance

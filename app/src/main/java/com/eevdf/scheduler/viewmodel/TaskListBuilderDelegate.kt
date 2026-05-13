@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
+import com.eevdf.scheduler.scheduler.RtScheduler
 
 /**
  * Builds and maintains the two flat [TaskDisplayItem] lists observed by the UI:
@@ -73,9 +74,32 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
         dlResortHandler.postDelayed(dlResortRunnable, soonestMs + 100L)
     }
 
+    // ── RT window auto-resort ─────────────────────────────────────────────────
+    //
+    // Same one-shot Handler pattern as DL resort.  RtScheduler.nextResortMs()
+    // returns the ms until the next activation or deactivation across all RT
+    // tasks.  When the callback fires, _rtResortTick bumps and flatScheduleOrder
+    // rebuilds, re-evaluating isRtWindowActive for each task.
+
+    private val _rtResortTick = MutableLiveData<Unit>()
+
+    private val rtResortHandler  = Handler(Looper.getMainLooper())
+    private val rtResortRunnable = Runnable {
+        _rtResortTick.value = Unit
+    }
+
+    private fun rescheduleRtResort(tasks: List<Task>) {
+        rtResortHandler.removeCallbacks(rtResortRunnable)
+        val nextMs = RtScheduler.nextResortMs(tasks)
+        if (nextMs < Long.MAX_VALUE) {
+            rtResortHandler.postDelayed(rtResortRunnable, nextMs + 100L)
+        }
+    }
+
     /** Called from [TaskViewModel.onCleared] to prevent callbacks after VM death. */
     fun stop() {
         dlResortHandler.removeCallbacks(dlResortRunnable)
+        rtResortHandler.removeCallbacks(rtResortRunnable)
     }
 
     /**
@@ -103,12 +127,16 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 // Re-arm the one-shot handler for the next period expiry so the
                 // list auto-resorts when the next DL budget replenishes.
                 rescheduleDlResort(tasks)
+                // Re-arm the one-shot handler for the next RT window change.
+                rescheduleRtResort(tasks)
             }
             addSource(vm.activeTasks)                        { rebuild() }
             addSource(vm.settings.groupsEnabled)             { rebuild() }
             addSource(vm.groupExpand.scheduleExpandTrigger)  { rebuild() }
             // Fourth source: fires when a DL period expires (wall-clock trigger).
             addSource(_dlResortTick)                         { rebuild() }
+            // Fifth source: fires when an RT window opens or closes (wall-clock trigger).
+            addSource(_rtResortTick)                         { rebuild() }
         }
     }
 
@@ -169,15 +197,22 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
      */
     private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+        // Captured once so every partition/sort in both flat and grouped paths
+        // uses the same instant — avoids boundary flicker mid-render.
+        val nowMs  = System.currentTimeMillis()
         if (!groupsEnabled) {
             val leaves = tasks.filter { !it.isGroup }
 
-            // Partition: DL-budget-active tasks go first, sorted by EDF urgency
-            // (shortest period remaining = most urgent deadline = goes first)
-            val (dlActive, eevdfRest) = leaves.partition { it.isDlBudgetActive }
-            val dlSorted   = dlActive.sortedBy { it.dlPeriodRemainingSeconds }
+            // Priority order: DL (rank 1) → RT (rank 2) → EEVDF (rank 3)
+            // DL: budget-active tasks sorted by EDF urgency (shortest period remaining first)
+            // RT: window-active tasks sorted by descending rtPriority (highest first)
+            // EEVDF: remaining tasks sorted by virtual deadline
+            val (dlActive, nonDl)  = leaves.partition { it.isDlBudgetActive }
+            val (rtActive, eevdfRest) = nonDl.partition { RtScheduler.isRtWindowActive(it, nowMs) }
+            val dlSorted    = dlActive.sortedBy { it.dlPeriodRemainingSeconds }
+            val rtSorted    = rtActive.sortedByDescending { it.rtPriority }
             val eevdfSorted = eevdfRest.sortedBy { it.virtualDeadline }
-            val ordered    = dlSorted + eevdfSorted
+            val ordered     = dlSorted + rtSorted + eevdfSorted
 
             return ordered.mapIndexed { index, it ->
                 TaskDisplayItem(it, 0,
@@ -185,54 +220,50 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     effectiveQuotaExceeded = it.isQuotaExceeded,
                     effectiveQuotaWarning  = it.isQuotaWarning,
                     queueNumber            = "${index + 1}",
-                    isDlActive             = it.isDlBudgetActive)
+                    isDlActive             = it.isDlBudgetActive,
+                    isRtActive             = RtScheduler.isRtWindowActive(it, nowMs))
             }
         }
         val result = mutableListOf<TaskDisplayItem>()
         // When groups are enabled we build the tree level-by-level.
-        //
-        // cgroup-aware SCHED_DEADLINE promotion (mirrors Linux behaviour):
-        //   A group whose subtree contains ≥ 1 DL-budget-active leaf is treated
-        //   as a "DL entity" at this level — it is hoisted ahead of all EEVDF
-        //   siblings, exactly the same way a standalone deadline task at root
-        //   level is hoisted.  Among hoisted groups, EDF urgency order applies
-        //   (group with the shortest minimum dlPeriodRemainingSeconds goes first).
-        //   This mirrors how Linux's SCHED_DEADLINE propagates entity urgency up
-        //   through the cgroup hierarchy so the root-level group wins the
-        //   run-queue pick.
+        // Priority order at each level: DL-urgent → RT-urgent → EEVDF
+        //   DL-urgent: task/group has active DL budget (propagated from descendants for groups)
+        //   RT-urgent: task/group has an active RT window (propagated from descendants for groups)
+        //   EEVDF: everything else, sorted by virtual deadline
         fun addLevel(parentId: String?, depth: Int, parentNumber: String,
                      parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean,
                      counter: IntArray) {
             val children = tasks.filter { it.parentId == parentId }
 
-            // Partition this level into DL-urgent entities and normal EEVDF entities.
-            // An entity is "DL urgent" when:
-            //   • It is a leaf with isDlBudgetActive == true, OR
-            //   • It is a group with at least one DL-budget-active descendant.
-            val (dlChildren, restChildren) = children.partition { child ->
+            // DL partition: same as before
+            val (dlChildren, nonDlChildren) = children.partition { child ->
                 if (child.isGroup) EEVDFScheduler.hasActiveDlDescendant(child, tasks)
                 else child.isDlBudgetActive
             }
 
-            // EDF urgency for a group = minimum dlPeriodRemainingSeconds across
-            // its DL-active descendants (the most urgent deadline in the group
-            // determines the group's promotion rank).
+            // RT partition: from the non-DL children
+            val (rtChildren, restChildren) = nonDlChildren.partition { child ->
+                if (child.isGroup) RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
+                else RtScheduler.isRtWindowActive(child, nowMs)
+            }
+
             fun dlUrgency(task: Task): Long =
                 if (!task.isGroup) task.dlPeriodRemainingSeconds
-                else tasks
-                    .filter { it.parentId == task.id && !it.isCompleted }
-                    .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+                else tasks.filter { it.parentId == task.id && !it.isCompleted }
+                         .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
 
             val sorted =
-                dlChildren.sortedBy { dlUrgency(it) } +
+                dlChildren.sortedBy  { dlUrgency(it) } +
+                rtChildren.sortedByDescending { if (it.isGroup) 0 else it.rtPriority } +
                 restChildren.sortedBy { it.virtualDeadline }
 
             sorted.forEach { task ->
-                val dc              = tasks.filter { it.parentId == task.id }
-                val quotaExceeded   = parentQuotaExceeded || task.isQuotaExceeded
-                val quotaWarning    = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
-                val isDlGroupHoisted = task.isGroup &&
-                    EEVDFScheduler.hasActiveDlDescendant(task, tasks)
+                val dc               = tasks.filter { it.parentId == task.id }
+                val quotaExceeded    = parentQuotaExceeded || task.isQuotaExceeded
+                val quotaWarning     = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
+                val isDlGroupHoisted = task.isGroup && EEVDFScheduler.hasActiveDlDescendant(task, tasks)
+                val isRtActive       = !task.isGroup && RtScheduler.isRtWindowActive(task, nowMs)
+                val isRtGroupHoisted = task.isGroup && RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 result.add(TaskDisplayItem(task, depth,
@@ -243,7 +274,9 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     effectiveQuotaWarning  = quotaWarning,
                     queueNumber            = number,
                     isDlActive             = task.isDlBudgetActive,
-                    isDlGroupHoisted       = isDlGroupHoisted))
+                    isDlGroupHoisted       = isDlGroupHoisted,
+                    isRtActive             = isRtActive,
+                    isRtGroupHoisted       = isRtGroupHoisted))
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
             }

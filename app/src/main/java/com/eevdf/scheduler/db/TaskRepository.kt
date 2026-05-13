@@ -5,6 +5,7 @@ import androidx.lifecycle.LiveData
 import com.eevdf.scheduler.model.RunSession
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
+import com.eevdf.scheduler.scheduler.RtScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -249,7 +250,31 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
             if (result != null) return result
         }
 
-        // No DL-urgent entries (or all were empty) — normal EEVDF selection
+        // ── RT window promotion (between DL and EEVDF) ────────────────────────
+        // After DL candidates are exhausted, check for RT-window-active entries.
+        // Among RT tasks: highest rtPriority wins; FIFO = never rotate, RR = round-robin.
+        val rtUrgent = level.filter { entry ->
+            if (entry.isGroup) RtScheduler.hasActiveRtDescendant(entry, all)
+            else RtScheduler.isRtWindowActive(entry)
+        }
+
+        if (rtUrgent.isNotEmpty()) {
+            // Collect all RT-active leaves across the urgent entries for RR selection
+            val rtLeaves = rtUrgent.flatMap { entry ->
+                if (!entry.isGroup) listOf(entry)
+                else all.filter { it.parentId == entry.id && !it.isCompleted && !it.isRunning &&
+                                  RtScheduler.isRtWindowActive(it) }
+            }.filter { it.id !in visited }
+
+            if (rtLeaves.isNotEmpty()) {
+                // SharedPrefs not accessible from repository directly; use highest-priority
+                // as the fallback deterministic pick (RR index is managed by the ViewModel layer)
+                val pick = rtLeaves.maxByOrNull { it.rtPriority }
+                if (pick != null) return pick
+            }
+        }
+
+        // No DL-urgent or RT-urgent entries — normal EEVDF selection
         EEVDFScheduler.recalculate(level)
         val winner = EEVDFScheduler.selectNext(level) ?: return null
         return if (winner.isGroup) {

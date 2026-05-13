@@ -116,6 +116,24 @@
                             android:gravity="center"
                             android:visibility="gone" />
 
+                        <!-- SCHED_RT window pill — visible only for rt_sched_class tasks -->
+                        <TextView
+                            android:id="@+id/tvRtStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="RT"
+                            android:textSize="10sp"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:layout_marginStart="4dp"
+                            android:background="@drawable/bg_rt_badge"
+                            android:gravity="center"
+                            android:visibility="gone" />
+
                         <!-- Quota remaining — shown when quota is enabled -->
                         <TextView
                             android:id="@+id/tvQuotaRemaining"

@@ -19,6 +19,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.scheduler.R
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.model.TaskDisplayItem
+import com.eevdf.scheduler.scheduler.RtScheduler
 
 class TaskAdapter(
     private val onTaskClick:        (Task) -> Unit,
@@ -51,6 +52,7 @@ class TaskAdapter(
         val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
         val tvQuotaRemaining: TextView  = itemView.findViewById(R.id.tvQuotaRemaining)
         val tvDlStatus:     TextView    = itemView.findViewById(R.id.tvDlStatus)
+        val tvRtStatus:     TextView    = itemView.findViewById(R.id.tvRtStatus)
         val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
         val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
@@ -144,11 +146,12 @@ class TaskAdapter(
             }
         }
 
-        // ── Schedule / queue rank — shown for DL-active tasks at rank #1 ──────
-        if (item.isDlActive && !task.isGroup && item.queueNumber == "1") {
+        // ── Schedule / queue rank — shown for DL-active or RT-active tasks at rank #1 ──
+        val isRtActive = item.isRtActive
+        if ((item.isDlActive || isRtActive) && !task.isGroup && item.queueNumber == "1") {
             holder.tvRank.visibility = View.VISIBLE
             holder.tvRank.text = "#1"
-            holder.tvRank.setTextColor(Color.parseColor("#1565C0"))
+            holder.tvRank.setTextColor(Color.parseColor(if (item.isDlActive) "#1565C0" else "#1B5E20"))
         } else {
             holder.tvRank.visibility = View.GONE
         }
@@ -170,6 +173,24 @@ class TaskAdapter(
                 if (dlActive) "#E65100" else "#78909C")
         } else {
             holder.tvDlStatus.visibility = View.GONE
+        }
+
+        // ── RT window pill (green = active, grey = pending / inactive) ─────────
+        if (task.isRtConfigured && !task.isGroup) {
+            holder.tvRtStatus.visibility = View.VISIBLE
+            val rtWindowActive = RtScheduler.isRtWindowActive(task)
+            if (rtWindowActive) {
+                val secsLeft = RtScheduler.nextDeactivationMs(task) / 1_000L
+                holder.tvRtStatus.text = "RT · ${formatDlDuration(secsLeft)}"
+                applyPillColor(holder.tvRtStatus, holder.itemView.context, "#1B5E20")
+            } else {
+                val secsUntil = RtScheduler.nextActivationMs(task) / 1_000L
+                holder.tvRtStatus.text = if (secsUntil < Long.MAX_VALUE / 1_000L)
+                    "RT in ${formatDlDuration(secsUntil)}" else "RT · off"
+                applyPillColor(holder.tvRtStatus, holder.itemView.context, "#78909C")
+            }
+        } else {
+            holder.tvRtStatus.visibility = View.GONE
         }
 
         // ── Quota display ──────────────────────────────────────────────────────
@@ -211,12 +232,14 @@ class TaskAdapter(
         holder.card.cardElevation = when {
             isRunning  -> 12f
             isDlActive -> 8f
+            isRtActive -> 7f
             else       -> 4f
         }
         holder.card.setCardBackgroundColor(
             when {
                 isRunning        -> Color.parseColor("#E3F2FD")  // light-blue  (selected/running)
                 isDlActive       -> Color.parseColor("#FFEBEE")  // light-red   (DL deadline priority)
+                isRtActive       -> Color.parseColor("#E8F5E9")  // light-green (RT window active)
                 quotaExceeded    -> Color.parseColor("#FFFDE7")  // light-yellow (quota exceeded)
                 quotaWarning     -> Color.parseColor("#FFF8E1")  // light-amber  (quota warning)
                 task.isGroup     -> Color.parseColor("#F5F5F5")
@@ -453,6 +476,24 @@ class TaskAdapter(
             holder.tvDlStatus.visibility = View.GONE
         }
 
+        // ── RT badge live refresh ──────────────────────────────────────────────
+        val isRtActive = RtScheduler.isRtWindowActive(task)
+        if (task.isRtConfigured && !task.isGroup) {
+            holder.tvRtStatus.visibility = View.VISIBLE
+            if (isRtActive) {
+                val secsLeft = RtScheduler.nextDeactivationMs(task) / 1_000L
+                holder.tvRtStatus.text = "RT · ${formatDlDuration(secsLeft)}"
+                applyPillColor(holder.tvRtStatus, holder.itemView.context, "#1B5E20")
+            } else {
+                val secsUntil = RtScheduler.nextActivationMs(task) / 1_000L
+                holder.tvRtStatus.text = if (secsUntil < Long.MAX_VALUE / 1_000L)
+                    "RT in ${formatDlDuration(secsUntil)}" else "RT · off"
+                applyPillColor(holder.tvRtStatus, holder.itemView.context, "#78909C")
+            }
+        } else {
+            holder.tvRtStatus.visibility = View.GONE
+        }
+
         // Card background — must reflect BOTH the task's own live quota state AND
         // any quota state inherited from a parent group.
         //
@@ -469,19 +510,21 @@ class TaskAdapter(
         val cardQuotaExceeded = item.effectiveQuotaExceeded || ownQuotaExceeded
         val cardQuotaWarning  = item.effectiveQuotaWarning  || ownQuotaWarning
 
-        // Card background can transition as quota decays or DL period resets between full binds
+        // Card background can transition as quota decays or DL/RT period resets between full binds
         holder.card.cardElevation = when {
             isRunning  -> 12f
             isDlActive -> 8f
+            isRtActive -> 7f
             else       -> 4f
         }
         holder.card.setCardBackgroundColor(Color.parseColor(when {
-            isRunning        -> "#E3F2FD"
-            isDlActive       -> "#FFEBEE"
+            isRunning         -> "#E3F2FD"
+            isDlActive        -> "#FFEBEE"
+            isRtActive        -> "#E8F5E9"
             cardQuotaExceeded -> "#FFFDE7"
             cardQuotaWarning  -> "#FFF8E1"
-            task.isGroup     -> "#F5F5F5"
-            else             -> "#FFFFFF"
+            task.isGroup      -> "#F5F5F5"
+            else              -> "#FFFFFF"
         }))
     }
 

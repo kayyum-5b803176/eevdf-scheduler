@@ -53,5 +53,21 @@ data class TaskDisplayItem(
      * Used by the adapter to render the same "DL active" badge on group rows
      * that it already renders on individual deadline tasks.
      */
-    val isDlGroupHoisted: Boolean = false
+    val isDlGroupHoisted: Boolean = false,
+
+    /**
+     * True when this task has [Task.schedulerClass] == "rt_sched_class" and the
+     * current wall-clock time falls inside its activation window.  These tasks
+     * are hoisted to rank #2 on the Schedule tab (below dl_sched_class, above
+     * all EEVDF-ordered tasks).  Stamped at list-build time from
+     * [RtScheduler.isRtWindowActive].
+     */
+    val isRtActive: Boolean = false,
+
+    /**
+     * True when this task is a GROUP hoisted because at least one descendant
+     * leaf is inside its RT activation window.  Mirrors [isDlGroupHoisted] for
+     * the RT class.
+     */
+    val isRtGroupHoisted: Boolean = false
 )
