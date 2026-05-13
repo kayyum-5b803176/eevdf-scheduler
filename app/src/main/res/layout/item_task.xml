@@ -100,6 +100,24 @@
                         android:layout_marginTop="2dp"
                         android:visibility="gone" />
 
+                    <!-- SCHED_DEADLINE status badge — visible only for dl_sched_class tasks -->
+                    <TextView
+                        android:id="@+id/tvDlStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="DL"
+                        android:textSize="10sp"
+                        android:textColor="#FFFFFF"
+                        android:textStyle="bold"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="6dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:layout_marginTop="3dp"
+                        android:background="@drawable/bg_dl_badge"
+                        android:gravity="center"
+                        android:visibility="gone" />
+
                 </LinearLayout>
             </LinearLayout>
 

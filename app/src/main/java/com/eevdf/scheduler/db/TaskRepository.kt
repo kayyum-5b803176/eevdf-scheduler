@@ -99,6 +99,7 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
 
         EEVDFScheduler.updateVruntime(task, secondsRan)
         applyQuotaAccounting(task, secondsRan)
+        applyDlAccounting(task, secondsRan)
         dao.update(task)
 
         // Propagate up the ancestor chain — credit time but do NOT increment runCount
@@ -141,6 +142,47 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
 
         task.quotaPeriodStartEpoch = nowMs
         task.quotaUsedSeconds      = (decayedNow + secondsRan).coerceAtLeast(0L)
+    }
+
+    /**
+     * SCHED_DEADLINE period accounting — mirrors Linux SCHED_DEADLINE budget tracking.
+     *
+     * On every run:
+     *  1. If no period has started (dlPeriodStartEpoch == 0), open a fresh period now
+     *     and credit [secondsRan] as the first runtime consumption.
+     *  2. If the current period has fully elapsed since the last recorded start, roll
+     *     forward by whole periods and reset [dlRuntimeUsedSeconds] to zero before
+     *     crediting the new run.  This ensures the budget replenishes exactly on period
+     *     boundaries regardless of how much wall-clock time has passed between runs.
+     *  3. Within an active period, accumulate [secondsRan] up to the maximum
+     *     [Task.dlRuntimeSeconds] (excess is clamped — over-running is not possible).
+     *
+     * The task object is mutated in-place; the caller persists it.
+     */
+    private fun applyDlAccounting(task: Task, secondsRan: Long) {
+        if (!task.isDlConfigured) return
+        val nowMs             = System.currentTimeMillis()
+        val effectivePeriodMs = task.dlEffectivePeriodSeconds * 1_000L
+
+        if (task.dlPeriodStartEpoch == 0L) {
+            // First ever run — open period now
+            task.dlPeriodStartEpoch    = nowMs
+            task.dlRuntimeUsedSeconds  = secondsRan.coerceAtMost(task.dlRuntimeSeconds)
+            return
+        }
+
+        val elapsedMs = nowMs - task.dlPeriodStartEpoch
+        if (elapsedMs >= effectivePeriodMs) {
+            // One or more full periods have elapsed since last run — advance the anchor
+            // by the number of whole periods that fit, then reset the budget.
+            val periodsElapsed        = elapsedMs / effectivePeriodMs
+            task.dlPeriodStartEpoch   = task.dlPeriodStartEpoch + periodsElapsed * effectivePeriodMs
+            task.dlRuntimeUsedSeconds = secondsRan.coerceAtMost(task.dlRuntimeSeconds)
+        } else {
+            // Still within the same period — accumulate runtime (capped at budget)
+            task.dlRuntimeUsedSeconds =
+                (task.dlRuntimeUsedSeconds + secondsRan).coerceAtMost(task.dlRuntimeSeconds)
+        }
     }
 
     /**

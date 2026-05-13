@@ -101,46 +101,65 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Schedule tab: tasks sorted by virtualDeadline (live EEVDF order).
-     * Groups are shown when [groupsEnabled] is true; only leaf tasks otherwise.
+     * Schedule tab: tasks sorted by EEVDF virtual deadline, with one exception —
+     * any task whose [Task.isDlBudgetActive] is true (has remaining SCHED_DEADLINE
+     * runtime budget in the current period) is hoisted to the front of the list,
+     * ranked among themselves by EDF urgency (shortest period remaining first).
+     *
+     * Once a DL task exhausts its period budget it falls back into the normal
+     * EEVDF ordering alongside all other tasks.
      */
     private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
         if (!groupsEnabled) {
-            return tasks
-                .filter { !it.isGroup }
-                .sortedBy { it.virtualDeadline }
-                .mapIndexed { index, it ->
-                    TaskDisplayItem(it, 0,
-                        cpuShare               = shares[it.id] ?: 0.0,
-                        effectiveQuotaExceeded = it.isQuotaExceeded,
-                        effectiveQuotaWarning  = it.isQuotaWarning,
-                        queueNumber            = "${index + 1}")
-                }
+            val leaves = tasks.filter { !it.isGroup }
+
+            // Partition: DL-budget-active tasks go first, sorted by EDF urgency
+            // (shortest period remaining = most urgent deadline = goes first)
+            val (dlActive, eevdfRest) = leaves.partition { it.isDlBudgetActive }
+            val dlSorted   = dlActive.sortedBy { it.dlPeriodRemainingSeconds }
+            val eevdfSorted = eevdfRest.sortedBy { it.virtualDeadline }
+            val ordered    = dlSorted + eevdfSorted
+
+            return ordered.mapIndexed { index, it ->
+                TaskDisplayItem(it, 0,
+                    cpuShare               = shares[it.id] ?: 0.0,
+                    effectiveQuotaExceeded = it.isQuotaExceeded,
+                    effectiveQuotaWarning  = it.isQuotaWarning,
+                    queueNumber            = "${index + 1}",
+                    isDlActive             = it.isDlBudgetActive)
+            }
         }
         val result = mutableListOf<TaskDisplayItem>()
+        // When groups are enabled we build the tree level-by-level; within each
+        // level DL-active leaves are still hoisted before EEVDF siblings.
         fun addLevel(parentId: String?, depth: Int, parentNumber: String,
-                     parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
-            val children = tasks
-                .filter { it.parentId == parentId }
-                .sortedBy { it.virtualDeadline }
-            children.forEachIndexed { index, task ->
+                     parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean,
+                     counter: IntArray) {
+            val children = tasks.filter { it.parentId == parentId }
+            // DL-active leaves first (EDF urgency), then EEVDF order
+            val (dlChildren, restChildren) = children.partition { it.isDlBudgetActive }
+            val sorted = dlChildren.sortedBy { it.dlPeriodRemainingSeconds } +
+                         restChildren.sortedBy { it.virtualDeadline }
+            sorted.forEach { task ->
                 val dc            = tasks.filter { it.parentId == task.id }
                 val quotaExceeded = parentQuotaExceeded || task.isQuotaExceeded
                 val quotaWarning  = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
-                val number = if (parentNumber.isEmpty()) "${index + 1}" else "$parentNumber.${index + 1}"
+                counter[0]++
+                val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 result.add(TaskDisplayItem(task, depth,
                     childCount             = dc.size,
                     childTotalRuntime      = dc.sumOf { it.totalRunTime },
                     cpuShare               = shares[task.id] ?: 0.0,
                     effectiveQuotaExceeded = quotaExceeded,
                     effectiveQuotaWarning  = quotaWarning,
-                    queueNumber            = number))
+                    queueNumber            = number,
+                    isDlActive             = task.isDlBudgetActive))
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
-                    addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning)
+                    addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
             }
         }
-        addLevel(null, 0, "", false, false)
+        addLevel(null, 0, "", false, false, IntArray(1))
         return result
     }
 }

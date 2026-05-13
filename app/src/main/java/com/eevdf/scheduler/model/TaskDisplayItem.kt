@@ -30,5 +30,13 @@ data class TaskDisplayItem(
      * Deeper children: "1.1.1", "1.1.2", etc.
      * Empty string when no number is assigned (e.g. non-schedule tabs).
      */
-    val queueNumber: String = ""
+    val queueNumber: String = "",
+
+    /**
+     * True when this task has [Task.schedulerClass] == "dl_sched_class" and still
+     * has runtime budget remaining in the current DL period.  These tasks are
+     * hoisted to rank #1 in the Schedule tab ahead of all EEVDF-ordered tasks.
+     * Stamped at list-build time from [Task.isDlBudgetActive].
+     */
+    val isDlActive: Boolean = false
 )

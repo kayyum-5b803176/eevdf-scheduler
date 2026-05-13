@@ -80,6 +80,9 @@ object BackupManager {
         put("dlRuntimeSeconds",  t.dlRuntimeSeconds)
         put("dlDeadlineSeconds", t.dlDeadlineSeconds)
         put("dlPeriodSeconds",   t.dlPeriodSeconds)
+        // DL period accounting state
+        put("dlPeriodStartEpoch",   t.dlPeriodStartEpoch)
+        put("dlRuntimeUsedSeconds", t.dlRuntimeUsedSeconds)
     }
 
     // ── Sync export / import (preserves live timer state) ─────────────────────
@@ -226,6 +229,8 @@ object BackupManager {
         schedulerClass   = j.optString("schedulerClass", "fair_sched_class"),
         dlRuntimeSeconds  = j.optLong("dlRuntimeSeconds",  0L),
         dlDeadlineSeconds = j.optLong("dlDeadlineSeconds", 0L),
-        dlPeriodSeconds   = j.optLong("dlPeriodSeconds",   0L)
+        dlPeriodSeconds   = j.optLong("dlPeriodSeconds",   0L),
+        dlPeriodStartEpoch   = j.optLong("dlPeriodStartEpoch",   0L),
+        dlRuntimeUsedSeconds = j.optLong("dlRuntimeUsedSeconds",  0L)
     )
 }

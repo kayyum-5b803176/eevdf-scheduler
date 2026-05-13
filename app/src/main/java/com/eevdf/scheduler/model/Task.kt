@@ -137,7 +137,24 @@ data class Task(
      * 0 = use [dlDeadlineSeconds] as the period (Linux default behaviour).
      * Only used when [schedulerClass] == "dl_sched_class".
      */
-    val dlPeriodSeconds: Long = 0L
+    val dlPeriodSeconds: Long = 0L,
+
+    // ── SCHED_DEADLINE period accounting ─────────────────────────────────────
+    //
+    // Mirrors how Linux SCHED_DEADLINE tracks budget per replenishment period.
+    //
+    // dlPeriodStartEpoch    — epoch ms when the current DL period opened;
+    //                         0 = accounting never started (full budget available).
+    // dlRuntimeUsedSeconds  — cumulative runtime consumed within the current period.
+    //
+    // A new period opens automatically when the repository sees that
+    // (now − dlPeriodStartEpoch) ≥ effective-period-seconds.
+    // While dlRuntimeUsedSeconds < dlRuntimeSeconds the task holds deadline
+    // priority (rank #1 in the Schedule tab).  Once the budget is spent it
+    // falls back to normal EEVDF ordering until the next period begins.
+
+    var dlPeriodStartEpoch: Long = 0L,
+    var dlRuntimeUsedSeconds: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()
@@ -228,6 +245,58 @@ data class Task(
     val isDlConfigured: Boolean
         get() = schedulerClass == "dl_sched_class" &&
             dlRuntimeSeconds > 0L && dlDeadlineSeconds > 0L
+
+    /**
+     * Effective period in seconds: uses [dlPeriodSeconds] when set, otherwise
+     * falls back to [dlDeadlineSeconds] — matching Linux SCHED_DEADLINE default
+     * where period == deadline when sched_period is not explicitly set.
+     */
+    val dlEffectivePeriodSeconds: Long
+        get() = if (dlPeriodSeconds > 0L) dlPeriodSeconds else dlDeadlineSeconds
+
+    /**
+     * True when the DL task still has runtime budget in the current period and
+     * therefore deserves rank #1 in the Schedule tab.
+     *
+     * Cases that return true:
+     *  - [isDlConfigured] and no period has started yet (fresh task, full budget)
+     *  - [isDlConfigured] and the current wall-clock period has fully elapsed
+     *    (budget automatically replenished → new period is imminent)
+     *  - [isDlConfigured] and used runtime < allocated runtime within the period
+     */
+    val isDlBudgetActive: Boolean
+        get() {
+            if (!isDlConfigured) return false
+            if (dlPeriodStartEpoch == 0L) return true   // never started → full budget
+            val elapsedSec = (System.currentTimeMillis() - dlPeriodStartEpoch) / 1_000L
+            if (elapsedSec >= dlEffectivePeriodSeconds) return true  // new period elapsed
+            return dlRuntimeUsedSeconds < dlRuntimeSeconds
+        }
+
+    /**
+     * Seconds of runtime budget remaining in the current DL period.
+     * Returns [dlRuntimeSeconds] when no period has started or the period has
+     * elapsed (full replenishment), and 0 when the budget is exhausted.
+     */
+    val dlRuntimeRemainingSeconds: Long
+        get() {
+            if (!isDlConfigured) return 0L
+            if (dlPeriodStartEpoch == 0L) return dlRuntimeSeconds
+            val elapsedSec = (System.currentTimeMillis() - dlPeriodStartEpoch) / 1_000L
+            if (elapsedSec >= dlEffectivePeriodSeconds) return dlRuntimeSeconds
+            return (dlRuntimeSeconds - dlRuntimeUsedSeconds).coerceAtLeast(0L)
+        }
+
+    /**
+     * Seconds remaining until the current DL period resets.
+     * 0 when no period has started or the period has already elapsed.
+     */
+    val dlPeriodRemainingSeconds: Long
+        get() {
+            if (!isDlConfigured || dlPeriodStartEpoch == 0L) return 0L
+            val elapsedSec = (System.currentTimeMillis() - dlPeriodStartEpoch) / 1_000L
+            return (dlEffectivePeriodSeconds - elapsedSec).coerceAtLeast(0L)
+        }
 
     val timeSliceDisplay: String get() {
         val h = timeSliceSeconds / 3600

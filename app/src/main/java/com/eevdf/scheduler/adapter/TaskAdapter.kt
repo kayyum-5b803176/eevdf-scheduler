@@ -45,6 +45,7 @@ class TaskAdapter(
         val tvCategory:     TextView    = itemView.findViewById(R.id.tvCategory)
         val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
         val tvQuotaRemaining: TextView  = itemView.findViewById(R.id.tvQuotaRemaining)
+        val tvDlStatus:     TextView    = itemView.findViewById(R.id.tvDlStatus)
         val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
         val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
         val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
@@ -81,11 +82,15 @@ class TaskAdapter(
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
-        holder.tvPriority.text = if (task.internalWeight != null) {
-            // Auto-calculated from pinned share — show the effective decimal weight
-            "Priority: ${"%.2f".format(task.weight)}"
-        } else {
-            "Priority: ${task.priority}"
+        holder.tvPriority.text = when {
+            task.isDlConfigured && task.internalWeight != null ->
+                "DL Priority: ${"%.2f".format(task.weight)}"
+            task.isDlConfigured ->
+                "DL Priority: ${task.priority}"
+            task.internalWeight != null ->
+                "Priority: ${"%.2f".format(task.weight)}"
+            else ->
+                "Priority: ${task.priority}"
         }
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
@@ -143,11 +148,46 @@ class TaskAdapter(
             }
         }
 
-        // ── Schedule / queue rank (stats row) ────────────────────────────────
-        holder.tvRank.visibility = View.GONE
+        // ── Schedule / queue rank — shown for DL-active tasks at rank #1 ──────
+        if (item.isDlActive && !task.isGroup && item.queueNumber == "1") {
+            holder.tvRank.visibility = View.VISIBLE
+            holder.tvRank.text = "#1"
+            holder.tvRank.setTextColor(Color.parseColor("#1565C0"))
+        } else {
+            holder.tvRank.visibility = View.GONE
+        }
 
         // ── Running state ──────────────────────────────────────────────────────
         holder.viewRunning.visibility = if (isRunning) View.VISIBLE else View.INVISIBLE
+
+        // ── DL status badge ────────────────────────────────────────────────────
+        if (task.isDlConfigured && !task.isGroup) {
+            holder.tvDlStatus.visibility = View.VISIBLE
+            val dlActive = task.isDlBudgetActive
+            if (dlActive) {
+                val rem = task.dlRuntimeRemainingSeconds
+                holder.tvDlStatus.text = "▶ ${formatDlDuration(rem)}"
+                // Blue pill — deadline priority active
+                holder.tvDlStatus.background = androidx.core.content.ContextCompat
+                    .getDrawable(holder.itemView.context, R.drawable.bg_dl_badge)
+                    ?.mutate()?.also {
+                        (it as? android.graphics.drawable.GradientDrawable)
+                            ?.setColor(Color.parseColor("#1565C0"))
+                    }
+            } else {
+                val periodRem = task.dlPeriodRemainingSeconds
+                holder.tvDlStatus.text = if (periodRem > 0) "⏸ ${formatDlDuration(periodRem)}" else "⏸ done"
+                // Grey pill — budget exhausted, waiting for next period
+                holder.tvDlStatus.background = androidx.core.content.ContextCompat
+                    .getDrawable(holder.itemView.context, R.drawable.bg_dl_badge)
+                    ?.mutate()?.also {
+                        (it as? android.graphics.drawable.GradientDrawable)
+                            ?.setColor(Color.parseColor("#78909C"))
+                    }
+            }
+        } else {
+            holder.tvDlStatus.visibility = View.GONE
+        }
 
         // ── Priority colour ────────────────────────────────────────────────────
         val priorityColor = when (task.priority) {
@@ -196,10 +236,16 @@ class TaskAdapter(
         }
 
         // ── Card highlight ─────────────────────────────────────────────────────
-        holder.card.cardElevation = if (isRunning) 12f else 4f
+        val isDlActive = task.isDlBudgetActive
+        holder.card.cardElevation = when {
+            isRunning  -> 12f
+            isDlActive -> 8f
+            else       -> 4f
+        }
         holder.card.setCardBackgroundColor(
             when {
-                isRunning        -> Color.parseColor("#E3F2FD")  // light-blue (selected/running)
+                isRunning        -> Color.parseColor("#E3F2FD")  // light-blue  (selected/running)
+                isDlActive       -> Color.parseColor("#EDE7F6")  // light-indigo (DL deadline priority)
                 quotaExceeded    -> Color.parseColor("#FFFDE7")  // light-yellow (quota exceeded)
                 quotaWarning     -> Color.parseColor("#FFF8E1")  // light-amber  (quota warning)
                 task.isGroup     -> Color.parseColor("#F5F5F5")
@@ -264,6 +310,12 @@ class TaskAdapter(
     }
 
     /**
+     * Compact duration for the DL status badge — same two-significant-unit format
+     * as [formatQuota] but used for runtime-remaining and period-remaining labels.
+     */
+    private fun formatDlDuration(totalSec: Long): String = formatQuota(totalSec)
+
+    /**
      * Adjusts progressQuota's top margin based on whether progressTask is also visible.
      *
      * One bar  (group card): 8dp top — same spacing as progressTask, centred in card.
@@ -304,40 +356,63 @@ class TaskAdapter(
         // DB emission, which would keep the card yellow even after full replenishment.
         val quotaExceeded = task.isQuotaExceeded
         val quotaWarning  = task.isQuotaWarning
+        val isRunning     = task.id == runningTaskId
+        val isDlActive    = task.isDlBudgetActive
 
-        if (!task.isQuotaEnabled) {
+        if (task.isQuotaEnabled) {
+            holder.tvQuotaRemaining.visibility = View.VISIBLE
+            holder.progressQuota.visibility    = View.VISIBLE
+
+            holder.tvQuotaRemaining.text = when {
+                quotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds)}"
+                else          -> "+${formatQuota(task.quotaRemainingSeconds)}"
+            }
+            holder.tvQuotaRemaining.setTextColor(
+                when {
+                    quotaExceeded -> Color.parseColor("#E65100")
+                    quotaWarning  -> Color.parseColor("#F57C00")
+                    else          -> Color.parseColor("#757575")
+                }
+            )
+            holder.progressQuota.progress = task.quotaProgressPercent
+            holder.progressQuota.progressTintList =
+                android.content.res.ColorStateList.valueOf(Color.parseColor(when {
+                    quotaExceeded -> "#E53935"
+                    quotaWarning  -> "#FFA000"
+                    else          -> "#66BB6A"
+                }))
+            setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE)
+        } else {
             holder.tvQuotaRemaining.visibility = View.GONE
             holder.progressQuota.visibility    = View.GONE
-            return
         }
 
-        holder.tvQuotaRemaining.visibility = View.VISIBLE
-        holder.progressQuota.visibility    = View.VISIBLE
-
-        holder.tvQuotaRemaining.text = when {
-            quotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds)}"
-            else          -> "+${formatQuota(task.quotaRemainingSeconds)}"
-        }
-        holder.tvQuotaRemaining.setTextColor(
-            when {
-                quotaExceeded -> Color.parseColor("#E65100")
-                quotaWarning  -> Color.parseColor("#F57C00")
-                else          -> Color.parseColor("#757575")
+        // ── DL badge live refresh ──────────────────────────────────────────────
+        if (task.isDlConfigured && !task.isGroup) {
+            holder.tvDlStatus.visibility = View.VISIBLE
+            if (isDlActive) {
+                holder.tvDlStatus.text = "▶ ${formatDlDuration(task.dlRuntimeRemainingSeconds)}"
+                (holder.tvDlStatus.background?.mutate() as? android.graphics.drawable.GradientDrawable)
+                    ?.setColor(Color.parseColor("#1565C0"))
+            } else {
+                val periodRem = task.dlPeriodRemainingSeconds
+                holder.tvDlStatus.text = if (periodRem > 0) "⏸ ${formatDlDuration(periodRem)}" else "⏸ done"
+                (holder.tvDlStatus.background?.mutate() as? android.graphics.drawable.GradientDrawable)
+                    ?.setColor(Color.parseColor("#78909C"))
             }
-        )
-        holder.progressQuota.progress = task.quotaProgressPercent
-        holder.progressQuota.progressTintList =
-            android.content.res.ColorStateList.valueOf(Color.parseColor(when {
-                quotaExceeded -> "#E53935"
-                quotaWarning  -> "#FFA000"
-                else          -> "#66BB6A"
-            }))
-        setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE)
+        } else {
+            holder.tvDlStatus.visibility = View.GONE
+        }
 
-        // Card background can transition as quota decays between full binds
-        val isRunning = task.id == runningTaskId
+        // Card background can transition as quota decays or DL period resets between full binds
+        holder.card.cardElevation = when {
+            isRunning  -> 12f
+            isDlActive -> 8f
+            else       -> 4f
+        }
         holder.card.setCardBackgroundColor(Color.parseColor(when {
             isRunning     -> "#E3F2FD"
+            isDlActive    -> "#EDE7F6"
             quotaExceeded -> "#FFFDE7"
             quotaWarning  -> "#FFF8E1"
             task.isGroup  -> "#F5F5F5"
