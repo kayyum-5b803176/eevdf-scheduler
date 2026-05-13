@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Pill-shaped background for the DL scheduler status badge on task cards.
+  Pill-shaped background for the DL scheduler budget badge on task cards.
   The fill colour is set programmatically in TaskAdapter:
-    Active  (budget remaining)  → #1565C0 deep-blue
-    Exhausted (period done)     → #78909C blue-grey
+    Active  (budget remaining)  → #E65100 deep-amber
+    Exhausted (period waiting)  → #78909C blue-grey
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#1565C0" />
+    <solid android:color="#E65100" />
     <corners android:radius="10dp" />
 </shape>

@@ -90,33 +90,44 @@
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:id="@+id/tvQuotaRemaining"
+                    <!-- Pill timer (DL) + Quota timer share this row.
+                         Both are gone by default; adapter shows one, both, or neither. -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text=""
-                        android:textSize="10sp"
-                        android:textColor="#757575"
-                        android:layout_marginTop="2dp"
-                        android:visibility="gone" />
+                        android:orientation="horizontal"
+                        android:gravity="end|center_vertical"
+                        android:layout_marginTop="3dp">
 
-                    <!-- SCHED_DEADLINE status badge — visible only for dl_sched_class tasks -->
-                    <TextView
-                        android:id="@+id/tvDlStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="DL"
-                        android:textSize="10sp"
-                        android:textColor="#FFFFFF"
-                        android:textStyle="bold"
-                        android:paddingStart="6dp"
-                        android:paddingEnd="6dp"
-                        android:paddingTop="2dp"
-                        android:paddingBottom="2dp"
-                        android:layout_marginTop="3dp"
-                        android:background="@drawable/bg_dl_badge"
-                        android:gravity="center"
-                        android:visibility="gone" />
+                        <!-- SCHED_DEADLINE budget pill — visible only for dl_sched_class tasks -->
+                        <TextView
+                            android:id="@+id/tvDlStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="DL"
+                            android:textSize="10sp"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:background="@drawable/bg_dl_badge"
+                            android:gravity="center"
+                            android:visibility="gone" />
+
+                        <!-- Quota remaining — shown when quota is enabled -->
+                        <TextView
+                            android:id="@+id/tvQuotaRemaining"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="10sp"
+                            android:textColor="#757575"
+                            android:layout_marginStart="4dp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
             </LinearLayout>

@@ -1,6 +1,11 @@
 package com.eevdf.scheduler.adapter
 
 import android.graphics.Color
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -82,16 +87,7 @@ class TaskAdapter(
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
-        holder.tvPriority.text = when {
-            task.isDlConfigured && task.internalWeight != null ->
-                "DL Priority: ${"%.2f".format(task.weight)}"
-            task.isDlConfigured ->
-                "DL Priority: ${task.priority}"
-            task.internalWeight != null ->
-                "Priority: ${"%.2f".format(task.weight)}"
-            else ->
-                "Priority: ${task.priority}"
-        }
+        bindPriorityLabel(holder.tvPriority, task, priorityColor(holder, task))
         holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
         val pinned = task.pinnedShare != null
@@ -160,46 +156,21 @@ class TaskAdapter(
         // ── Running state ──────────────────────────────────────────────────────
         holder.viewRunning.visibility = if (isRunning) View.VISIBLE else View.INVISIBLE
 
-        // ── DL status badge ────────────────────────────────────────────────────
+        // ── DL budget pill (no emojis, amber / grey) ───────────────────────────
         if (task.isDlConfigured && !task.isGroup) {
             holder.tvDlStatus.visibility = View.VISIBLE
             val dlActive = task.isDlBudgetActive
-            if (dlActive) {
-                val rem = task.dlRuntimeRemainingSeconds
-                holder.tvDlStatus.text = "▶ ${formatDlDuration(rem)}"
-                // Blue pill — deadline priority active
-                holder.tvDlStatus.background = androidx.core.content.ContextCompat
-                    .getDrawable(holder.itemView.context, R.drawable.bg_dl_badge)
-                    ?.mutate()?.also {
-                        (it as? android.graphics.drawable.GradientDrawable)
-                            ?.setColor(Color.parseColor("#1565C0"))
-                    }
+            holder.tvDlStatus.text = if (dlActive) {
+                formatDlDuration(task.dlRuntimeRemainingSeconds)
             } else {
                 val periodRem = task.dlPeriodRemainingSeconds
-                holder.tvDlStatus.text = if (periodRem > 0) "⏸ ${formatDlDuration(periodRem)}" else "⏸ done"
-                // Grey pill — budget exhausted, waiting for next period
-                holder.tvDlStatus.background = androidx.core.content.ContextCompat
-                    .getDrawable(holder.itemView.context, R.drawable.bg_dl_badge)
-                    ?.mutate()?.also {
-                        (it as? android.graphics.drawable.GradientDrawable)
-                            ?.setColor(Color.parseColor("#78909C"))
-                    }
+                if (periodRem > 0) formatDlDuration(periodRem) else "done"
             }
+            applyPillColor(holder.tvDlStatus, holder.itemView.context,
+                if (dlActive) "#E65100" else "#78909C")
         } else {
             holder.tvDlStatus.visibility = View.GONE
         }
-
-        // ── Priority colour ────────────────────────────────────────────────────
-        val priorityColor = when (task.priority) {
-            7    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority7)
-            6    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority6)
-            5    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority5)
-            4    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority4)
-            3    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority3)
-            2    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority2)
-            else -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority1)
-        }
-        holder.tvPriority.setTextColor(priorityColor)
 
         // ── Quota display ──────────────────────────────────────────────────────
         val quotaExceeded = item.effectiveQuotaExceeded
@@ -245,7 +216,7 @@ class TaskAdapter(
         holder.card.setCardBackgroundColor(
             when {
                 isRunning        -> Color.parseColor("#E3F2FD")  // light-blue  (selected/running)
-                isDlActive       -> Color.parseColor("#EDE7F6")  // light-indigo (DL deadline priority)
+                isDlActive       -> Color.parseColor("#FFEBEE")  // light-red   (DL deadline priority)
                 quotaExceeded    -> Color.parseColor("#FFFDE7")  // light-yellow (quota exceeded)
                 quotaWarning     -> Color.parseColor("#FFF8E1")  // light-amber  (quota warning)
                 task.isGroup     -> Color.parseColor("#F5F5F5")
@@ -314,6 +285,86 @@ class TaskAdapter(
      * as [formatQuota] but used for runtime-remaining and period-remaining labels.
      */
     private fun formatDlDuration(totalSec: Long): String = formatQuota(totalSec)
+
+    /**
+     * Returns the priority-level colour for [task] using the resource colour table.
+     */
+    private fun priorityColor(holder: TaskViewHolder, task: Task): Int =
+        when (task.priority) {
+            7    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority7)
+            6    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority6)
+            5    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority5)
+            4    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority4)
+            3    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority3)
+            2    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority2)
+            else -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority1)
+        }
+
+    /**
+     * Builds and sets the priority label on [tv].
+     *
+     * When the task has a non-default scheduler class, a coloured banner is
+     * prepended using a [SpannableString]:
+     *
+     *   [DL]  Priority: 4   ← "DL" in red, rest in priority colour
+     *   [RT]  Priority: 4   ← "RT" in deep-orange
+     *   [STOP] Priority: 4  ← "STOP" in red
+     *   [IDLE] Priority: 4  ← "IDLE" in grey
+     *
+     * For the default fair_sched_class no banner is shown.
+     */
+    private fun bindPriorityLabel(tv: TextView, task: Task, pColor: Int) {
+        val priorityPart = if (task.internalWeight != null)
+            "Priority: ${"%.2f".format(task.weight)}"
+        else
+            "Priority: ${task.priority}"
+
+        val banner = when (task.schedulerClass) {
+            "dl_sched_class"   -> "DL"
+            "rt_sched_class"   -> "RT"
+            "stop_sched_class" -> "STOP"
+            "idle_sched_class" -> "IDLE"
+            else               -> null
+        }
+        val bannerColor = when (task.schedulerClass) {
+            "dl_sched_class"   -> Color.parseColor("#D32F2F")   // red
+            "rt_sched_class"   -> Color.parseColor("#E64A19")   // deep-orange
+            "stop_sched_class" -> Color.parseColor("#B71C1C")   // dark red
+            "idle_sched_class" -> Color.parseColor("#757575")   // grey
+            else               -> pColor
+        }
+
+        if (banner != null) {
+            val full = SpannableString("$banner  $priorityPart")
+            full.setSpan(
+                ForegroundColorSpan(bannerColor),
+                0, banner.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            full.setSpan(
+                StyleSpan(Typeface.BOLD),
+                0, banner.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            tv.text = full
+        } else {
+            tv.text = priorityPart
+        }
+        tv.setTextColor(pColor)   // applies to the priority part; banner span overrides its own colour
+    }
+
+    /**
+     * Sets the DL badge background colour by mutating the existing drawable.
+     * Avoids re-fetching the drawable from resources on every bind.
+     */
+    private fun applyPillColor(tv: TextView, context: android.content.Context, hexColor: String) {
+        val bg = tv.background?.mutate()
+            ?: androidx.core.content.ContextCompat
+                .getDrawable(context, R.drawable.bg_dl_badge)
+                ?.mutate()
+        (bg as? android.graphics.drawable.GradientDrawable)?.setColor(Color.parseColor(hexColor))
+        tv.background = bg
+    }
 
     /**
      * Adjusts progressQuota's top margin based on whether progressTask is also visible.
@@ -390,16 +441,14 @@ class TaskAdapter(
         // ── DL badge live refresh ──────────────────────────────────────────────
         if (task.isDlConfigured && !task.isGroup) {
             holder.tvDlStatus.visibility = View.VISIBLE
-            if (isDlActive) {
-                holder.tvDlStatus.text = "▶ ${formatDlDuration(task.dlRuntimeRemainingSeconds)}"
-                (holder.tvDlStatus.background?.mutate() as? android.graphics.drawable.GradientDrawable)
-                    ?.setColor(Color.parseColor("#1565C0"))
+            holder.tvDlStatus.text = if (isDlActive) {
+                formatDlDuration(task.dlRuntimeRemainingSeconds)
             } else {
                 val periodRem = task.dlPeriodRemainingSeconds
-                holder.tvDlStatus.text = if (periodRem > 0) "⏸ ${formatDlDuration(periodRem)}" else "⏸ done"
-                (holder.tvDlStatus.background?.mutate() as? android.graphics.drawable.GradientDrawable)
-                    ?.setColor(Color.parseColor("#78909C"))
+                if (periodRem > 0) formatDlDuration(periodRem) else "done"
             }
+            applyPillColor(holder.tvDlStatus, holder.itemView.context,
+                if (isDlActive) "#E65100" else "#78909C")
         } else {
             holder.tvDlStatus.visibility = View.GONE
         }
@@ -412,7 +461,7 @@ class TaskAdapter(
         }
         holder.card.setCardBackgroundColor(Color.parseColor(when {
             isRunning     -> "#E3F2FD"
-            isDlActive    -> "#EDE7F6"
+            isDlActive    -> "#FFEBEE"
             quotaExceeded -> "#FFFDE7"
             quotaWarning  -> "#FFF8E1"
             task.isGroup  -> "#F5F5F5"
