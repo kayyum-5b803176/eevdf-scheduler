@@ -75,6 +75,11 @@ object BackupManager {
         put("totalRunTime",     t.totalRunTime)
         put("runCount",         t.runCount)
         put("createdAt",        t.createdAt)
+        // Scheduler class override
+        put("schedulerClass",    t.schedulerClass)
+        put("dlRuntimeSeconds",  t.dlRuntimeSeconds)
+        put("dlDeadlineSeconds", t.dlDeadlineSeconds)
+        put("dlPeriodSeconds",   t.dlPeriodSeconds)
     }
 
     // ── Sync export / import (preserves live timer state) ─────────────────────
@@ -217,6 +222,10 @@ object BackupManager {
         isCompleted      = j.optBoolean("isCompleted", false),
         totalRunTime     = j.optLong("totalRunTime", 0L),
         runCount         = j.optInt("runCount", 0),
-        createdAt        = j.optLong("createdAt", System.currentTimeMillis())
+        createdAt        = j.optLong("createdAt", System.currentTimeMillis()),
+        schedulerClass   = j.optString("schedulerClass", "fair_sched_class"),
+        dlRuntimeSeconds  = j.optLong("dlRuntimeSeconds",  0L),
+        dlDeadlineSeconds = j.optLong("dlDeadlineSeconds", 0L),
+        dlPeriodSeconds   = j.optLong("dlPeriodSeconds",   0L)
     )
 }

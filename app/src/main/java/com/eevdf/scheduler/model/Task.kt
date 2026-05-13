@@ -99,7 +99,45 @@ data class Task(
     val quotaSeconds: Long = 0L,
     val quotaPeriodSeconds: Long = 86400L,
     var quotaPeriodStartEpoch: Long = 0L,
-    var quotaUsedSeconds: Long = 0L
+    var quotaUsedSeconds: Long = 0L,
+
+    // ── Scheduler class override ──────────────────────────────────────────────
+    //
+    // Mirrors Linux scheduler class hierarchy. Default is "fair_sched_class"
+    // which maps to CFS / EEVDF normal scheduling for user tasks.
+    //
+    // Values (in priority order, highest first):
+    //   "stop_sched_class"  — CPU stop/migration/internal kernel control
+    //   "dl_sched_class"    — Earliest Deadline First (SCHED_DEADLINE)
+    //   "rt_sched_class"    — Fixed-priority realtime (SCHED_FIFO / SCHED_RR)
+    //   "fair_sched_class"  — Normal scheduling (CFS / EEVDF) — default
+    //   "idle_sched_class"  — Lowest-priority idle tasks (SCHED_IDLE)
+    //
+    // When "dl_sched_class" is selected, dlRuntimeSeconds / dlDeadlineSeconds /
+    // dlPeriodSeconds must be set; they mirror SCHED_DEADLINE's sched_runtime,
+    // sched_deadline, and sched_period attributes.
+
+    val schedulerClass: String = "fair_sched_class",
+
+    /**
+     * SCHED_DEADLINE — sched_runtime: how long the task may run each period.
+     * Only used when [schedulerClass] == "dl_sched_class". 0 = not set.
+     */
+    val dlRuntimeSeconds: Long = 0L,
+
+    /**
+     * SCHED_DEADLINE — sched_deadline: relative deadline from the start of each
+     * period within which the task must complete its runtime budget.
+     * Only used when [schedulerClass] == "dl_sched_class". 0 = not set.
+     */
+    val dlDeadlineSeconds: Long = 0L,
+
+    /**
+     * SCHED_DEADLINE — sched_period: length of each replenishment period.
+     * 0 = use [dlDeadlineSeconds] as the period (Linux default behaviour).
+     * Only used when [schedulerClass] == "dl_sched_class".
+     */
+    val dlPeriodSeconds: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()
@@ -179,6 +217,17 @@ data class Task(
             else
                 (currentQuotaUsed * 100L / quotaSeconds).toInt().coerceIn(0, 100)
         }
+
+    // ── Scheduler class helpers ───────────────────────────────────────────────
+
+    /** True when this task uses a non-default scheduler class. */
+    val isSchedulerClassOverridden: Boolean
+        get() = schedulerClass != "fair_sched_class"
+
+    /** True when SCHED_DEADLINE parameters are configured. */
+    val isDlConfigured: Boolean
+        get() = schedulerClass == "dl_sched_class" &&
+            dlRuntimeSeconds > 0L && dlDeadlineSeconds > 0L
 
     val timeSliceDisplay: String get() {
         val h = timeSliceSeconds / 3600
