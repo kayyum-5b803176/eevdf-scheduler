@@ -402,35 +402,35 @@ class TaskAdapter(
     private fun bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplayItem) {
         val task = item.task
 
-        // Always use the live-computed properties here — item.effectiveQuotaExceeded
-        // was stamped when the list was last submitted and stays stale until the next
-        // DB emission, which would keep the card yellow even after full replenishment.
-        val quotaExceeded = task.isQuotaExceeded
-        val quotaWarning  = task.isQuotaWarning
-        val isRunning     = task.id == runningTaskId
-        val isDlActive    = task.isDlBudgetActive
+        // Quota bar / text / progress — always read live from the task's OWN
+        // computed properties so the countdown stays accurate between DB emissions,
+        // and so a fully-replenished task stops showing the yellow bar immediately.
+        val ownQuotaExceeded = task.isQuotaExceeded
+        val ownQuotaWarning  = task.isQuotaWarning
+        val isRunning        = task.id == runningTaskId
+        val isDlActive       = task.isDlBudgetActive
 
         if (task.isQuotaEnabled) {
             holder.tvQuotaRemaining.visibility = View.VISIBLE
             holder.progressQuota.visibility    = View.VISIBLE
 
             holder.tvQuotaRemaining.text = when {
-                quotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds)}"
-                else          -> "+${formatQuota(task.quotaRemainingSeconds)}"
+                ownQuotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds)}"
+                else             -> "+${formatQuota(task.quotaRemainingSeconds)}"
             }
             holder.tvQuotaRemaining.setTextColor(
                 when {
-                    quotaExceeded -> Color.parseColor("#E65100")
-                    quotaWarning  -> Color.parseColor("#F57C00")
-                    else          -> Color.parseColor("#757575")
+                    ownQuotaExceeded -> Color.parseColor("#E65100")
+                    ownQuotaWarning  -> Color.parseColor("#F57C00")
+                    else             -> Color.parseColor("#757575")
                 }
             )
             holder.progressQuota.progress = task.quotaProgressPercent
             holder.progressQuota.progressTintList =
                 android.content.res.ColorStateList.valueOf(Color.parseColor(when {
-                    quotaExceeded -> "#E53935"
-                    quotaWarning  -> "#FFA000"
-                    else          -> "#66BB6A"
+                    ownQuotaExceeded -> "#E53935"
+                    ownQuotaWarning  -> "#FFA000"
+                    else             -> "#66BB6A"
                 }))
             setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE)
         } else {
@@ -453,6 +453,22 @@ class TaskAdapter(
             holder.tvDlStatus.visibility = View.GONE
         }
 
+        // Card background — must reflect BOTH the task's own live quota state AND
+        // any quota state inherited from a parent group.
+        //
+        // item.effectiveQuotaExceeded / effectiveQuotaWarning are stamped at
+        // list-build time and carry the parent's state for children that have no
+        // quota of their own.  Combining them with the live own-task values gives
+        // correct behaviour in all cases:
+        //   • Child with no quota, parent exceeded  → effectiveQuotaExceeded=true,
+        //     ownQuotaExceeded=false  → card stays light-red (no flicker)
+        //   • Child with own quota exceeded          → ownQuotaExceeded=true
+        //     → card light-red regardless of parent
+        //   • Parent replenishes                     → next list rebuild clears
+        //     effectiveQuotaExceeded → card returns to white on next tick
+        val cardQuotaExceeded = item.effectiveQuotaExceeded || ownQuotaExceeded
+        val cardQuotaWarning  = item.effectiveQuotaWarning  || ownQuotaWarning
+
         // Card background can transition as quota decays or DL period resets between full binds
         holder.card.cardElevation = when {
             isRunning  -> 12f
@@ -460,12 +476,12 @@ class TaskAdapter(
             else       -> 4f
         }
         holder.card.setCardBackgroundColor(Color.parseColor(when {
-            isRunning     -> "#E3F2FD"
-            isDlActive    -> "#FFEBEE"
-            quotaExceeded -> "#FFFDE7"
-            quotaWarning  -> "#FFF8E1"
-            task.isGroup  -> "#F5F5F5"
-            else          -> "#FFFFFF"
+            isRunning        -> "#E3F2FD"
+            isDlActive       -> "#FFEBEE"
+            cardQuotaExceeded -> "#FFFDE7"
+            cardQuotaWarning  -> "#FFF8E1"
+            task.isGroup     -> "#F5F5F5"
+            else             -> "#FFFFFF"
         }))
     }
 
