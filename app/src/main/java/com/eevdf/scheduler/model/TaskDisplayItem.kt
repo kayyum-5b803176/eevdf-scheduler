@@ -38,5 +38,20 @@ data class TaskDisplayItem(
      * hoisted to rank #1 in the Schedule tab ahead of all EEVDF-ordered tasks.
      * Stamped at list-build time from [Task.isDlBudgetActive].
      */
-    val isDlActive: Boolean = false
+    val isDlActive: Boolean = false,
+
+    /**
+     * True when this task is a GROUP that has been hoisted to rank #1 in the
+     * Schedule tab because at least one descendant leaf has an active
+     * SCHED_DEADLINE budget ([Task.isDlBudgetActive] == true).
+     *
+     * Mirrors Linux cgroup-aware SCHED_DEADLINE promotion: when a deadline
+     * task inside a cgroup needs time, the entire root-level group entity is
+     * elevated to the top of the run-queue — exactly the same behaviour as a
+     * standalone deadline task at root level.
+     *
+     * Used by the adapter to render the same "DL active" badge on group rows
+     * that it already renders on individual deadline tasks.
+     */
+    val isDlGroupHoisted: Boolean = false
 )

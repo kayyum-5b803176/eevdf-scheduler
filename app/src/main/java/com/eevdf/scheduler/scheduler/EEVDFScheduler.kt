@@ -319,6 +319,28 @@ object EEVDFScheduler {
         return changed
     }
 
+    /**
+     * Returns true when [task] is a group that contains at least one descendant
+     * (at any depth) with an active SCHED_DEADLINE budget.
+     *
+     * This is the cgroup-aware DL promotion check: Linux's deadline scheduler
+     * propagates the urgency of a deadline entity upward through the group
+     * hierarchy so the root-level group entity wins the run-queue competition.
+     * We replicate that by inspecting the task tree here.
+     *
+     * @param task      The candidate group node.
+     * @param allTasks  Full flat task list (active + completed; filtering is
+     *                  done internally — completed tasks cannot be DL-active).
+     */
+    fun hasActiveDlDescendant(task: Task, allTasks: List<Task>): Boolean {
+        if (!task.isGroup) return task.isDlBudgetActive
+        val children = allTasks.filter { it.parentId == task.id && !it.isCompleted }
+        return children.any { child ->
+            if (child.isGroup) hasActiveDlDescendant(child, allTasks)
+            else child.isDlBudgetActive
+        }
+    }
+
     private const val MAX_INTERNAL_WEIGHT = 9_999.0
     /**
      * Statistics summary for the scheduler dashboard.

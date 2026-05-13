@@ -131,20 +131,50 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
             }
         }
         val result = mutableListOf<TaskDisplayItem>()
-        // When groups are enabled we build the tree level-by-level; within each
-        // level DL-active leaves are still hoisted before EEVDF siblings.
+        // When groups are enabled we build the tree level-by-level.
+        //
+        // cgroup-aware SCHED_DEADLINE promotion (mirrors Linux behaviour):
+        //   A group whose subtree contains ≥ 1 DL-budget-active leaf is treated
+        //   as a "DL entity" at this level — it is hoisted ahead of all EEVDF
+        //   siblings, exactly the same way a standalone deadline task at root
+        //   level is hoisted.  Among hoisted groups, EDF urgency order applies
+        //   (group with the shortest minimum dlPeriodRemainingSeconds goes first).
+        //   This mirrors how Linux's SCHED_DEADLINE propagates entity urgency up
+        //   through the cgroup hierarchy so the root-level group wins the
+        //   run-queue pick.
         fun addLevel(parentId: String?, depth: Int, parentNumber: String,
                      parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean,
                      counter: IntArray) {
             val children = tasks.filter { it.parentId == parentId }
-            // DL-active leaves first (EDF urgency), then EEVDF order
-            val (dlChildren, restChildren) = children.partition { it.isDlBudgetActive }
-            val sorted = dlChildren.sortedBy { it.dlPeriodRemainingSeconds } +
-                         restChildren.sortedBy { it.virtualDeadline }
+
+            // Partition this level into DL-urgent entities and normal EEVDF entities.
+            // An entity is "DL urgent" when:
+            //   • It is a leaf with isDlBudgetActive == true, OR
+            //   • It is a group with at least one DL-budget-active descendant.
+            val (dlChildren, restChildren) = children.partition { child ->
+                if (child.isGroup) EEVDFScheduler.hasActiveDlDescendant(child, tasks)
+                else child.isDlBudgetActive
+            }
+
+            // EDF urgency for a group = minimum dlPeriodRemainingSeconds across
+            // its DL-active descendants (the most urgent deadline in the group
+            // determines the group's promotion rank).
+            fun dlUrgency(task: Task): Long =
+                if (!task.isGroup) task.dlPeriodRemainingSeconds
+                else tasks
+                    .filter { it.parentId == task.id && !it.isCompleted }
+                    .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+
+            val sorted =
+                dlChildren.sortedBy { dlUrgency(it) } +
+                restChildren.sortedBy { it.virtualDeadline }
+
             sorted.forEach { task ->
-                val dc            = tasks.filter { it.parentId == task.id }
-                val quotaExceeded = parentQuotaExceeded || task.isQuotaExceeded
-                val quotaWarning  = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
+                val dc              = tasks.filter { it.parentId == task.id }
+                val quotaExceeded   = parentQuotaExceeded || task.isQuotaExceeded
+                val quotaWarning    = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
+                val isDlGroupHoisted = task.isGroup &&
+                    EEVDFScheduler.hasActiveDlDescendant(task, tasks)
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 result.add(TaskDisplayItem(task, depth,
@@ -154,7 +184,8 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     effectiveQuotaExceeded = quotaExceeded,
                     effectiveQuotaWarning  = quotaWarning,
                     queueNumber            = number,
-                    isDlActive             = task.isDlBudgetActive))
+                    isDlActive             = task.isDlBudgetActive,
+                    isDlGroupHoisted       = isDlGroupHoisted))
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
             }

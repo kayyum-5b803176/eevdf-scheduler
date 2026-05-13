@@ -190,6 +190,16 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
      * Applies EEVDF at each level of the hierarchy, drilling into the winning
      * group recursively until a leaf (non-group) task is found — same as
      * Linux's hierarchical scheduling.
+     *
+     * cgroup-aware SCHED_DEADLINE promotion:
+     * Before the normal EEVDF pick, any group at the current level whose subtree
+     * contains at least one DL-budget-active leaf is treated as a "deadline entity"
+     * at that level and hoisted ahead of all EEVDF-ordered siblings — exactly as
+     * Linux promotes a deadline-class cgroup entity to the top of the run-queue.
+     * Among multiple hoisted groups, the one whose most-urgent descendant has the
+     * shortest dlPeriodRemaining wins (EDF order).  If the winning hoisted group
+     * has no runnable children (all completed/running), the algorithm falls back
+     * to normal EEVDF selection at the same level.
      */
     suspend fun selectNextTask(): Task? = withContext(Dispatchers.IO) {
         val allActive = dao.getActiveTasksSync()
@@ -206,6 +216,40 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
             it.parentId == parentId && !it.isCompleted && !it.isRunning && it.id !in visited
         }
         if (level.isEmpty()) return null
+
+        // ── cgroup-aware SCHED_DEADLINE promotion ─────────────────────────────
+        // Identify groups (or leaves) at this level that are DL-urgent.
+        // A group is DL-urgent if any descendant has isDlBudgetActive == true.
+        // A leaf is DL-urgent if it is a dl_sched_class task with budget remaining.
+        //
+        // Among DL-urgent entries, pick by EDF urgency: the entry whose most
+        // imminent descendant deadline fires soonest (smallest dlPeriodRemaining).
+        // This matches Linux SCHED_DEADLINE which always picks the entity with the
+        // earliest absolute deadline among eligible deadline tasks/groups.
+        fun minDlUrgency(task: Task): Long =
+            if (!task.isGroup) task.dlPeriodRemainingSeconds
+            else all.filter { it.parentId == task.id && !it.isCompleted }
+                    .minOfOrNull { minDlUrgency(it) } ?: Long.MAX_VALUE
+
+        val dlUrgent = level.filter { entry ->
+            if (entry.isGroup) EEVDFScheduler.hasActiveDlDescendant(entry, all)
+            else entry.isDlBudgetActive
+        }.sortedBy { minDlUrgency(it) }
+
+        // Try DL-urgent candidates first, then fall back to normal EEVDF selection
+        for (dlEntry in dlUrgent) {
+            if (dlEntry.id in visited) continue
+            val result = if (dlEntry.isGroup) {
+                visited.add(dlEntry.id)
+                selectNextCgroup(all, dlEntry.id, visited)
+                    ?: selectNextCgroup(all, parentId, visited) // group was empty, continue
+            } else {
+                dlEntry // leaf DL task — return directly
+            }
+            if (result != null) return result
+        }
+
+        // No DL-urgent entries (or all were empty) — normal EEVDF selection
         EEVDFScheduler.recalculate(level)
         val winner = EEVDFScheduler.selectNext(level) ?: return null
         return if (winner.isGroup) {
