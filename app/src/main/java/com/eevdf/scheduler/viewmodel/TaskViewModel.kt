@@ -701,6 +701,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         timerEngine.clear()
         overrunTimer?.cancel()
         notice.cancelTimers()
+        listBuilder.stop()
     }
 
     // =========================================================================

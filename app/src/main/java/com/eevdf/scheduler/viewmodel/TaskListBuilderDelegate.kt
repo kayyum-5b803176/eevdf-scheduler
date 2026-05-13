@@ -1,7 +1,9 @@
 package com.eevdf.scheduler.viewmodel
 
-import androidx.lifecycle.LiveData
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.MutableLiveData
 import com.eevdf.scheduler.model.Task
 import com.eevdf.scheduler.model.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
@@ -25,6 +27,57 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
     lateinit var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>>
     lateinit var flatScheduleOrder: MediatorLiveData<List<TaskDisplayItem>>
 
+    // ── DL period-expiry auto-resort ──────────────────────────────────────────
+    //
+    // Problem: isDlBudgetActive is a pure computed property (reads wall-clock).
+    // When a DL period expires the task silently becomes active again, but no DB
+    // row changes — so flatScheduleOrder's Room/settings/expand sources never
+    // fire and the task stays wherever EEVDF left it instead of hoisting to #1.
+    //
+    // Fix: after every buildScheduleList() we look at all DL-configured active
+    // tasks and schedule a one-shot Handler callback for the exact millisecond
+    // the soonest period expires.  The callback bumps _dlResortTick, which is
+    // wired as a fourth source on flatScheduleOrder.  That triggers a rebuild
+    // which re-evaluates isDlBudgetActive with the current time — the task now
+    // sorts to rank #1.  The handler re-arms after each rebuild as long as DL
+    // tasks remain.  This is the same pattern MainActivity already uses for the
+    // quota bar tick, just one-shot instead of periodic.
+
+    private val _dlResortTick = MutableLiveData<Unit>()
+
+    private val dlResortHandler  = Handler(Looper.getMainLooper())
+    private val dlResortRunnable = Runnable {
+        _dlResortTick.value = Unit   // nudges flatScheduleOrder to rebuild
+    }
+
+    /**
+     * Cancels any pending resort callback and schedules a new one to fire at
+     * the soonest DL period-expiry among [tasks].
+     *
+     * Tasks with dlPeriodRemainingSeconds == 0 are already active (period just
+     * elapsed or never started) — they don't need a future callback.  We only
+     * arm the handler when at least one task has a future expiry (> 0 s).
+     *
+     * +100 ms padding ensures the wall-clock has clearly crossed the boundary
+     * before we re-evaluate isDlBudgetActive.
+     */
+    private fun rescheduleDlResort(tasks: List<Task>) {
+        dlResortHandler.removeCallbacks(dlResortRunnable)
+        val soonestMs = tasks
+            .filter { it.isDlConfigured && !it.isCompleted && !it.isGroup }
+            .mapNotNull { task ->
+                val remaining = task.dlPeriodRemainingSeconds
+                if (remaining > 0L) remaining * 1_000L else null
+            }
+            .minOrNull() ?: return   // no future expiry — nothing to schedule
+        dlResortHandler.postDelayed(dlResortRunnable, soonestMs + 100L)
+    }
+
+    /** Called from [TaskViewModel.onCleared] to prevent callbacks after VM death. */
+    fun stop() {
+        dlResortHandler.removeCallbacks(dlResortRunnable)
+    }
+
     /**
      * Called once from [TaskViewModel.init] after the repository LiveData and
      * delegate instances are ready.  Initialising here (rather than eagerly) avoids
@@ -47,10 +100,15 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 val tasks   = vm.activeTasks.value   ?: emptyList()
                 val enabled = vm.settings.groupsEnabled.value ?: false
                 value = buildScheduleList(tasks, enabled)
+                // Re-arm the one-shot handler for the next period expiry so the
+                // list auto-resorts when the next DL budget replenishes.
+                rescheduleDlResort(tasks)
             }
             addSource(vm.activeTasks)                        { rebuild() }
             addSource(vm.settings.groupsEnabled)             { rebuild() }
             addSource(vm.groupExpand.scheduleExpandTrigger)  { rebuild() }
+            // Fourth source: fires when a DL period expires (wall-clock trigger).
+            addSource(_dlResortTick)                         { rebuild() }
         }
     }
 
