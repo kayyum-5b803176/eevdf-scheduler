@@ -174,6 +174,283 @@
                     android:textColor="@color/textSecondary"
                     android:layout_marginBottom="8dp" />
 
+                <!-- ── Write stats card ──────────────────────────────────────── -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="16dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Storage Write Stats"
+                    android:textSize="14sp"
+                    android:textColor="@color/textPrimary"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Page-diff mode writes only changed 4 KB blocks. Green = working efficiently."
+                    android:textSize="12sp"
+                    android:textColor="@color/textSecondary"
+                    android:layout_marginBottom="8dp" />
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardWriteStats"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    app:cardCornerRadius="8dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#F5F5F5">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <!-- Access mode badge row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="10dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Access mode"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary" />
+
+                            <TextView
+                                android:id="@+id/tvAccessMode"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="—"
+                                android:textSize="12sp"
+                                android:textColor="@color/textPrimary"
+                                android:textStyle="bold"
+                                android:paddingStart="8dp"
+                                android:paddingEnd="8dp"
+                                android:paddingTop="2dp"
+                                android:paddingBottom="2dp"
+                                android:background="@drawable/badge_bg"
+                                android:backgroundTint="@color/syncDotDisabled" />
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginBottom="10dp" />
+
+                        <!-- Last export row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Last export"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary" />
+
+                            <TextView
+                                android:id="@+id/tvLastExportTime"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="—"
+                                android:textSize="12sp"
+                                android:textColor="@color/textPrimary" />
+                        </LinearLayout>
+
+                        <!-- DB size row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="DB size"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary" />
+
+                            <TextView
+                                android:id="@+id/tvDbSize"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="—"
+                                android:textSize="12sp"
+                                android:textColor="@color/textPrimary" />
+                        </LinearLayout>
+
+                        <!-- Written / skipped row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Last write"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary" />
+
+                            <TextView
+                                android:id="@+id/tvBytesWritten"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="—"
+                                android:textSize="12sp"
+                                android:textColor="@color/textPrimary" />
+                        </LinearLayout>
+
+                        <!-- Pages written / skipped (only shown in direct mode) -->
+                        <LinearLayout
+                            android:id="@+id/rowPageStats"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="6dp"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Pages written / skipped"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary" />
+
+                            <TextView
+                                android:id="@+id/tvPageStats"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="—"
+                                android:textSize="12sp"
+                                android:textColor="@color/textPrimary" />
+                        </LinearLayout>
+
+                        <!-- Write ratio progress bar -->
+                        <LinearLayout
+                            android:id="@+id/rowWriteRatio"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:layout_marginBottom="6dp"
+                            android:visibility="gone">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:layout_marginBottom="3dp">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Write ratio"
+                                    android:textSize="12sp"
+                                    android:textColor="@color/textSecondary" />
+
+                                <TextView
+                                    android:id="@+id/tvWriteRatioPct"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="—"
+                                    android:textSize="12sp"
+                                    android:textColor="@color/textPrimary" />
+                            </LinearLayout>
+
+                            <ProgressBar
+                                android:id="@+id/progressWriteRatio"
+                                style="?android:attr/progressBarStyleHorizontal"
+                                android:layout_width="match_parent"
+                                android:layout_height="6dp"
+                                android:max="100"
+                                android:progress="0"
+                                android:progressTint="@color/syncDotOK"
+                                android:progressBackgroundTint="#E0E0E0" />
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#E0E0E0"
+                            android:layout_marginTop="4dp"
+                            android:layout_marginBottom="10dp" />
+
+                        <!-- Session totals -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Session exports"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary" />
+
+                            <TextView
+                                android:id="@+id/tvSessionExports"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textSize="12sp"
+                                android:textColor="@color/textPrimary" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Session total written"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary" />
+
+                            <TextView
+                                android:id="@+id/tvSessionTotal"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0 B"
+                                android:textSize="12sp"
+                                android:textColor="@color/textPrimary" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
             </LinearLayout>
 
             <!-- ── Sync Now button (also hidden when disabled) ───────────────── -->

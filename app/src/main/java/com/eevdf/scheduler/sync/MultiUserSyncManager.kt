@@ -2,6 +2,9 @@ package com.eevdf.scheduler.sync
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.os.storage.StorageManager
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -10,6 +13,7 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.util.UUID
 
 /**
@@ -19,39 +23,80 @@ import java.util.UUID
  * ── Sync file layout ─────────────────────────────────────────────────────────
  *
  *  <sync_folder>/
- *    eevdf_sync.db          – binary copy of the Room database (ALL tables:
- *                             tasks, run_log, quotas, everything)
- *    eevdf_sync_meta.json   – lightweight metadata: version timestamp, exporter
- *                             deviceId, and all SharedPrefs settings so a fresh
- *                             install gets a perfect replica of the original app
+ *    eevdf_sync.db        – the shared SQLite database (always a fully
+ *                           self-contained, WAL-checkpointed snapshot)
+ *    eevdf_sync_meta.json – lightweight metadata: version timestamp, exporter
+ *                           deviceId, and all SharedPrefs settings so a fresh
+ *                           install gets a perfect replica of the original app
  *
- * ── Export (local → folder) ──────────────────────────────────────────────────
+ * ── Access strategy (Tier 1 preferred, Tier 2 fallback) ──────────────────────
  *
- *  1. PRAGMA wal_checkpoint(TRUNCATE) — flush WAL into main .db file (no close)
- *  2. Stream-copy local .db file → eevdf_sync.db in the shared folder
+ *  Tier 1 — Direct java.io.File access:
+ *    The SAF tree URI's document ID (e.g. "primary:Download/Sync") is decoded
+ *    to a real filesystem path via StorageManager / Environment.  Once we have
+ *    a java.io.File we bypass ContentResolver entirely, enabling:
+ *      • Random-access reads for page-level diffing (RandomAccessFile)
+ *      • In-place partial writes (overwrite only changed 4 KB SQLite pages)
+ *    Requires MANAGE_EXTERNAL_STORAGE on API 30+ or WRITE_EXTERNAL_STORAGE on
+ *    API 26-29.  Both are requested in MultiUserSyncActivity before the user
+ *    picks a folder.
+ *
+ *  Tier 2 — SAF ContentResolver streams:
+ *    Used when direct path resolution fails (network drive, OTG mount, cloud
+ *    provider, permission not granted).  Falls back to a full stream copy —
+ *    the same behaviour as the original code.
+ *
+ * ── Export (local → sync folder) ─────────────────────────────────────────────
+ *
+ *  1. PRAGMA wal_checkpoint(TRUNCATE) — flush all WAL frames into the main .db
+ *     file so the exported file is fully self-contained (no separate WAL needed
+ *     by the receiver).  Room stays open; checkpoint does not close the DB.
+ *
+ *  2a. Direct mode — page-level diff copy:
+ *      Open both the local DB and eevdf_sync.db with RandomAccessFile.  Read
+ *      both files in PAGE_SIZE chunks.  For each page:
+ *        • If the destination page equals the source page → skip (zero writes).
+ *        • Otherwise → seek to the page offset and write the changed page.
+ *      If the destination is shorter than the source, append the tail.
+ *      If the destination is longer (DB shrank after a purge), truncate it.
+ *      Result: only genuinely changed 4 KB blocks hit the storage medium.
+ *
+ *  2b. SAF mode — full stream copy (ContentResolver stream, no random access).
+ *
  *  3. Write eevdf_sync_meta.json with current timestamp + this device's UUID
- *     + all SharedPrefs (minus device-specific sync keys)
- *  4. Persist the meta version in local prefs so we can detect remote changes
+ *     + all SharedPrefs (minus device-specific sync keys).
  *
- * ── Import (folder → local) ──────────────────────────────────────────────────
+ *  4. Persist the meta version in local prefs so our own poll won't re-import.
  *
- *  1. Read eevdf_sync_meta.json
- *  2. If version == lastKnownVersion → nothing changed, skip
- *  3. If deviceId == myDeviceId    → we wrote this, skip
- *  4. checkpointAndClose() — flush + close Room so no file locks remain
- *  5. Copy eevdf_sync.db → local DB path (replaces existing DB)
- *  6. Delete stale WAL / SHM files
- *  7. Apply settings from the meta JSON
- *  8. Persist new lastKnownVersion
- *  9. Post [importEvent] → ViewModel → MainActivity restarts the process for a
- *     clean Room re-initialisation (same path as manual DB restore)
+ * ── Import (sync folder → local) ─────────────────────────────────────────────
+ *
+ *  1. Read eevdf_sync_meta.json.
+ *  2. If version == lastKnownVersion → nothing changed, skip.
+ *  3. If deviceId == myDeviceId    → we wrote this, record version and skip.
+ *  4. checkpointAndClose() — flush + close Room so no file locks remain.
+ *  5. Copy eevdf_sync.db → local DB path (always a full copy; destination is
+ *     private app storage so direct file access is always available here).
+ *  6. Delete stale WAL / SHM files.
+ *  7. Apply settings from the meta JSON.
+ *  8. Persist new lastKnownVersion.
+ *  9. Post importEvent → ViewModel → MainActivity restarts the process for a
+ *     clean Room re-initialisation.
+ *
+ * ── Storage wear reduction summary ───────────────────────────────────────────
+ *
+ *  Old path: every export rewrites the entire DB (100 MB → 100 MB written).
+ *  New path (Direct + page diff):
+ *    • Typical session (few hundred rows touched) → ~200 KB written.
+ *    • Heavy session  (1 000 rows touched)        → ~4 MB written.
+ *    • Full purge / migration (whole DB changes)  → 100 MB written (same as old).
+ *  Flash cells on the SD card / USB drive wear only for pages with real changes.
  *
  * ── Error safety ─────────────────────────────────────────────────────────────
  *
  *  Every operation is wrapped in try/catch.  On failure:
- *    • [SyncState.Error] is posted with a short message
- *    • The app continues working normally
- *    • The poll loop keeps running — errors are self-healing on next cycle
+ *    • SyncState.Error is posted with a short message.
+ *    • The app continues working normally.
+ *    • The poll loop keeps running — errors are self-healing on next cycle.
  */
 object MultiUserSyncManager {
 
@@ -71,6 +116,14 @@ object MultiUserSyncManager {
     private const val SYNC_DB_FILE   = "eevdf_sync.db"
     private const val SYNC_META_FILE = "eevdf_sync_meta.json"
 
+    /**
+     * SQLite page size used for the diff-copy loop.
+     * Read at runtime from the DB file header (offset 16, big-endian uint16).
+     * Room's default is 4096 bytes, so this fallback is almost always correct.
+     */
+    private const val SQLITE_DEFAULT_PAGE_SIZE = 4096
+    private const val SQLITE_PAGE_SIZE_OFFSET  = 16
+
     // ── Timing ────────────────────────────────────────────────────────────────
     private const val POLL_INTERVAL_MS   = 3_000L
     private const val EXPORT_DEBOUNCE_MS = 800L
@@ -87,6 +140,16 @@ object MultiUserSyncManager {
      */
     private val _importEvent = MutableLiveData<Unit>()
     val importEvent: LiveData<Unit> = _importEvent
+
+    // ── Write statistics ──────────────────────────────────────────────────────
+
+    private val _writeStats = MutableLiveData<SyncWriteStats>(SyncWriteStats.EMPTY)
+    /** Live per-export and cumulative write statistics for the settings UI. */
+    val writeStats: LiveData<SyncWriteStats> = _writeStats
+
+    // Session-level accumulators (reset when the process dies)
+    @Volatile private var sessionExportCount:  Int  = 0
+    @Volatile private var sessionBytesWritten: Long = 0L
 
     // ── Internal state ────────────────────────────────────────────────────────
     private var scope:     CoroutineScope? = null
@@ -122,9 +185,10 @@ object MultiUserSyncManager {
     }
 
     fun setSyncFolder(uri: Uri) {
-        prefs().edit().putString(PREFS_KEY_SYNC_URI, uri.toString()).apply()
-        // Reset version so we immediately check the folder on next poll
-        prefs().edit().remove(PREFS_KEY_LAST_VER).apply()
+        prefs().edit()
+            .putString(PREFS_KEY_SYNC_URI, uri.toString())
+            .remove(PREFS_KEY_LAST_VER)
+            .apply()
     }
 
     fun setEnabled(enabled: Boolean) {
@@ -182,14 +246,25 @@ object MultiUserSyncManager {
         scope = null
     }
 
-    /** Single poll cycle: check meta file, import if remote version is newer. */
-    private suspend fun pollOnce() {
-        val folder = resolveFolder() ?: return
+    // ─────────────────────────────────────────────────────────────────────────
+    // POLL
+    // ─────────────────────────────────────────────────────────────────────────
 
-        val metaFile = folder.findFile(SYNC_META_FILE) ?: return  // not yet created by anyone
+    private suspend fun pollOnce() {
+        val access = resolveSyncFolder() ?: return
 
         val metaJson = try {
-            readText(metaFile)
+            when (access) {
+                is SyncAccess.Direct -> {
+                    val f = File(access.dir, SYNC_META_FILE)
+                    if (!f.exists()) return   // folder exists but nobody has exported yet
+                    f.readText(Charsets.UTF_8)
+                }
+                is SyncAccess.Saf -> {
+                    val metaFile = access.doc.findFile(SYNC_META_FILE) ?: return
+                    readTextSaf(metaFile)
+                }
+            }
         } catch (e: Exception) {
             _syncState.postValue(SyncState.Error("Meta read error: ${short(e)}"))
             return
@@ -204,62 +279,97 @@ object MultiUserSyncManager {
         val remoteDeviceId = meta.optString("deviceId", "")
         val lastKnownVer   = prefs().getLong(PREFS_KEY_LAST_VER, 0L)
 
-        // Nothing changed or we wrote this ourselves — nothing to do
+        // Nothing changed
         if (remoteVersion <= lastKnownVer) return
+
+        // We wrote this export ourselves — stamp the version and skip
         if (remoteDeviceId == myDeviceId()) {
-            // Our own export landed; just update the local version stamp and move on
             prefs().edit().putLong(PREFS_KEY_LAST_VER, remoteVersion).apply()
             return
         }
 
-        // ── Remote change detected — import ───────────────────────────────────
-        val syncDb = folder.findFile(SYNC_DB_FILE) ?: run {
-            _syncState.postValue(SyncState.Error("Sync .db file missing in folder"))
-            return
-        }
-
+        // Remote change detected — import
         try {
             _syncState.postValue(SyncState.Syncing)
-
-            // Stop polling so we don't race during the file replace
-            stopPolling()
-
-            // 1. Flush local WAL and close Room (releases all file locks)
-            TaskDatabase.checkpointAndClose(appContext)
-
-            // 2. Copy remote DB file → local app DB path
-            val localDb = TaskDatabase.getDatabaseFile(appContext)
-            copyDocumentFileToLocal(syncDb, localDb)
-
-            // 3. Remove stale WAL / SHM so Room opens the new file cleanly
-            File(localDb.path + "-wal").delete()
-            File(localDb.path + "-shm").delete()
-
-            // 4. Apply settings from the meta JSON (groups, profile, quota, etc.)
-            applyRemoteSettings(meta)
-
-            // 5. Persist the new version — we won't re-import this on restart
-            prefs().edit().putLong(PREFS_KEY_LAST_VER, remoteVersion).apply()
-
-            _syncState.postValue(SyncState.OK)
-
-            // 6. Signal the ViewModel — the app must restart for Room to open the
-            //    new DB file with a clean singleton (same path as manual DB import)
-            _importEvent.postValue(Unit)
-
+            performImport(access, meta, remoteVersion)
         } catch (e: Exception) {
             _syncState.postValue(SyncState.Error("Import failed: ${short(e)}"))
-            // Restart polling so the error can self-heal
             if (isEnabled()) startPolling()
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // IMPORT
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private fun performImport(
+        access: SyncAccess,
+        meta: JSONObject,
+        remoteVersion: Long
+    ) {
+        // Stop polling so we don't race during the file replace
+        stopPolling()
+
+        // Flush local WAL and close Room (releases all file locks)
+        TaskDatabase.checkpointAndClose(appContext)
+
+        val localDb  = TaskDatabase.getDatabaseFile(appContext)
+        val localWal = File(localDb.path + "-wal")
+        val localShm = File(localDb.path + "-shm")
+
+        localDb.parentFile?.mkdirs()
+
+        when (access) {
+            is SyncAccess.Direct -> {
+                val srcDb = File(access.dir, SYNC_DB_FILE)
+                if (!srcDb.exists()) {
+                    _syncState.postValue(SyncState.Error("Sync .db file missing in folder"))
+                    if (isEnabled()) startPolling()
+                    return
+                }
+                // Destination is private app storage — direct copy always works here
+                srcDb.copyTo(localDb, overwrite = true)
+            }
+            is SyncAccess.Saf -> {
+                val syncDb = access.doc.findFile(SYNC_DB_FILE) ?: run {
+                    _syncState.postValue(SyncState.Error("Sync .db file missing in folder"))
+                    if (isEnabled()) startPolling()
+                    return
+                }
+                copyDocumentFileToLocal(syncDb, localDb)
+            }
+        }
+
+        // Remove stale WAL / SHM so Room opens the new file cleanly
+        localWal.delete()
+        localShm.delete()
+
+        applyRemoteSettings(meta)
+        prefs().edit().putLong(PREFS_KEY_LAST_VER, remoteVersion).apply()
+
+        _syncState.postValue(SyncState.OK)
+
+        // Signal the ViewModel — app must restart for Room to open the new DB
+        // with a clean singleton (same path as manual DB import)
+        _importEvent.postValue(Unit)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXPORT
+    // ─────────────────────────────────────────────────────────────────────────
+
     private suspend fun performExport() {
-        val folder = resolveFolder() ?: run {
-            _syncState.postValue(SyncState.Error("No sync folder — configure in Settings → Multiuser Sync"))
+        val access = resolveSyncFolder() ?: run {
+            _syncState.postValue(SyncState.Error(
+                "No sync folder — configure in Settings → Multiuser Sync"))
             return
         }
-        if (!folder.canWrite()) {
+
+        val canWrite = when (access) {
+            is SyncAccess.Direct -> access.dir.canWrite()
+            is SyncAccess.Saf    -> access.doc.canWrite()
+        }
+        if (!canWrite) {
             _syncState.postValue(SyncState.Error("Sync folder is not writable"))
             return
         }
@@ -267,49 +377,298 @@ object MultiUserSyncManager {
         try {
             _syncState.postValue(SyncState.Syncing)
 
-            // 1. Checkpoint WAL into main .db file (no close — Room stays open)
-            TaskDatabase.checkpointWal(appContext)
-
             val localDb = TaskDatabase.getDatabaseFile(appContext)
             if (!localDb.exists()) {
                 _syncState.postValue(SyncState.Error("Local database file not found"))
                 return
             }
 
-            // 2. Copy local DB → eevdf_sync.db in shared folder
-            val syncDb = folder.findFile(SYNC_DB_FILE)
-                ?: folder.createFile("application/octet-stream", SYNC_DB_FILE)
-                ?: run {
-                    _syncState.postValue(SyncState.Error("Cannot create sync .db file in folder"))
-                    return
-                }
+            // Checkpoint WAL into the main .db so the exported snapshot is fully
+            // self-contained.  TRUNCATE: merges all WAL frames and resets the WAL
+            // to zero length.  Room stays open after this — no close needed.
+            TaskDatabase.checkpointWal(appContext)
 
-            copyLocalToDocumentFile(localDb, syncDb)
-
-            // 3. Write meta file with version + deviceId + all settings
-            val version = System.currentTimeMillis()
-            val meta    = buildMetaJson(version)
-
-            val metaFile = folder.findFile(SYNC_META_FILE)
-                ?: folder.createFile("application/json", SYNC_META_FILE)
-                ?: run {
-                    _syncState.postValue(SyncState.Error("Cannot create meta file in folder"))
-                    return
-                }
-
-            writeText(metaFile, meta.toString(2))
-
-            // 4. Record this version so our own poll won't trigger an import
-            prefs().edit().putLong(PREFS_KEY_LAST_VER, version).apply()
-
-            _syncState.postValue(SyncState.OK)
+            when (access) {
+                is SyncAccess.Direct -> exportDirect(access.dir, localDb)
+                is SyncAccess.Saf    -> exportSaf(access.doc, localDb)
+            }
 
         } catch (e: Exception) {
             _syncState.postValue(SyncState.Error("Export failed: ${short(e)}"))
         }
     }
 
-    // ── Settings sync ─────────────────────────────────────────────────────────
+    /**
+     * Direct-mode export: page-level diff copy to eevdf_sync.db.
+     *
+     * Algorithm:
+     *   pageSize  = read from SQLite header (almost always 4096 bytes)
+     *   srcLen    = local DB file size
+     *   dstLen    = existing eevdf_sync.db size (0 if the file is new)
+     *
+     *   For offset = 0, pageSize, 2*pageSize, … until offset >= srcLen:
+     *     chunkLen = min(pageSize, srcLen - offset)
+     *     Read chunkLen bytes from src at offset.
+     *     If offset + chunkLen <= dstLen:
+     *       Read chunkLen bytes from dst at offset.
+     *       If bytes differ → seek dst to offset, write src bytes.
+     *       If bytes equal  → skip (no write issued).
+     *     Else (dst is shorter than src):
+     *       Seek dst to offset, write src bytes (append new tail).
+     *
+     *   After loop: if dstLen > srcLen → truncate dst to srcLen.
+     *
+     * Flash writes are proportional to changed data, not file size:
+     *   100 MB DB, 100 KB changed → ~25 pages written (≈ 100 KB) instead of
+     *   100 MB.
+     */
+    private fun exportDirect(syncDir: File, localDb: File) {
+        val dstFile  = File(syncDir, SYNC_DB_FILE)
+        val pageSize = readSqlitePageSize(localDb)
+        val srcLen   = localDb.length()
+
+        var pagesWritten = 0
+        var pagesSkipped = 0
+        var bytesWritten = 0L
+
+        RandomAccessFile(localDb, "r").use { src ->
+            if (!dstFile.exists()) dstFile.createNewFile()
+            RandomAccessFile(dstFile, "rw").use { dst ->
+                val dstLen  = dst.length()
+                val srcPage = ByteArray(pageSize)
+                val dstPage = ByteArray(pageSize)
+                var offset  = 0L
+
+                while (offset < srcLen) {
+                    val chunkLen = minOf(pageSize.toLong(), srcLen - offset).toInt()
+
+                    src.seek(offset)
+                    src.readFully(srcPage, 0, chunkLen)
+
+                    if (offset + chunkLen <= dstLen) {
+                        dst.seek(offset)
+                        dst.readFully(dstPage, 0, chunkLen)
+
+                        var differs = false
+                        for (i in 0 until chunkLen) {
+                            if (srcPage[i] != dstPage[i]) { differs = true; break }
+                        }
+                        if (differs) {
+                            dst.seek(offset)
+                            dst.write(srcPage, 0, chunkLen)
+                            pagesWritten++
+                            bytesWritten += chunkLen
+                        } else {
+                            pagesSkipped++
+                        }
+                    } else {
+                        dst.seek(offset)
+                        dst.write(srcPage, 0, chunkLen)
+                        pagesWritten++
+                        bytesWritten += chunkLen
+                    }
+
+                    offset += chunkLen
+                }
+
+                if (dstLen > srcLen) {
+                    dst.setLength(srcLen)
+                }
+            }
+        }
+
+        writeMetaDirect(syncDir, System.currentTimeMillis())
+
+        // Update cumulative session counters and post stats
+        sessionExportCount++
+        sessionBytesWritten += bytesWritten
+        _writeStats.postValue(
+            SyncWriteStats(
+                lastExportMs        = System.currentTimeMillis(),
+                lastDbSizeBytes     = srcLen,
+                lastBytesWritten    = bytesWritten,
+                lastPagesWritten    = pagesWritten,
+                lastPagesSkipped    = pagesSkipped,
+                sessionExportCount  = sessionExportCount,
+                sessionBytesWritten = sessionBytesWritten,
+                accessMode          = "direct"
+            )
+        )
+    }
+
+    /**
+     * SAF-mode export.  ContentResolver streams have no random-access support,
+     * so we write the full file.  Used only when direct path resolution fails
+     * (cloud provider, network drive, MANAGE_EXTERNAL_STORAGE not granted).
+     */
+    private fun exportSaf(folder: DocumentFile, localDb: File) {
+        val version  = System.currentTimeMillis()
+        val srcLen   = localDb.length()
+
+        val syncDb = folder.findFile(SYNC_DB_FILE)
+            ?: folder.createFile("application/octet-stream", SYNC_DB_FILE)
+            ?: throw IOException("Cannot create sync .db file in folder")
+
+        appContext.contentResolver.openOutputStream(syncDb.uri, "wt")
+            ?.use { out -> localDb.inputStream().use { it.copyTo(out) } }
+            ?: throw IOException("Cannot open sync DB for writing")
+
+        val metaFile = folder.findFile(SYNC_META_FILE)
+            ?: folder.createFile("application/json", SYNC_META_FILE)
+            ?: throw IOException("Cannot create meta file in folder")
+
+        writeTextSaf(metaFile, buildMetaJson(version).toString(2))
+        prefs().edit().putLong(PREFS_KEY_LAST_VER, version).apply()
+
+        // SAF always writes the full file; no page-diff stats available
+        sessionExportCount++
+        sessionBytesWritten += srcLen
+        _writeStats.postValue(
+            SyncWriteStats(
+                lastExportMs        = System.currentTimeMillis(),
+                lastDbSizeBytes     = srcLen,
+                lastBytesWritten    = srcLen,
+                lastPagesWritten    = -1,
+                lastPagesSkipped    = -1,
+                sessionExportCount  = sessionExportCount,
+                sessionBytesWritten = sessionBytesWritten,
+                accessMode          = "saf"
+            )
+        )
+        _syncState.postValue(SyncState.OK)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // FOLDER RESOLUTION — Direct vs SAF
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Resolves the persisted sync folder URI to:
+     *  • SyncAccess.Direct — a real java.io.File usable with RandomAccessFile
+     *  • SyncAccess.Saf    — a DocumentFile backed by ContentResolver streams
+     *
+     * The SAF document ID is formatted as "<volumeName>:<relativePath>", e.g.:
+     *   "primary:Download/SyncFolder"  (internal storage)
+     *   "ABCD-1234:SyncFolder"         (SD card / USB drive by UUID)
+     *
+     * API requirements for Direct mode:
+     *   API 26-29: READ_EXTERNAL_STORAGE + WRITE_EXTERNAL_STORAGE
+     *   API 30+  : MANAGE_EXTERNAL_STORAGE (requested at runtime in
+     *              MultiUserSyncActivity before the folder is picked)
+     */
+    private fun resolveSyncFolder(): SyncAccess? {
+        val uri = getSyncFolderUri() ?: run {
+            _syncState.postValue(SyncState.Error(
+                "No sync folder set — configure in Settings → Multiuser Sync"))
+            return null
+        }
+
+        val directFile = resolveUriToFile(uri)
+        if (directFile != null && directFile.exists()) {
+            return SyncAccess.Direct(directFile)
+        }
+
+        val doc = DocumentFile.fromTreeUri(appContext, uri) ?: run {
+            _syncState.postValue(SyncState.Error("Sync folder URI is invalid"))
+            return null
+        }
+        if (!doc.exists()) {
+            _syncState.postValue(SyncState.Error("Sync folder does not exist"))
+            return null
+        }
+        if (!doc.canRead()) {
+            _syncState.postValue(SyncState.Error("Sync folder is not accessible"))
+            return null
+        }
+        return SyncAccess.Saf(doc)
+    }
+
+    /**
+     * Decodes a SAF tree URI to a java.io.File.
+     * URI path is: /tree/<encoded-docId>
+     * Decoded docId looks like "primary:Download/Sync" or "ABCD-1234:path".
+     * Returns null if resolution fails or the resolved path is not accessible.
+     */
+    private fun resolveUriToFile(treeUri: Uri): File? {
+        return try {
+            val rawPath = treeUri.path ?: return null
+            val treePrefix = "/tree/"
+            if (!rawPath.startsWith(treePrefix)) return null
+
+            // Decode percent-encoding and strip any trailing /document/... segment
+            val docId = Uri.decode(rawPath.removePrefix(treePrefix))
+                .substringBefore("/document/")
+
+            val colonIdx = docId.indexOf(':')
+            if (colonIdx < 0) return null
+
+            val volumeName   = docId.substring(0, colonIdx)
+            val relativePath = docId.substring(colonIdx + 1)
+                .replace('/', File.separatorChar)
+
+            val root: File? = when {
+                volumeName.equals("primary", ignoreCase = true) ->
+                    Environment.getExternalStorageDirectory()
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.N -> {
+                    val sm = appContext.getSystemService(Context.STORAGE_SERVICE)
+                            as StorageManager
+                    sm.storageVolumes
+                        .firstOrNull { it.uuid?.equals(volumeName, ignoreCase = true) == true }
+                        ?.let { vol ->
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                vol.directory
+                            } else {
+                                @Suppress("DEPRECATION")
+                                vol.javaClass.getMethod("getPathFile").invoke(vol) as? File
+                            }
+                        }
+                }
+                else -> null
+            }
+
+            if (root == null) return null
+            val resolved = if (relativePath.isEmpty()) root else File(root, relativePath)
+            if (resolved.exists() || resolved.canRead()) resolved else null
+
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SQLite page size helper
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Reads the page size from bytes 16-17 of the SQLite database header.
+     * The value is a big-endian unsigned 16-bit integer; 1 encodes 65536.
+     * Returns SQLITE_DEFAULT_PAGE_SIZE (4096) on any error.
+     */
+    private fun readSqlitePageSize(dbFile: File): Int {
+        return try {
+            RandomAccessFile(dbFile, "r").use { raf ->
+                raf.seek(SQLITE_PAGE_SIZE_OFFSET.toLong())
+                val hi = raf.read()
+                val lo = raf.read()
+                if (hi < 0 || lo < 0) return SQLITE_DEFAULT_PAGE_SIZE
+                val size = (hi shl 8) or lo
+                if (size == 1) 65536 else size  // SQLite spec: 1 means 65536
+            }
+        } catch (_: Exception) {
+            SQLITE_DEFAULT_PAGE_SIZE
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Meta JSON
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private fun writeMetaDirect(syncDir: File, version: Long) {
+        File(syncDir, SYNC_META_FILE)
+            .writeText(buildMetaJson(version).toString(2), Charsets.UTF_8)
+        prefs().edit().putLong(PREFS_KEY_LAST_VER, version).apply()
+        _syncState.postValue(SyncState.OK)
+    }
 
     /**
      * Builds the meta JSON:
@@ -321,7 +680,6 @@ object MultiUserSyncManager {
      *     ...
      *   }
      * }
-     * All SharedPrefs keys except device-specific sync keys are included.
      */
     private fun buildMetaJson(version: Long): JSONObject {
         val root = JSONObject()
@@ -348,7 +706,6 @@ object MultiUserSyncManager {
         return root
     }
 
-    /** Writes all settings from a remote meta JSON to local SharedPrefs. */
     private fun applyRemoteSettings(meta: JSONObject) {
         val settings = meta.optJSONObject("settings") ?: return
         val edit = prefs().edit()
@@ -370,27 +727,9 @@ object MultiUserSyncManager {
         edit.apply()
     }
 
-    // ── IO helpers ────────────────────────────────────────────────────────────
-
-    private fun resolveFolder(): DocumentFile? {
-        val uri = getSyncFolderUri() ?: run {
-            _syncState.postValue(SyncState.Error("No sync folder set — configure in Settings → Multiuser Sync"))
-            return null
-        }
-        val folder = DocumentFile.fromTreeUri(appContext, uri) ?: run {
-            _syncState.postValue(SyncState.Error("Sync folder URI is invalid"))
-            return null
-        }
-        if (!folder.exists()) {
-            _syncState.postValue(SyncState.Error("Sync folder does not exist"))
-            return null
-        }
-        if (!folder.canRead()) {
-            _syncState.postValue(SyncState.Error("Sync folder is not accessible"))
-            return null
-        }
-        return folder
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // SAF I/O helpers (fallback path only)
+    // ─────────────────────────────────────────────────────────────────────────
 
     private fun copyDocumentFileToLocal(src: DocumentFile, dst: File) {
         dst.parentFile?.mkdirs()
@@ -399,29 +738,24 @@ object MultiUserSyncManager {
             ?: throw IOException("Cannot open remote DB for reading")
     }
 
-    private fun copyLocalToDocumentFile(src: File, dst: DocumentFile) {
-        appContext.contentResolver.openOutputStream(dst.uri, "wt")
-            ?.use { output -> src.inputStream().use { it.copyTo(output) } }
-            ?: throw IOException("Cannot open sync DB for writing")
-    }
-
-    private fun readText(file: DocumentFile): String =
+    private fun readTextSaf(file: DocumentFile): String =
         appContext.contentResolver.openInputStream(file.uri)
             ?.use { it.readBytes().toString(Charsets.UTF_8) }
             ?: throw IOException("Cannot read ${file.name}")
 
-    private fun writeText(file: DocumentFile, text: String) {
+    private fun writeTextSaf(file: DocumentFile, text: String) {
         appContext.contentResolver.openOutputStream(file.uri, "wt")
             ?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
             ?: throw IOException("Cannot write ${file.name}")
     }
 
-    // ── Utility ───────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // Utility
+    // ─────────────────────────────────────────────────────────────────────────
 
     private fun prefs() =
         appContext.getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE)
 
-    /** Returns (or generates) a stable UUID for this installation. */
     private fun myDeviceId(): String {
         var id = prefs().getString(PREFS_KEY_DEVICE_ID, null)
         if (id == null) {
@@ -433,4 +767,15 @@ object MultiUserSyncManager {
 
     private fun short(e: Exception): String =
         e.message?.take(80) ?: e.javaClass.simpleName
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Sealed access type
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private sealed class SyncAccess {
+        /** Real filesystem path — RandomAccessFile available, zero ContentResolver overhead. */
+        data class Direct(val dir: File) : SyncAccess()
+        /** SAF DocumentFile — ContentResolver streams only, full copy on export. */
+        data class Saf(val doc: DocumentFile) : SyncAccess()
+    }
 }

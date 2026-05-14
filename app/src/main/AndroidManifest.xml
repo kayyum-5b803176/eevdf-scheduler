@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.eevdf.scheduler">
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -13,11 +14,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <!-- External storage for multi-user sync (read/write shared folder) -->
+    <!-- External storage for multi-user sync (read/write shared folder)
+         API 26-29: READ/WRITE_EXTERNAL_STORAGE for direct file access.
+         API 30+  : MANAGE_EXTERNAL_STORAGE bypasses scoped storage; user is
+                    prompted in MultiUserSyncActivity; falls back to SAF if denied. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
     <!-- Auto Switch: call detection -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     

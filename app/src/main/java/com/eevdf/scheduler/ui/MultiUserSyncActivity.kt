@@ -2,18 +2,26 @@ package com.eevdf.scheduler.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.view.MenuItem
 import android.view.View
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
 import com.eevdf.scheduler.R
 import com.eevdf.scheduler.sync.MultiUserSyncManager
 import com.eevdf.scheduler.sync.SyncState
+import com.eevdf.scheduler.sync.SyncWriteStats
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 /**
@@ -38,6 +46,20 @@ class MultiUserSyncActivity : AppCompatActivity() {
     private lateinit var btnSyncNow:       MaterialButton
     private lateinit var layoutFolderRow:  View
 
+    // Write stats card views
+    private lateinit var cardWriteStats:     View
+    private lateinit var tvAccessMode:       TextView
+    private lateinit var tvLastExportTime:   TextView
+    private lateinit var tvDbSize:           TextView
+    private lateinit var tvBytesWritten:     TextView
+    private lateinit var rowPageStats:       View
+    private lateinit var tvPageStats:        TextView
+    private lateinit var rowWriteRatio:      View
+    private lateinit var tvWriteRatioPct:    TextView
+    private lateinit var progressWriteRatio: android.widget.ProgressBar
+    private lateinit var tvSessionExports:   TextView
+    private lateinit var tvSessionTotal:     TextView
+
     private val folderPickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -50,6 +72,27 @@ class MultiUserSyncActivity : AppCompatActivity() {
             MultiUserSyncManager.scheduleExport()
         }
     }
+
+    /**
+     * Launcher for the MANAGE_EXTERNAL_STORAGE system settings screen
+     * (Android 11+).  When the user returns we re-check the permission and
+     * proceed to the folder picker if it was granted.
+     */
+    private val manageStorageLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Re-check after returning from Settings
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                Environment.isExternalStorageManager()) {
+            launchFolderPicker()
+        }
+        // If not granted, the user chose not to — SAF fallback will be used silently
+    }
+
+    /** Launcher for READ/WRITE_EXTERNAL_STORAGE on API 26-29. */
+    private val legacyStoragePermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { /* result ignored — SAF fallback covers the denied case */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +110,20 @@ class MultiUserSyncActivity : AppCompatActivity() {
         btnSyncNow      = findViewById(R.id.btnSyncNow)
         layoutFolderRow = findViewById(R.id.layoutSyncFolderRow)
 
+        // Write stats card
+        cardWriteStats     = findViewById(R.id.cardWriteStats)
+        tvAccessMode       = findViewById(R.id.tvAccessMode)
+        tvLastExportTime   = findViewById(R.id.tvLastExportTime)
+        tvDbSize           = findViewById(R.id.tvDbSize)
+        tvBytesWritten     = findViewById(R.id.tvBytesWritten)
+        rowPageStats       = findViewById(R.id.rowPageStats)
+        tvPageStats        = findViewById(R.id.tvPageStats)
+        rowWriteRatio      = findViewById(R.id.rowWriteRatio)
+        tvWriteRatioPct    = findViewById(R.id.tvWriteRatioPct)
+        progressWriteRatio = findViewById(R.id.progressWriteRatio)
+        tvSessionExports   = findViewById(R.id.tvSessionExports)
+        tvSessionTotal     = findViewById(R.id.tvSessionTotal)
+
         // Restore persisted state
         switchEnable.isChecked = MultiUserSyncManager.isEnabled()
         updateFolderLabel()
@@ -78,15 +135,7 @@ class MultiUserSyncActivity : AppCompatActivity() {
         }
 
         btnPickFolder.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                addFlags(
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
-                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
-                )
-            }
-            folderPickerLauncher.launch(intent)
+            requestStorageAccessThenPickFolder()
         }
 
         btnSyncNow.setOnClickListener {
@@ -114,6 +163,11 @@ class MultiUserSyncActivity : AppCompatActivity() {
                     theme
                 )
             )
+        }
+
+        // Observe write statistics
+        MultiUserSyncManager.writeStats.observe(this) { stats ->
+            bindWriteStats(stats)
         }
     }
 
@@ -153,6 +207,167 @@ class MultiUserSyncActivity : AppCompatActivity() {
             // Persistable permission not available (e.g. non-document URIs).
             // The URI will still work for the current session.
         }
+    }
+
+    // ── Write stats binding ───────────────────────────────────────────────────
+
+    private fun bindWriteStats(stats: SyncWriteStats) {
+        if (stats.lastExportMs == 0L) {
+            // No export yet this session — show placeholder state
+            tvAccessMode.text = "waiting…"
+            tvAccessMode.backgroundTintList =
+                resources.getColorStateList(R.color.syncDotDisabled, theme)
+            tvLastExportTime.text  = "—"
+            tvDbSize.text          = "—"
+            tvBytesWritten.text    = "—"
+            rowPageStats.visibility  = View.GONE
+            rowWriteRatio.visibility = View.GONE
+            tvSessionExports.text  = "0"
+            tvSessionTotal.text    = "0 B"
+            return
+        }
+
+        // Access mode badge
+        val isDirect = stats.accessMode == "direct"
+        tvAccessMode.text = if (isDirect) "Direct  (page diff)" else "SAF  (full copy)"
+        tvAccessMode.backgroundTintList = resources.getColorStateList(
+            if (isDirect) R.color.syncDotOK else R.color.syncDotSyncing, theme
+        )
+
+        // Last export time — "just now" / "Xs ago" / HH:mm
+        tvLastExportTime.text = formatAgo(stats.lastExportMs)
+
+        // DB size
+        tvDbSize.text = formatBytes(stats.lastDbSizeBytes)
+
+        // Bytes written last export
+        tvBytesWritten.text = if (isDirect)
+            "${formatBytes(stats.lastBytesWritten)} of ${formatBytes(stats.lastDbSizeBytes)}"
+        else
+            "${formatBytes(stats.lastBytesWritten)} (full copy)"
+
+        // Page stats (direct mode only)
+        if (isDirect && stats.hasDiffStats) {
+            rowPageStats.visibility = View.VISIBLE
+            tvPageStats.text = "${stats.lastPagesWritten} written  /  ${stats.lastPagesSkipped} skipped"
+        } else {
+            rowPageStats.visibility = View.GONE
+        }
+
+        // Write ratio bar (direct mode only — SAF is always 100% so the bar adds no info)
+        if (isDirect) {
+            rowWriteRatio.visibility = View.VISIBLE
+            val pct = stats.writeRatioPct
+            tvWriteRatioPct.text = "$pct%"
+            progressWriteRatio.progress = pct
+            // Colour the bar: green ≤25%, amber ≤75%, red >75%
+            val barColor = when {
+                pct <= 25 -> R.color.syncDotOK
+                pct <= 75 -> R.color.syncDotSyncing
+                else      -> R.color.syncDotError
+            }
+            progressWriteRatio.progressTintList =
+                resources.getColorStateList(barColor, theme)
+        } else {
+            rowWriteRatio.visibility = View.GONE
+        }
+
+        // Session totals
+        tvSessionExports.text = stats.sessionExportCount.toString()
+        tvSessionTotal.text   = formatBytes(stats.sessionBytesWritten)
+    }
+
+    /** Formats a byte count as B / KB / MB with one decimal place. */
+    private fun formatBytes(bytes: Long): String = when {
+        bytes < 1024L              -> "$bytes B"
+        bytes < 1024L * 1024L      -> "%.1f KB".format(bytes / 1024.0)
+        else                       -> "%.2f MB".format(bytes / (1024.0 * 1024.0))
+    }
+
+    /** Returns a human-readable "time ago" string for an epoch-ms timestamp. */
+    private fun formatAgo(epochMs: Long): String {
+        val diffMs = System.currentTimeMillis() - epochMs
+        return when {
+            diffMs < 5_000L   -> "just now"
+            diffMs < 60_000L  -> "${diffMs / 1000}s ago"
+            diffMs < 3600_000L -> "${diffMs / 60_000}m ago"
+            else -> {
+                val cal = java.util.Calendar.getInstance()
+                cal.timeInMillis = epochMs
+                "%02d:%02d".format(cal.get(java.util.Calendar.HOUR_OF_DAY),
+                                   cal.get(java.util.Calendar.MINUTE))
+            }
+        }
+    }
+
+    /**
+     * Requests the strongest available external-storage permission for the
+     * running API level, then launches the folder picker.
+     *
+     *  API 30+ (Android 11+) : MANAGE_EXTERNAL_STORAGE — opens the system
+     *                          settings page if not already granted.
+     *  API 26-29             : READ_EXTERNAL_STORAGE + WRITE_EXTERNAL_STORAGE
+     *                          runtime permission request.
+     *
+     * In all cases the SAF folder picker is launched regardless of outcome;
+     * direct file access will be attempted at sync time and the code will
+     * silently fall back to SAF ContentResolver I/O if the permission was
+     * not granted.
+     */
+    private fun requestStorageAccessThenPickFolder() {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                if (!Environment.isExternalStorageManager()) {
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("Storage access")
+                        .setMessage(
+                            "For fastest sync EEVDF needs the 'All files access' permission " +
+                            "so it can write directly to the sync folder without going through " +
+                            "the slower Storage Access Framework.\n\n" +
+                            "You can skip this — sync will still work, just slightly slower."
+                        )
+                        .setPositiveButton("Grant access") { _, _ ->
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                Uri.parse("package:${packageName}")
+                            )
+                            manageStorageLauncher.launch(intent)
+                        }
+                        .setNegativeButton("Skip") { _, _ -> launchFolderPicker() }
+                        .show()
+                } else {
+                    launchFolderPicker()
+                }
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                val perms = arrayOf(
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
+                val missing = perms.filter {
+                    ContextCompat.checkSelfPermission(this, it) !=
+                        PackageManager.PERMISSION_GRANTED
+                }
+                if (missing.isNotEmpty()) {
+                    legacyStoragePermLauncher.launch(missing.toTypedArray())
+                }
+                // Launch picker regardless — SAF is the fallback
+                launchFolderPicker()
+            }
+            else -> launchFolderPicker()
+        }
+    }
+
+    private fun launchFolderPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            )
+        }
+        folderPickerLauncher.launch(intent)
     }
 
     /** Converts a DocumentsContract tree URI to a short human-readable path. */
