@@ -213,8 +213,7 @@ class MultiUserSyncActivity : AppCompatActivity() {
 
     private fun bindWriteStats(stats: SyncWriteStats) {
         if (stats.lastExportMs == 0L) {
-            // No export yet this session — show placeholder state
-            tvAccessMode.text = "waiting…"
+            tvAccessMode.text = "waiting for first export…"
             tvAccessMode.backgroundTintList =
                 resources.getColorStateList(R.color.syncDotDisabled, theme)
             tvLastExportTime.text  = "—"
@@ -227,52 +226,38 @@ class MultiUserSyncActivity : AppCompatActivity() {
             return
         }
 
-        // Access mode badge
-        val isDirect = stats.accessMode == "direct"
-        tvAccessMode.text = if (isDirect) "Direct  (page diff)" else "SAF  (full copy)"
-        tvAccessMode.backgroundTintList = resources.getColorStateList(
-            if (isDirect) R.color.syncDotOK else R.color.syncDotSyncing, theme
-        )
+        // Export is always direct RandomAccessFile — show confirmation
+        tvAccessMode.text = "Direct  (page diff active)"
+        tvAccessMode.backgroundTintList =
+            resources.getColorStateList(R.color.syncDotOK, theme)
 
-        // Last export time — "just now" / "Xs ago" / HH:mm
         tvLastExportTime.text = formatAgo(stats.lastExportMs)
-
-        // DB size
         tvDbSize.text = formatBytes(stats.lastDbSizeBytes)
-
-        // Bytes written last export
-        tvBytesWritten.text = if (isDirect)
+        tvBytesWritten.text =
             "${formatBytes(stats.lastBytesWritten)} of ${formatBytes(stats.lastDbSizeBytes)}"
-        else
-            "${formatBytes(stats.lastBytesWritten)} (full copy)"
 
-        // Page stats (direct mode only)
-        if (isDirect && stats.hasDiffStats) {
+        // Page stats
+        if (stats.hasDiffStats) {
             rowPageStats.visibility = View.VISIBLE
-            tvPageStats.text = "${stats.lastPagesWritten} written  /  ${stats.lastPagesSkipped} skipped"
+            tvPageStats.text =
+                "${stats.lastPagesWritten} written  /  ${stats.lastPagesSkipped} skipped"
         } else {
             rowPageStats.visibility = View.GONE
         }
 
-        // Write ratio bar (direct mode only — SAF is always 100% so the bar adds no info)
-        if (isDirect) {
-            rowWriteRatio.visibility = View.VISIBLE
-            val pct = stats.writeRatioPct
-            tvWriteRatioPct.text = "$pct%"
-            progressWriteRatio.progress = pct
-            // Colour the bar: green ≤25%, amber ≤75%, red >75%
-            val barColor = when {
-                pct <= 25 -> R.color.syncDotOK
-                pct <= 75 -> R.color.syncDotSyncing
-                else      -> R.color.syncDotError
-            }
-            progressWriteRatio.progressTintList =
-                resources.getColorStateList(barColor, theme)
-        } else {
-            rowWriteRatio.visibility = View.GONE
+        // Write ratio bar
+        rowWriteRatio.visibility = View.VISIBLE
+        val pct = stats.writeRatioPct
+        tvWriteRatioPct.text = "$pct%"
+        progressWriteRatio.progress = pct
+        val barColor = when {
+            pct <= 25 -> R.color.syncDotOK
+            pct <= 75 -> R.color.syncDotSyncing
+            else      -> R.color.syncDotError
         }
+        progressWriteRatio.progressTintList =
+            resources.getColorStateList(barColor, theme)
 
-        // Session totals
         tvSessionExports.text = stats.sessionExportCount.toString()
         tvSessionTotal.text   = formatBytes(stats.sessionBytesWritten)
     }
