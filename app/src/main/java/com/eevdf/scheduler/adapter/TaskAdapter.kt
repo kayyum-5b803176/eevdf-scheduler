@@ -53,6 +53,20 @@ class TaskAdapter(
         private set
 
     /**
+     * When true, non-selected cards collapse rows 0 (progress bars), 1 (TRT/time
+     * slice), and 2 (VRT/VDL/RS/Runs). The running task and the user-tapped task
+     * are always considered "selected" and show all rows.
+     */
+    var simpleModeEnabled: Boolean = false
+        private set
+
+    /**
+     * The id of the card the user last tapped while simple mode is active.
+     * null means no explicit tap selection — only the running task is expanded.
+     */
+    private var selectedTaskId: String? = null
+
+    /**
      * Apply a new display configuration and trigger a full rebind so all visible
      * items reflect the updated scale and compact mode immediately.
      */
@@ -63,9 +77,55 @@ class TaskAdapter(
         if (changed) notifyDataSetChanged()
     }
 
-    fun setRunningTask(id: String?) {
-        runningTaskId = id
+    /**
+     * Enable or disable Simple Mode. Clears any explicit tap-selection so the
+     * list starts fresh with only the running task expanded.
+     */
+    fun setSimpleMode(enabled: Boolean) {
+        if (enabled == simpleModeEnabled) return
+        simpleModeEnabled = enabled
+        if (!enabled) selectedTaskId = null   // reset tap selection when turning off
         notifyDataSetChanged()
+    }
+
+    /**
+     * Mark [taskId] as the user-selected card in Simple Mode (tapped).
+     * Passing null deselects. The old selected card is also refreshed.
+     */
+    fun setSelectedTask(taskId: String?) {
+        if (taskId == selectedTaskId) {
+            // Tap same card again → deselect (collapse it back)
+            val old = selectedTaskId
+            selectedTaskId = null
+            notifyItemChanged(positionOf(old))
+        } else {
+            val old = selectedTaskId
+            selectedTaskId = taskId
+            notifyItemChanged(positionOf(old))
+            notifyItemChanged(positionOf(taskId))
+        }
+    }
+
+    /** Helper: find the adapter position for a task id, or -1. */
+    private fun positionOf(taskId: String?): Int {
+        if (taskId == null) return -1
+        for (i in 0 until itemCount) {
+            if (getItem(i).task.id == taskId) return i
+        }
+        return -1
+    }
+
+    fun setRunningTask(id: String?) {
+        val old = runningTaskId
+        runningTaskId = id
+        if (simpleModeEnabled) {
+            // In simple mode both old and new running cards need a full rebind
+            // so their expanded/collapsed state updates immediately.
+            notifyItemChanged(positionOf(old))
+            notifyItemChanged(positionOf(id))
+        } else {
+            notifyDataSetChanged()
+        }
     }
 
     class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -262,6 +322,10 @@ class TaskAdapter(
         // ── UI Customization: hide non-essential stats in compact / floating mode ──
         applyCompactMode(holder, hideNonEssentialStats)
 
+        // ── UI Customization: simple mode — collapse rows on non-selected cards ──
+        val isSelected = task.id == selectedTaskId || task.id == runningTaskId
+        applySimpleMode(holder, simpleModeEnabled, isSelected)
+
         // ── Card highlight ─────────────────────────────────────────────────────
         val isDlActive = task.isDlBudgetActive
         holder.card.cardElevation = when {
@@ -282,7 +346,11 @@ class TaskAdapter(
             }
         )
 
-        holder.card.setOnClickListener { onTaskClick(task) }
+        // In simple mode a card tap expands/collapses it; forward to caller too.
+        holder.card.setOnClickListener {
+            if (simpleModeEnabled) setSelectedTask(task.id)
+            onTaskClick(task)
+        }
         holder.card.setOnLongClickListener { onTaskLongClick(task); true }
         holder.btnDelete.setOnClickListener { onDeleteClick(task) }
     }
@@ -365,6 +433,60 @@ class TaskAdapter(
         holder.tvTimeSlice.visibility   = statVisibility   // TRT
         // Collapse the entire EEVDF metrics row when all its children are gone
         holder.rowEevdfMetrics.visibility = statVisibility
+    }
+
+    /**
+     * Simple mode: when [simpleModeEnabled] is true and this card is NOT selected
+     * ([isSelected] = false), collapse:
+     *   • Row 0 — progress bars (progressTask + progressQuota)
+     *   • Row 1 (rowTimeInfo)  — TRT / time slice
+     *   • Row 2 (rowEevdfMetrics) — VRT / VDL / RS / Runs
+     *
+     * When the card IS selected (running task or user-tapped), all rows are
+     * restored to their normal visibility (View.VISIBLE), unless compact mode
+     * has already hidden a subset — compact mode takes priority over expansion.
+     *
+     * Must be called AFTER applyCompactMode() so compact-mode GONE wins over
+     * simple-mode VISIBLE when both are active.
+     */
+    /**
+     * Simple mode: when [simpleModeEnabled] is true and this card is NOT selected
+     * ([isSelected] = false), collapse only the text stat rows:
+     *   • Row 1 (rowTimeInfo)    — TRT / time slice
+     *   • Row 2 (rowEevdfMetrics) — VRT / VDL / RS / Runs
+     *
+     * The progress bars (progressTask + progressQuota) are intentionally kept
+     * VISIBLE on collapsed cards for two reasons:
+     *   1. They provide useful at-a-glance status without reading any text.
+     *   2. Keeping them present prevents a two-step resize flicker on close:
+     *      collapse → card shrinks to bar height → bar appears → card grows back.
+     *      With bars always present the card only ever collapses in one step.
+     *
+     * When the card IS selected (running task or user-tapped), all stat rows are
+     * restored. Must be called AFTER applyCompactMode() so compact-mode GONE
+     * wins when both features are active at the same time.
+     */
+    private fun applySimpleMode(holder: TaskViewHolder, simpleModeEnabled: Boolean, isSelected: Boolean) {
+        if (!simpleModeEnabled) return   // feature off — nothing to do
+
+        if (isSelected) {
+            // Expand: restore stat rows (only when compact mode hasn't hidden them)
+            if (!hideNonEssentialStats) {
+                holder.rowTimeInfo.visibility     = View.VISIBLE
+                holder.rowEevdfMetrics.visibility = View.VISIBLE
+                holder.tvVruntime.visibility      = View.VISIBLE
+                holder.tvVdeadline.visibility     = View.VISIBLE
+                holder.tvCpuShare.visibility      = View.VISIBLE
+                holder.tvRunCount.visibility      = View.VISIBLE
+                holder.tvTimeSlice.visibility     = View.VISIBLE
+            }
+            // Progress bars are left as set by quota/task logic above — no touch needed
+        } else {
+            // Collapse: hide only the text stat rows.
+            // Progress bars stay as-is so there is no height jump on close/open.
+            holder.rowTimeInfo.visibility     = View.GONE
+            holder.rowEevdfMetrics.visibility = View.GONE
+        }
     }
 
     // ── Existing helpers (unchanged) ──────────────────────────────────────────

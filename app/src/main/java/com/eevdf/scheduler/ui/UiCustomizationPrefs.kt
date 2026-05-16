@@ -9,9 +9,10 @@ import android.content.SharedPreferences
  */
 object UiCustomizationPrefs {
 
-    private const val PREFS_NAME              = "ui_customization_prefs"
-    private const val KEY_CARD_HEIGHT_SCALE   = "card_height_scale"
-    private const val KEY_AUTO_ADJUST_ENABLED = "auto_adjust_enabled"
+    private const val PREFS_NAME               = "ui_customization_prefs"
+    private const val KEY_CARD_HEIGHT_SCALE    = "card_height_scale"
+    private const val KEY_AUTO_ADJUST_ENABLED  = "auto_adjust_enabled"
+    private const val KEY_SIMPLE_MODE_ENABLED  = "simple_mode_enabled"
 
     /** Default scale = 5 → current (original) card size. */
     const val DEFAULT_CARD_HEIGHT_SCALE = 5
@@ -36,5 +37,14 @@ object UiCustomizationPrefs {
 
     fun setAutoAdjustEnabled(ctx: Context, enabled: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_AUTO_ADJUST_ENABLED, enabled).apply()
+    }
+
+    // ── Simple mode (collapse stats on non-selected cards) ───────────────────
+
+    fun isSimpleModeEnabled(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_SIMPLE_MODE_ENABLED, false)
+
+    fun setSimpleModeEnabled(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_SIMPLE_MODE_ENABLED, enabled).apply()
     }
 }

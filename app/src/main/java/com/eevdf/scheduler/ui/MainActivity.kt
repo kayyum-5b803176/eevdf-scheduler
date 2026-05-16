@@ -182,8 +182,15 @@ class MainActivity : AppCompatActivity() {
      * up immediately when the user navigates back.
      */
     private fun applyDisplayPrefs() {
-        val scale   = UiCustomizationPrefs.getCardHeightScale(this)
-        val autoAdj = UiCustomizationPrefs.isAutoAdjustEnabled(this)
+        val scale      = UiCustomizationPrefs.getCardHeightScale(this)
+        val autoAdj    = UiCustomizationPrefs.isAutoAdjustEnabled(this)
+        val simpleMode = UiCustomizationPrefs.isSimpleModeEnabled(this)
+
+        // Push simple mode to all adapters first — setSimpleMode resets tap
+        // selection when the feature is turned off, so do it before compact mode.
+        activeAdapter.setSimpleMode(simpleMode)
+        scheduleAdapter.setSimpleMode(simpleMode)
+        completedAdapter.setSimpleMode(simpleMode)
 
         // Compact mode is active when auto-adjust is on AND we are in a
         // floating or PiP window (or if it was already detected as active).

@@ -11,9 +11,10 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 
 class UiCustomizationActivity : AppCompatActivity() {
 
-    private lateinit var sliderCardHeight:  Slider
-    private lateinit var tvCardHeightValue: TextView
-    private lateinit var switchAutoAdjust:  SwitchMaterial
+    private lateinit var sliderCardHeight:   Slider
+    private lateinit var tvCardHeightValue:  TextView
+    private lateinit var switchAutoAdjust:   SwitchMaterial
+    private lateinit var switchSimpleMode:   SwitchMaterial
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,6 +28,7 @@ class UiCustomizationActivity : AppCompatActivity() {
         sliderCardHeight  = findViewById(R.id.sliderCardHeight)
         tvCardHeightValue = findViewById(R.id.tvCardHeightValue)
         switchAutoAdjust  = findViewById(R.id.switchAutoAdjust)
+        switchSimpleMode  = findViewById(R.id.switchSimpleMode)
 
         // ── Load saved prefs ──────────────────────────────────────────────────
         val savedScale = UiCustomizationPrefs.getCardHeightScale(this)
@@ -34,6 +36,7 @@ class UiCustomizationActivity : AppCompatActivity() {
         updateScaleLabel(savedScale)
 
         switchAutoAdjust.isChecked = UiCustomizationPrefs.isAutoAdjustEnabled(this)
+        switchSimpleMode.isChecked = UiCustomizationPrefs.isSimpleModeEnabled(this)
 
         // ── Card height slider ────────────────────────────────────────────────
         sliderCardHeight.addOnChangeListener { _, value, _ ->
@@ -45,6 +48,11 @@ class UiCustomizationActivity : AppCompatActivity() {
         // ── Auto Adjust toggle ────────────────────────────────────────────────
         switchAutoAdjust.setOnCheckedChangeListener { _, isChecked ->
             UiCustomizationPrefs.setAutoAdjustEnabled(this, isChecked)
+        }
+
+        // ── Simple Mode toggle ────────────────────────────────────────────────
+        switchSimpleMode.setOnCheckedChangeListener { _, isChecked ->
+            UiCustomizationPrefs.setSimpleModeEnabled(this, isChecked)
         }
     }
 
