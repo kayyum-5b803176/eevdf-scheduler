@@ -39,7 +39,8 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -99,6 +100,13 @@
         <!-- Auto Switch settings screen -->
         <activity
             android:name=".ui.AutoSwitchActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.SettingsActivity" />
+
+        <!-- UI Customization settings screen -->
+        <activity
+            android:name=".ui.UiCustomizationActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName=".ui.SettingsActivity" />

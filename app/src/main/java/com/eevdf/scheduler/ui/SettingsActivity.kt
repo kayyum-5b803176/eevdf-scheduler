@@ -10,10 +10,11 @@ import com.google.android.material.button.MaterialButton
 
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var btnOpenDataBackup:    MaterialButton
-    private lateinit var btnOpenSoundVib:      MaterialButton
-    private lateinit var btnOpenAutoSwitch:    MaterialButton
-    private lateinit var btnOpenMultiUserSync: MaterialButton
+    private lateinit var btnOpenDataBackup:       MaterialButton
+    private lateinit var btnOpenSoundVib:         MaterialButton
+    private lateinit var btnOpenAutoSwitch:       MaterialButton
+    private lateinit var btnOpenMultiUserSync:    MaterialButton
+    private lateinit var btnOpenUiCustomization:  MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,10 +25,11 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Settings"
 
-        btnOpenDataBackup = findViewById(R.id.btnOpenDataBackup)
-        btnOpenSoundVib   = findViewById(R.id.btnOpenSoundVibration)
-        btnOpenAutoSwitch    = findViewById(R.id.btnOpenAutoSwitch)
-        btnOpenMultiUserSync = findViewById(R.id.btnOpenMultiUserSync)
+        btnOpenDataBackup      = findViewById(R.id.btnOpenDataBackup)
+        btnOpenSoundVib        = findViewById(R.id.btnOpenSoundVibration)
+        btnOpenAutoSwitch      = findViewById(R.id.btnOpenAutoSwitch)
+        btnOpenMultiUserSync   = findViewById(R.id.btnOpenMultiUserSync)
+        btnOpenUiCustomization = findViewById(R.id.btnOpenUiCustomization)
 
         btnOpenDataBackup.setOnClickListener {
             startActivity(Intent(this, DataBackupActivity::class.java))
@@ -40,6 +42,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         btnOpenMultiUserSync.setOnClickListener {
             startActivity(Intent(this, MultiUserSyncActivity::class.java))
+        }
+        btnOpenUiCustomization.setOnClickListener {
+            startActivity(Intent(this, UiCustomizationActivity::class.java))
         }
     }
 

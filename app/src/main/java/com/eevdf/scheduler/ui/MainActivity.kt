@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.scheduler.ui.AutoSwitchPrefs
 import com.eevdf.scheduler.ui.CallEvents
+import com.eevdf.scheduler.ui.UiCustomizationPrefs
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -64,6 +65,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvAlarmSubtitle:     TextView
     private lateinit var btnStopAlarm:        MaterialButton
     private lateinit var viewPhaseStatus:     View
+
+    // ── UI Customization: card content containers for height scaling ───────────
+    private lateinit var layoutAlarmContent:  LinearLayout
+    private lateinit var layoutTimerContent:  LinearLayout
+
+    /** True while the activity is in a floating or PiP window — compact stats hidden. */
+    private var isCompactModeActive: Boolean = false
 
     // ── Sync icon views (set in onCreateOptionsMenu after action view inflates) ──
     private var syncDotView:  View?  = null
@@ -157,6 +165,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         quotaTickHandler.post(quotaTickRunnable)
         viewModel.onSyncResume()
+        // Re-read UI customization prefs every time we come back to the activity
+        // (user may have changed them in UiCustomizationActivity and pressed Back)
+        applyDisplayPrefs()
     }
     override fun onPause()  {
         super.onPause()
@@ -164,7 +175,97 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Sends PAYLOAD_QUOTA_TICK to every currently visible item in the active
+     * Reads card height scale and auto-adjust preference from [UiCustomizationPrefs]
+     * and pushes them to all three adapters and the fixed timer / alarm cards.
+     *
+     * Called on [onResume] so changes made in [UiCustomizationActivity] are picked
+     * up immediately when the user navigates back.
+     */
+    private fun applyDisplayPrefs() {
+        val scale   = UiCustomizationPrefs.getCardHeightScale(this)
+        val autoAdj = UiCustomizationPrefs.isAutoAdjustEnabled(this)
+
+        // Compact mode is active when auto-adjust is on AND we are in a
+        // floating or PiP window (or if it was already detected as active).
+        updateCompactMode(scale, autoAdj)
+    }
+
+    /**
+     * Detects whether the activity is currently running in a floating or
+     * picture-in-picture window and updates [isCompactModeActive] accordingly.
+     *
+     * Floating detection strategy (API 26+):
+     *  • PiP mode  → definitive compact trigger
+     *  • Multi-window with a narrow window (< 400 dp)  → compact trigger
+     *
+     * When auto-adjust is disabled, compact mode is always off regardless of
+     * the window state.
+     */
+    private fun updateCompactMode(scale: Int, autoAdjust: Boolean) {
+        val density = resources.displayMetrics.density
+
+        val inPip = isInPictureInPictureMode
+
+        // Use resources.configuration.screenWidthDp — this reflects the WINDOW
+        // width, not the physical screen width, so it is correct for freeform,
+        // split-screen, and floating window modes.
+        val windowWidthDp = resources.configuration.screenWidthDp
+        val inNarrowWindow = isInMultiWindowMode && windowWidthDp < 400
+
+        val shouldBeCompact = autoAdjust && (inPip || inNarrowWindow)
+        isCompactModeActive = shouldBeCompact
+
+        // Push scale + compact flag to all adapters
+        activeAdapter.setDisplayPrefs(scale, shouldBeCompact)
+        scheduleAdapter.setDisplayPrefs(scale, shouldBeCompact)
+        completedAdapter.setDisplayPrefs(scale, shouldBeCompact)
+
+        // Scale the fixed cards (timer + alarm) to match task cards
+        applyCardScaleToView(layoutTimerContent, scale, density)
+        applyCardScaleToView(layoutAlarmContent, scale, density)
+    }
+
+    /**
+     * Scales the padding of a card content [LinearLayout] to match [scale].
+     * The same scale table used in [TaskAdapter.applyCardScale] — keeps all
+     * card types visually consistent.
+     */
+    private fun applyCardScaleToView(layout: LinearLayout, scale: Int, density: Float) {
+        val paddingDp = when (scale) { 5 -> 16f; 4 -> 13f; 3 -> 10f; 2 -> 7f; else -> 5f }
+        val p = (paddingDp * density + 0.5f).toInt()
+        layout.setPadding(p, p, p, p)
+    }
+
+    // ── Window / configuration change callbacks ───────────────────────────────
+
+    /**
+     * Fired when the user resizes a freeform / floating window.
+     * Because we declare screenSize|smallestScreenSize in android:configChanges
+     * (see AndroidManifest), the activity is NOT recreated — this callback fires
+     * instead, letting us react to width changes immediately.
+     */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (UiCustomizationPrefs.isAutoAdjustEnabled(this)) {
+            applyDisplayPrefs()
+        }
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode)
+        if (UiCustomizationPrefs.isAutoAdjustEnabled(this)) {
+            applyDisplayPrefs()
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        if (UiCustomizationPrefs.isAutoAdjustEnabled(this)) {
+            applyDisplayPrefs()
+        }
+    }
+
+    /**
      * RecyclerView. Only tasks with quota enabled need a redraw — the adapter's
      * partial-bind handler skips all other views untouched.
      */
@@ -210,6 +311,8 @@ class MainActivity : AppCompatActivity() {
         tvAlarmSubtitle   = findViewById(R.id.tvAlarmSubtitle)
         btnStopAlarm      = findViewById(R.id.btnStopAlarm)
         viewPhaseStatus   = findViewById(R.id.viewPhaseStatus)
+        layoutAlarmContent = findViewById(R.id.layoutAlarmContent)
+        layoutTimerContent = findViewById(R.id.layoutTimerContent)
 
         fabAdd.setOnClickListener {
             haptic(it)

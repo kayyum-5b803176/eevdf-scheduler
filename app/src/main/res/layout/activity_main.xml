@@ -100,6 +100,7 @@
             app:cardBackgroundColor="#B71C1C">
 
             <LinearLayout
+                android:id="@+id/layoutAlarmContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -195,6 +196,7 @@
 
                 <!-- Content area with padding -->
                 <LinearLayout
+                    android:id="@+id/layoutTimerContent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"

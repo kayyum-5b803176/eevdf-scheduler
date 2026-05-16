@@ -10,6 +10,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.cardview.widget.CardView
@@ -39,35 +40,63 @@ class TaskAdapter(
 
     private var runningTaskId: String? = null
 
+    // ── UI Customization state ────────────────────────────────────────────────
+    /** Card height scale: 1 (smallest / most compact) … 5 (default full size). */
+    var cardHeightScale: Int = 5
+        private set
+
+    /**
+     * When true, hides non-essential EEVDF stats (VRT, VDL, RS, Runs, TRT) to
+     * save space in floating / PiP window mode.
+     */
+    var hideNonEssentialStats: Boolean = false
+        private set
+
+    /**
+     * Apply a new display configuration and trigger a full rebind so all visible
+     * items reflect the updated scale and compact mode immediately.
+     */
+    fun setDisplayPrefs(scale: Int, compact: Boolean) {
+        val changed = scale != cardHeightScale || compact != hideNonEssentialStats
+        cardHeightScale       = scale.coerceIn(1, 5)
+        hideNonEssentialStats = compact
+        if (changed) notifyDataSetChanged()
+    }
+
     fun setRunningTask(id: String?) {
         runningTaskId = id
         notifyDataSetChanged()
     }
 
     class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val card:           CardView    = itemView.findViewById(R.id.cardTask)
-        val tvRank:         TextView    = itemView.findViewById(R.id.tvRank)
-        val tvName:         TextView    = itemView.findViewById(R.id.tvTaskName)
-        val tvCategory:     TextView    = itemView.findViewById(R.id.tvCategory)
-        val tvPriority:     TextView    = itemView.findViewById(R.id.tvPriority)
-        val tvQuotaRemaining: TextView  = itemView.findViewById(R.id.tvQuotaRemaining)
-        val tvDlStatus:     TextView    = itemView.findViewById(R.id.tvDlStatus)
-        val tvRtStatus:     TextView    = itemView.findViewById(R.id.tvRtStatus)
-        val tvTimeSlice:    TextView    = itemView.findViewById(R.id.tvTimeSlice)
-        val tvRemaining:    TextView    = itemView.findViewById(R.id.tvRemaining)
-        val tvVruntime:     TextView    = itemView.findViewById(R.id.tvVruntime)
-        val tvVdeadline:    TextView    = itemView.findViewById(R.id.tvVdeadline)
-        val tvCpuShare:     TextView    = itemView.findViewById(R.id.tvCpuShare)
-        val progressBar:    ProgressBar = itemView.findViewById(R.id.progressTask)
-        val progressQuota:  ProgressBar = itemView.findViewById(R.id.progressQuota)
-        val btnDelete:      ImageButton = itemView.findViewById(R.id.btnDelete)
-        val btnComplete:    ImageButton = itemView.findViewById(R.id.btnComplete)
-        val btnRun:         ImageButton = itemView.findViewById(R.id.btnRun)
-        val btnGroupToggle: ImageButton = itemView.findViewById(R.id.btnGroupToggle)
-        val btnResetSlice:  ImageButton = itemView.findViewById(R.id.btnResetSlice)
-        val btnRevert:      ImageButton = itemView.findViewById(R.id.btnRevert)
-        val tvRunCount:     TextView    = itemView.findViewById(R.id.tvRunCount)
-        val viewRunning:    View        = itemView.findViewById(R.id.viewRunningIndicator)
+        val card:              CardView     = itemView.findViewById(R.id.cardTask)
+        val tvRank:            TextView     = itemView.findViewById(R.id.tvRank)
+        val tvName:            TextView     = itemView.findViewById(R.id.tvTaskName)
+        val tvCategory:        TextView     = itemView.findViewById(R.id.tvCategory)
+        val tvPriority:        TextView     = itemView.findViewById(R.id.tvPriority)
+        val tvQuotaRemaining:  TextView     = itemView.findViewById(R.id.tvQuotaRemaining)
+        val tvDlStatus:        TextView     = itemView.findViewById(R.id.tvDlStatus)
+        val tvRtStatus:        TextView     = itemView.findViewById(R.id.tvRtStatus)
+        val tvTimeSlice:       TextView     = itemView.findViewById(R.id.tvTimeSlice)
+        val tvRemaining:       TextView     = itemView.findViewById(R.id.tvRemaining)
+        val tvVruntime:        TextView     = itemView.findViewById(R.id.tvVruntime)
+        val tvVdeadline:       TextView     = itemView.findViewById(R.id.tvVdeadline)
+        val tvCpuShare:        TextView     = itemView.findViewById(R.id.tvCpuShare)
+        val progressBar:       ProgressBar  = itemView.findViewById(R.id.progressTask)
+        val progressQuota:     ProgressBar  = itemView.findViewById(R.id.progressQuota)
+        val btnDelete:         ImageButton  = itemView.findViewById(R.id.btnDelete)
+        val btnComplete:       ImageButton  = itemView.findViewById(R.id.btnComplete)
+        val btnRun:            ImageButton  = itemView.findViewById(R.id.btnRun)
+        val btnGroupToggle:    ImageButton  = itemView.findViewById(R.id.btnGroupToggle)
+        val btnResetSlice:     ImageButton  = itemView.findViewById(R.id.btnResetSlice)
+        val btnRevert:         ImageButton  = itemView.findViewById(R.id.btnRevert)
+        val tvRunCount:        TextView     = itemView.findViewById(R.id.tvRunCount)
+        val viewRunning:       View         = itemView.findViewById(R.id.viewRunningIndicator)
+        // ── UI Customization: layout containers for spacing & compact mode ────
+        val layoutCardContent: LinearLayout = itemView.findViewById(R.id.layoutCardContent)
+        val rowTimeInfo:       LinearLayout = itemView.findViewById(R.id.rowTimeInfo)
+        val rowEevdfMetrics:   LinearLayout = itemView.findViewById(R.id.rowEevdfMetrics)
+        val rowActionButtons:  LinearLayout = itemView.findViewById(R.id.rowActionButtons)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
@@ -86,6 +115,9 @@ class TaskAdapter(
         val params  = holder.itemView.layoutParams as RecyclerView.LayoutParams
         params.marginStart = (item.depth * 20 * density).toInt()
         holder.itemView.layoutParams = params
+
+        // ── UI Customization: card height scale ───────────────────────────────
+        applyCardScale(holder, cardHeightScale, density)
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
@@ -227,6 +259,9 @@ class TaskAdapter(
             holder.progressQuota.visibility    = View.GONE
         }
 
+        // ── UI Customization: hide non-essential stats in compact / floating mode ──
+        applyCompactMode(holder, hideNonEssentialStats)
+
         // ── Card highlight ─────────────────────────────────────────────────────
         val isDlActive = task.isDlBudgetActive
         holder.card.cardElevation = when {
@@ -252,14 +287,91 @@ class TaskAdapter(
         holder.btnDelete.setOnClickListener { onDeleteClick(task) }
     }
 
+    // ── UI Customization helpers ──────────────────────────────────────────────
+
+    /**
+     * Scales the card's inner padding, outer margins, and row spacing based on
+     * [scale] (1 = most compact, 5 = default). Font sizes are never changed.
+     *
+     * Scale table:
+     * | Scale | Content padding | Card top | Card bottom | Row gaps | Btn row gap |
+     * |-------|----------------|---------|-------------|----------|-------------|
+     * |   5   |    14 dp        |  8 dp   |    4 dp     |  4 dp    |    8 dp     |
+     * |   4   |    11 dp        |  6 dp   |    3 dp     |  3 dp    |    6 dp     |
+     * |   3   |     8 dp        |  5 dp   |    2 dp     |  2 dp    |    4 dp     |
+     * |   2   |     6 dp        |  3 dp   |    1 dp     |  1 dp    |    2 dp     |
+     * |   1   |     4 dp        |  2 dp   |    1 dp     |  0 dp    |    2 dp     |
+     */
+    private fun applyCardScale(holder: TaskViewHolder, scale: Int, density: Float) {
+        val contentPaddingDp = when (scale) { 5 -> 14f; 4 -> 11f; 3 -> 8f; 2 -> 6f; else -> 4f }
+        val cardTopDp        = when (scale) { 5 ->  8f; 4 ->  6f; 3 -> 5f; 2 -> 3f; else -> 2f }
+        val cardBottomDp     = when (scale) { 5 ->  4f; 4 ->  3f; 3 -> 2f; 2 -> 1f; else -> 1f }
+        val rowGapDp         = when (scale) { 5 ->  4f; 4 ->  3f; 3 -> 2f; 2 -> 1f; else -> 0f }
+        val btnGapDp         = when (scale) { 5 ->  8f; 4 ->  6f; 3 -> 4f; 2 -> 2f; else -> 2f }
+        val progressTopDp    = when (scale) { 5 ->  8f; 4 ->  6f; 3 -> 5f; 2 -> 3f; else -> 2f }
+
+        val px = { dp: Float -> (dp * density + 0.5f).toInt() }
+
+        // Inner content padding
+        val p = px(contentPaddingDp)
+        holder.layoutCardContent.setPadding(p, p, p, p)
+
+        // Card outer vertical margins (preserve depth marginStart set just before)
+        val cardLp = holder.itemView.layoutParams as? RecyclerView.LayoutParams
+        cardLp?.let {
+            it.topMargin    = px(cardTopDp)
+            it.bottomMargin = px(cardBottomDp)
+            holder.itemView.layoutParams = it
+        }
+
+        // ProgressBar top margin
+        (holder.progressBar.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
+            lp.topMargin = px(progressTopDp)
+            holder.progressBar.layoutParams = lp
+        }
+
+        // Row 2 (time info) top margin
+        (holder.rowTimeInfo.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
+            lp.topMargin = px(rowGapDp)
+            holder.rowTimeInfo.layoutParams = lp
+        }
+
+        // Row 3 (EEVDF metrics) top margin
+        (holder.rowEevdfMetrics.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
+            lp.topMargin = px(rowGapDp)
+            holder.rowEevdfMetrics.layoutParams = lp
+        }
+
+        // Row 4 (action buttons) top margin
+        (holder.rowActionButtons.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
+            lp.topMargin = px(btnGapDp)
+            holder.rowActionButtons.layoutParams = lp
+        }
+    }
+
+    /**
+     * Hides (or restores) the non-essential scheduler stat fields when [compact]
+     * is true. The entire EEVDF metrics row collapses to zero height when hidden;
+     * TRT is hidden in Row 2 while the countdown timer remains visible.
+     *
+     * Hidden fields: VRT · VDL · RS · Runs · TRT
+     */
+    private fun applyCompactMode(holder: TaskViewHolder, compact: Boolean) {
+        val statVisibility = if (compact) View.GONE else View.VISIBLE
+        holder.tvVruntime.visibility    = statVisibility
+        holder.tvVdeadline.visibility   = statVisibility
+        holder.tvCpuShare.visibility    = statVisibility
+        holder.tvRunCount.visibility    = statVisibility
+        holder.tvTimeSlice.visibility   = statVisibility   // TRT
+        // Collapse the entire EEVDF metrics row when all its children are gone
+        holder.rowEevdfMetrics.visibility = statVisibility
+    }
+
+    // ── Existing helpers (unchanged) ──────────────────────────────────────────
+
     /**
      * Format a duration in seconds as a compact real-time string, showing only
      * the two most significant non-zero units down to seconds.
-     * Examples: 0s · 45s · 3m 8s · 2h 23m · 1d 3h · 1m 1d · 1y 1m 1d 3h 23m 8s
-     *
-     * Unit definitions (average):
-     *   1 year  = 365 days
-     *   1 month = 30 days
      */
     private fun formatTRT(totalSec: Long): String {
         if (totalSec <= 0L) return "0s"
@@ -283,10 +395,6 @@ class TaskAdapter(
         return parts.joinToString(" ")
     }
 
-    /**
-     * Compact human-readable duration for quota remaining.
-     * Shows the two most significant units: "1d 3h", "45m", "30s", etc.
-     */
     private fun formatQuota(totalSec: Long): String {
         if (totalSec <= 0L) return "0s"
         var rem = totalSec
@@ -303,15 +411,8 @@ class TaskAdapter(
         return parts.take(2).joinToString(" ")
     }
 
-    /**
-     * Compact duration for the DL status badge — same two-significant-unit format
-     * as [formatQuota] but used for runtime-remaining and period-remaining labels.
-     */
     private fun formatDlDuration(totalSec: Long): String = formatQuota(totalSec)
 
-    /**
-     * Returns the priority-level colour for [task] using the resource colour table.
-     */
     private fun priorityColor(holder: TaskViewHolder, task: Task): Int =
         when (task.priority) {
             7    -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority7)
@@ -323,19 +424,6 @@ class TaskAdapter(
             else -> androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.priority1)
         }
 
-    /**
-     * Builds and sets the priority label on [tv].
-     *
-     * When the task has a non-default scheduler class, a coloured banner is
-     * prepended using a [SpannableString]:
-     *
-     *   [DL]  Priority: 4   ← "DL" in red, rest in priority colour
-     *   [RT]  Priority: 4   ← "RT" in deep-orange
-     *   [STOP] Priority: 4  ← "STOP" in red
-     *   [IDLE] Priority: 4  ← "IDLE" in grey
-     *
-     * For the default fair_sched_class no banner is shown.
-     */
     private fun bindPriorityLabel(tv: TextView, task: Task, pColor: Int) {
         val priorityPart = if (task.internalWeight != null)
             "Priority: ${"%.2f".format(task.weight)}"
@@ -350,36 +438,24 @@ class TaskAdapter(
             else               -> null
         }
         val bannerColor = when (task.schedulerClass) {
-            "dl_sched_class"   -> Color.parseColor("#D32F2F")   // red
-            "rt_sched_class"   -> Color.parseColor("#E64A19")   // deep-orange
-            "stop_sched_class" -> Color.parseColor("#B71C1C")   // dark red
-            "idle_sched_class" -> Color.parseColor("#757575")   // grey
+            "dl_sched_class"   -> Color.parseColor("#D32F2F")
+            "rt_sched_class"   -> Color.parseColor("#E64A19")
+            "stop_sched_class" -> Color.parseColor("#B71C1C")
+            "idle_sched_class" -> Color.parseColor("#757575")
             else               -> pColor
         }
 
         if (banner != null) {
             val full = SpannableString("$banner  $priorityPart")
-            full.setSpan(
-                ForegroundColorSpan(bannerColor),
-                0, banner.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            full.setSpan(
-                StyleSpan(Typeface.BOLD),
-                0, banner.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
+            full.setSpan(ForegroundColorSpan(bannerColor), 0, banner.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            full.setSpan(StyleSpan(Typeface.BOLD),         0, banner.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             tv.text = full
         } else {
             tv.text = priorityPart
         }
-        tv.setTextColor(pColor)   // applies to the priority part; banner span overrides its own colour
+        tv.setTextColor(pColor)
     }
 
-    /**
-     * Sets the DL badge background colour by mutating the existing drawable.
-     * Avoids re-fetching the drawable from resources on every bind.
-     */
     private fun applyPillColor(tv: TextView, context: android.content.Context, hexColor: String) {
         val bg = tv.background?.mutate()
             ?: androidx.core.content.ContextCompat
@@ -389,15 +465,8 @@ class TaskAdapter(
         tv.background = bg
     }
 
-    /**
-     * Adjusts progressQuota's top margin based on whether progressTask is also visible.
-     *
-     * One bar  (group card): 8dp top — same spacing as progressTask, centred in card.
-     * Two bars (task card) : 3dp top — close enough to read as a pair, far enough to
-     *                        distinguish colours, negligible effect on card height.
-     */
     private fun setQuotaBarTopMargin(holder: TaskViewHolder, bothBarsVisible: Boolean) {
-        val lp    = holder.progressQuota.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        val lp    = holder.progressQuota.layoutParams as? LinearLayout.LayoutParams ?: return
         val density = holder.progressQuota.context.resources.displayMetrics.density
         lp.topMargin = ((if (bothBarsVisible) 3f else 8f) * density + 0.5f).toInt()
         holder.progressQuota.layoutParams = lp
@@ -406,11 +475,6 @@ class TaskAdapter(
     /** Payload used for the 1-second quota tick — skips full rebind to avoid flicker. */
     companion object { const val PAYLOAD_QUOTA_TICK = "quota_tick" }
 
-    /**
-     * Fast partial rebind triggered by the 1-second ticker in MainActivity.
-     * Only updates quota label, progress bar and card background colour.
-     * Falls through to full bind when payloads list is empty or unknown.
-     */
     override fun onBindViewHolder(
         holder: TaskViewHolder, position: Int, payloads: MutableList<Any>
     ) {
@@ -425,9 +489,6 @@ class TaskAdapter(
     private fun bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplayItem) {
         val task = item.task
 
-        // Quota bar / text / progress — always read live from the task's OWN
-        // computed properties so the countdown stays accurate between DB emissions,
-        // and so a fully-replenished task stops showing the yellow bar immediately.
         val ownQuotaExceeded = task.isQuotaExceeded
         val ownQuotaWarning  = task.isQuotaWarning
         val isRunning        = task.id == runningTaskId
@@ -494,23 +555,9 @@ class TaskAdapter(
             holder.tvRtStatus.visibility = View.GONE
         }
 
-        // Card background — must reflect BOTH the task's own live quota state AND
-        // any quota state inherited from a parent group.
-        //
-        // item.effectiveQuotaExceeded / effectiveQuotaWarning are stamped at
-        // list-build time and carry the parent's state for children that have no
-        // quota of their own.  Combining them with the live own-task values gives
-        // correct behaviour in all cases:
-        //   • Child with no quota, parent exceeded  → effectiveQuotaExceeded=true,
-        //     ownQuotaExceeded=false  → card stays light-red (no flicker)
-        //   • Child with own quota exceeded          → ownQuotaExceeded=true
-        //     → card light-red regardless of parent
-        //   • Parent replenishes                     → next list rebuild clears
-        //     effectiveQuotaExceeded → card returns to white on next tick
         val cardQuotaExceeded = item.effectiveQuotaExceeded || ownQuotaExceeded
         val cardQuotaWarning  = item.effectiveQuotaWarning  || ownQuotaWarning
 
-        // Card background can transition as quota decays or DL/RT period resets between full binds
         holder.card.cardElevation = when {
             isRunning  -> 12f
             isDlActive -> 8f
