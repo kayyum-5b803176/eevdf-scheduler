@@ -590,7 +590,16 @@ class TaskAdapter(
     private fun setQuotaBarTopMargin(holder: TaskViewHolder, bothBarsVisible: Boolean) {
         val lp    = holder.progressQuota.layoutParams as? LinearLayout.LayoutParams ?: return
         val density = holder.progressQuota.context.resources.displayMetrics.density
-        lp.topMargin = ((if (bothBarsVisible) 3f else 8f) * density + 0.5f).toInt()
+        // When both bars are shown the gap between them scales down with cardHeightScale,
+        // matching the same rhythm as the rest of the card spacing.
+        // When only the quota bar is shown (no task-progress bar), use a slightly
+        // larger gap relative to the content padding.
+        val gapDp = if (bothBarsVisible) {
+            when (cardHeightScale) { 5 -> 3f; 4 -> 2f; 3 -> 2f; 2 -> 1f; else -> 1f }
+        } else {
+            when (cardHeightScale) { 5 -> 8f; 4 -> 6f; 3 -> 5f; 2 -> 3f; else -> 2f }
+        }
+        lp.topMargin = (gapDp * density + 0.5f).toInt()
         holder.progressQuota.layoutParams = lp
     }
 

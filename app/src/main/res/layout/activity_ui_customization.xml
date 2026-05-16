@@ -26,6 +26,51 @@
             android:orientation="vertical"
             android:padding="24dp">
 
+            <!-- ══ SIMPLE MODE ═════════════════════════════════════════════ -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="SIMPLE MODE"
+                android:textSize="11sp"
+                android:letterSpacing="0.12"
+                android:textColor="@color/colorPrimary"
+                android:fontFamily="sans-serif-medium"
+                android:paddingBottom="12dp" />
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchSimpleMode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Simple Mode"
+                        android:textSize="16sp"
+                        android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Non-selected cards collapse their stats rows, showing only the task name and actions. Tap a card to expand it. The running task is always expanded."
+                        android:textSize="12sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginTop="4dp" />
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- ══ CARD HEIGHT ══════════════════════════════════════════════ -->
             <TextView
                 android:layout_width="match_parent"
@@ -134,7 +179,7 @@
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="24dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="2dp"
                 app:cardBackgroundColor="@android:color/white">
@@ -161,129 +206,6 @@
                         android:textSize="12sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="4dp" />
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Info card: which stats are hidden -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="#F5F5F5">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Hidden in compact mode"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/textSecondary"
-                        android:layout_marginBottom="6dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="VRT  ·  VDL  ·  RS  ·  Runs  ·  TRT"
-                        android:textSize="12sp"
-                        android:textColor="@color/textSecondary"
-                        android:fontFamily="monospace" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Triggered when window width &lt; 400 dp or in PiP"
-                        android:textSize="11sp"
-                        android:textColor="@color/divider"
-                        android:layout_marginTop="4dp" />
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- ══ SIMPLE MODE ═════════════════════════════════════════════ -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="SIMPLE MODE"
-                android:textSize="11sp"
-                android:letterSpacing="0.12"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp" />
-
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchSimpleMode"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Simple Mode"
-                        android:textSize="16sp"
-                        android:textColor="@color/textPrimary"
-                        android:fontFamily="sans-serif-medium" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Non-selected cards collapse their stats rows, showing only the task name and actions. Tap a card to expand it. The running task is always expanded."
-                        android:textSize="12sp"
-                        android:textColor="@color/textSecondary"
-                        android:layout_marginTop="4dp" />
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Info card: which rows collapse -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="#F5F5F5">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Collapsed on non-selected cards"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/textSecondary"
-                        android:layout_marginBottom="6dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Row 1  ·  TRT / Time slice\nRow 2  ·  VRT  ·  VDL  ·  RS  ·  Runs\n\nProgress bars always stay visible."
-                        android:textSize="12sp"
-                        android:textColor="@color/textSecondary"
-                        android:fontFamily="monospace" />
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
