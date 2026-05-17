@@ -70,6 +70,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutAlarmContent:  LinearLayout
     private lateinit var layoutTimerContent:  LinearLayout
 
+    // ── Float-mode banner hiding ───────────────────────────────────────────────
+    private lateinit var mainToolbar:  Toolbar
+    private lateinit var statsBar:     LinearLayout
+
     /** True while the activity is in a floating or PiP window — compact stats hidden. */
     private var isCompactModeActive: Boolean = false
 
@@ -220,8 +224,6 @@ class MainActivity : AppCompatActivity() {
         val inPip     = isInPictureInPictureMode
         val inMulti   = isInMultiWindowMode
 
-        // Calibrated profiles take priority over raw multi-window detection.
-        // NORMAL → never compact; FLOAT / MINI → compact; null → fallback to isInMultiWindowMode.
         val matched   = UiCustomizationPrefs.matchProfile(this, widthDp, heightDp)
         val shouldBeCompact = autoAdjust && when (matched) {
             null -> inPip || inMulti
@@ -233,6 +235,18 @@ class MainActivity : AppCompatActivity() {
         activeAdapter.setDisplayPrefs(scale, shouldBeCompact)
         scheduleAdapter.setDisplayPrefs(scale, shouldBeCompact)
         completedAdapter.setDisplayPrefs(scale, shouldBeCompact)
+
+        // ── Float-mode banner hiding ──────────────────────────────────────────
+        // When the window matches the FLOAT calibration profile, hide:
+        //   • Banner 1 — toolbar (app name + all menu icons)
+        //   • Banner 2 — statsBar (task status statistics)
+        // The TabLayout row stays visible so the user can switch tabs.
+        // Both banners are restored for any other profile or when auto-adjust
+        // is off, so normal / mini / uncalibrated modes are unaffected.
+        val isFloatProfile = autoAdjust && matched == UiCustomizationPrefs.CalibrateProfile.FLOAT
+        val bannerVis = if (isFloatProfile) View.GONE else View.VISIBLE
+        mainToolbar.visibility = bannerVis
+        statsBar.visibility    = bannerVis
 
         // Scale the fixed cards (timer + alarm) to match task cards
         applyCardScaleToView(layoutTimerContent, scale, density)
@@ -301,6 +315,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupToolbar() {
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
+        mainToolbar = toolbar
+        statsBar    = findViewById(R.id.statsBar)
         supportActionBar?.title = "EEVDF Task Scheduler"
     }
 
