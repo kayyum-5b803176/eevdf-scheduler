@@ -564,6 +564,17 @@ class MainActivity : AppCompatActivity() {
         viewModel.allowEditEnabled.observe(this) { enabled ->
             allowEditMenuItem?.isChecked = enabled
             fabAdd.visibility = if (enabled) View.VISIBLE else View.GONE
+            // Sync RecyclerView bottom padding with FAB presence.
+            // When FAB is hidden the 80dp reserved gap is no longer needed;
+            // keeping it causes smoothScrollToPosition to overscroll and bounce.
+            val fabPadPx = if (enabled)
+                (80 * resources.displayMetrics.density).toInt() else 0
+            recyclerView.setPadding(
+                recyclerView.paddingLeft,
+                recyclerView.paddingTop,
+                recyclerView.paddingRight,
+                fabPadPx
+            )
         }
         viewModel.autoScrollEnabled.observe(this) { enabled ->
             autoScrollMenuItem?.isChecked = enabled
@@ -620,17 +631,25 @@ class MainActivity : AppCompatActivity() {
      */
     private fun scrollToTask(taskId: String) {
         // Only scroll within the currently visible tab — never switch tabs
-
         val currentAdapter = when (currentTab) {
             0    -> activeAdapter
             1    -> scheduleAdapter
             else -> return
         }
         val position = currentAdapter.currentList.indexOfFirst { it.task.id == taskId }
-        if (position >= 0) {
-            (recyclerView.layoutManager as? LinearLayoutManager)
-                ?.smoothScrollToPosition(recyclerView, null, position)
-        }
+        if (position < 0) return
+
+        val llm = recyclerView.layoutManager as? LinearLayoutManager ?: return
+
+        // Guard: if the item is already at least partially visible, don't scroll.
+        // Without this check, smoothScrollToPosition fires every time currentTask
+        // emits (every timer tick), causing the card to bounce back and forth —
+        // especially when the FAB is hidden and the RecyclerView has extra height.
+        val firstVisible = llm.findFirstVisibleItemPosition()
+        val lastVisible  = llm.findLastVisibleItemPosition()
+        if (position in firstVisible..lastVisible) return
+
+        llm.smoothScrollToPosition(recyclerView, null, position)
     }
 
     private fun updateScheduleRankBadge() {

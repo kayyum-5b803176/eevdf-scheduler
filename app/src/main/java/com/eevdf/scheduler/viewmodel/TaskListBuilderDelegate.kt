@@ -177,7 +177,8 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     cpuShare               = shares[task.id] ?: 0.0,
                     effectiveQuotaExceeded = quotaExceeded,
                     effectiveQuotaWarning  = quotaWarning,
-                    queueNumber            = number))
+                    queueNumber            = number,
+                    isExpanded             = if (task.isGroup) (vm.groupExpand.queueExpandState[task.id] ?: true) else true))
                 if (task.isGroup && (vm.groupExpand.queueExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning)
             }
@@ -276,7 +277,8 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     isDlActive             = task.isDlBudgetActive,
                     isDlGroupHoisted       = isDlGroupHoisted,
                     isRtActive             = isRtActive,
-                    isRtGroupHoisted       = isRtGroupHoisted))
+                    isRtGroupHoisted       = isRtGroupHoisted,
+                    isExpanded             = if (task.isGroup) (vm.groupExpand.scheduleExpandState[task.id] ?: true) else true))
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
             }

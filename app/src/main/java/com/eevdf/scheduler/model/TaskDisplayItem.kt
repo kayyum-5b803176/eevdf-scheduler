@@ -69,5 +69,14 @@ data class TaskDisplayItem(
      * leaf is inside its RT activation window.  Mirrors [isDlGroupHoisted] for
      * the RT class.
      */
-    val isRtGroupHoisted: Boolean = false
+    val isRtGroupHoisted: Boolean = false,
+
+    /**
+     * For group tasks: whether this group is currently expanded (children visible).
+     * Stamped at list-build time from the ViewModel expand-state maps so that
+     * DiffUtil detects a content change when the group is toggled and triggers
+     * a rebind — ensuring the arrow icon rotation updates correctly.
+     * Always true for leaf tasks (expand state is not meaningful).
+     */
+    val isExpanded: Boolean = true
 )
