@@ -203,27 +203,33 @@ class MainActivity : AppCompatActivity() {
      * picture-in-picture window and updates [isCompactModeActive] accordingly.
      *
      * Floating detection strategy (API 26+):
-     *  • PiP mode  → definitive compact trigger
-     *  • Multi-window with a narrow window (< 400 dp)  → compact trigger
+     *  • PiP mode         → definitive compact trigger
+     *  • Multi-window     → compact trigger (covers freeform floating windows,
+     *                        split-screen, and any other windowed mode).
+     *                        resources.configuration.screenWidthDp reflects the
+     *                        real window width, not the physical screen — used
+     *                        for logging / future threshold tuning if needed.
      *
      * When auto-adjust is disabled, compact mode is always off regardless of
      * the window state.
      */
     private fun updateCompactMode(scale: Int, autoAdjust: Boolean) {
-        val density = resources.displayMetrics.density
+        val density   = resources.displayMetrics.density
+        val widthDp   = resources.configuration.screenWidthDp
+        val heightDp  = resources.configuration.screenHeightDp
+        val inPip     = isInPictureInPictureMode
+        val inMulti   = isInMultiWindowMode
 
-        val inPip = isInPictureInPictureMode
+        // Calibrated profiles take priority over raw multi-window detection.
+        // NORMAL → never compact; FLOAT / MINI → compact; null → fallback to isInMultiWindowMode.
+        val matched   = UiCustomizationPrefs.matchProfile(this, widthDp, heightDp)
+        val shouldBeCompact = autoAdjust && when (matched) {
+            null -> inPip || inMulti
+            else -> UiCustomizationPrefs.isCompactProfile(matched)
+        }
 
-        // Use resources.configuration.screenWidthDp — this reflects the WINDOW
-        // width, not the physical screen width, so it is correct for freeform,
-        // split-screen, and floating window modes.
-        val windowWidthDp = resources.configuration.screenWidthDp
-        val inNarrowWindow = isInMultiWindowMode && windowWidthDp < 400
-
-        val shouldBeCompact = autoAdjust && (inPip || inNarrowWindow)
         isCompactModeActive = shouldBeCompact
 
-        // Push scale + compact flag to all adapters
         activeAdapter.setDisplayPrefs(scale, shouldBeCompact)
         scheduleAdapter.setDisplayPrefs(scale, shouldBeCompact)
         completedAdapter.setDisplayPrefs(scale, shouldBeCompact)

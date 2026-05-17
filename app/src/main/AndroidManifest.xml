@@ -39,8 +39,9 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:resizeableActivity="true"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden">
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -109,6 +110,7 @@
             android:name=".ui.UiCustomizationActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
             android:parentActivityName=".ui.SettingsActivity" />
 
         <!-- Auto Switch: phone call state receiver -->

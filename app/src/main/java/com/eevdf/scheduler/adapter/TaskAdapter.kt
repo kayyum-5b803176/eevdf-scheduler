@@ -433,37 +433,39 @@ class TaskAdapter(
     }
 
     /**
-     * Hides (or restores) the non-essential scheduler stat fields when [compact]
-     * is true. The entire EEVDF metrics row collapses to zero height when hidden;
-     * TRT is hidden in Row 2 while the countdown timer remains visible.
+     * Hides (or restores) the stat rows when [compact] is true (window calibrate /
+     * floating mode active).
      *
-     * Hidden fields: VRT · VDL · RS · Runs · TRT
+     * Collapses both stat rows as units so no child text leaks through:
+     *   • Row 1 (rowTimeInfo)     — TRT | time remaining
+     *   • Row 2 (rowEevdfMetrics) — VRT | VDL | RS | Runs
+     *
+     * On restore, individual child views are explicitly set to VISIBLE so a
+     * holder recycled from a previous compact bind comes back clean.
+     *
+     * Selected / running cards are intentionally NOT exempted: in float mode the
+     * card stays collapsed even when tapped — applySimpleMode() respects this
+     * because it checks hideNonEssentialStats before restoring any rows.
      */
     private fun applyCompactMode(holder: TaskViewHolder, compact: Boolean) {
-        val statVisibility = if (compact) View.GONE else View.VISIBLE
-        holder.tvVruntime.visibility    = statVisibility
-        holder.tvVdeadline.visibility   = statVisibility
-        holder.tvCpuShare.visibility    = statVisibility
-        holder.tvRunCount.visibility    = statVisibility
-        holder.tvTimeSlice.visibility   = statVisibility   // TRT
-        // Collapse the entire EEVDF metrics row when all its children are gone
-        holder.rowEevdfMetrics.visibility = statVisibility
+        if (compact) {
+            // Collapse both stat rows entirely — row 1 hides tvTimeSlice AND
+            // tvRemaining; row 2 hides VRT / VDL / RS / Runs.
+            holder.rowTimeInfo.visibility     = View.GONE
+            holder.rowEevdfMetrics.visibility = View.GONE
+        } else {
+            // Restore rows and ensure every child is visible (a holder previously
+            // bound in compact mode may have stale GONE children).
+            holder.rowTimeInfo.visibility     = View.VISIBLE
+            holder.rowEevdfMetrics.visibility = View.VISIBLE
+            holder.tvTimeSlice.visibility     = View.VISIBLE
+            holder.tvVruntime.visibility      = View.VISIBLE
+            holder.tvVdeadline.visibility     = View.VISIBLE
+            holder.tvCpuShare.visibility      = View.VISIBLE
+            holder.tvRunCount.visibility      = View.VISIBLE
+        }
     }
 
-    /**
-     * Simple mode: when [simpleModeEnabled] is true and this card is NOT selected
-     * ([isSelected] = false), collapse:
-     *   • Row 0 — progress bars (progressTask + progressQuota)
-     *   • Row 1 (rowTimeInfo)  — TRT / time slice
-     *   • Row 2 (rowEevdfMetrics) — VRT / VDL / RS / Runs
-     *
-     * When the card IS selected (running task or user-tapped), all rows are
-     * restored to their normal visibility (View.VISIBLE), unless compact mode
-     * has already hidden a subset — compact mode takes priority over expansion.
-     *
-     * Must be called AFTER applyCompactMode() so compact-mode GONE wins over
-     * simple-mode VISIBLE when both are active.
-     */
     /**
      * Simple mode: when [simpleModeEnabled] is true and this card is NOT selected
      * ([isSelected] = false), collapse only the text stat rows:
