@@ -15,6 +15,7 @@ class UiCustomizationActivity : AppCompatActivity() {
     private lateinit var tvCardHeightValue:  TextView
     private lateinit var switchAutoAdjust:   SwitchMaterial
     private lateinit var switchSimpleMode:   SwitchMaterial
+    private lateinit var switchUnitFormat:   SwitchMaterial
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,6 +30,7 @@ class UiCustomizationActivity : AppCompatActivity() {
         tvCardHeightValue = findViewById(R.id.tvCardHeightValue)
         switchAutoAdjust  = findViewById(R.id.switchAutoAdjust)
         switchSimpleMode  = findViewById(R.id.switchSimpleMode)
+        switchUnitFormat  = findViewById(R.id.switchUnitFormat)
 
         // ── Load saved prefs ──────────────────────────────────────────────────
         val savedScale = UiCustomizationPrefs.getCardHeightScale(this)
@@ -37,6 +39,7 @@ class UiCustomizationActivity : AppCompatActivity() {
 
         switchAutoAdjust.isChecked = UiCustomizationPrefs.isAutoAdjustEnabled(this)
         switchSimpleMode.isChecked = UiCustomizationPrefs.isSimpleModeEnabled(this)
+        switchUnitFormat.isChecked = UiCustomizationPrefs.isUnitFormatEnabled(this)
 
         // ── Card height slider ────────────────────────────────────────────────
         sliderCardHeight.addOnChangeListener { _, value, _ ->
@@ -53,6 +56,11 @@ class UiCustomizationActivity : AppCompatActivity() {
         // ── Simple Mode toggle ────────────────────────────────────────────────
         switchSimpleMode.setOnCheckedChangeListener { _, isChecked ->
             UiCustomizationPrefs.setSimpleModeEnabled(this, isChecked)
+        }
+
+        // ── Unit Format toggle ────────────────────────────────────────────────
+        switchUnitFormat.setOnCheckedChangeListener { _, isChecked ->
+            UiCustomizationPrefs.setUnitFormatEnabled(this, isChecked)
         }
     }
 

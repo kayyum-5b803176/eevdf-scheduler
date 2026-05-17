@@ -71,6 +71,51 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- ══ UNIT FORMAT ══════════════════════════════════════════════ -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="UNIT FORMAT"
+                android:textSize="11sp"
+                android:letterSpacing="0.12"
+                android:textColor="@color/colorPrimary"
+                android:fontFamily="sans-serif-medium"
+                android:paddingBottom="12dp" />
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchUnitFormat"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="SI Unit Format"
+                        android:textSize="16sp"
+                        android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Formats VRT, VDL, Runs, and TRT with SI suffixes. Floats use 2 decimal places (88191 → 88.19K). Integers stay clean (1800 → 1.8K, 18 → 18). Time shows the 2 most significant units (3d 28h 3s → 3d 28h)."
+                        android:textSize="12sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginTop="4dp" />
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- ══ CARD HEIGHT ══════════════════════════════════════════════ -->
             <TextView
                 android:layout_width="match_parent"

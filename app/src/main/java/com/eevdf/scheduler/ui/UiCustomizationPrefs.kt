@@ -13,6 +13,7 @@ object UiCustomizationPrefs {
     private const val KEY_CARD_HEIGHT_SCALE    = "card_height_scale"
     private const val KEY_AUTO_ADJUST_ENABLED  = "auto_adjust_enabled"
     private const val KEY_SIMPLE_MODE_ENABLED  = "simple_mode_enabled"
+    private const val KEY_UNIT_FORMAT_ENABLED  = "unit_format_enabled"
 
     /** Default scale = 5 → current (original) card size. */
     const val DEFAULT_CARD_HEIGHT_SCALE = 5
@@ -46,5 +47,14 @@ object UiCustomizationPrefs {
 
     fun setSimpleModeEnabled(ctx: Context, enabled: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_SIMPLE_MODE_ENABLED, enabled).apply()
+    }
+
+    // ── Unit format (SI suffixes on VRT / VDL / Runs / TRT) ─────────────────
+
+    fun isUnitFormatEnabled(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_UNIT_FORMAT_ENABLED, false)
+
+    fun setUnitFormatEnabled(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_UNIT_FORMAT_ENABLED, enabled).apply()
     }
 }

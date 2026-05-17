@@ -61,6 +61,14 @@ class TaskAdapter(
         private set
 
     /**
+     * When true, VRT/VDL use SI float suffixes, Runs uses SI integer (no ".00"),
+     * and TRT shows only the 2 most-significant non-zero time units.
+     * RS, quota, DL/RT badges, and priority are intentionally untouched.
+     */
+    var unitFormatEnabled: Boolean = false
+        private set
+
+    /**
      * The id of the card the user last tapped while simple mode is active.
      * null means no explicit tap selection — only the running task is expanded.
      */
@@ -85,6 +93,13 @@ class TaskAdapter(
         if (enabled == simpleModeEnabled) return
         simpleModeEnabled = enabled
         if (!enabled) selectedTaskId = null   // reset tap selection when turning off
+        notifyDataSetChanged()
+    }
+
+    /** Toggle Unit Format — rebinds only when the value actually changes. */
+    fun setUnitFormat(enabled: Boolean) {
+        if (enabled == unitFormatEnabled) return
+        unitFormatEnabled = enabled
         notifyDataSetChanged()
     }
 
@@ -182,8 +197,8 @@ class TaskAdapter(
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
         bindPriorityLabel(holder.tvPriority, task, priorityColor(holder, task))
-        holder.tvVruntime.text  = "VRT: ${"%.2f".format(task.vruntime)}"
-        holder.tvVdeadline.text = "VDL: ${"%.2f".format(task.virtualDeadline)}"
+        holder.tvVruntime.text  = "VRT: ${fmtFloat(task.vruntime)}"
+        holder.tvVdeadline.text = "VDL: ${fmtFloat(task.virtualDeadline)}"
         val pinned = task.pinnedShare != null
         holder.tvCpuShare.text = "RS: ${"%.1f".format(item.cpuShare)}"
         holder.tvCpuShare.setTextColor(
@@ -195,9 +210,9 @@ class TaskAdapter(
         if (task.isGroup) {
             // Group header row
             holder.tvCategory.text  = "Group · ${item.childCount} task${if (item.childCount != 1) "s" else ""}"
-            holder.tvTimeSlice.text = "TRT: ${formatTRT(item.childTotalRuntime)}"
-            holder.tvRemaining.text = "VRT: ${"%.2f".format(task.vruntime)}"
-            holder.tvRunCount.text  = "Runs: ${task.runCount}"
+            holder.tvTimeSlice.text = "TRT: ${fmtDur(item.childTotalRuntime)}"
+            holder.tvRemaining.text = "VRT: ${fmtFloat(task.vruntime)}"
+            holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.progressBar.visibility = View.GONE
             holder.btnRun.visibility         = View.GONE
             holder.btnComplete.visibility    = View.GONE
@@ -211,9 +226,9 @@ class TaskAdapter(
         } else {
             // Leaf task row
             holder.tvCategory.text  = task.category
-            holder.tvTimeSlice.text = "TRT: ${formatTRT(task.totalRunTime)}"
+            holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
-            holder.tvRunCount.text  = "Runs: ${task.runCount}"
+            holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.progressBar.visibility    = View.VISIBLE
             holder.progressBar.progress      = task.progressPercent
             holder.btnGroupToggle.visibility = View.GONE
@@ -487,6 +502,71 @@ class TaskAdapter(
             holder.rowTimeInfo.visibility     = View.GONE
             holder.rowEevdfMetrics.visibility = View.GONE
         }
+    }
+
+    // ── Unit Format helpers ───────────────────────────────────────────────────
+    // Called only by tvVruntime (fmtFloat), tvVdeadline (fmtFloat),
+    // tvRunCount (fmtInt), and tvTimeSlice (fmtDur).
+
+    /** VRT / VDL: 2 d.p. always; SI suffixes when unitFormatEnabled. */
+    private fun fmtFloat(v: Double): String =
+        if (unitFormatEnabled) siFloat(v) else "%.2f".format(v)
+
+    /** Runs: plain int when off; SI with no trailing ".0" when on. */
+    private fun fmtInt(v: Int): String =
+        if (unitFormatEnabled) siInt(v) else v.toString()
+
+    /** TRT: full unit string when off; top-2 units when on. */
+    private fun fmtDur(totalSec: Long): String =
+        if (unitFormatEnabled) siDur(totalSec) else formatTRT(totalSec)
+
+    /**
+     * SI float — always 2 decimal places in the suffix.
+     *   88191.0  → "88.19K"   1900.21 → "1.90K"   12.5 → "12.50"
+     */
+    private fun siFloat(v: Double): String = when {
+        v >= 1_000_000_000.0 -> "${"%.2f".format(v / 1_000_000_000.0)}G"
+        v >= 1_000_000.0     -> "${"%.2f".format(v / 1_000_000.0)}M"
+        v >= 1_000.0         -> "${"%.2f".format(v / 1_000.0)}K"
+        else                 -> "%.2f".format(v)
+    }
+
+    /**
+     * SI integer — no ".00" on small values; trailing ".0" stripped on suffix.
+     *   18    → "18"    1800  → "1.8K"   15000 → "15K"   1_234_567 → "1.2M"
+     */
+    private fun siInt(v: Int): String {
+        if (v < 1_000) return v.toString()
+        val (scaled, suffix) = when {
+            v >= 1_000_000_000 -> v / 1_000_000_000.0 to "G"
+            v >= 1_000_000     -> v / 1_000_000.0     to "M"
+            else               -> v / 1_000.0         to "K"
+        }
+        return "${("%.1f".format(scaled)).trimEnd('0').trimEnd('.')  }$suffix"
+    }
+
+    /**
+     * SI duration — top 2 most-significant non-zero units.
+     *   3d 28h 3s → "3d 28h"     4y 6h 5s → "4y 6h"     45s → "45s"
+     */
+    private fun siDur(totalSec: Long): String {
+        if (totalSec <= 0L) return "0s"
+        var rem = totalSec
+        val years   = rem / 31_536_000L; rem %= 31_536_000L
+        val months  = rem /  2_592_000L; rem %=  2_592_000L
+        val days    = rem /     86_400L; rem %=     86_400L
+        val hours   = rem /      3_600L; rem %=      3_600L
+        val minutes = rem /         60L
+        val seconds = rem %         60L
+        val parts = buildList {
+            if (years   > 0) add("${years}y")
+            if (months  > 0) add("${months}mo")
+            if (days    > 0) add("${days}d")
+            if (hours   > 0) add("${hours}h")
+            if (minutes > 0) add("${minutes}m")
+            if (seconds > 0) add("${seconds}s")
+        }
+        return parts.take(2).joinToString(" ")
     }
 
     // ── Existing helpers (unchanged) ──────────────────────────────────────────
