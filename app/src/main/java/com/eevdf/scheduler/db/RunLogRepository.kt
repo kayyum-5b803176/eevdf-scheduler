@@ -1,9 +1,9 @@
 package com.eevdf.scheduler.db
 
 import android.content.Context
-import com.eevdf.scheduler.model.RunDailySummary
-import com.eevdf.scheduler.model.RunLogEntry
-import com.eevdf.scheduler.model.RunMonthlySummary
+import com.eevdf.scheduler.model.runlog.RunDailySummary
+import com.eevdf.scheduler.model.runlog.RunLogEntry
+import com.eevdf.scheduler.model.runlog.RunMonthlySummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar

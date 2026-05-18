@@ -1,6 +1,6 @@
 package com.eevdf.scheduler.scheduler
 
-import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.task.Task
 import kotlin.math.max
 
 /**

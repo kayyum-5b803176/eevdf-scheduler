@@ -2,8 +2,8 @@ package com.eevdf.scheduler.db
 
 import android.content.Context
 import androidx.lifecycle.LiveData
-import com.eevdf.scheduler.model.RunSession
-import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.runlog.RunSession
+import com.eevdf.scheduler.model.task.Task
 import com.eevdf.scheduler.scheduler.EEVDFScheduler
 import com.eevdf.scheduler.scheduler.RtScheduler
 import kotlinx.coroutines.Dispatchers

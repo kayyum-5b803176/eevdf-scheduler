@@ -7,10 +7,10 @@ import androidx.room.RoomDatabase
 import java.io.File
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.eevdf.scheduler.model.RunDailySummary
-import com.eevdf.scheduler.model.RunLogEntry
-import com.eevdf.scheduler.model.RunMonthlySummary
-import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.runlog.RunDailySummary
+import com.eevdf.scheduler.model.runlog.RunLogEntry
+import com.eevdf.scheduler.model.runlog.RunMonthlySummary
+import com.eevdf.scheduler.model.task.Task
 
 @Database(
     entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class],

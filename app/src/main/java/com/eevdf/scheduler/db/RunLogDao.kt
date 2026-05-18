@@ -1,9 +1,9 @@
 package com.eevdf.scheduler.db
 
 import androidx.room.*
-import com.eevdf.scheduler.model.RunDailySummary
-import com.eevdf.scheduler.model.RunLogEntry
-import com.eevdf.scheduler.model.RunMonthlySummary
+import com.eevdf.scheduler.model.runlog.RunDailySummary
+import com.eevdf.scheduler.model.runlog.RunLogEntry
+import com.eevdf.scheduler.model.runlog.RunMonthlySummary
 
 @Dao
 interface RunLogDao {

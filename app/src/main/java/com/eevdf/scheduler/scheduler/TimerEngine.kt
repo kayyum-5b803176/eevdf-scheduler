@@ -3,11 +3,11 @@ package com.eevdf.scheduler.scheduler
 import android.os.CountDownTimer
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.eevdf.scheduler.model.RunSession
-import com.eevdf.scheduler.model.Task
-import com.eevdf.scheduler.model.TimerState
-import com.eevdf.scheduler.model.timerState
-import com.eevdf.scheduler.model.withTimerState
+import com.eevdf.scheduler.model.runlog.RunSession
+import com.eevdf.scheduler.model.task.Task
+import com.eevdf.scheduler.model.timer.TimerState
+import com.eevdf.scheduler.model.timer.timerState
+import com.eevdf.scheduler.model.timer.withTimerState
 
 /**
  * Owns ALL running-timer mechanics for one active task.

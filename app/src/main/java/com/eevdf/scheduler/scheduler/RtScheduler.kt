@@ -1,7 +1,7 @@
 package com.eevdf.scheduler.scheduler
 
 import android.content.SharedPreferences
-import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.task.Task
 import java.util.Calendar
 
 /**

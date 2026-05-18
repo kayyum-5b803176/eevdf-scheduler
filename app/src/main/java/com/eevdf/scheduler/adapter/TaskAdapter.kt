@@ -18,8 +18,8 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.scheduler.R
-import com.eevdf.scheduler.model.Task
-import com.eevdf.scheduler.model.TaskDisplayItem
+import com.eevdf.scheduler.model.task.Task
+import com.eevdf.scheduler.model.task.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.RtScheduler
 
 class TaskAdapter(

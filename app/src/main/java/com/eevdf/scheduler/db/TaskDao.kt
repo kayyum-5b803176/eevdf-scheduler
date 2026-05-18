@@ -2,7 +2,7 @@ package com.eevdf.scheduler.db
 
 import androidx.lifecycle.LiveData
 import androidx.room.*
-import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.task.Task
 
 @Dao
 interface TaskDao {
