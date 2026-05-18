@@ -63,7 +63,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Non-selected cards collapse their stats rows, showing only the task name and actions. Tap a card to expand it. The running task is always expanded."
+                        android:text="Unselected cards show name only. Tap to expand. Running task stays expanded."
                         android:textSize="12sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="4dp" />
@@ -108,7 +108,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Formats VRT, VDL, Runs, and TRT with SI suffixes. Floats use 2 decimal places (88191 → 88.19K). Integers stay clean (1800 → 1.8K, 18 → 18). Time shows the 2 most significant units (3d 28h 3s → 3d 28h)."
+                        android:text="VRT, VDL, Runs, TRT use SI suffixes. Floats: 88191 → 88.19K. Integers: 1800 → 1.8K. Time: 3d 28h 3s → 3d 28h."
                         android:textSize="12sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="4dp" />
@@ -169,7 +169,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Adjusts card padding and spacing. Font sizes are always preserved."
+                        android:text="Adjusts card padding. Font size unchanged."
                         android:textSize="12sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="2dp"
@@ -248,7 +248,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Collapses stat rows when the window matches a calibrated FLOAT or MINI profile. NORMAL prevents collapse when in a full window."
+                        android:text="Hides stat rows on FLOAT / MINI profiles. NORMAL keeps full layout."
                         android:textSize="12sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="4dp" />
@@ -416,7 +416,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Tap a profile to record the current window size.  Long-press to clear."
+                        android:text="Tap to record · Long-press to clear"
                         android:textSize="11sp"
                         android:textColor="@color/textSecondary"
                         android:layout_marginTop="8dp" />
