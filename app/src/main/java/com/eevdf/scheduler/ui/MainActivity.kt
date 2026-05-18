@@ -243,7 +243,7 @@ class MainActivity : AppCompatActivity() {
         // The TabLayout row stays visible so the user can switch tabs.
         // Both banners are restored for any other profile or when auto-adjust
         // is off, so normal / mini / uncalibrated modes are unaffected.
-        val isFloatProfile = autoAdjust && matched == UiCustomizationPrefs.CalibrateProfile.FLOAT
+        val isFloatProfile = autoAdjust && matched == UiCustomizationPrefs.CalibrateProfile.MINI
         val bannerVis = if (isFloatProfile) View.GONE else View.VISIBLE
         mainToolbar.visibility = bannerVis
         statsBar.visibility    = bannerVis
