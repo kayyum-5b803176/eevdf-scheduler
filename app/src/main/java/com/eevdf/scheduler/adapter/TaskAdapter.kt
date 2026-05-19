@@ -1,11 +1,16 @@
 package com.eevdf.scheduler.adapter
 
+import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.ClipDrawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,6 +23,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.scheduler.R
+import com.eevdf.scheduler.model.notice.NoticePhase
 import com.eevdf.scheduler.model.task.Task
 import com.eevdf.scheduler.model.task.TaskDisplayItem
 import com.eevdf.scheduler.scheduler.RtScheduler
@@ -38,7 +44,11 @@ class TaskAdapter(
     private val expandStateProvider: (String) -> Boolean = { true }
 ) : ListAdapter<TaskDisplayItem, TaskAdapter.TaskViewHolder>(DiffCallback()) {
 
-    private var runningTaskId: String? = null
+    private var runningTaskId:      String?      = null
+    // Current notice state — used by buildNoticeSegments to render live progress.
+    // Updated via setNoticeState() called from MainActivity's noticePhase observer.
+    private var noticeTaskId:       String?      = null
+    private var currentNoticePhase: NoticePhase  = NoticePhase.Idle
 
     // ── UI Customization state ────────────────────────────────────────────────
     /** Card height scale: 1 (smallest / most compact) … 5 (default full size). */
@@ -143,6 +153,23 @@ class TaskAdapter(
         }
     }
 
+    /**
+     * Updates the active notice phase so [buildNoticeSegments] can render live
+     * progress.  Call this from MainActivity's noticePhase observer on every
+     * phase change (including per-second Wait ticks).
+     *
+     * Triggers a targeted rebind of the notice task card so the segmented bar
+     * redraws without rebinding the whole list.
+     */
+    fun setNoticeState(taskId: String?, phase: NoticePhase) {
+        val old = noticeTaskId
+        noticeTaskId       = taskId
+        currentNoticePhase = phase
+        // Redraw old notice card (clears stale fill if task changed)
+        if (old != taskId) notifyItemChanged(positionOf(old))
+        notifyItemChanged(positionOf(taskId))
+    }
+
     class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val card:              CardView     = itemView.findViewById(R.id.cardTask)
         val tvRank:            TextView     = itemView.findViewById(R.id.tvRank)
@@ -158,6 +185,7 @@ class TaskAdapter(
         val tvVdeadline:       TextView     = itemView.findViewById(R.id.tvVdeadline)
         val tvCpuShare:        TextView     = itemView.findViewById(R.id.tvCpuShare)
         val progressBar:       ProgressBar  = itemView.findViewById(R.id.progressTask)
+        val progressNotice:    LinearLayout = itemView.findViewById(R.id.progressNotice)
         val progressQuota:     ProgressBar  = itemView.findViewById(R.id.progressQuota)
         val btnDelete:         ImageButton  = itemView.findViewById(R.id.btnDelete)
         val btnComplete:       ImageButton  = itemView.findViewById(R.id.btnComplete)
@@ -213,7 +241,8 @@ class TaskAdapter(
             holder.tvTimeSlice.text = "TRT: ${fmtDur(item.childTotalRuntime)}"
             holder.tvRemaining.text = "VRT: ${fmtFloat(task.vruntime)}"
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
-            holder.progressBar.visibility = View.GONE
+            holder.progressBar.visibility    = View.GONE
+            holder.progressNotice.visibility = View.GONE  // fix: hide notice bar on recycled group ViewHolders
             holder.btnRun.visibility         = View.GONE
             holder.btnComplete.visibility    = View.GONE
             holder.btnResetSlice.visibility  = View.GONE
@@ -229,9 +258,18 @@ class TaskAdapter(
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
-            holder.progressBar.visibility    = View.VISIBLE
-            holder.progressBar.progress      = task.progressPercent
-            holder.btnGroupToggle.visibility = View.GONE
+            holder.btnGroupToggle.visibility = View.GONE  // fix: hide group toggle on recycled leaf ViewHolders
+            // NOTIFICATION tasks: show segmented bar (execute=blue, wait=green) with live fill.
+            // All other types: show the standard single-colour progress bar.
+            if (task.taskType == "NOTIFICATION") {
+                holder.progressBar.visibility    = View.GONE
+                holder.progressNotice.visibility = View.VISIBLE
+                buildNoticeSegments(holder.progressNotice, task)
+            } else {
+                holder.progressBar.visibility    = View.VISIBLE
+                holder.progressBar.progress      = task.progressPercent
+                holder.progressNotice.visibility = View.GONE
+            }
             if (isCompletedTab) {
                 // Completed tab: show only Revert + Delete, hide all active-only actions
                 holder.btnRevert.visibility     = View.VISIBLE
@@ -328,7 +366,7 @@ class TaskAdapter(
             holder.progressQuota.progressTintList =
                 android.content.res.ColorStateList.valueOf(Color.parseColor(quotaBarTint))
             // Tighten gap when both bars are showing; restore normal spacing when alone
-            setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE)
+            setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE || holder.progressNotice.visibility == View.VISIBLE)
         } else {
             holder.tvQuotaRemaining.visibility = View.GONE
             holder.progressQuota.visibility    = View.GONE
@@ -407,10 +445,14 @@ class TaskAdapter(
             holder.itemView.layoutParams = it
         }
 
-        // ProgressBar top margin
+        // ProgressBar top margin (both default and notice segmented bar get the same spacing)
         (holder.progressBar.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
             lp.topMargin = px(progressTopDp)
             holder.progressBar.layoutParams = lp
+        }
+        (holder.progressNotice.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
+            lp.topMargin = px(progressTopDp)
+            holder.progressNotice.layoutParams = lp
         }
 
         // Row 2 (time info) top margin
@@ -669,6 +711,139 @@ class TaskAdapter(
         tv.background = bg
     }
 
+    /**
+     * Builds the segmented progress bar for NOTIFICATION-type tasks and fills
+     * each segment with live progress from [currentNoticePhase].
+     *
+     * Structure:  [execute — blue] [wait — green]  ×  (repeatCount + 1)
+     *
+     * Heights: each segment View is explicitly 4 dp — matching the visual track
+     * height of the horizontal ProgressBar style — and the container uses
+     * gravity=CENTER_VERTICAL so the segments sit centred in the same 6 dp
+     * space as progressTask. This avoids the "segments appear taller" issue that
+     * comes from MATCH_PARENT filling the whole 6 dp with solid colour.
+     *
+     * Live progress: each segment uses a LayerDrawable of
+     *   [0] GradientDrawable  — lighter-tint track (always visible)
+     *   [1] ClipDrawable      — solid fill clipped left→right by fillPercent
+     * ClipDrawable.level ranges 0–10 000 (0 = empty, 10 000 = full).
+     *
+     * Segments BEFORE the active phase index are fully filled (level 10000).
+     * The ACTIVE segment is partially filled from task.progressPercent or
+     * elapsed-wait calculation.
+     * Segments AFTER are empty (level 0, showing only the track colour).
+     */
+    private fun buildNoticeSegments(container: LinearLayout, task: Task) {
+        container.removeAllViews()
+        container.gravity = Gravity.CENTER_VERTICAL
+
+        val execSecs = task.timeSliceSeconds
+        val waitSecs = task.notificationRestSeconds
+        val cycles   = task.notificationRepeatCount + 1
+        val hasWait  = waitSecs > 0
+
+        if (execSecs <= 0) return
+
+        // ── Compute per-segment fill (0–100) from current notice phase ──────
+        val phase        = if (task.id == noticeTaskId) currentNoticePhase else NoticePhase.Idle
+        val segsPerCycle = if (hasWait) 2 else 1
+        val totalSegs    = cycles * segsPerCycle
+        val fills        = IntArray(totalSegs) { 0 }
+
+        when (phase) {
+            is NoticePhase.Execute -> {
+                val iter    = phase.iteration.coerceIn(0, cycles - 1)
+                val execIdx = iter * segsPerCycle
+                for (s in 0 until execIdx) fills[s] = 100   // previous segments: full
+                if (execIdx < totalSegs) fills[execIdx] = task.progressPercent
+            }
+            is NoticePhase.Wait -> {
+                val iter    = phase.iteration.coerceIn(0, cycles - 1)
+                val execIdx = iter * segsPerCycle
+                for (s in 0..execIdx) if (s < totalSegs) fills[s] = 100  // exec done: full
+                if (hasWait) {
+                    val waitIdx = execIdx + 1
+                    if (waitIdx < totalSegs && waitSecs > 0) {
+                        val elapsed = (waitSecs - phase.remainingSecs).coerceAtLeast(0L)
+                        fills[waitIdx] = (elapsed * 100L / waitSecs).toInt().coerceIn(0, 100)
+                    }
+                }
+            }
+            else -> { /* Idle / Delay / Expired: all fills remain 0 (empty track) */ }
+        }
+
+        // ── Colour palette ───────────────────────────────────────────────────
+        val execFill  = Color.parseColor("#2196F3")   // Blue  500 — active fill
+        val execTrack = Color.parseColor("#BBDEFB")   // Blue  100 — empty track
+        val waitFill  = Color.parseColor("#4CAF50")   // Green 500 — active fill
+        val waitTrack = Color.parseColor("#C8E6C9")   // Green 100 — empty track
+
+        // ── Segment geometry ─────────────────────────────────────────────────
+        val density = container.context.resources.displayMetrics.density
+        val segHPx  = (4f * density + 0.5f).toInt()          // explicit 4 dp height
+        val gapPx   = (1.5f * density + 0.5f).toInt()        // ~1.5 dp inter-segment gap
+
+        // ── Build and attach views ───────────────────────────────────────────
+        var segIdx = 0
+        for (i in 0 until cycles) {
+            val eIsLast = segIdx == totalSegs - 1
+            container.addView(makeSegmentView(
+                container.context, execSecs.toFloat(), segHPx,
+                if (eIsLast) 0 else gapPx,
+                execFill, execTrack, fills[segIdx]))
+            segIdx++
+
+            if (hasWait) {
+                val wIsLast = segIdx == totalSegs - 1
+                container.addView(makeSegmentView(
+                    container.context, waitSecs.toFloat(), segHPx,
+                    if (wIsLast) 0 else gapPx,
+                    waitFill, waitTrack, fills[segIdx]))
+                segIdx++
+            }
+        }
+    }
+
+    /**
+     * Creates a single segment View sized at [heightPx] tall with [weight]
+     * for proportional width, a [endGapPx] right margin, and a two-layer
+     * background: [trackColor] as the always-visible track, [fillColor]
+     * clipped to [fillPercent]% from the left as the progress fill.
+     *
+     * Rounded caps (cornerRadius = height/2) match the pill style common in
+     * horizontal progress bars.
+     */
+    private fun makeSegmentView(
+        ctx: Context,
+        weight: Float,
+        heightPx: Int,
+        endGapPx: Int,
+        fillColor: Int,
+        trackColor: Int,
+        fillPercent: Int
+    ): View {
+        val v  = View(ctx)
+        val lp = LinearLayout.LayoutParams(0, heightPx, weight)
+        lp.marginEnd = endGapPx
+        v.layoutParams = lp
+
+        val radius = heightPx / 2f  // pill-shaped caps
+
+        val track = GradientDrawable().apply {
+            setColor(trackColor)
+            cornerRadius = radius
+        }
+        val fill = GradientDrawable().apply {
+            setColor(fillColor)
+            cornerRadius = radius
+        }
+        val clip = ClipDrawable(fill, Gravity.START, ClipDrawable.HORIZONTAL).also {
+            it.level = (fillPercent * 100).coerceIn(0, 10_000)
+        }
+        v.background = LayerDrawable(arrayOf(track, clip))
+        return v
+    }
+
     private fun setQuotaBarTopMargin(holder: TaskViewHolder, bothBarsVisible: Boolean) {
         val lp    = holder.progressQuota.layoutParams as? LinearLayout.LayoutParams ?: return
         val density = holder.progressQuota.context.resources.displayMetrics.density
@@ -729,7 +904,7 @@ class TaskAdapter(
                     ownQuotaWarning  -> "#FFA000"
                     else             -> "#66BB6A"
                 }))
-            setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE)
+            setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE || holder.progressNotice.visibility == View.VISIBLE)
         } else {
             holder.tvQuotaRemaining.visibility = View.GONE
             holder.progressQuota.visibility    = View.GONE

@@ -151,7 +151,7 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Progress bar -->
+            <!-- Progress bar (default — all task types except NOTIFICATION) -->
             <ProgressBar
                 android:id="@+id/progressTask"
                 style="?android:attr/progressBarStyleHorizontal"
@@ -163,6 +163,20 @@
                 android:progress="0"
                 android:progressTint="@color/colorPrimary"
                 android:progressBackgroundTint="#E0E0E0" />
+
+            <!-- Segmented progress bar — NOTIFICATION type only.
+                 Segments are built programmatically in TaskAdapter.buildNoticeSegments().
+                 Same height and margins as progressTask so the card layout is unchanged.
+                 Visibility toggled by the adapter: VISIBLE for NOTIFICATION, GONE otherwise. -->
+            <LinearLayout
+                android:id="@+id/progressNotice"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="2dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone" />
 
             <!-- Quota usage bar — visible only when quota is enabled for this task/group -->
             <ProgressBar

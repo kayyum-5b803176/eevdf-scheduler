@@ -548,6 +548,13 @@ class MainActivity : AppCompatActivity() {
                 }
                 else -> viewPhaseStatus.visibility = View.GONE
             }
+            // Forward phase to adapters so the notice segmented bar shows live progress.
+            // This fires on every Wait tick (postValue) and on Execute phase entry,
+            // giving second-by-second fills.  Execute fill is driven by task.progressPercent
+            // which updates via timerSeconds → currentTask → setRunningTask → notifyItemChanged.
+            val noticeTaskId = viewModel.currentTask.value?.id
+            activeAdapter.setNoticeState(noticeTaskId, phase)
+            scheduleAdapter.setNoticeState(noticeTaskId, phase)
         }
 
         viewModel.stats.observe(this) { stats ->
