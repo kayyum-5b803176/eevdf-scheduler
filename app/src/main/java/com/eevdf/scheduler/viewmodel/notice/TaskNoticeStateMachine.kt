@@ -168,7 +168,6 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
 
     /** Step 1 of the notice cycle: countdown before execute phase begins. */
     fun startDelayPhase(task: Task, remaining: Long, delaySecs: Long) {
-        var delayElapsedSeconds      = 0L
         _delayRunning.value          = true
         _delaySecondsRemaining.value = delaySecs
         _noticePhase.value           = NoticePhase.Delay(delaySecs)
@@ -181,7 +180,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 _noticePhase.postValue(NoticePhase.Delay(secs))
             }
             override fun onFinish() {
-                delayElapsedSeconds   = ((System.currentTimeMillis() - delayStart) / 1000L)
+                val delayElapsedSeconds = ((System.currentTimeMillis() - delayStart) / 1000L)
                     .coerceAtLeast(0L)
                 noticeSessionSeconds += delayElapsedSeconds
                 _delayRunning.postValue(false)
@@ -296,7 +295,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      * stuck bug caused by two concurrent dao.update() calls overwriting each other.
      */
     fun triggerAlarmExpire(task: Task) {
-        val ctx = vm.app as Application
+        val ctx = vm.app
         _noticePhase.value = NoticePhase.Expired
 
         val sessionSecs  = noticeSessionSeconds

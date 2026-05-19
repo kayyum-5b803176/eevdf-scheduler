@@ -63,7 +63,7 @@ class MultiUserSyncActivity : AppCompatActivity() {
     private val folderPickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == RESULT_OK) {
             val uri = result.data?.data ?: return@registerForActivityResult
             persistFolderPermission(uri)
             MultiUserSyncManager.setSyncFolder(uri)

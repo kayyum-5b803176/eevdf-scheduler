@@ -96,13 +96,13 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var sliderRtPriority:        Slider
     private lateinit var tvRtPriorityValue:       TextView
     private lateinit var spinnerRtPolicy:         Spinner
-    private lateinit var cbRtSun:                 android.widget.CheckBox
-    private lateinit var cbRtMon:                 android.widget.CheckBox
-    private lateinit var cbRtTue:                 android.widget.CheckBox
-    private lateinit var cbRtWed:                 android.widget.CheckBox
-    private lateinit var cbRtThu:                 android.widget.CheckBox
-    private lateinit var cbRtFri:                 android.widget.CheckBox
-    private lateinit var cbRtSat:                 android.widget.CheckBox
+    private lateinit var cbRtSun:                 CheckBox
+    private lateinit var cbRtMon:                 CheckBox
+    private lateinit var cbRtTue:                 CheckBox
+    private lateinit var cbRtWed:                 CheckBox
+    private lateinit var cbRtThu:                 CheckBox
+    private lateinit var cbRtFri:                 CheckBox
+    private lateinit var cbRtSat:                 CheckBox
     private lateinit var etRtHour:                TextInputEditText
     private lateinit var etRtMinute:              TextInputEditText
     private lateinit var etRtSecond:              TextInputEditText
@@ -356,7 +356,7 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     @Deprecated("Use updatePriorityDisplay()", ReplaceWith("updatePriorityDisplay()"))
-    private fun updatePriorityInfo(priority: Int) = updatePriorityDisplay()
+    private fun updatePriorityInfo(_priority: Int) = updatePriorityDisplay()
 
     private fun loadExistingTask() {
         lifecycleScope.launch {
@@ -1002,7 +1002,7 @@ class AddTaskActivity : AppCompatActivity() {
             rtSliceTimeoutSeconds = rawTimeout
 
             // Clear RR state whenever RT config changes so stale index is not reused
-            RtScheduler.clearRrState(getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE))
+            RtScheduler.clearRrState(getSharedPreferences("eevdf_prefs", MODE_PRIVATE))
         }
 
         if (existingTask != null) {

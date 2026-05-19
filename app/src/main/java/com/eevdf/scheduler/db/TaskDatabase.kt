@@ -28,60 +28,60 @@ abstract class TaskDatabase : RoomDatabase() {
 
         /** version 1 → 2: add cgroup hierarchy columns */
         private val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE tasks ADD COLUMN parentId TEXT")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN isGroup INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN isGroupExpanded INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN parentId TEXT")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN isGroup INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN isGroupExpanded INTEGER NOT NULL DEFAULT 1")
             }
         }
 
         private const val DB_NAME = "eevdf_task_database"
 
         private val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE tasks ADD COLUMN isInterrupt INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN isInterrupt INTEGER NOT NULL DEFAULT 0")
             }
         }
 
         /** version 3 → 4: add wall-clock deadline for accurate timer across kills / sleep */
         private val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE tasks ADD COLUMN timerDeadlineEpoch INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN timerDeadlineEpoch INTEGER NOT NULL DEFAULT 0")
                 // Clear any stale isRunning flags left by a previous crash so the
                 // resume logic only fires for tasks that genuinely had an active deadline.
-                database.execSQL("UPDATE tasks SET isRunning = 0 WHERE timerDeadlineEpoch = 0")
+                db.execSQL("UPDATE tasks SET isRunning = 0 WHERE timerDeadlineEpoch = 0")
             }
         }
 
         /** version 4 → 5: add task type + notification delay */
         private val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE tasks ADD COLUMN taskType TEXT NOT NULL DEFAULT 'DEFAULT'")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN notificationDelaySeconds INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN taskType TEXT NOT NULL DEFAULT 'DEFAULT'")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN notificationDelaySeconds INTEGER NOT NULL DEFAULT 0")
             }
         }
 
         /** version 5 → 6: Notice type rest duration + repeat count */
         private val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE tasks ADD COLUMN notificationRestSeconds INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN notificationRepeatCount INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN notificationRestSeconds INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN notificationRepeatCount INTEGER NOT NULL DEFAULT 0")
             }
         }
 
         /** version 6 → 7: pinned CPU share per task (null = auto-float) */
         private val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // NULL default = auto-float (not pinned)
-                database.execSQL("ALTER TABLE tasks ADD COLUMN pinnedShare INTEGER")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN pinnedShare INTEGER")
             }
         }
 
         /** version 7 → 8: auto-calculated internal weight derived from pinnedShare (null = use priority) */
         private val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // REAL = SQLite float; NULL = fall back to priority-based weight
-                database.execSQL("ALTER TABLE tasks ADD COLUMN internalWeight REAL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN internalWeight REAL")
             }
         }
 
@@ -111,22 +111,22 @@ abstract class TaskDatabase : RoomDatabase() {
          * as a permanently ignored legacy column. It will be 0 for all new rows.
          */
         private val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // 1. Add the two new columns
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN accumulatedMs  INTEGER NOT NULL DEFAULT 0"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN startTimeEpoch INTEGER NOT NULL DEFAULT 0"
                 )
 
                 // 2. Back-fill accumulatedMs for every row
-                database.execSQL(
+                db.execSQL(
                     "UPDATE tasks SET accumulatedMs = (timeSliceSeconds - remainingSeconds) * 1000"
                 )
 
                 // 3. Back-fill startTimeEpoch for tasks whose deadline is still in the future
-                database.execSQL("""
+                db.execSQL("""
                     UPDATE tasks
                        SET startTimeEpoch = timerDeadlineEpoch - remainingSeconds * 1000
                      WHERE isRunning = 1
@@ -134,7 +134,7 @@ abstract class TaskDatabase : RoomDatabase() {
                 """.trimIndent())
 
                 // 4. Tasks running but deadline already passed → expire them cleanly
-                database.execSQL("""
+                db.execSQL("""
                     UPDATE tasks
                        SET isRunning        = 0,
                            remainingSeconds = 0,
@@ -154,11 +154,11 @@ abstract class TaskDatabase : RoomDatabase() {
          *   quotaUsedSeconds   — seconds consumed in the current period.
          */
         private val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds         INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodSeconds   INTEGER NOT NULL DEFAULT 86400")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodStartEpoch INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN quotaUsedSeconds     INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds         INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodSeconds   INTEGER NOT NULL DEFAULT 86400")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodStartEpoch INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN quotaUsedSeconds     INTEGER NOT NULL DEFAULT 0")
             }
         }
 
@@ -171,22 +171,22 @@ abstract class TaskDatabase : RoomDatabase() {
          * PRAGMA table_info — SQLite has no "ALTER TABLE … ADD COLUMN IF NOT EXISTS".
          */
         private val MIGRATION_10_11 = object : Migration(10, 11) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 val existing = mutableSetOf<String>()
-                val cursor = database.query("PRAGMA table_info(tasks)")
+                val cursor = db.query("PRAGMA table_info(tasks)")
                 cursor.use {
                     val nameIdx = it.getColumnIndex("name")
                     while (it.moveToNext()) existing.add(it.getString(nameIdx))
                 }
 
                 if ("quotaSeconds" !in existing)
-                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds          INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds          INTEGER NOT NULL DEFAULT 0")
                 if ("quotaPeriodSeconds" !in existing)
-                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodSeconds    INTEGER NOT NULL DEFAULT 86400")
+                    db.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodSeconds    INTEGER NOT NULL DEFAULT 86400")
                 if ("quotaPeriodStartEpoch" !in existing)
-                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodStartEpoch INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE tasks ADD COLUMN quotaPeriodStartEpoch INTEGER NOT NULL DEFAULT 0")
                 if ("quotaUsedSeconds" !in existing)
-                    database.execSQL("ALTER TABLE tasks ADD COLUMN quotaUsedSeconds      INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE tasks ADD COLUMN quotaUsedSeconds      INTEGER NOT NULL DEFAULT 0")
             }
         }
 
@@ -199,8 +199,8 @@ abstract class TaskDatabase : RoomDatabase() {
          *   run_monthly   — monthly aggregates, kept forever (~18 MB worst-case).
          */
         private val MIGRATION_11_12 = object : Migration(11, 12) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("""
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS run_log (
                         id          INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         taskId      TEXT    NOT NULL,
@@ -210,11 +210,11 @@ abstract class TaskDatabase : RoomDatabase() {
                         weekDay     INTEGER NOT NULL DEFAULT 0
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_taskId     ON run_log(taskId)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_startEpoch ON run_log(startEpoch)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_prevTaskId ON run_log(prevTaskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_taskId     ON run_log(taskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_startEpoch ON run_log(startEpoch)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_prevTaskId ON run_log(prevTaskId)")
 
-                database.execSQL("""
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS run_daily (
                         taskId       TEXT    NOT NULL,
                         dayEpoch     INTEGER NOT NULL,
@@ -225,10 +225,10 @@ abstract class TaskDatabase : RoomDatabase() {
                         PRIMARY KEY(taskId, dayEpoch)
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_run_daily_dayEpoch ON run_daily(dayEpoch)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_run_daily_taskId   ON run_daily(taskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_daily_dayEpoch ON run_daily(dayEpoch)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_daily_taskId   ON run_daily(taskId)")
 
-                database.execSQL("""
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS run_monthly (
                         taskId      TEXT    NOT NULL,
                         monthEpoch  INTEGER NOT NULL,
@@ -237,8 +237,8 @@ abstract class TaskDatabase : RoomDatabase() {
                         PRIMARY KEY(taskId, monthEpoch)
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_run_monthly_monthEpoch ON run_monthly(monthEpoch)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_run_monthly_taskId     ON run_monthly(taskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_monthly_monthEpoch ON run_monthly(monthEpoch)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_monthly_taskId     ON run_monthly(taskId)")
             }
         }
 
@@ -251,14 +251,14 @@ abstract class TaskDatabase : RoomDatabase() {
          * old and will be repopulated from normal usage.
          */
         private val MIGRATION_12_13 = object : Migration(12, 13) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Drop old tables (wrong schema from v12)
-                database.execSQL("DROP TABLE IF EXISTS run_log")
-                database.execSQL("DROP TABLE IF EXISTS run_daily")
-                database.execSQL("DROP TABLE IF EXISTS run_monthly")
+                db.execSQL("DROP TABLE IF EXISTS run_log")
+                db.execSQL("DROP TABLE IF EXISTS run_daily")
+                db.execSQL("DROP TABLE IF EXISTS run_monthly")
 
                 // run_log — no DEFAULT on weekDay (matches entity defaultValue='undefined')
-                database.execSQL("""
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `run_log` (
                         `id`           INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         `taskId`       TEXT    NOT NULL,
@@ -268,12 +268,12 @@ abstract class TaskDatabase : RoomDatabase() {
                         `weekDay`      INTEGER NOT NULL
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_taskId`     ON `run_log`(`taskId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_startEpoch` ON `run_log`(`startEpoch`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_prevTaskId` ON `run_log`(`prevTaskId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_taskId`     ON `run_log`(`taskId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_startEpoch` ON `run_log`(`startEpoch`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_prevTaskId` ON `run_log`(`prevTaskId`)")
 
                 // run_daily — no DEFAULT on weekDay or switchInCount
-                database.execSQL("""
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `run_daily` (
                         `taskId`        TEXT    NOT NULL,
                         `dayEpoch`      INTEGER NOT NULL,
@@ -284,11 +284,11 @@ abstract class TaskDatabase : RoomDatabase() {
                         PRIMARY KEY(`taskId`, `dayEpoch`)
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_run_daily_dayEpoch` ON `run_daily`(`dayEpoch`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_run_daily_taskId`   ON `run_daily`(`taskId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_daily_dayEpoch` ON `run_daily`(`dayEpoch`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_daily_taskId`   ON `run_daily`(`taskId`)")
 
                 // run_monthly
-                database.execSQL("""
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `run_monthly` (
                         `taskId`     TEXT    NOT NULL,
                         `monthEpoch` INTEGER NOT NULL,
@@ -297,8 +297,8 @@ abstract class TaskDatabase : RoomDatabase() {
                         PRIMARY KEY(`taskId`, `monthEpoch`)
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_run_monthly_monthEpoch` ON `run_monthly`(`monthEpoch`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_run_monthly_taskId`     ON `run_monthly`(`taskId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_monthly_monthEpoch` ON `run_monthly`(`monthEpoch`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_monthly_taskId`     ON `run_monthly`(`taskId`)")
             }
         }
 
@@ -307,8 +307,8 @@ abstract class TaskDatabase : RoomDatabase() {
          * Adds interruptSlot column to tasks; existing interrupt task defaults to "A".
          */
         private val MIGRATION_13_14 = object : Migration(13, 14) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN interruptSlot TEXT NOT NULL DEFAULT 'A'"
                 )
             }
@@ -327,9 +327,9 @@ abstract class TaskDatabase : RoomDatabase() {
          * No data is lost: integer 25 → 25.0.
          */
         private val MIGRATION_14_15 = object : Migration(14, 15) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // 1. Create new table with pinnedShare REAL (correct column names from Task entity)
-                database.execSQL("""
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS tasks_new (
                         id TEXT NOT NULL PRIMARY KEY,
                         name TEXT NOT NULL,
@@ -368,7 +368,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 // 2. Copy all rows; CAST converts existing integer pinnedShare to REAL
-                database.execSQL("""
+                db.execSQL("""
                     INSERT INTO tasks_new SELECT
                         id, name, description, timeSliceSeconds, remainingSeconds,
                         vruntime, totalRunTime, priority, isCompleted, isRunning,
@@ -382,8 +382,8 @@ abstract class TaskDatabase : RoomDatabase() {
                     FROM tasks
                 """.trimIndent())
                 // 3. Swap tables
-                database.execSQL("DROP TABLE tasks")
-                database.execSQL("ALTER TABLE tasks_new RENAME TO tasks")
+                db.execSQL("DROP TABLE tasks")
+                db.execSQL("ALTER TABLE tasks_new RENAME TO tasks")
             }
         }
 
@@ -397,17 +397,17 @@ abstract class TaskDatabase : RoomDatabase() {
          *   dlPeriodSeconds   INTEGER 0                   — SCHED_DEADLINE sched_period (0 = same as deadline)
          */
         private val MIGRATION_15_16 = object : Migration(15, 16) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN schedulerClass TEXT NOT NULL DEFAULT 'fair_sched_class'"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN dlRuntimeSeconds INTEGER NOT NULL DEFAULT 0"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN dlDeadlineSeconds INTEGER NOT NULL DEFAULT 0"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN dlPeriodSeconds INTEGER NOT NULL DEFAULT 0"
                 )
             }
@@ -421,11 +421,11 @@ abstract class TaskDatabase : RoomDatabase() {
          *   dlRuntimeUsedSeconds INTEGER 0  — runtime consumed in the current DL period
          */
         private val MIGRATION_16_17 = object : Migration(16, 17) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN dlPeriodStartEpoch INTEGER NOT NULL DEFAULT 0"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE tasks ADD COLUMN dlRuntimeUsedSeconds INTEGER NOT NULL DEFAULT 0"
                 )
             }
@@ -444,14 +444,14 @@ abstract class TaskDatabase : RoomDatabase() {
          *   rtSliceTimeoutSeconds INTEGER   0   — window duration in seconds (0 = not configured)
          */
         private val MIGRATION_17_18 = object : Migration(17, 18) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPriority INTEGER NOT NULL DEFAULT 50")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtPolicy TEXT NOT NULL DEFAULT 'RR'")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActiveDays INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationHour INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationMinute INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationSecond INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE tasks ADD COLUMN rtSliceTimeoutSeconds INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN rtPriority INTEGER NOT NULL DEFAULT 50")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN rtPolicy TEXT NOT NULL DEFAULT 'RR'")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN rtActiveDays INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationHour INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationMinute INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN rtActivationSecond INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN rtSliceTimeoutSeconds INTEGER NOT NULL DEFAULT 0")
             }
         }
 
@@ -481,6 +481,7 @@ abstract class TaskDatabase : RoomDatabase() {
          * Flushes WAL into the main .db file WITHOUT closing Room.
          * Used by the sync export path — Room stays open and usable.
          */
+        @Suppress("UNUSED_PARAMETER")
         fun checkpointWal(context: Context) {
             synchronized(this) {
                 try {
@@ -490,6 +491,7 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        @Suppress("UNUSED_PARAMETER")
         fun checkpointAndClose(context: Context) {
             synchronized(this) {
                 try {

@@ -125,9 +125,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     internal val timerEngine = TimerEngine()
 
     // Named observer references — removed in onCleared() to prevent accumulation.
-    private lateinit var tickObserver:           Observer<Long>
-    private lateinit var expiredObserver:        Observer<Task>
-    private lateinit var expiredSessionObserver: Observer<RunSession>
+    private var tickObserver:           Observer<Long> = Observer {}
+    private var expiredObserver:        Observer<Task> = Observer {}
+    private var expiredSessionObserver: Observer<RunSession> = Observer {}
 
     // ── Overrun counter ───────────────────────────────────────────────────────
 
@@ -145,8 +145,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
 
-    lateinit var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>>
-    lateinit var flatScheduleOrder: MediatorLiveData<List<TaskDisplayItem>>
+    var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>> = MediatorLiveData()
+    var flatScheduleOrder: MediatorLiveData<List<TaskDisplayItem>> = MediatorLiveData()
 
     // ── Derived button-state LiveData ─────────────────────────────────────────
     //
@@ -370,12 +370,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         if (remaining <= 0) {
             // Slice already expired — engine's onFinish() never fired (user paused
             // at 0:00 before CountDownTimer could call back).
-            val sliceMs = task.timeSliceSeconds * 1000L
-            when (val state = timerEngine.currentState()) {
-                is TimerState.Paused  -> (state.accumulatedMs - sliceMs).coerceAtLeast(0L)
-                is TimerState.Expired -> 0L
-                else                  -> 0L
-            }
             timerEngine.clear()
             onTimerFinished(task, session = null)
             return
@@ -562,7 +556,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // Alarm / overrun counter
     // =========================================================================
 
-    internal fun startInAppOverrunCounter(taskName: String, initialElapsedSeconds: Long = 0L) {
+    internal fun startInAppOverrunCounter(_taskName: String, initialElapsedSeconds: Long = 0L) {
         overrunTimer?.cancel()
         overrunTimer = object : CountDownTimer(3600_000L, 1000L) {
             var elapsed = initialElapsedSeconds
@@ -736,7 +730,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * MainActivity observes this and restarts the app so Room opens cleanly.
      */
     private val _restartNeeded = MutableLiveData<Unit>()
-    val restartNeeded: androidx.lifecycle.LiveData<Unit> = _restartNeeded
+    val restartNeeded: LiveData<Unit> = _restartNeeded
 
     /** Called from MainActivity.onResume to restart polling if it was stopped. */
     fun onSyncResume() = MultiUserSyncManager.onResume()

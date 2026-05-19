@@ -138,7 +138,6 @@ class StatsChartsFragment : Fragment() {
 
             val targetIds  = categoryMap.keys.toHashSet()
             val targetTasks = allTasks.filter { it.id in targetIds }
-            val taskById   = allTasks.associateBy { it.id }
 
             if (targetIds.isEmpty()) {
                 // No target tasks configured — show all charts empty
@@ -467,7 +466,7 @@ class StatsChartsFragment : Fragment() {
             color     = COLOR_INT_A; fillColor = COLOR_INT_A
             setDrawFilled(true); fillAlpha = 80; lineWidth = 2f
             setDrawValues(false)
-            setDrawHighlightCircleEnabled(true)
+            isDrawHighlightCircleEnabled = true
             highlightCircleFillColor = COLOR_INT_A
         }
 
@@ -496,7 +495,7 @@ class StatsChartsFragment : Fragment() {
     private fun renderScatterChart(
         leafLog:     List<RunLogEntry>,
         categoryMap: Map<String, String>,
-        fromMs:      Long
+        _fromMs:     Long
     ) {
         val filtered = leafLog.filter { it.taskId in categoryMap }
         if (filtered.isEmpty()) {
@@ -566,7 +565,7 @@ class StatsChartsFragment : Fragment() {
      *    0.5f  → "30m"
      *    0.083f → "5m"
      */
-    private inner class HourMinuteFormatter : ValueFormatter() {
+    private class HourMinuteFormatter : ValueFormatter() {
         override fun getFormattedValue(value: Float): String {
             if (value <= 0f) return "0"
             val totalMins = (value * 60f + 0.5f).toInt()   // round to nearest minute
@@ -586,7 +585,7 @@ class StatsChartsFragment : Fragment() {
      *   45f  → "45m"
      *    5f  → "5m"
      */
-    private inner class MinuteFormatter : ValueFormatter() {
+    private class MinuteFormatter : ValueFormatter() {
         override fun getFormattedValue(value: Float): String {
             if (value <= 0f) return "0"
             val totalMins = (value + 0.5f).toInt()

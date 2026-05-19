@@ -203,7 +203,7 @@ object RtScheduler {
     fun pickRrTask(
         activeTasks: List<Task>,
         prefs: SharedPreferences,
-        nowMs: Long = System.currentTimeMillis()
+        _nowMs: Long = System.currentTimeMillis()
     ): Task? {
         if (activeTasks.isEmpty()) return null
 
@@ -269,12 +269,12 @@ object RtScheduler {
      * for the RT class.
      */
     fun hasActiveRtDescendant(task: Task, allTasks: List<Task>,
-                               nowMs: Long = System.currentTimeMillis()): Boolean {
-        if (!task.isGroup) return isRtWindowActive(task, nowMs)
+                               _nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (!task.isGroup) return isRtWindowActive(task, _nowMs)
         val children = allTasks.filter { it.parentId == task.id && !it.isCompleted }
         return children.any { child ->
-            if (child.isGroup) hasActiveRtDescendant(child, allTasks, nowMs)
-            else isRtWindowActive(child, nowMs)
+            if (child.isGroup) hasActiveRtDescendant(child, allTasks, _nowMs)
+            else isRtWindowActive(child, _nowMs)
         }
     }
 

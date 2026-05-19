@@ -106,6 +106,7 @@ class MainActivity : AppCompatActivity() {
         if (!prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)) return
         v.performHapticFeedback(
             android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+            @Suppress("DEPRECATION")
             android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
         )
     }
@@ -523,7 +524,7 @@ class MainActivity : AppCompatActivity() {
             btnStartPause.icon    = null
             btnStartPause.isEnabled = action.enabled
             btnStartPause.backgroundTintList =
-                android.content.res.ColorStateList.valueOf(
+                ColorStateList.valueOf(
                     ContextCompat.getColor(this, action.colorRes)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
@@ -606,14 +607,14 @@ class MainActivity : AppCompatActivity() {
 
         // ── Remote sync import → restart app so Room opens the new DB cleanly ─
         viewModel.restartNeeded.observe(this) {
-            android.widget.Toast.makeText(
-                this, "Sync received — reloading…", android.widget.Toast.LENGTH_SHORT
+            Toast.makeText(
+                this, "Sync received — reloading…", Toast.LENGTH_SHORT
             ).show()
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 val intent = packageManager.getLaunchIntentForPackage(packageName)!!
                 intent.addFlags(
-                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_NEW_TASK
                 )
                 startActivity(intent)
                 android.os.Process.killProcess(android.os.Process.myPid())
@@ -735,7 +736,7 @@ class MainActivity : AppCompatActivity() {
             syncView.setOnClickListener {
                 // Tap sync icon → trigger an immediate sync export
                 viewModel.triggerSyncExport()
-                android.widget.Toast.makeText(this, "Syncing…", android.widget.Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Syncing…", Toast.LENGTH_SHORT).show()
             }
         }
 

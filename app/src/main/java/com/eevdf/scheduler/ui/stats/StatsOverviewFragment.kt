@@ -113,8 +113,6 @@ class StatsOverviewFragment : Fragment() {
         val leafTasks       = tasks.filter { !it.isGroup }
         val taskById        = tasks.associateBy { it.id }
 
-        // All-time effective daily (for streak / peak — full history)
-        val effectiveDailyAll = buildEffectiveDailyAll(allLogEntries, dailyAll)
 
         // Window-filtered slices
         val windowDailyRows = dailyAll.filter { it.dayEpoch >= fromMs }
@@ -502,17 +500,17 @@ class StatsOverviewFragment : Fragment() {
             text = sublabel; textSize = 11f; setTextColor(Color.parseColor("#757575"))
         })
         root.addView(row)
-        val track = android.widget.FrameLayout(ctx).apply {
+        val track = FrameLayout(ctx).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, (6 * dp).toInt()
             ).also { it.topMargin = (4 * dp).toInt() }
             setBackgroundColor(Color.parseColor("#E0E0E0"))
         }
         track.addView(View(ctx).apply {
-            layoutParams = android.widget.FrameLayout.LayoutParams(
+            layoutParams = FrameLayout.LayoutParams(
                 (percent.coerceIn(0, 100) / 100f *
                     resources.displayMetrics.widthPixels).toInt().coerceAtLeast((2 * dp).toInt()),
-                android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
+                FrameLayout.LayoutParams.MATCH_PARENT)
             setBackgroundColor(Color.parseColor(barColor))
         })
         root.addView(track)
