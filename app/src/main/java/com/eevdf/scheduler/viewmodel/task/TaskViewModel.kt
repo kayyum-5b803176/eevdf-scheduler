@@ -470,6 +470,19 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setCurrentTask(task: Task) {
         pauseTimer()
+        // After a NOTIFICATION task expires, triggerAlarmExpire() sets
+        // _noticePhase = Expired (sync) then nulls _currentTask via postValue
+        // (async).  By the time the user taps the task row, _currentTask is
+        // already null, so pauseTimer()'s `task != null` guard skips handlePause()
+        // and the Expired phase is never cleared.  On the first re-select the
+        // derive() therefore sees:  task != null  +  phase == Expired
+        // -> TimerCardAction.Unavailable ("-") instead of Start.
+        //
+        // Fix: always reset notice state here, after pauseTimer() has already
+        // handled any truly-running delay/wait/execute phase.  resetState() is
+        // idempotent: if pauseTimer() already transitioned the phase to Idle
+        // (normal cancel/pause paths) this is a harmless no-op.
+        notice.resetState()
         _currentTask.value  = task
         _timerSeconds.value = task.remainingSeconds
     }
