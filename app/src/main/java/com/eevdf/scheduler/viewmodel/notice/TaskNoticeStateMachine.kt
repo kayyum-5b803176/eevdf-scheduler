@@ -107,7 +107,11 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
             waitSecs > 0                           -> startWaitPhase(task, waitSecs)
             currentRepeatIteration < maxRepeat     -> {
                 currentRepeatIteration++
-                startExecutePhase(task, task.timeSliceSeconds, currentRepeatIteration)
+                // Bug fix #2: the task captured here has timerState = Expired(sliceMs).
+                // TimerStartEvent.from(Expired) computes accumulated = sliceMs, so the
+                // engine starts with 0 remaining and onFinish fires in ~0 ms.
+                // Reset to Idle so the next execute gets the full slice duration.
+                startExecutePhase(task.withTimerState(TimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
             }
             else                                   -> triggerAlarmExpire(task)
         }
@@ -180,6 +184,13 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 _noticePhase.postValue(NoticePhase.Delay(secs))
             }
             override fun onFinish() {
+                // Bug fix #1: cancelDelayPhase() sets _noticePhase to Idle
+                // synchronously on the main thread.  On some OEM ROMs the final
+                // CountDownTimer message can still land after cancel() returns, so
+                // guard here — if the phase is no longer Delay the cancel already
+                // ran and we must not advance to Execute (which would schedule a
+                // background alarm the user already dismissed).
+                if (_noticePhase.value !is NoticePhase.Delay) return
                 val delayElapsedSeconds = ((System.currentTimeMillis() - delayStart) / 1000L)
                     .coerceAtLeast(0L)
                 noticeSessionSeconds += delayElapsedSeconds
@@ -216,6 +227,10 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 _noticePhase.postValue(NoticePhase.Wait(secs, currentRepeatIteration))
             }
             override fun onFinish() {
+                // Bug fix #1 (mirror of delay guard): cancelWaitPhase() sets
+                // _noticePhase to Idle synchronously; if it fired before this
+                // callback the user already cancelled — do not advance to Execute.
+                if (_noticePhase.value !is NoticePhase.Wait) return
                 val waitElapsedSeconds = ((System.currentTimeMillis() - waitStart) / 1000L)
                     .coerceAtLeast(0L)
                 noticeSessionSeconds += waitElapsedSeconds
@@ -225,7 +240,9 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 val maxRepeat = task.notificationRepeatCount
                 if (currentRepeatIteration < maxRepeat) {
                     currentRepeatIteration++
-                    startExecutePhase(task, task.timeSliceSeconds, currentRepeatIteration)
+                    // Bug fix #2 (wait path): same Expired-timerState issue —
+                    // reset to Idle so the repeat execute gets the full slice.
+                    startExecutePhase(task.withTimerState(TimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
                 } else {
                     triggerAlarmExpire(task)
                 }
