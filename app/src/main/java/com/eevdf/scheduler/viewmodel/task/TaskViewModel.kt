@@ -380,6 +380,10 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         notice.initSession(task)
         if (delaySecs > 0) {
             notice.startDelayPhase(task, remaining, delaySecs)
+        } else if (task.taskType == "NOTIFICATION") {
+            // Route through resolveAfterDelay so a pending wait-cancel is handled
+            // (timestamp resume or skip to next execute) even when there is no delay.
+            notice.resolveAfterDelay(task, remaining)
         } else {
             startActualTimer(task, remaining)
         }

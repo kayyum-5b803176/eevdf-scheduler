@@ -71,12 +71,36 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      * The iteration index of the last execute phase that was started.
      * Persists across pause/resume so that [initSession] can restore the
      * correct phase after the user pauses on execute-N and resumes.
-     *
-     * Also used by [cancelWaitPhase] to advance to the NEXT execute after
-     * the user cancels during a wait: if a next cycle exists we jump to it;
-     * otherwise we restart from iteration 0 (the initial execute).
      */
     private var lastExecuteIteration: Int = 0
+
+    // ── Pending-wait state (timestamp-based resume / skip) ────────────────────
+    //
+    // When the user cancels during a wait phase the wait is NOT discarded.
+    // Instead, wall-clock time continues to count against the remaining wait
+    // duration.  On the next Start:
+    //
+    //   adjustedRemaining = waitRemainingAtCancelMs − (nowMs − waitCancelledEpochMs)
+    //
+    //   • adjustedRemaining > 0  →  resume the wait at that reduced duration
+    //   • adjustedRemaining ≤ 0  →  the wait would already be over; skip directly
+    //                               to the next execute phase (or wrap to execute-0
+    //                               if there is no next phase).
+    //
+    // The delay phase (if any) naturally adds to the elapsed time because
+    // waitCancelledEpochMs is set at cancel time and the check happens AFTER
+    // the delay completes, so delay seconds are automatically subtracted.
+    //
+    // Example — wait 90 s, cancel with 90 s remaining:
+    //   case 1 (resume): 10 s idle + 5 s delay → elapsed = 15 s → resume at 75 s
+    //   case 2 (skip):  100 s idle + 5 s delay → elapsed = 105 s → skip to execute-2
+
+    /** ≥ 0 while a wait-phase cancel is pending; −1 means no pending wait. */
+    private var pendingWaitIteration: Int = -1
+    /** System.currentTimeMillis() at the moment the wait was cancelled. */
+    private var waitCancelledEpochMs: Long = 0L
+    /** Remaining wait time in ms at the moment of cancel. */
+    private var waitRemainingAtCancelMs: Long = 0L
 
     // ── Phase timers ──────────────────────────────────────────────────────────
 
@@ -107,17 +131,28 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      *   • Same restore path — [lastExecuteIteration] already holds the right target.
      */
     fun initSession(task: Task) {
-        val isFreshStart = task.timerState is TimerState.Idle
-        if (isFreshStart) {
-            currentRepeatIteration = 0
-            lastExecuteIteration   = 0
-        } else {
-            // Resume: restore from the persisted execute iteration
-            currentRepeatIteration = lastExecuteIteration
+        when {
+            pendingWaitIteration >= 0 -> {
+                // Pending-wait resume: keep pendingWait* fields intact so
+                // resolveAfterDelay() can use them.  currentRepeatIteration will be
+                // set there once the timestamp check decides resume vs skip.
+            }
+            task.timerState is TimerState.Idle -> {
+                // Fresh start: reset all iteration counters.
+                currentRepeatIteration = 0
+                lastExecuteIteration   = 0
+            }
+            else -> {
+                // Execute resume: restore the iteration we were on when paused.
+                currentRepeatIteration = lastExecuteIteration
+            }
         }
         noticeSessionSeconds      = 0L
         noticeSessionStartEpochMs = System.currentTimeMillis()
     }
+
+    /** True when the user cancelled mid-wait and Start should resolve the pending wait. */
+    fun hasPendingWait(): Boolean = pendingWaitIteration >= 0
 
     /**
      * Accumulates [seconds] from the engine's execute run into the session total.
@@ -166,10 +201,11 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      * Called from [TaskViewModel.resetTimer].
      */
     fun resetState() {
-        currentRepeatIteration = 0
-        lastExecuteIteration   = 0
-        noticeSessionSeconds   = 0L
-        _noticePhase.value     = NoticePhase.Idle
+        currentRepeatIteration  = 0
+        lastExecuteIteration    = 0
+        noticeSessionSeconds    = 0L
+        _noticePhase.value      = NoticePhase.Idle
+        clearPendingWait()
     }
 
     /**
@@ -229,7 +265,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 _delayRunning.postValue(false)
                 _delaySecondsRemaining.postValue(0L)
                 delayTimer = null
-                startExecutePhase(task, remaining, currentRepeatIteration)
+                resolveAfterDelay(task, remaining)
             }
         }.start()
         AlarmForegroundService.delayStart(vm.app, task.name, delaySecs)
@@ -319,24 +355,23 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
     }
 
     fun cancelWaitPhase() {
-        val secs     = _waitSecondsRemaining.value ?: 0L
-        val task     = vm._currentTask.value
-        val waitSecs = task?.notificationRestSeconds ?: 0L
-        val waitElapsedSeconds = (waitSecs - secs).coerceAtLeast(0L)
+        val remainingMs = (_waitSecondsRemaining.value ?: 0L) * 1000L
+        val task        = vm._currentTask.value
+        val waitSecs    = task?.notificationRestSeconds ?: 0L
+        val waitElapsedSeconds = ((waitSecs * 1000L - remainingMs) / 1000L).coerceAtLeast(0L)
+
         waitTimer?.cancel(); waitTimer = null
         _waitRunning.value          = false
         _waitSecondsRemaining.value = 0L
+        _noticePhase.value          = NoticePhase.Idle
 
-        // Bug fix #3: instead of resetting to iteration 0, advance to the NEXT
-        // execute cycle.  If no next cycle exists (we just finished the last wait)
-        // wrap back to iteration 0 (the first execute) so Start always lands on a
-        // real execute phase and never re-enters the wait that was just cancelled.
-        val maxRepeat    = task?.notificationRepeatCount ?: 0
-        val nextIter     = if (lastExecuteIteration < maxRepeat) lastExecuteIteration + 1 else 0
-        lastExecuteIteration   = nextIter
-        currentRepeatIteration = nextIter
-
-        _noticePhase.value = NoticePhase.Idle
+        // ── Record pending-wait state (timestamp-based resume) ────────────────
+        // Do NOT advance the iteration here.  resolveAfterDelay() will decide
+        // whether to resume the wait or skip to the next execute based on how
+        // much real time has elapsed since this cancel moment.
+        pendingWaitIteration    = lastExecuteIteration   // iteration of the execute that owns this wait
+        waitCancelledEpochMs    = System.currentTimeMillis()
+        waitRemainingAtCancelMs = remainingMs
 
         val totalConsumed    = noticeSessionSeconds + waitElapsedSeconds
         noticeSessionSeconds = 0L
@@ -349,13 +384,13 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 totalPhaseSecs = totalConsumed
             ))
         }
-        // Restore a full execute slice for the NEXT execute phase so the timer
-        // card shows the correct countdown duration when the user taps Start.
+        // Show the full execute slice on the timer card while idle so the user
+        // can see what duration will run on the next Start tap.
         val sliceSecs = task?.timeSliceSeconds ?: 0L
         vm._timerSeconds.value = sliceSecs
         vm._currentTask.value?.let { t ->
-            // Reset timerState to Idle so initSession(task) treats the next
-            // Start as a fresh-start for that iteration (not a resume).
+            // Reset timerState to Idle so the engine does not treat next Start as
+            // an execute resume (it's a wait-resume, handled by resolveAfterDelay).
             val reset = t.copy(remainingSeconds = sliceSecs).withTimerState(TimerState.reset())
             vm._currentTask.value = reset
             vm.viewModelScope.launch { vm.repository.update(reset) }
@@ -412,6 +447,53 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         vm._currentTask.postValue(null)
     }
 
+    // ── Phase routing ─────────────────────────────────────────────────────────
+
+    /**
+     * Decision point called after the delay phase (or immediately if delaySecs == 0).
+     *
+     * If a wait-phase cancel is pending ([pendingWaitIteration] ≥ 0) the timestamp
+     * check decides whether to resume the wait or skip to the next execute:
+     *
+     *   adjustedRemaining = waitRemainingAtCancelMs − (nowMs − waitCancelledEpochMs)
+     *
+     *   > 0  →  resume wait at [adjustedRemaining] ms  (case 1 — resume type)
+     *   ≤ 0  →  the wait already expired in the background; advance to the next
+     *            execute, or wrap to execute-0 if there is no next cycle (case 2 — skip type)
+     *
+     * When there is no pending wait the method falls straight through to
+     * [startExecutePhase] with [remainingExecuteSecs] (normal/resume path).
+     *
+     * @param remainingExecuteSecs  Full-slice or partial-slice seconds to use when
+     *                              starting a normal execute.  Ignored for wait-resume
+     *                              and skip paths, which derive their own duration.
+     */
+    fun resolveAfterDelay(task: Task, remainingExecuteSecs: Long) {
+        if (pendingWaitIteration >= 0) {
+            val savedIter      = pendingWaitIteration
+            val nowMs          = System.currentTimeMillis()
+            val adjustedMs     = waitRemainingAtCancelMs - (nowMs - waitCancelledEpochMs)
+            clearPendingWait()
+
+            if (adjustedMs > 0) {
+                // Case 1 — resume: wait still has time left
+                currentRepeatIteration = savedIter
+                lastExecuteIteration   = savedIter
+                startWaitPhase(task, adjustedMs / 1000L)
+            } else {
+                // Case 2 — skip: wait expired while user was away
+                val maxRepeat = task.notificationRepeatCount
+                val nextIter  = if (savedIter < maxRepeat) savedIter + 1 else 0
+                currentRepeatIteration = nextIter
+                lastExecuteIteration   = nextIter
+                startExecutePhase(task.withTimerState(TimerState.reset()), task.timeSliceSeconds, nextIter)
+            }
+            return
+        }
+        // Normal path: no pending wait — start (or resume) execute
+        startExecutePhase(task, remainingExecuteSecs, currentRepeatIteration)
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun delaySecs(): Long =
@@ -445,6 +527,12 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      * returns [executeRemaining] unchanged so non-wait NOTIFICATION tasks behave
      * identically to DEFAULT tasks.
      */
+    private fun clearPendingWait() {
+        pendingWaitIteration    = -1
+        waitCancelledEpochMs    = 0L
+        waitRemainingAtCancelMs = 0L
+    }
+
     private fun calcTotalAlarmSecs(
         executeRemaining: Long,
         task: Task,
