@@ -207,12 +207,21 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
     fun startExecutePhase(task: Task, secs: Long, iteration: Int) {
         _noticePhase.value = NoticePhase.Execute(iteration)
         SoundManager.playExecuteSound(vm.app, vm.prefs)
-        vm.startActualTimer(task, secs)
+        // Compute total alarm time covering all remaining (execute + wait) cycles so
+        // the AlarmManager entry is set ONCE and never cancelled between phases.
+        // On pause the alarm is cancelled normally; on resume startExecutePhase is
+        // called again with the actual remaining execute seconds, so the recalc is
+        // always precise.
+        val alarmSecs = calcTotalAlarmSecs(secs, task, iteration)
+        vm.startActualTimer(task, secs, alarmSecs)
     }
 
     /** Step 3: rest period between execute cycles. */
     fun startWaitPhase(task: Task, waitSecs: Long) {
-        AlarmForegroundService.cancelScheduledAlarm(vm.app)
+        // DO NOT cancel the alarm here.  startExecutePhase already scheduled it for
+        // the full remaining cycle time (executeRemaining + waitSecs + future cycles).
+        // Cancelling here was the original bug: it killed the backup wakeup alarm between
+        // execute phases, leaving no AlarmManager entry if the process was killed mid-wait.
         _waitRunning.value          = true
         _waitSecondsRemaining.value = waitSecs
         _noticePhase.value          = NoticePhase.Wait(waitSecs, currentRepeatIteration)
@@ -315,6 +324,19 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         val ctx = vm.app
         _noticePhase.value = NoticePhase.Expired
 
+        // Cancel the AlarmManager backup alarm BEFORE starting the in-app expire path.
+        //
+        // At end-of-last-cycle, the AlarmManager entry and the wait-phase CountDownTimer
+        // fire at the same wall-clock epoch.  Cancelling here (synchronously, on the main
+        // thread, before any coroutine suspend) ensures AlarmState==Idle when the broadcast
+        // arrives, so TimerAlarmReceiver.onAlarmFired() returns false and the alarm does
+        // not double-ring via the background path.
+        //
+        // When the app IS dead the CountDownTimer never runs — the AlarmManager fires alone,
+        // onAlarmFired() finds AlarmState==Scheduled, transitions to Ringing, and the
+        // service rings normally.  No conflict in that path.
+        AlarmForegroundService.cancelScheduledAlarm(ctx)
+
         val sessionSecs  = noticeSessionSeconds
         noticeSessionSeconds = 0L
 
@@ -344,4 +366,44 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
     private fun delaySecs(): Long =
         if (vm._currentTask.value?.taskType == "NOTIFICATION")
             vm._currentTask.value?.notificationDelaySeconds ?: 0L else 0L
+
+    /**
+     * Computes the total AlarmManager trigger time (in seconds from now) for a
+     * NOTIFICATION task that is about to start execute iteration [currentIteration]
+     * with [executeRemaining] seconds left in that execute run.
+     *
+     * Formula (delay is excluded — the alarm only covers the active work window):
+     *
+     *   executeRemaining + waitSecs + (executeSecs + waitSecs) × (maxRepeat − currentIteration)
+     *
+     * Breakdown:
+     *   • executeRemaining              — time left in the current execute slice
+     *   • + waitSecs                    — the wait that follows this execute
+     *   • + (executeSecs + waitSecs)    — each subsequent full (execute + wait) pair
+     *     × (maxRepeat − currentIteration) — number of full pairs still to run
+     *
+     * Example — execute: 10 s, wait: 5 s, notificationRepeatCount: 1, iteration: 0
+     *   = 10 + 5 + (10 + 5) × (1 − 0) = 30 s
+     *   Alarm fires 30 s from now, after: execute(10) → wait(5) → execute(10) → wait(5).
+     *
+     * On pause: the caller cancels the alarm via [AlarmForegroundService.timerPause].
+     * On resume: [startExecutePhase] is called with the actual remaining execute seconds
+     * so the formula always produces a precise, up-to-date trigger time.
+     *
+     * When [task.notificationRestSeconds] == 0 there is no wait phase; the method
+     * returns [executeRemaining] unchanged so non-wait NOTIFICATION tasks behave
+     * identically to DEFAULT tasks.
+     */
+    private fun calcTotalAlarmSecs(
+        executeRemaining: Long,
+        task: Task,
+        currentIteration: Int
+    ): Long {
+        val waitSecs    = task.notificationRestSeconds
+        if (waitSecs <= 0L) return executeRemaining   // no wait phase — single execute alarm
+        val executeSecs = task.timeSliceSeconds
+        val maxRepeat   = task.notificationRepeatCount
+        val remainingFullCycles = (maxRepeat - currentIteration).coerceAtLeast(0)
+        return executeRemaining + waitSecs + (executeSecs + waitSecs) * remainingFullCycles
+    }
 }

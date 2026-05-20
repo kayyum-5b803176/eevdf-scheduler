@@ -73,15 +73,24 @@ class AlarmForegroundService : Service() {
          * Call when the timer starts.
          * Schedules the Doze-immune alarm via AlarmScheduler (not inline here),
          * then starts the foreground service to show the countdown notification.
+         *
+         * @param remainingSecs  Seconds shown in the countdown notification (current execute slice).
+         * @param alarmSecs      Seconds until the AlarmManager fires.  For NOTIFICATION tasks this
+         *                       equals the sum of all remaining (execute + wait) cycles so the alarm
+         *                       is set ONCE for the full cycle duration rather than being cancelled
+         *                       and re-set on every execute→wait→execute transition.
+         *                       Defaults to [remainingSecs] for all non-NOTIFICATION tasks.
          */
         fun timerStart(
             context: Context,
             taskName: String,
             remainingSecs: Long,
-            taskType: String = "DEFAULT"
+            taskType: String = "DEFAULT",
+            alarmSecs: Long = remainingSecs
         ) {
             // AlarmScheduler is the sole AlarmManager owner.
-            AlarmScheduler.schedule(context, taskName, remainingSecs, taskType)
+            // Use alarmSecs (total cycle time) for the alarm, remainingSecs for the notification.
+            AlarmScheduler.schedule(context, taskName, alarmSecs, taskType)
             send(context, ACTION_TIMER_START, taskName, remainingSecs, taskType)
         }
 

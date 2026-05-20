@@ -390,7 +390,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
      * Single entry point for starting an execute countdown — called by the ViewModel
      * directly and by [TaskNoticeStateMachine.startExecutePhase].
      */
-    internal fun startActualTimer(task: Task, remaining: Long) {
+    /**
+     * @param remaining  Execute-slice seconds remaining — drives the engine countdown and
+     *                   the notification chronometer.
+     * @param alarmSecs  Total seconds until the AlarmManager should fire.  For NOTIFICATION
+     *                   tasks [TaskNoticeStateMachine.startExecutePhase] passes the pre-computed
+     *                   sum of all remaining (execute + wait) cycles so the alarm is set ONCE
+     *                   and never cancelled mid-cycle.  Defaults to [remaining] for all other
+     *                   task types (alarm fires when the single execute slice expires).
+     */
+    internal fun startActualTimer(task: Task, remaining: Long, alarmSecs: Long = remaining) {
         val nowMs   = System.currentTimeMillis()
         val event   = TimerStartEvent.from(task.timerState, nowMs)
         val running = event.toRunning
@@ -404,7 +413,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             repository.update(updated)
             triggerSyncExport()          // notify other users: timer started
         }
-        AlarmForegroundService.timerStart(app, task.name, remaining, task.taskType)
+        AlarmForegroundService.timerStart(app, task.name, remaining, task.taskType, alarmSecs)
         timerEngine.start(updated)
     }
 
@@ -528,25 +537,18 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         timerEngine.clear()
 
         viewModelScope.launch {
-            // For NOTIFICATION tasks: cancel the execute-phase AlarmManager alarm
-            // IMMEDIATELY — before the first suspend call (repository.update).
+            // NOTIFICATION tasks: do NOT cancel the alarm here.
             //
-            // Root cause: AlarmManager fires at the same wall-clock epoch as
-            // CountDownTimer.onFinish().  With Dispatchers.Main.immediate the
-            // coroutine starts inline, but repository.update() is a Room suspend
-            // that yields the main thread to the IO dispatcher.  During that
-            // yield the AlarmManager broadcast arrives; TimerAlarmReceiver calls
-            // AlarmScheduler.onAlarmFired() which still sees AlarmState==Scheduled
-            // (cancel hasn't been called yet) → returns true → alarm rings and
-            // the full expire flow fires after every execute slice.
+            // The alarm is now set for the FULL remaining cycle duration in
+            // startExecutePhase (execute + all future wait/execute pairs), so it
+            // cannot collide with CountDownTimer.onFinish() at execute boundaries —
+            // the alarm fires at e.g. 30 s while execute ends at 10 s.
             //
-            // Cancelling here, before any suspend, ensures AlarmState==Idle when
-            // the broadcast lands, so onAlarmFired() returns false and the alarm
-            // is silently dropped.  startWaitPhase() also cancels (redundant but
-            // kept as a safety net for non-coroutine paths).
-            if (task.taskType == "NOTIFICATION") {
-                AlarmForegroundService.cancelScheduledAlarm(ctx)
-            }
+            // The only remaining collision point is the FINAL wait phase where
+            // CountDownTimer and AlarmManager both fire at the same epoch.
+            // That race is handled in triggerAlarmExpire(), which cancels the
+            // AlarmManager entry synchronously before starting the in-app expire
+            // path, so onAlarmFired() finds AlarmState==Idle and returns false.
             if (session != null) {
                 if (task.taskType != "NOTIFICATION") {
                     repository.updateVruntimeAfterRun(task, session)
