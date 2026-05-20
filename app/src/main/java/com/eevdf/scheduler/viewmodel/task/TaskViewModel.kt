@@ -377,7 +377,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
         val delaySecs = if (task.taskType == "NOTIFICATION") task.notificationDelaySeconds else 0L
 
-        notice.initSession()
+        notice.initSession(task)
         if (delaySecs > 0) {
             notice.startDelayPhase(task, remaining, delaySecs)
         } else {

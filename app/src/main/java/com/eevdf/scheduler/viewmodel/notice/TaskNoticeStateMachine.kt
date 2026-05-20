@@ -9,6 +9,7 @@ import com.eevdf.scheduler.model.notice.NoticePhase
 import com.eevdf.scheduler.model.runlog.RunSession
 import com.eevdf.scheduler.model.task.Task
 import com.eevdf.scheduler.model.timer.TimerState
+import com.eevdf.scheduler.model.timer.timerState
 import com.eevdf.scheduler.model.timer.withTimerState
 import com.eevdf.scheduler.ui.alarm.AlarmForegroundService
 import com.eevdf.scheduler.ui.settings.SoundManager
@@ -66,6 +67,17 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
     /** Tracks completed repeat cycles for the current Notice task session. */
     private var currentRepeatIteration: Int = 0
 
+    /**
+     * The iteration index of the last execute phase that was started.
+     * Persists across pause/resume so that [initSession] can restore the
+     * correct phase after the user pauses on execute-N and resumes.
+     *
+     * Also used by [cancelWaitPhase] to advance to the NEXT execute after
+     * the user cancels during a wait: if a next cycle exists we jump to it;
+     * otherwise we restart from iteration 0 (the initial execute).
+     */
+    private var lastExecuteIteration: Int = 0
+
     // ── Phase timers ──────────────────────────────────────────────────────────
 
     private var delayTimer: CountDownTimer? = null
@@ -79,11 +91,30 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
     // ── Public entry points ───────────────────────────────────────────────────
 
     /**
-     * Initialises session-level state for a fresh start.
-     * Called from [TaskViewModel.startTimer] before entering Delay or Execute.
+     * Initialises session-level state.
+     * Called from [TaskViewModel.startTimer] on every Start tap.
+     *
+     * For a FRESH start ([task] timer state is Idle):
+     *   • Reset iteration counters to 0.
+     *
+     * For a RESUME (timer state is Paused from a mid-execute pause):
+     *   • Restore [currentRepeatIteration] from [lastExecuteIteration] so the
+     *     engine resumes at the correct execute cycle instead of always restarting
+     *     from execute-0.  (Bug fix #2)
+     *
+     * For a post-wait-cancel start ([lastExecuteIteration] was already advanced
+     * by [cancelWaitPhase] to the next cycle):
+     *   • Same restore path — [lastExecuteIteration] already holds the right target.
      */
-    fun initSession() {
-        currentRepeatIteration    = 0
+    fun initSession(task: Task) {
+        val isFreshStart = task.timerState is TimerState.Idle
+        if (isFreshStart) {
+            currentRepeatIteration = 0
+            lastExecuteIteration   = 0
+        } else {
+            // Resume: restore from the persisted execute iteration
+            currentRepeatIteration = lastExecuteIteration
+        }
         noticeSessionSeconds      = 0L
         noticeSessionStartEpochMs = System.currentTimeMillis()
     }
@@ -136,6 +167,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      */
     fun resetState() {
         currentRepeatIteration = 0
+        lastExecuteIteration   = 0
         noticeSessionSeconds   = 0L
         _noticePhase.value     = NoticePhase.Idle
     }
@@ -205,6 +237,9 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
 
     /** Step 2: the actual timed work window. Hands off to the engine in ViewModel. */
     fun startExecutePhase(task: Task, secs: Long, iteration: Int) {
+        // Record the iteration so that initSession(task) can restore it on resume
+        // and cancelWaitPhase() can advance past this cycle. (Bug fix #2)
+        lastExecuteIteration = iteration
         _noticePhase.value = NoticePhase.Execute(iteration)
         SoundManager.playExecuteSound(vm.app, vm.prefs)
         // Compute total alarm time covering all remaining (execute + wait) cycles so
@@ -268,6 +303,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         _delayRunning.value          = false
         _delaySecondsRemaining.value = 0L
         currentRepeatIteration       = 0
+        lastExecuteIteration         = 0
         noticeSessionSeconds         = 0L
         _noticePhase.value           = NoticePhase.Idle
         if (elapsed > 0) {
@@ -290,8 +326,18 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         waitTimer?.cancel(); waitTimer = null
         _waitRunning.value          = false
         _waitSecondsRemaining.value = 0L
-        currentRepeatIteration      = 0
-        _noticePhase.value          = NoticePhase.Idle
+
+        // Bug fix #3: instead of resetting to iteration 0, advance to the NEXT
+        // execute cycle.  If no next cycle exists (we just finished the last wait)
+        // wrap back to iteration 0 (the first execute) so Start always lands on a
+        // real execute phase and never re-enters the wait that was just cancelled.
+        val maxRepeat    = task?.notificationRepeatCount ?: 0
+        val nextIter     = if (lastExecuteIteration < maxRepeat) lastExecuteIteration + 1 else 0
+        lastExecuteIteration   = nextIter
+        currentRepeatIteration = nextIter
+
+        _noticePhase.value = NoticePhase.Idle
+
         val totalConsumed    = noticeSessionSeconds + waitElapsedSeconds
         noticeSessionSeconds = 0L
         if (totalConsumed > 0) {
@@ -303,11 +349,16 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 totalPhaseSecs = totalConsumed
             ))
         }
-        // Restore execute slice so Start restarts from the full slice
+        // Restore a full execute slice for the NEXT execute phase so the timer
+        // card shows the correct countdown duration when the user taps Start.
         val sliceSecs = task?.timeSliceSeconds ?: 0L
         vm._timerSeconds.value = sliceSecs
         vm._currentTask.value?.let { t ->
-            vm._currentTask.value = t.copy(remainingSeconds = sliceSecs)
+            // Reset timerState to Idle so initSession(task) treats the next
+            // Start as a fresh-start for that iteration (not a resume).
+            val reset = t.copy(remainingSeconds = sliceSecs).withTimerState(TimerState.reset())
+            vm._currentTask.value = reset
+            vm.viewModelScope.launch { vm.repository.update(reset) }
         }
         AlarmForegroundService.timerPause(vm.app)
     }

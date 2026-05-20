@@ -170,11 +170,15 @@ class TaskAdapter(
         val old = noticeTaskId
         noticeTaskId       = taskId
         currentNoticePhase = phase
-        // Persist every non-Idle phase so buildNoticeSegments can show the
-        // last progress even after pause or cancel resets phase → Idle.
-        // The map is keyed by task id; starting a new run naturally overwrites
-        // any stale entry from the previous run (non-Idle phase replaces it).
-        if (taskId != null && phase !is NoticePhase.Idle) {
+        // Persist Execute / Wait / Expired phases so buildNoticeSegments can show
+        // the last frozen progress after a pause, cancel, or while Delay is running.
+        // Delay is explicitly excluded: its ticks must NOT overwrite the prior
+        // Execute/Wait snapshot — that snapshot is the fallback the Delay branch
+        // in buildNoticeSegments reads to keep segments visible during the countdown.
+        // Idle is excluded for the same reason (phase reset should not erase history).
+        if (taskId != null
+            && phase !is NoticePhase.Idle
+            && phase !is NoticePhase.Delay) {
             persistedPhaseByTask[taskId] = phase
         }
         // When the active notice task changes, clear the OLD task's persisted
@@ -801,7 +805,40 @@ class TaskAdapter(
                 // Full cycle complete — show all segments at 100 %
                 for (s in fills.indices) fills[s] = 100
             }
-            else -> { /* Idle / Delay: no fill */ }
+            is NoticePhase.Delay -> {
+                // Bug fix #1: During the delay phase the execute slice has not
+                // started yet, so there is no live progress to show.  Fall back
+                // to the persisted phase (last frozen state from a previous run or
+                // a mid-cycle pause) so the segment bar stays at its prior fill
+                // instead of going blank.  If there is no persisted state every
+                // segment shows the empty track — correct for a first-ever run.
+                val fallback = persistedPhaseByTask[task.id]
+                if (fallback != null && fallback !is NoticePhase.Idle && fallback !is NoticePhase.Delay) {
+                    when (fallback) {
+                        is NoticePhase.Execute -> {
+                            val iter    = fallback.iteration.coerceIn(0, cycles - 1)
+                            val execIdx = iter * segsPerCycle
+                            for (s in 0 until execIdx) fills[s] = 100
+                            if (execIdx < totalSegs) fills[execIdx] = task.progressPercent
+                        }
+                        is NoticePhase.Wait -> {
+                            val iter    = fallback.iteration.coerceIn(0, cycles - 1)
+                            val execIdx = iter * segsPerCycle
+                            for (s in 0..execIdx) if (s < totalSegs) fills[s] = 100
+                            if (hasWait) {
+                                val waitIdx = execIdx + 1
+                                if (waitIdx < totalSegs && waitSecs > 0) {
+                                    val elapsed = (waitSecs - fallback.remainingSecs).coerceAtLeast(0L)
+                                    fills[waitIdx] = (elapsed * 100L / waitSecs).toInt().coerceIn(0, 100)
+                                }
+                            }
+                        }
+                        else -> { /* Expired already handled above */ }
+                    }
+                }
+                // else: first-ever run — all fills stay 0, segments show empty track
+            }
+            else -> { /* Idle: no fill */ }
         }
 
         // ── Colour palette ───────────────────────────────────────────────────
