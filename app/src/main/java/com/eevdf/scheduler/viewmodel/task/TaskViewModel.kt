@@ -528,6 +528,25 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         timerEngine.clear()
 
         viewModelScope.launch {
+            // For NOTIFICATION tasks: cancel the execute-phase AlarmManager alarm
+            // IMMEDIATELY — before the first suspend call (repository.update).
+            //
+            // Root cause: AlarmManager fires at the same wall-clock epoch as
+            // CountDownTimer.onFinish().  With Dispatchers.Main.immediate the
+            // coroutine starts inline, but repository.update() is a Room suspend
+            // that yields the main thread to the IO dispatcher.  During that
+            // yield the AlarmManager broadcast arrives; TimerAlarmReceiver calls
+            // AlarmScheduler.onAlarmFired() which still sees AlarmState==Scheduled
+            // (cancel hasn't been called yet) → returns true → alarm rings and
+            // the full expire flow fires after every execute slice.
+            //
+            // Cancelling here, before any suspend, ensures AlarmState==Idle when
+            // the broadcast lands, so onAlarmFired() returns false and the alarm
+            // is silently dropped.  startWaitPhase() also cancels (redundant but
+            // kept as a safety net for non-coroutine paths).
+            if (task.taskType == "NOTIFICATION") {
+                AlarmForegroundService.cancelScheduledAlarm(ctx)
+            }
             if (session != null) {
                 if (task.taskType != "NOTIFICATION") {
                     repository.updateVruntimeAfterRun(task, session)

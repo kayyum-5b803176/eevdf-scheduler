@@ -49,6 +49,11 @@ class TaskAdapter(
     // Updated via setNoticeState() called from MainActivity's noticePhase observer.
     private var noticeTaskId:       String?      = null
     private var currentNoticePhase: NoticePhase  = NoticePhase.Idle
+    // Persists the last non-Idle phase per task so segments stay filled
+    // after pause or cancel (instead of resetting to empty track).
+    // Keyed by task.id; entries survive the run until overwritten by a new
+    // non-Idle phase (i.e. the next run naturally replaces stale progress).
+    private val persistedPhaseByTask = mutableMapOf<String, NoticePhase>()
 
     // ── UI Customization state ────────────────────────────────────────────────
     /** Card height scale: 1 (smallest / most compact) … 5 (default full size). */
@@ -165,8 +170,20 @@ class TaskAdapter(
         val old = noticeTaskId
         noticeTaskId       = taskId
         currentNoticePhase = phase
-        // Redraw old notice card (clears stale fill if task changed)
-        if (old != taskId) notifyItemChanged(positionOf(old))
+        // Persist every non-Idle phase so buildNoticeSegments can show the
+        // last progress even after pause or cancel resets phase → Idle.
+        // The map is keyed by task id; starting a new run naturally overwrites
+        // any stale entry from the previous run (non-Idle phase replaces it).
+        if (taskId != null && phase !is NoticePhase.Idle) {
+            persistedPhaseByTask[taskId] = phase
+        }
+        // When the active notice task changes, clear the OLD task's persisted
+        // entry so its bar resets — stale progress from a different run should
+        // not linger if the user never re-opens that task.
+        if (old != null && old != taskId) {
+            persistedPhaseByTask.remove(old)
+            notifyItemChanged(positionOf(old))
+        }
         notifyItemChanged(positionOf(taskId))
     }
 
@@ -744,8 +761,19 @@ class TaskAdapter(
 
         if (execSecs <= 0) return
 
-        // ── Compute per-segment fill (0–100) from current notice phase ──────
-        val phase        = if (task.id == noticeTaskId) currentNoticePhase else NoticePhase.Idle
+        // ── Determine which phase to use for fill computation ────────────────
+        //
+        // Active task  + non-Idle phase  → live progress from currentNoticePhase
+        // Active task  + Idle phase      → paused/cancelled; use persisted phase
+        //                                  so segments stay frozen at last state
+        // Non-active task                → use persisted phase (shows last run)
+        // No persisted phase             → all segments show as empty track
+        val phase = when {
+            task.id == noticeTaskId && currentNoticePhase !is NoticePhase.Idle ->
+                currentNoticePhase
+            else ->
+                persistedPhaseByTask[task.id] ?: NoticePhase.Idle
+        }
         val segsPerCycle = if (hasWait) 2 else 1
         val totalSegs    = cycles * segsPerCycle
         val fills        = IntArray(totalSegs) { 0 }
@@ -754,13 +782,13 @@ class TaskAdapter(
             is NoticePhase.Execute -> {
                 val iter    = phase.iteration.coerceIn(0, cycles - 1)
                 val execIdx = iter * segsPerCycle
-                for (s in 0 until execIdx) fills[s] = 100   // previous segments: full
+                for (s in 0 until execIdx) fills[s] = 100
                 if (execIdx < totalSegs) fills[execIdx] = task.progressPercent
             }
             is NoticePhase.Wait -> {
                 val iter    = phase.iteration.coerceIn(0, cycles - 1)
                 val execIdx = iter * segsPerCycle
-                for (s in 0..execIdx) if (s < totalSegs) fills[s] = 100  // exec done: full
+                for (s in 0..execIdx) if (s < totalSegs) fills[s] = 100
                 if (hasWait) {
                     val waitIdx = execIdx + 1
                     if (waitIdx < totalSegs && waitSecs > 0) {
@@ -769,7 +797,11 @@ class TaskAdapter(
                     }
                 }
             }
-            else -> { /* Idle / Delay / Expired: all fills remain 0 (empty track) */ }
+            is NoticePhase.Expired -> {
+                // Full cycle complete — show all segments at 100 %
+                for (s in fills.indices) fills[s] = 100
+            }
+            else -> { /* Idle / Delay: no fill */ }
         }
 
         // ── Colour palette ───────────────────────────────────────────────────
@@ -827,7 +859,7 @@ class TaskAdapter(
         lp.marginEnd = endGapPx
         v.layoutParams = lp
 
-        val radius = heightPx / 2f  // pill-shaped caps
+        val radius = 0f  // square edges — rounded caps were visually wrong for split segments
 
         val track = GradientDrawable().apply {
             setColor(trackColor)
