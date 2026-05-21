@@ -62,6 +62,7 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var etNoticeRest:          TextInputEditText
     private lateinit var tvNoticeRestPreview:   TextView
     private lateinit var etNoticeRepeat:        TextInputEditText
+    private lateinit var spinnerNoticeResumeType: Spinner
 
     // Pinned share section
     private lateinit var etPinnedShare:         TextInputEditText
@@ -112,6 +113,9 @@ class AddTaskActivity : AppCompatActivity() {
 
     private val taskTypeLabels = listOf("Default", "Notice", "Alert", "Custom")
     private val taskTypeValues = listOf("DEFAULT", "NOTIFICATION", "ALARM", "CUSTOM")
+
+    private val noticeResumeTypeLabels = listOf("Middle", "Initial")
+    private val noticeResumeTypeValues = listOf("MIDDLE", "INITIAL")
     private var selectedTaskType = "DEFAULT"
 
     // Scheduler class dropdown entries (ordered by Linux priority: highest → lowest)
@@ -216,7 +220,8 @@ class AddTaskActivity : AppCompatActivity() {
         tvNotifDelayPreview  = findViewById(R.id.tvNotifDelayPreview)
         etNoticeRest         = findViewById(R.id.etNoticeRest)
         tvNoticeRestPreview  = findViewById(R.id.tvNoticeRestPreview)
-        etNoticeRepeat       = findViewById(R.id.etNoticeRepeat)
+        etNoticeRepeat           = findViewById(R.id.etNoticeRepeat)
+        spinnerNoticeResumeType  = findViewById(R.id.spinnerNoticeResumeType)
         etPinnedShare        = findViewById(R.id.etPinnedShare)
         tvPinnedShareWarning = findViewById(R.id.tvPinnedShareWarning)
         switchRealtimeShare       = findViewById(R.id.switchRealtimeShare)
@@ -406,6 +411,8 @@ class AddTaskActivity : AppCompatActivity() {
             val rm = task.notificationRestSeconds
             etNoticeRest.setText(if (rm == 0L) "" else "%02d-%02d".format(rm / 60, rm % 60))
             etNoticeRepeat.setText(if (task.notificationRepeatCount == 0) "" else task.notificationRepeatCount.toString())
+            val resumeIdx = noticeResumeTypeValues.indexOf(task.notificationResumeType).coerceAtLeast(0)
+            spinnerNoticeResumeType.setSelection(resumeIdx)
         }
         if (task.isInterrupt) {
             if (task.interruptSlot == "B") {
@@ -644,6 +651,10 @@ class AddTaskActivity : AppCompatActivity() {
         }
         watchDelay(etNotifDelay, tvNotifDelayPreview)
         watchDelay(etNoticeRest, tvNoticeRestPreview)
+
+        val resumeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, noticeResumeTypeLabels)
+        resumeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerNoticeResumeType.adapter = resumeAdapter
     }
 
     /** Parses mm-ss format (e.g. "01-30") into total seconds. Also accepts plain seconds. */
@@ -856,6 +867,9 @@ class AddTaskActivity : AppCompatActivity() {
         val notifDelaySecs  = if (selectedTaskType == "NOTIFICATION") parseDelayInput(etNotifDelay.text.toString()) else 0L
         val notifRestSecs   = if (selectedTaskType == "NOTIFICATION") parseDelayInput(etNoticeRest.text.toString()) else 0L
         val notifRepeat     = if (selectedTaskType == "NOTIFICATION") (etNoticeRepeat.text.toString().toIntOrNull() ?: 0).coerceIn(0, 12) else 0
+        val notifResumeType = if (selectedTaskType == "NOTIFICATION")
+            noticeResumeTypeValues.getOrElse(spinnerNoticeResumeType.selectedItemPosition) { "MIDDLE" }
+        else "MIDDLE"
 
         // Pinned share — null if field empty (auto-float), else validated 0.01–99.99
         val pinnedShareRaw = etPinnedShare.text.toString().toDoubleOrNull()
@@ -1018,6 +1032,7 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
+                notificationResumeType   = notifResumeType,
                 pinnedShare      = pinnedShare,
                 internalWeight   = internalWeight,
                 quotaSeconds       = quotaSeconds,
@@ -1056,6 +1071,7 @@ class AddTaskActivity : AppCompatActivity() {
                 notificationDelaySeconds = notifDelaySecs,
                 notificationRestSeconds  = notifRestSecs,
                 notificationRepeatCount  = notifRepeat,
+                notificationResumeType   = notifResumeType,
                 pinnedShare      = pinnedShare,
                 internalWeight   = internalWeight,
                 quotaSeconds       = quotaSeconds,

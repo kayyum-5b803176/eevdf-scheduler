@@ -14,7 +14,7 @@ import com.eevdf.scheduler.model.task.Task
 
 @Database(
     entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class],
-    version  = 18,
+    version  = 19,
     exportSchema = false
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -455,6 +455,20 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 18 → 19 — NOTIFICATION execute resume type.
+         *
+         * New column:
+         *   notificationResumeType  TEXT  "MIDDLE"
+         *     "MIDDLE"  = resume from last saved position (default)
+         *     "INITIAL" = always resume execute from the beginning of the phase
+         */
+        private val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN notificationResumeType TEXT NOT NULL DEFAULT 'MIDDLE'")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -462,7 +476,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                     .build()
                 INSTANCE = instance
                 instance

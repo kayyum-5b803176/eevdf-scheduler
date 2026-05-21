@@ -56,6 +56,18 @@ data class Task(
     val notificationRepeatCount: Int = 0,
 
     /**
+     * Notice type only: how execute-phase resumes behave after a pause.
+     *
+     *   "MIDDLE"  — resume from the exact second the user paused (default).
+     *               e.g. paused at 15 s remaining → resumes at 15 s remaining.
+     *
+     *   "INITIAL" — resume from the beginning of the current execute phase
+     *               (full timeSliceSeconds), regardless of where the pause happened.
+     *               e.g. paused at 15 s remaining on execute-2 → resumes with 30 s.
+     */
+    val notificationResumeType: String = "MIDDLE",
+
+    /**
      * Total elapsed ms accumulated across all sessions before the current one.
      * 0 when Idle. Updated on every Start/Pause so process death loses nothing.
      * READ via Task.timerState — WRITE via Task.withTimerState().

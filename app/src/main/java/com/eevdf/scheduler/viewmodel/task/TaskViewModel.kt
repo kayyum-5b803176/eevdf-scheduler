@@ -378,14 +378,37 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         val delaySecs = if (task.taskType == "NOTIFICATION") task.notificationDelaySeconds else 0L
 
         notice.initSession(task)
+
+        // Resume-type INITIAL: always restart execute from the full slice (0 elapsed).
+        //
+        // Two things must be corrected, not just the countdown seconds:
+        //   1. effectiveRemaining — pass timeSliceSeconds so the engine countdown
+        //      ticks down from the full duration.
+        //   2. effectiveTask — reset timerState to Idle (accumulatedMs = 0) so
+        //      TimerStartEvent.from() does NOT carry the accumulated 15 s from the
+        //      previous Paused state into the new Running state.  Without this,
+        //      the engine starts with accumulatedMs=15000 and the progress bar /
+        //      remaining display begins at (30s − 15s) = 15 s even when we passed
+        //      secs=30.  Resetting to Idle gives accumulatedMs=0 → full 30 s.
+        //
+        // Only applies to true resumes (Paused state); fresh starts and
+        // pending-wait paths are unaffected.
+        val isInitialResume = task.taskType == "NOTIFICATION" &&
+            task.notificationResumeType == "INITIAL" &&
+            task.timerState is TimerState.Paused &&
+            !notice.hasPendingWait()
+
+        val effectiveTask      = if (isInitialResume) task.withTimerState(TimerState.reset()) else task
+        val effectiveRemaining = if (isInitialResume) task.timeSliceSeconds else remaining
+
         if (delaySecs > 0) {
-            notice.startDelayPhase(task, remaining, delaySecs)
+            notice.startDelayPhase(effectiveTask, effectiveRemaining, delaySecs)
         } else if (task.taskType == "NOTIFICATION") {
             // Route through resolveAfterDelay so a pending wait-cancel is handled
             // (timestamp resume or skip to next execute) even when there is no delay.
-            notice.resolveAfterDelay(task, remaining)
+            notice.resolveAfterDelay(effectiveTask, effectiveRemaining)
         } else {
-            startActualTimer(task, remaining)
+            startActualTimer(effectiveTask, effectiveRemaining)
         }
     }
 
