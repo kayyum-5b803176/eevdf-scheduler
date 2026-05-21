@@ -167,9 +167,11 @@ class TaskAdapter(
      * redraws without rebinding the whole list.
      */
     fun setNoticeState(taskId: String?, phase: NoticePhase) {
-        val old = noticeTaskId
+        val oldTaskId = noticeTaskId
+        val oldPhase  = currentNoticePhase
         noticeTaskId       = taskId
         currentNoticePhase = phase
+
         // Persist Execute / Wait / Expired phases so buildNoticeSegments can show
         // the last frozen progress after a pause, cancel, or while Delay is running.
         // Delay is explicitly excluded: its ticks must NOT overwrite the prior
@@ -181,14 +183,37 @@ class TaskAdapter(
             && phase !is NoticePhase.Delay) {
             persistedPhaseByTask[taskId] = phase
         }
-        // When the active notice task changes, clear the OLD task's persisted
-        // entry so its bar resets — stale progress from a different run should
-        // not linger if the user never re-opens that task.
-        if (old != null && old != taskId) {
-            persistedPhaseByTask.remove(old)
-            notifyItemChanged(positionOf(old))
+
+        // When the active notice task changes, fully rebind the OLD task card so
+        // its bar resets — stale progress from a different run should not linger.
+        if (oldTaskId != null && oldTaskId != taskId) {
+            persistedPhaseByTask.remove(oldTaskId)
+            notifyItemChanged(positionOf(oldTaskId))
         }
-        notifyItemChanged(positionOf(taskId))
+
+        // Decide whether to do a FULL rebind or a lightweight FILL-ONLY update.
+        //
+        // FULL rebind (null payload) is needed when:
+        //   • the task itself changed (different id)
+        //   • the phase TYPE changed (e.g. Execute → Wait, Wait → Execute)
+        //     because the active segment index shifts and may change colour
+        //
+        // FILL-ONLY (PAYLOAD_NOTICE_TICK) is sufficient when:
+        //   • same task, same phase type — only the fill level inside the
+        //     active segment changed (a Wait or Delay second elapsed)
+        //   This path calls updateNoticeSegmentFills which mutates ClipDrawable
+        //   levels in-place without touching the view hierarchy → no flicker.
+        val sameTask = (taskId == oldTaskId)
+        val sameType = when {
+            phase is NoticePhase.Wait  && oldPhase is NoticePhase.Wait  -> true
+            phase is NoticePhase.Delay && oldPhase is NoticePhase.Delay -> true
+            else -> false
+        }
+        if (sameTask && sameType) {
+            notifyItemChanged(positionOf(taskId), PAYLOAD_NOTICE_TICK)
+        } else {
+            notifyItemChanged(positionOf(taskId))
+        }
     }
 
     class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -874,6 +899,98 @@ class TaskAdapter(
     }
 
     /**
+     * Updates segment fill levels in-place on an already-built [container].
+     *
+     * Called via [PAYLOAD_NOTICE_TICK] so Wait and Delay ticks repaint fill
+     * without touching the view hierarchy (no removeAllViews / addView).
+     * This eliminates the per-tick flicker that full rebinds cause.
+     *
+     * If the container has no children (first bind not yet done) this is a
+     * no-op; the next full bind will build the views correctly.
+     *
+     * Each segment view's background is a [LayerDrawable] of:
+     *   layer 0  — track GradientDrawable
+     *   layer 1  — ClipDrawable whose level (0–10000) drives the fill width
+     */
+    private fun updateNoticeSegmentFills(container: LinearLayout, task: Task) {
+        if (container.childCount == 0) return   // views not yet built; skip
+
+        val execSecs = task.timeSliceSeconds
+        val waitSecs = task.notificationRestSeconds
+        val cycles   = task.notificationRepeatCount + 1
+        val hasWait  = waitSecs > 0
+        if (execSecs <= 0) return
+
+        val phase = when {
+            task.id == noticeTaskId && currentNoticePhase !is NoticePhase.Idle ->
+                currentNoticePhase
+            else ->
+                persistedPhaseByTask[task.id] ?: NoticePhase.Idle
+        }
+        val segsPerCycle = if (hasWait) 2 else 1
+        val totalSegs    = cycles * segsPerCycle
+        if (container.childCount != totalSegs) return  // segment count changed; let full bind fix it
+
+        val fills = IntArray(totalSegs) { 0 }
+        when (phase) {
+            is NoticePhase.Execute -> {
+                val iter    = phase.iteration.coerceIn(0, cycles - 1)
+                val execIdx = iter * segsPerCycle
+                for (s in 0 until execIdx) fills[s] = 100
+                if (execIdx < totalSegs) fills[execIdx] = task.progressPercent
+            }
+            is NoticePhase.Wait -> {
+                val iter    = phase.iteration.coerceIn(0, cycles - 1)
+                val execIdx = iter * segsPerCycle
+                for (s in 0..execIdx) if (s < totalSegs) fills[s] = 100
+                if (hasWait) {
+                    val waitIdx = execIdx + 1
+                    if (waitIdx < totalSegs && waitSecs > 0) {
+                        val elapsed = (waitSecs - phase.remainingSecs).coerceAtLeast(0L)
+                        fills[waitIdx] = (elapsed * 100L / waitSecs).toInt().coerceIn(0, 100)
+                    }
+                }
+            }
+            is NoticePhase.Expired -> { for (s in fills.indices) fills[s] = 100 }
+            is NoticePhase.Delay   -> {
+                val fallback = persistedPhaseByTask[task.id]
+                if (fallback != null && fallback !is NoticePhase.Idle && fallback !is NoticePhase.Delay) {
+                    when (fallback) {
+                        is NoticePhase.Execute -> {
+                            val iter    = fallback.iteration.coerceIn(0, cycles - 1)
+                            val execIdx = iter * segsPerCycle
+                            for (s in 0 until execIdx) fills[s] = 100
+                            if (execIdx < totalSegs) fills[execIdx] = task.progressPercent
+                        }
+                        is NoticePhase.Wait -> {
+                            val iter    = fallback.iteration.coerceIn(0, cycles - 1)
+                            val execIdx = iter * segsPerCycle
+                            for (s in 0..execIdx) if (s < totalSegs) fills[s] = 100
+                            if (hasWait) {
+                                val waitIdx = execIdx + 1
+                                if (waitIdx < totalSegs && waitSecs > 0) {
+                                    val elapsed = (waitSecs - fallback.remainingSecs).coerceAtLeast(0L)
+                                    fills[waitIdx] = (elapsed * 100L / waitSecs).toInt().coerceIn(0, 100)
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+            }
+            else -> {}
+        }
+
+        // Apply fill levels to existing ClipDrawable layers — no view creation
+        for (i in 0 until totalSegs) {
+            val v  = container.getChildAt(i) ?: continue
+            val ld = v.background as? LayerDrawable ?: continue
+            val cd = ld.getDrawable(1) as? ClipDrawable ?: continue
+            cd.level = (fills[i] * 100).coerceIn(0, 10_000)
+        }
+    }
+
+    /**
      * Creates a single segment View sized at [heightPx] tall with [weight]
      * for proportional width, a [endGapPx] right margin, and a two-layer
      * background: [trackColor] as the always-visible track, [fillColor]
@@ -930,16 +1047,27 @@ class TaskAdapter(
     }
 
     /** Payload used for the 1-second quota tick — skips full rebind to avoid flicker. */
-    companion object { const val PAYLOAD_QUOTA_TICK = "quota_tick" }
+    companion object {
+        const val PAYLOAD_QUOTA_TICK   = "quota_tick"
+        const val PAYLOAD_NOTICE_TICK  = "notice_tick"
+    }
 
     override fun onBindViewHolder(
         holder: TaskViewHolder, position: Int, payloads: MutableList<Any>
     ) {
-        if (payloads.any { it == PAYLOAD_QUOTA_TICK }) {
-            val item = getItem(position) ?: return
-            bindQuotaOnly(holder, item)
-        } else {
-            super.onBindViewHolder(holder, position, payloads)
+        when {
+            payloads.any { it == PAYLOAD_NOTICE_TICK } -> {
+                val item = getItem(position) ?: return
+                // Only repaint segment fill levels — no view creation/removal.
+                // This prevents the flicker caused by removeAllViews()+addView()
+                // on every Wait/Delay tick while the card structure is unchanged.
+                updateNoticeSegmentFills(holder.progressNotice, item.task)
+            }
+            payloads.any { it == PAYLOAD_QUOTA_TICK } -> {
+                val item = getItem(position) ?: return
+                bindQuotaOnly(holder, item)
+            }
+            else -> super.onBindViewHolder(holder, position, payloads)
         }
     }
 
