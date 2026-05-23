@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scheduler Class card — class dropdown, description, stop-class warning,
+  and two conditional sub-sections included from:
+
+    section_add_task_scheduler_dl.xml  — SCHED_DEADLINE fields (layoutDlFields)
+    section_add_task_scheduler_rt.xml  — SCHED_FIFO/RR fields  (layoutRtFields)
+
+  Both sub-sections are hidden by default.
+  AddTaskSchedulerSection.kt shows the relevant one when the spinner selection
+  changes to dl_sched_class or rt_sched_class.
+-->
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="3dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header row: title + subtitle + toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Scheduler Class"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/colorPrimary" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Override Linux scheduler class (default: EEVDF / fair)"
+                    android:textSize="11sp"
+                    android:textColor="#9E9E9E"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchSchedulerEnabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- Expanded fields: shown when toggle is ON -->
+        <LinearLayout
+            android:id="@+id/layoutSchedulerFields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="14dp"
+            android:visibility="gone">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginBottom="14dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Scheduler Class"
+                android:textSize="12sp"
+                android:textColor="#616161"
+                android:layout_marginBottom="4dp" />
+
+            <Spinner
+                android:id="@+id/spinnerSchedulerClass"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/abc_spinner_mtrl_am_alpha"
+                android:padding="8dp" />
+
+            <!-- Class description — updated by spinner listener -->
+            <TextView
+                android:id="@+id/tvSchedulerClassDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#616161"
+                android:background="#F3F3F3"
+                android:padding="10dp"
+                android:layout_marginTop="8dp" />
+
+            <!-- Warning banner — shown only for stop_sched_class -->
+            <TextView
+                android:id="@+id/tvSchedulerWarning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚠ stop_sched_class is a kernel-internal class for CPU migration tasks. Assigning it to user tasks may cause undefined behaviour."
+                android:textSize="12sp"
+                android:textColor="#E65100"
+                android:background="#FFF3E0"
+                android:padding="10dp"
+                android:layout_marginTop="6dp"
+                android:visibility="gone" />
+
+            <!-- SCHED_DEADLINE sub-section -->
+            <include layout="@layout/section_add_task_scheduler_dl" />
+
+            <!-- SCHED_FIFO / SCHED_RR sub-section -->
+            <include layout="@layout/section_add_task_scheduler_rt" />
+
+        </LinearLayout>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

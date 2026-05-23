@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Task Type card — type spinner, group/interrupt toggles, notice delay sub-fields.
+
+  groupTypeSection    — hidden by default; AddTaskGroupSection.kt shows it when
+                        groups mode is enabled in settings.
+  layoutNotifDelay    — hidden by default; AddTaskTypeSection.kt shows it when
+                        spinnerTaskType selection is NOTIFICATION.
+
+  Notice sub-field ownership (AddTaskTypeSection.kt):
+    etNotifDelay / tvNotifDelayPreview    — delay before execute starts
+    etNoticeRest / tvNoticeRestPreview    — wait countdown after execute expires
+    etNoticeRepeat                        — extra execute/wait cycles (0–12)
+    spinnerNoticeResumeType               — Middle or Initial resume position
+-->
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="3dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Task Type"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/colorPrimary"
+            android:layout_marginBottom="12dp" />
+
+        <!-- ── Group + Interrupt options — hidden when groups disabled ──────── -->
+        <LinearLayout
+            android:id="@+id/groupTypeSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchIsGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Assign as group (container)" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchIsInterrupt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Assign as INT-A"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tvInterruptOwner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="12sp"
+                android:textColor="#F44336"
+                android:layout_marginTop="4dp"
+                android:visibility="gone" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchIsInterruptB"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Assign as INT-B"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tvInterruptOwnerB"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="12sp"
+                android:textColor="#F44336"
+                android:layout_marginTop="4dp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="14dp" />
+
+        </LinearLayout>
+
+        <!-- ── Sound & Vibration Profile spinner ─────────────────────────── -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sound &amp; Vibration Profile"
+            android:textSize="12sp"
+            android:textColor="#616161"
+            android:layout_marginBottom="4dp" />
+
+        <Spinner
+            android:id="@+id/spinnerTaskType"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/abc_spinner_mtrl_am_alpha"
+            android:padding="8dp" />
+
+        <!-- ── Notice-only extra fields — hidden unless NOTIFICATION selected ── -->
+        <LinearLayout
+            android:id="@+id/layoutNotifDelay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="14dp"
+            android:visibility="gone">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginBottom="12dp" />
+
+            <!-- Delay before execute starts -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Delay before timer starts"
+                    android:textSize="13sp"
+                    android:textColor="#212121"
+                    android:fontFamily="sans-serif-medium" />
+                <TextView
+                    android:id="@+id/tvNotifDelayPreview"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0s"
+                    android:textSize="13sp"
+                    android:textColor="@color/colorPrimary"
+                    android:textStyle="bold" />
+            </LinearLayout>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Countdown before task timer begins (mm-ss, 0–5 min)"
+                android:textSize="11sp"
+                android:textColor="#9E9E9E"
+                android:layout_marginBottom="6dp" />
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Delay mm-ss  (e.g. 01-30)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_marginBottom="16dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etNotifDelay"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:digits="0123456789-"
+                    android:maxLength="5" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Wait countdown after execute expires -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Wait time"
+                    android:textSize="13sp"
+                    android:textColor="#212121"
+                    android:fontFamily="sans-serif-medium" />
+                <TextView
+                    android:id="@+id/tvNoticeRestPreview"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0s"
+                    android:textSize="13sp"
+                    android:textColor="@color/colorPrimary"
+                    android:textStyle="bold" />
+            </LinearLayout>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Wait countdown after execute expires; 0s = skip (mm-ss, 0–5 min)"
+                android:textSize="11sp"
+                android:textColor="#9E9E9E"
+                android:layout_marginBottom="6dp" />
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Wait mm-ss  (e.g. 00-30)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_marginBottom="16dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etNoticeRest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:digits="0123456789-"
+                    android:maxLength="5" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Repeat count -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Repeat (extra cycles)"
+                android:textSize="13sp"
+                android:textColor="#212121"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginBottom="4dp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="After wait, restart execute this many more times (0 = run once, max 12)"
+                android:textSize="11sp"
+                android:textColor="#9E9E9E"
+                android:layout_marginBottom="6dp" />
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Repeat count  (0–12)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etNoticeRepeat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:maxLength="2" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Resume type -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Resume type"
+                android:textSize="13sp"
+                android:textColor="#212121"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="4dp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Middle: resume execute from last paused position. Initial: always restart execute from the beginning."
+                android:textSize="11sp"
+                android:textColor="#9E9E9E"
+                android:layout_marginBottom="6dp" />
+            <Spinner
+                android:id="@+id/spinnerNoticeResumeType"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/abc_spinner_mtrl_am_alpha"
+                android:padding="8dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
