@@ -1,6 +1,6 @@
 package com.eevdf.scheduler.scheduler
 
-import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.task.Task
 import kotlin.math.max
 
 /**
@@ -70,7 +70,7 @@ object EEVDFScheduler {
         val candidates = tasks.filter { !it.isCompleted && !it.isRunning }
         if (candidates.isEmpty()) return null
 
-        val avgVr = averageVruntime(tasks)
+        averageVruntime(tasks)
 
         // Eligible tasks: vruntime ≤ avgVruntime (lag ≥ 0)
         val eligible = candidates.filter { it.lag >= 0 }
@@ -81,6 +81,59 @@ object EEVDFScheduler {
             // No eligible task: pick the one with the smallest vruntime (most behind)
             candidates.minByOrNull { it.vruntime }
         }
+    }
+
+    /**
+     * Linux EEVDF `place_entity()` equivalent for brand-new tasks.
+     *
+     * Problem without this fix:
+     *   A task created with the default vruntime = 0 has a massive positive lag
+     *   ( lag = (avgVr − 0) × weight ) the moment it joins the run-queue.
+     *   The scheduler repeatedly picks it first until its vruntime "catches up"
+     *   to the average, starving every existing task in the interim.
+     *
+     * Linux solution — `place_entity()` with ENQUEUE_INITIAL:
+     *   For a task that has never run (exec_start == 0), the kernel explicitly
+     *   clamps lag to 0 before computing the initial placement:
+     *
+     *       lag  = 0                       // brand-new task, no history
+     *       se->vruntime = avg_vruntime     // start right on the mean
+     *       se->deadline = avg_vruntime + slice / weight
+     *
+     *   lag = 0  →  the task is immediately eligible (lag ≥ 0) but holds
+     *   no priority advantage over any existing task.
+     *
+     * Reference: kernel/sched/fair.c  place_entity(), ENQUEUE_INITIAL branch.
+     *
+     * @param task          The newly created task (vruntime must still be 0).
+     * @param existingTasks Active tasks already in the run-queue (excluding [task]).
+     *                      When the list is empty the first-ever task keeps vruntime = 0,
+     *                      which is correct — there is no average to place against.
+     */
+    fun placeNewTask(task: Task, existingTasks: List<Task>) {
+        // ── Group-aware sibling scoping (cgroup hierarchy) ────────────────────
+        // Tasks only compete against peers at the SAME hierarchy level (same parentId),
+        // exactly as Linux cgroup scheduling scopes its run-queue per group.
+        //
+        // Without this filter, a new task added inside a group would be placed
+        // relative to the global average vruntime of ALL tasks — including tasks
+        // in completely different groups.  That average is meaningless for the
+        // new task: its scheduler (the group's run-queue) only sees its siblings.
+        //
+        // Example:
+        //   Group A  →  taskA1 vrt=100, taskA2 vrt=120   → sibling avg = 110
+        //   Group B  →  taskB1 vrt=5,   taskB2 vrt=8     → sibling avg =   6.5
+        //   Global avg = (100+120+5+8)/4 ≈ 58
+        //
+        //   New task added to Group B:
+        //     Before fix  → placed at vrt ≈ 58  (way above B's avg 6.5 → immediately starved)
+        //     After fix   → placed at vrt ≈ 6.5 (fair start within Group B)
+        val siblings = existingTasks.filter { !it.isCompleted && it.parentId == task.parentId }
+        if (siblings.isEmpty()) return   // first task at this cgroup level — vruntime = 0 is correct
+
+        // lag = 0 → eligible immediately, no scheduling advantage over siblings.
+        // Mirrors Linux place_entity(ENQUEUE_INITIAL): clamp lag to 0 → vruntime = avg_vruntime.
+        task.vruntime = averageVruntime(siblings)
     }
 
     /**
@@ -103,7 +156,7 @@ object EEVDFScheduler {
         recalculate(tasks)
         val active = tasks.filter { !it.isCompleted }.toMutableList()
         val result = mutableListOf<Task>()
-        val avgVr = averageVruntime(tasks)
+        averageVruntime(tasks)
 
         // Sort: eligible first (by virtual deadline), then ineligible (by vruntime)
         val eligible = active.filter { it.lag >= 0 }.sortedBy { it.virtualDeadline }
@@ -183,13 +236,22 @@ object EEVDFScheduler {
     }
 
     /**
-     * Validate that all pinned shares across [tasks] (excluding [excludeId]) plus
-     * [newValue] do not exceed 100.
-     * Returns the sum of all OTHER pinned shares so the caller can compare.
+     * Sum of pinned shares of all OTHER tasks that are siblings of [taskId]
+     * (same [parentId]) — excluding [excludeId] itself.
+     *
+     * Scoped to siblings only so that a child group's pinned shares are validated
+     * independently of root-level tasks. Root-level tasks at 100% do NOT block a
+     * child task inside a group from setting its own pinned share.
+     *
+     * Returns Double so callers can compare against 100.0 with 2dp precision.
      */
-    fun otherPinnedTotal(tasks: List<Task>, excludeId: String?): Int =
-        tasks.filter { !it.isCompleted && it.pinnedShare != null && it.id != excludeId }
-             .sumOf  { it.pinnedShare!! }
+    fun otherPinnedTotal(tasks: List<Task>, excludeId: String?, parentId: String?): Double =
+        tasks.filter {
+            !it.isCompleted &&
+            it.pinnedShare != null &&
+            it.id != excludeId &&
+            it.parentId == parentId
+        }.sumOf { it.pinnedShare!! }
 
     /**
      * Back-calculates the EEVDF internal weight that would produce [targetShare]% CPU
@@ -255,6 +317,28 @@ object EEVDFScheduler {
             }
         }
         return changed
+    }
+
+    /**
+     * Returns true when [task] is a group that contains at least one descendant
+     * (at any depth) with an active SCHED_DEADLINE budget.
+     *
+     * This is the cgroup-aware DL promotion check: Linux's deadline scheduler
+     * propagates the urgency of a deadline entity upward through the group
+     * hierarchy so the root-level group entity wins the run-queue competition.
+     * We replicate that by inspecting the task tree here.
+     *
+     * @param task      The candidate group node.
+     * @param allTasks  Full flat task list (active + completed; filtering is
+     *                  done internally — completed tasks cannot be DL-active).
+     */
+    fun hasActiveDlDescendant(task: Task, allTasks: List<Task>): Boolean {
+        if (!task.isGroup) return task.isDlBudgetActive
+        val children = allTasks.filter { it.parentId == task.id && !it.isCompleted }
+        return children.any { child ->
+            if (child.isGroup) hasActiveDlDescendant(child, allTasks)
+            else child.isDlBudgetActive
+        }
     }
 
     private const val MAX_INTERNAL_WEIGHT = 9_999.0

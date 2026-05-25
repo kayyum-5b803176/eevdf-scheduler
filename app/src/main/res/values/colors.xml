@@ -22,4 +22,9 @@
     <color name="textPrimary">#212121</color>
     <color name="textSecondary">#757575</color>
     <color name="divider">#BDBDBD</color>
+    <!-- Multi-user sync status dot colors -->
+    <color name="syncDotOK">#4CAF50</color>
+    <color name="syncDotError">#F44336</color>
+    <color name="syncDotSyncing">#FF9800</color>
+    <color name="syncDotDisabled">#9E9E9E</color>
 </resources>

@@ -26,6 +26,7 @@
             android:visibility="invisible" />
 
         <LinearLayout
+            android:id="@+id/layoutCardContent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -75,31 +76,125 @@
                         android:textColor="#9E9E9E" />
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/tvPriority"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Priority: 5/10"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:layout_marginStart="8dp" />
+                    android:orientation="vertical"
+                    android:gravity="end"
+                    android:layout_marginStart="8dp">
+
+                    <TextView
+                        android:id="@+id/tvPriority"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Priority: 5/10"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <!-- Pill timer (DL) + Quota timer share this row.
+                         Both are gone by default; adapter shows one, both, or neither. -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="end|center_vertical"
+                        android:layout_marginTop="3dp">
+
+                        <!-- SCHED_DEADLINE budget pill — visible only for dl_sched_class tasks -->
+                        <TextView
+                            android:id="@+id/tvDlStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="DL"
+                            android:textSize="10sp"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:background="@drawable/bg_dl_badge"
+                            android:gravity="center"
+                            android:visibility="gone" />
+
+                        <!-- SCHED_RT window pill — visible only for rt_sched_class tasks -->
+                        <TextView
+                            android:id="@+id/tvRtStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="RT"
+                            android:textSize="10sp"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:layout_marginStart="4dp"
+                            android:background="@drawable/bg_rt_badge"
+                            android:gravity="center"
+                            android:visibility="gone" />
+
+                        <!-- Quota remaining — shown when quota is enabled -->
+                        <TextView
+                            android:id="@+id/tvQuotaRemaining"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="10sp"
+                            android:textColor="#757575"
+                            android:layout_marginStart="4dp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
             </LinearLayout>
 
-            <!-- Progress bar -->
+            <!-- Progress bar (default — all task types except NOTIFICATION) -->
             <ProgressBar
                 android:id="@+id/progressTask"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="6dp"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginBottom="2dp"
                 android:max="100"
                 android:progress="0"
                 android:progressTint="@color/colorPrimary"
                 android:progressBackgroundTint="#E0E0E0" />
 
+            <!-- Segmented progress bar — NOTIFICATION type only.
+                 Segments are built programmatically in TaskAdapter.buildNoticeSegments().
+                 Same height and margins as progressTask so the card layout is unchanged.
+                 Visibility toggled by the adapter: VISIBLE for NOTIFICATION, GONE otherwise. -->
+            <LinearLayout
+                android:id="@+id/progressNotice"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="2dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone" />
+
+            <!-- Quota usage bar — visible only when quota is enabled for this task/group -->
+            <ProgressBar
+                android:id="@+id/progressQuota"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="4dp"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="#FFA000"
+                android:progressBackgroundTint="#FFF3E0"
+                android:visibility="gone" />
+
             <!-- Row 2: Time info -->
             <LinearLayout
+                android:id="@+id/rowTimeInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
@@ -127,6 +222,7 @@
 
             <!-- Row 3: EEVDF metrics -->
             <LinearLayout
+                android:id="@+id/rowEevdfMetrics"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
@@ -170,6 +266,7 @@
 
             <!-- Row 4: Action buttons -->
             <LinearLayout
+                android:id="@+id/rowActionButtons"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"

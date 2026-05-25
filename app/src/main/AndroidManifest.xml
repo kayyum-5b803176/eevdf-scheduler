@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.eevdf.scheduler">
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -13,6 +14,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- External storage for multi-user sync (read/write shared folder)
+         API 26-29: READ/WRITE_EXTERNAL_STORAGE for direct file access.
+         API 30+  : MANAGE_EXTERNAL_STORAGE bypasses scoped storage; user is
+                    prompted in MultiUserSyncActivity; falls back to SAF if denied. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <!-- Auto Switch: call detection -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     
     <application
         android:name=".EEVDFApp"
@@ -24,9 +37,11 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.task.MainActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -34,10 +49,10 @@
         </activity>
 
         <activity
-            android:name=".ui.AddTaskActivity"
+            android:name=".ui.task.AddTaskActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName=".ui.MainActivity" />
+            android:parentActivityName=".ui.task.MainActivity" />
 
         <!--
             Full-screen alarm activity — shown over lock screen when timer expires.
@@ -47,29 +62,72 @@
             Settings screen — import / export data backup.
         -->
         <activity
-            android:name=".ui.SettingsActivity"
+            android:name=".ui.stats.StatsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName=".ui.MainActivity" />
+            android:parentActivityName=".ui.task.MainActivity" />
 
         <activity
-            android:name=".ui.ProfileSettingsActivity"
+            android:name=".ui.settings.SettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName=".ui.SoundVibrationActivity" />
+            android:parentActivityName=".ui.task.MainActivity" />
 
         <activity
-            android:name=".ui.SoundVibrationActivity"
+            android:name=".ui.backup.DataBackupActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName=".ui.SettingsActivity" />
+            android:parentActivityName=".ui.settings.SettingsActivity" />
+
+        <activity
+            android:name=".ui.settings.ProfileSettingsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.settings.SoundVibrationActivity" />
+
+        <activity
+            android:name=".ui.settings.SoundVibrationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.settings.SettingsActivity" />
+
+        <!-- Multi-user live sync settings screen -->
+        <activity
+            android:name=".ui.sync.MultiUserSyncActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.settings.SettingsActivity" />
+
+        <!-- Auto Switch settings screen -->
+        <activity
+            android:name=".ui.autoswitch.AutoSwitchActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.settings.SettingsActivity" />
+
+        <!-- UI Customization settings screen -->
+        <activity
+            android:name=".ui.settings.UiCustomizationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
+            android:parentActivityName=".ui.settings.SettingsActivity" />
+
+        <!-- Auto Switch: phone call state receiver -->
+        <receiver
+            android:name=".ui.autoswitch.CallStateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
 
         <!--
             Full-screen alarm activity — shown over lock screen when timer expires.
             showWhenLocked + turnScreenOn handled in code for API 26 compat.
         -->
         <activity
-            android:name=".ui.AlarmActivity"
+            android:name=".ui.alarm.AlarmActivity"
             android:exported="false"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
@@ -77,7 +135,7 @@
             android:launchMode="singleInstance" />
 
         <!-- Receives the Stop action from the expired-timer notification -->\n        <receiver
-            android:name=".ui.AlarmStopReceiver"
+            android:name=".ui.alarm.AlarmStopReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
@@ -86,7 +144,7 @@
 
         <!-- Receives AlarmManager.setAlarmClock() callback — Doze-immune timer trigger -->
         <receiver
-            android:name=".ui.TimerAlarmReceiver"
+            android:name=".ui.alarm.TimerAlarmReceiver"
             android:exported="false" />
 
         <!--
@@ -95,7 +153,7 @@
             on Android 12+ without special permissions.
         -->
         <service
-            android:name=".ui.AlarmForegroundService"
+            android:name=".ui.alarm.AlarmForegroundService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 

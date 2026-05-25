@@ -2,7 +2,7 @@ package com.eevdf.scheduler.db
 
 import androidx.lifecycle.LiveData
 import androidx.room.*
-import com.eevdf.scheduler.model.Task
+import com.eevdf.scheduler.model.task.Task
 
 @Dao
 interface TaskDao {
@@ -48,18 +48,32 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
     fun getActiveGroups(): LiveData<List<Task>>
 
-    /** Returns the task/group flagged as interrupt, or null if none assigned. */
-    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND isCompleted = 0 LIMIT 1")
+    /** Returns the task/group flagged as interrupt for slot A, or null if none assigned. */
+    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND interruptSlot = 'A' AND isCompleted = 0 LIMIT 1")
     suspend fun getInterruptTask(): Task?
 
-    /** Returns the task currently running with an active wall-clock deadline, or null.
-     *  Used on app resume to restore timer state after a kill or device sleep. */
-    @Query("SELECT * FROM tasks WHERE isRunning = 1 AND timerDeadlineEpoch > 0 LIMIT 1")
+    /** Returns the task/group flagged as interrupt for slot B, or null if none assigned. */
+    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND interruptSlot = 'B' AND isCompleted = 0 LIMIT 1")
+    suspend fun getInterruptTaskB(): Task?
+
+    /** Returns the task/group flagged as interrupt, or null if none assigned. */
+    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND isCompleted = 0 LIMIT 1")
+    suspend fun getAnyInterruptTask(): Task?
+
+    /** Returns the task currently running with a live epoch anchor, or null.
+     *  startTimeEpoch > 0 is the canonical "timer is active" signal — isRunning
+     *  alone is insufficient because a crash could leave isRunning=1 with
+     *  startTimeEpoch=0 (migration step 4 cleans existing data; this guards future). */
+    @Query("SELECT * FROM tasks WHERE isRunning = 1 AND startTimeEpoch > 0 LIMIT 1")
     suspend fun getRunningTask(): Task?
 
     /** Clears the interrupt flag on all tasks (used before setting a new one). */
     @Query("UPDATE tasks SET isInterrupt = 0")
     suspend fun clearAllInterrupts()
+
+    /** Clears the interrupt flag only on tasks in the given slot. */
+    @Query("UPDATE tasks SET isInterrupt = 0 WHERE interruptSlot = :slot")
+    suspend fun clearInterruptsForSlot(slot: String)
 
     // ── Backup / Restore ──────────────────────────────────────────────────────
 
@@ -67,7 +81,11 @@ interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY createdAt ASC")
     suspend fun getAllTasksForBackup(): List<Task>
 
-    /** Removes every task row — used before restoring a backup. */
+    /** All tasks for stats — every row, no filter. */
+    @Query("SELECT * FROM tasks ORDER BY totalRunTime DESC")
+    suspend fun getAllTasksForStats(): List<Task>
+
+    /** Delete everything — used before restoring a backup. */
     @Query("DELETE FROM tasks")
     suspend fun deleteAllTasks()
 }
