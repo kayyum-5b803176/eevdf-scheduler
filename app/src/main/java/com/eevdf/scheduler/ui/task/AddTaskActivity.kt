@@ -104,6 +104,13 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var etDlPeriod:             TextInputEditText
     internal lateinit var tvDlPeriodPreview:      TextView
     internal lateinit var tvDlError:              TextView
+    internal lateinit var tvDlRtSyncValue:        TextView
+    internal lateinit var btnDlRtSync:            com.google.android.material.button.MaterialButton
+
+    // ── RT Sync state — epoch ms captured by the RT Sync button in the DL section.
+    // 0L = not yet synced (field stays blank); non-zero = will be written to
+    // dlPeriodStartEpoch on save, overriding whatever was previously stored.
+    internal var pendingDlPeriodStartEpoch: Long = 0L
 
     // ── RT (SCHED_FIFO / SCHED_RR) fields ────────────────────────────────────
     internal lateinit var layoutRtFields:          LinearLayout
@@ -237,6 +244,8 @@ class AddTaskActivity : AppCompatActivity() {
         etDlPeriod             = findViewById(R.id.etDlPeriod)
         tvDlPeriodPreview      = findViewById(R.id.tvDlPeriodPreview)
         tvDlError              = findViewById(R.id.tvDlError)
+        tvDlRtSyncValue        = findViewById(R.id.tvDlRtSyncValue)
+        btnDlRtSync            = findViewById(R.id.btnDlRtSync)
 
         layoutRtFields          = findViewById(R.id.layoutRtFields)
         sliderRtPriority        = findViewById(R.id.sliderRtPriority)
