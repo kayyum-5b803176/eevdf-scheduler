@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Category card — single-selection ChipGroup.
-  Chips are inflated programmatically by AddTaskCategoryPrioritySection.kt
-  from the taskCategories list defined in that file.
-  Adding a new category only requires editing that list.
+  Category card — searchable autocomplete text input.
+  Suggestions drawn live from TaskDao.getDistinctCategories().
+  Wired in AddTaskCategoryPrioritySection.kt :: setupCategoryInput().
 -->
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -29,10 +28,37 @@
             android:textColor="@color/colorPrimary"
             android:layout_marginBottom="12dp" />
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/chipGroupCategory"
+        <!--
+          OutlinedBox wraps MaterialAutoCompleteTextView instead of TextInputEditText.
+          MaterialAutoCompleteTextView does NOT inherit the same default padding that
+          TextInputEditText receives from the OutlinedBox style, so we set it explicitly:
+            paddingStart/End = 16dp  → matches TextInputEditText lateral padding
+            paddingTop/Bottom = 16dp → keeps text vertically centred inside the stroke
+          Without these the text baseline sits on or outside the bottom stroke and
+          there is no gap between the first character and the left border.
+        -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilCategoryInput"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:singleSelection="true" />
+            android:hint="Type or select a category">
+
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/etCategoryInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="16dp"
+                android:completionThreshold="1"
+                android:inputType="textCapWords"
+                android:imeOptions="actionDone"
+                android:maxLines="1"
+                android:singleLine="true" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
     </LinearLayout>
 </androidx.cardview.widget.CardView>

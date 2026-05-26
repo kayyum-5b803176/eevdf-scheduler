@@ -10,7 +10,7 @@ import com.eevdf.scheduler.R
 import com.eevdf.scheduler.model.task.Task
 import com.eevdf.scheduler.viewmodel.task.TaskViewModel
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.chip.ChipGroup
+import android.widget.AutoCompleteTextView
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
@@ -48,7 +48,7 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var etHours:          TextInputEditText
     internal lateinit var etMinutes:        TextInputEditText
     internal lateinit var etSeconds:        TextInputEditText
-    internal lateinit var chipGroupCategory: ChipGroup
+    internal lateinit var etCategoryInput:  AutoCompleteTextView
     internal lateinit var btnSave:          MaterialButton
     internal lateinit var btnCancel:        MaterialButton
     internal lateinit var tvPriorityInfo:   TextView
@@ -154,7 +154,7 @@ class AddTaskActivity : AppCompatActivity() {
         existingTaskId = intent.getStringExtra("task_id")
 
         setupViews()
-        setupCategoryChips()
+        setupCategoryInput()
         setupPrioritySlider()
         setupGroupSection()
         setupInterruptSwitch()
@@ -187,7 +187,7 @@ class AddTaskActivity : AppCompatActivity() {
         etHours           = findViewById(R.id.etHours)
         etMinutes         = findViewById(R.id.etMinutes)
         etSeconds         = findViewById(R.id.etSeconds)
-        chipGroupCategory = findViewById(R.id.chipGroupCategory)
+        etCategoryInput   = findViewById(R.id.etCategoryInput)
         btnSave           = findViewById(R.id.btnSave)
         btnCancel         = findViewById(R.id.btnCancel)
         tvPriorityInfo    = findViewById(R.id.tvPriorityInfo)

@@ -674,6 +674,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── LiveData passthrough ──────────────────────────────────────────────────
     val groupsEnabled:       LiveData<Boolean> get() = settings.groupsEnabled
+
+    /** Distinct category strings from the DB — drives autocomplete in Add/Edit task. */
+    val distinctCategories:  LiveData<List<String>> get() = repository.distinctCategories
     val globalRotateEnabled: LiveData<Boolean> get() = settings.globalRotateEnabled
     val allowEditEnabled:    LiveData<Boolean> get() = settings.allowEditEnabled
     val autoScrollEnabled:   LiveData<Boolean> get() = settings.autoScrollEnabled
