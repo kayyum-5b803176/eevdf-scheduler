@@ -93,19 +93,31 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         refreshSchedule()
     }
 
-    /** Re-derives the schedule order and stats from the DB. */
+    /**
+     * Re-derives the schedule order and stats from the DB.
+     *
+     * Stats are computed group-aware when groups are enabled:
+     *  - activeTasks  counts only leaf nodes (groups/containers excluded).
+     *  - weight / avgVrt / fairness are aggregated bottom-up through the
+     *    cgroup tree so sibling sets at each level are compared against each
+     *    other before their result is promoted to the parent level.
+     *
+     * When groups are disabled the original flat computation is used, keeping
+     * behaviour identical to the pre-group implementation.
+     */
     fun refreshSchedule() = vm.viewModelScope.launch {
         val order = vm.repository.getScheduleOrder()
         vm._scheduleOrder.postValue(order)
-        val allActive = order + (vm.completedTasks.value ?: emptyList())
-        vm._stats.postValue(EEVDFScheduler.getStats(allActive))
+        val allTasks      = order + (vm.completedTasks.value ?: emptyList())
+        val groupsEnabled = vm.groupsEnabled.value ?: false
+        vm._stats.postValue(EEVDFScheduler.getStats(allTasks, groupsEnabled))
     }
 
     /**
      * Selects the next task for Auto mode using the parent group's taskType.
      *
      * | Parent taskType | Strategy                                           |
-     * |-----------------|----------------------------------------------------|
+     * |-----------------|----------------------------------------------------|\
      * | DEFAULT         | Next sibling by VDL, looping back to first         |
      * | NOTIFICATION    | Sibling with lowest virtual deadline               |
      * | ALERT / CUSTOM  | null → caller falls back to global selectNextTask  |

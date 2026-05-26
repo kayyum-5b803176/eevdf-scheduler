@@ -342,33 +342,209 @@ object EEVDFScheduler {
     }
 
     private const val MAX_INTERNAL_WEIGHT = 9_999.0
+
     /**
-     * Statistics summary for the scheduler dashboard.
+     * Statistics summary for the scheduler dashboard (statsbar).
+     *
+     * When [groupsEnabled] is false (default) the original flat behaviour is used:
+     * every non-completed task (including group/container nodes) contributes to all
+     * four metrics.
+     *
+     * When [groupsEnabled] is true the calculation becomes cgroup-aware:
+     *
+     *  • **activeTasks** — only *reachable* leaf nodes are counted.  A node is
+     *    reachable when every ancestor in its parentId chain is a group
+     *    (`isGroup == true`).  Concretely:
+     *
+     *    - **Case 1 – ancestor is a group** (`isGroup = true`): the group acts as a
+     *      container; its children participate normally and are counted/aggregated.
+     *    - **Case 2 – ancestor is a leaf-group** (`isGroup = false` but still has
+     *      children in the DB): that node itself is treated as a single leaf.  All
+     *      of its descendants — regardless of their own `isGroup` flag — are
+     *      excluded from the count and from weight/vrt/fairness aggregation.
+     *
+     *  • **totalWeight / averageVruntime / fairnessScore** — computed via a
+     *    bottom-up hierarchical aggregation that mirrors how the Linux kernel
+     *    propagates per-cgroup scheduling statistics:
+     *
+     *      1. Among the deepest siblings (leaf nodes under the same parent) compute
+     *         total weight, weighted-average vruntime, and Jain's fairness index.
+     *      2. The resulting (weight, avgVrt) pair becomes that group's representative
+     *         in its own parent's sibling set.
+     *      3. Repeat upward until the root level is reached.
+     *      4. The root-level aggregated values are reported in the statsbar.
+     *
+     *    This means groups with many cheap children do not artificially inflate
+     *    the weight sum, and the fairness score reflects balance at the top-level
+     *    scheduling domain rather than across every individual task indiscriminately.
      */
-    fun getStats(tasks: List<Task>): SchedulerStats {
-        val active = tasks.filter { !it.isCompleted }
+    fun getStats(tasks: List<Task>, groupsEnabled: Boolean = false): SchedulerStats {
+        val active    = tasks.filter { !it.isCompleted }
         val completed = tasks.filter { it.isCompleted }
-        val avgVr = averageVruntime(tasks)
-        return SchedulerStats(
-            totalTasks = tasks.size,
-            activeTasks = active.size,
-            completedTasks = completed.size,
-            averageVruntime = avgVr,
-            totalWeight = totalWeight(active),
-            fairnessScore = computeFairness(active)
-        )
+
+        return if (groupsEnabled) {
+            // ── Group-aware path ──────────────────────────────────────────────
+            // Active count: only reachable leaf nodes.
+            // A node is reachable when its full ancestor chain consists of group nodes
+            // (isGroup = true). If any ancestor is a leaf-group (isGroup = false), that
+            // ancestor is the leaf that participates — its descendants are excluded.
+            val leafCount = countReachableLeaves(active)
+
+            // Bottom-up aggregation starting from root-level nodes.
+            val rootNodes = active.filter { it.parentId == null }
+            val (totalW, avgVrt, fairness) = computeGroupAwareStats(active, rootNodes)
+
+            SchedulerStats(
+                totalTasks      = tasks.size,
+                activeTasks     = leafCount,
+                completedTasks  = completed.size,
+                averageVruntime = avgVrt,
+                totalWeight     = totalW,
+                fairnessScore   = fairness
+            )
+        } else {
+            // ── Flat path (original behaviour) ────────────────────────────────
+            val avgVr = averageVruntime(tasks)
+            SchedulerStats(
+                totalTasks      = tasks.size,
+                activeTasks     = active.size,
+                completedTasks  = completed.size,
+                averageVruntime = avgVr,
+                totalWeight     = totalWeight(active),
+                fairnessScore   = computeFairness(active)
+            )
+        }
     }
 
     /**
-     * Jain's fairness index for vruntime distribution.
+     * Recursively aggregates scheduling statistics bottom-up through the cgroup tree.
+     *
+     * For each sibling in [siblings]:
+     *  - **Leaf node** (`!isGroup`): representative = its own (weight, vruntime).
+     *  - **Group node** (`isGroup`): representative = aggregated (totalWeight, avgVrt)
+     *    of its non-completed children, computed by recursing into them first.
+     *
+     * Once every sibling has a representative the function computes:
+     *  - totalWeight  = Σ representative weights
+     *  - avgVrt       = Σ(weight × vrt) / totalWeight  (weighted mean)
+     *  - fairness     = Jain's fairness index applied to the representative vrts
+     *
+     * The returned triple is the "result" that the caller (the parent level) treats
+     * as a single data point for its own aggregation pass — exactly as the Linux
+     * kernel bubbles per-cgroup entity statistics up to the root run-queue.
+     *
+     * @param allActive All non-completed tasks in the tree (used to resolve children).
+     * @param siblings  The sibling set at the current hierarchy level to aggregate.
+     * @return Triple(totalWeight, weightedAvgVrt, fairnessScore)
+     */
+    private fun computeGroupAwareStats(
+        allActive: List<Task>,
+        siblings: List<Task>
+    ): Triple<Double, Double, Double> {
+        if (siblings.isEmpty()) return Triple(0.0, 0.0, 1.0)
+
+        // Build one (weight, vrt) representative per sibling.
+        val repWeights = mutableListOf<Double>()
+        val repVrts    = mutableListOf<Double>()
+
+        for (sibling in siblings) {
+            if (!sibling.isGroup) {
+                // Leaf node: use its own scheduling state.
+                if (sibling.weight > 0.0) {
+                    repWeights.add(sibling.weight)
+                    repVrts.add(sibling.vruntime)
+                }
+            } else {
+                // Group/container: recurse into children first, then use the
+                // aggregated result as this group's representative.
+                val children = allActive.filter { it.parentId == sibling.id }
+                if (children.isNotEmpty()) {
+                    val (childW, childVrt, _) = computeGroupAwareStats(allActive, children)
+                    if (childW > 0.0) {
+                        repWeights.add(childW)
+                        repVrts.add(childVrt)
+                    }
+                }
+            }
+        }
+
+        if (repWeights.isEmpty()) return Triple(0.0, 0.0, 1.0)
+
+        // Aggregate the representatives at this level.
+        val totalW = repWeights.sum()
+        val avgVrt = if (totalW > 0.0)
+            repWeights.zip(repVrts).sumOf { (w, v) -> w * v } / totalW
+        else 0.0
+        val fairness = computeFairnessFromVrts(repVrts)
+
+        return Triple(totalW, avgVrt, fairness)
+    }
+
+    /**
+     * Counts the leaf nodes that actually participate in group-aware stats.
+     *
+     * A task qualifies when **both** conditions hold:
+     *  1. It is not a group node (`!isGroup`) — it is itself a leaf.
+     *  2. Every ancestor in its parentId chain is a true group (`isGroup = true`).
+     *
+     * This enforces the two scheduling cases:
+     *
+     *  **Case 1 — ancestor `isGroup = true`** (normal container):
+     *    Children are visible and counted recursively as usual.
+     *
+     *  **Case 2 — ancestor `isGroup = false`** (leaf-group, "assign as group" off):
+     *    The ancestor itself is the participating leaf.  All of its descendants
+     *    are hidden from stats regardless of their own `isGroup` flag.
+     *
+     * @param active Non-completed tasks only (already filtered by the caller).
+     */
+    private fun countReachableLeaves(active: List<Task>): Int {
+        val taskMap = active.associateBy { it.id }
+        return active.count { task ->
+            !task.isGroup && isAncestorChainAllGroups(task, taskMap)
+        }
+    }
+
+    /**
+     * Returns true when every ancestor of [task] (traced via parentId) is a
+     * group node (`isGroup = true`), or when [task] has no parent at all.
+     *
+     * Short-circuits to false the moment it encounters a non-group ancestor,
+     * which is the leaf-group case (Case 2): that ancestor is the real leaf,
+     * and anything below it must be excluded.
+     */
+    private fun isAncestorChainAllGroups(
+        task: Task,
+        taskMap: Map<String, Task>
+    ): Boolean {
+        val parentId = task.parentId ?: return true          // root level — always reachable
+        val parent   = taskMap[parentId] ?: return true      // orphaned node — treat as root
+        return parent.isGroup && isAncestorChainAllGroups(parent, taskMap)
+    }
+
+    /**
+     * Jain's fairness index for a flat list of tasks (used in flat/non-group mode).
      * Returns 0.0–1.0 (1.0 = perfectly fair).
      */
-    private fun computeFairness(tasks: List<Task>): Double {
-        if (tasks.size < 2) return 1.0
-        val vrs = tasks.map { it.vruntime }
-        val n = vrs.size.toDouble()
-        val sumSq = vrs.sumOf { it * it }
-        val sum = vrs.sum()
+    private fun computeFairness(tasks: List<Task>): Double =
+        computeFairnessFromVrts(tasks.map { it.vruntime })
+
+    /**
+     * Jain's fairness index applied directly to a list of vruntime values.
+     *
+     *   J = (Σ vᵢ)²  /  (n · Σ vᵢ²)
+     *
+     * Returns 1.0 for fewer than two values (trivially fair) and for the
+     * degenerate case where all vruntimes are zero.
+     *
+     * Used by both the flat path ([computeFairness]) and the group-aware path
+     * ([computeGroupAwareStats]) so the Jain formula lives in exactly one place.
+     */
+    private fun computeFairnessFromVrts(vrts: List<Double>): Double {
+        if (vrts.size < 2) return 1.0
+        val n     = vrts.size.toDouble()
+        val sum   = vrts.sum()
+        val sumSq = vrts.sumOf { it * it }
         if (sumSq == 0.0) return 1.0
         return (sum * sum) / (n * sumSq)
     }
