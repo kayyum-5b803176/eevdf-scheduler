@@ -87,6 +87,14 @@ class MainActivity : AppCompatActivity() {
     private var syncIconView: android.widget.ImageView? = null
     private var syncSpinAnim: ObjectAnimator? = null
 
+    // ── Key1 (Schedule Next) status dot — set in onCreateOptionsMenu ──────────
+    private var schedNextDotView: View? = null
+
+    /** True when the user manually hid the timer card via hold on key1.
+     *  Prevents currentTask observer from re-showing the card until the user
+     *  explicitly reopens it (hold key1 again). Cleared when task becomes null. */
+    private var isCardManuallyHidden: Boolean = false
+
     private var currentTab = 0
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
 
@@ -488,7 +496,8 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.currentTask.observe(this) { task ->
             if (task != null) {
-                cardTimer.visibility = View.VISIBLE
+                // Only show the card if the user has not manually hidden it via hold on key1.
+                if (!isCardManuallyHidden) cardTimer.visibility = View.VISIBLE
                 tvCurrentTaskName.text = task.name
                 tvTimerPriority.text = "Priority ${task.priority} · ${task.category}"
                 tvTimerDisplay.text = task.remainingDisplay
@@ -498,6 +507,9 @@ class MainActivity : AppCompatActivity() {
                 // Auto mode: onTimerFinished queued the next task — start it immediately
                 if (viewModel.consumePendingAutoStart()) viewModel.startTimer()
             } else {
+                // No active task — always hide card and reset the manual-hide flag so
+                // the next task selection shows the card normally.
+                isCardManuallyHidden = false
                 cardTimer.visibility = View.GONE
                 activeAdapter.setRunningTask(null)
                 scheduleAdapter.setRunningTask(null)
@@ -532,6 +544,18 @@ class MainActivity : AppCompatActivity() {
                     ContextCompat.getColor(this, action.colorRes)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
+
+            // Mirror timer state on key1 (Schedule Next) status dot.
+            // Grey = no task selected; green = Start; amber = Pause / Cancel.
+            schedNextDotView?.let { dot ->
+                val dotColor = if (action is TimerCardAction.Unavailable) {
+                    android.graphics.Color.parseColor("#9E9E9E") // grey — matches syncDotDisabled
+                } else {
+                    ContextCompat.getColor(this, action.colorRes)
+                }
+                dot.visibility = View.VISIBLE
+                dot.backgroundTintList = ColorStateList.valueOf(dotColor)
+            }
         }
 
         // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)
@@ -753,19 +777,26 @@ class MainActivity : AppCompatActivity() {
 
         // Action view supports both tap and long-press; a plain MenuItem only fires tap.
         menu.findItem(R.id.action_schedule_next)?.actionView?.let { view ->
+            // Grab the status dot so timerCardAction observer can tint it.
+            schedNextDotView = view.findViewById(R.id.viewScheduleNextDot)
+
             // Tap → jump to first visible leaf task in the current tab
             view.setOnClickListener {
                 haptic(view)
                 viewModel.jumpToFirst(onQueueTab = currentTab == 0)
             }
-            // Hold → if timer card active: pause + dismiss. If no active task: toggle all groups on visible tab.
+            // Hold → toggle timer card open/closed (UI only — timer state unchanged).
+            //   • Card visible    → hide it (running timer keeps ticking silently)
+            //   • Card hidden + active task → show it again
+            //   • Card hidden + no task     → no-op (nothing to show)
             view.setOnLongClickListener {
                 haptic(view)
                 if (cardTimer.visibility == View.VISIBLE) {
-                    viewModel.pauseAndDismiss()
-                } else {
-                    if (currentTab == 0) viewModel.toggleAllQueueGroupsExpanded()
-                    else                 viewModel.toggleAllScheduleGroupsExpanded()
+                    isCardManuallyHidden = true
+                    cardTimer.visibility = View.GONE
+                } else if (viewModel.currentTask.value != null) {
+                    isCardManuallyHidden = false
+                    cardTimer.visibility = View.VISIBLE
                 }
                 true
             }
