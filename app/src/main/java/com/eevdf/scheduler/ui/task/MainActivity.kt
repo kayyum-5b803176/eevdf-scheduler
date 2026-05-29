@@ -323,6 +323,10 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(toolbar)
         mainToolbar = toolbar
         statsBar    = findViewById(R.id.statsBar)
+        // Tap the stats bar to open the Task Statistics page
+        statsBar.setOnClickListener {
+            startActivity(Intent(this, StatsActivity::class.java))
+        }
         supportActionBar?.title = "EEVDF Task Scheduler"
     }
 
@@ -766,40 +770,7 @@ class MainActivity : AppCompatActivity() {
                 true
             }
         }
-        // Attach Stats long-press to the overflow (3-dot) button
-        hookOverflowLongPress(findViewById(R.id.toolbar))
         return true
-    }
-
-    /**
-     * Recursively searches the Toolbar's view tree for the overflow (3-dot) button
-     * by matching AppCompat's own content-description string, then attaches a
-     * long-click listener that opens StatsActivity.
-     *
-     * Using contentDescription is the only reliable cross-version identifier —
-     * the class name ("OverflowMenuButton") is internal and varies by API level.
-     */
-    private fun hookOverflowLongPress(toolbar: Toolbar) {
-        toolbar.post {
-            val desc = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description)
-            val btn  = findViewByContentDesc(toolbar, desc)
-            btn?.setOnLongClickListener {
-                startActivity(Intent(this@MainActivity, StatsActivity::class.java))
-                true
-            }
-        }
-    }
-
-    private fun findViewByContentDesc(root: android.view.ViewGroup, desc: String): View? {
-        for (i in 0 until root.childCount) {
-            val child = root.getChildAt(i)
-            if (child.contentDescription?.toString() == desc) return child
-            if (child is android.view.ViewGroup) {
-                val found = findViewByContentDesc(child, desc)
-                if (found != null) return found
-            }
-        }
-        return null
     }
 
     // ── Sync icon update ──────────────────────────────────────────────────────
