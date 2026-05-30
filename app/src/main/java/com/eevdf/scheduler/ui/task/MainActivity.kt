@@ -347,9 +347,10 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(toolbar)
         mainToolbar = toolbar
         statsBar    = findViewById(R.id.statsBar)
-        // Tap the stats bar to open the Task Statistics page
-        statsBar.setOnClickListener {
+        // Hold the stats bar → open the Task Statistics page
+        statsBar.setOnLongClickListener {
             startActivity(Intent(this, StatsActivity::class.java))
+            true
         }
         supportActionBar?.title = "EEVDF Task Scheduler"
     }
