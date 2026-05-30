@@ -676,7 +676,12 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Scrolls the RecyclerView to the card of [taskId].
-     * If the task is not in the currently visible adapter, switches to the Queue tab first.
+     *
+     * Always uses an instant positional jump (scrollToPositionWithOffset) so the
+     * target row appears on the very next frame regardless of how many rows are
+     * between the current viewport and the destination.  The previous
+     * smoothScrollToPosition call was removed because it animated through every
+     * intermediate row — unacceptable with 100+ tasks in the list.
      */
     private fun scrollToTask(taskId: String) {
         // Only scroll within the currently visible tab — never switch tabs
@@ -690,15 +695,15 @@ class MainActivity : AppCompatActivity() {
 
         val llm = recyclerView.layoutManager as? LinearLayoutManager ?: return
 
-        // Guard: if the item is already at least partially visible, don't scroll.
-        // Without this check, smoothScrollToPosition fires every time currentTask
-        // emits (every timer tick), causing the card to bounce back and forth —
-        // especially when the FAB is hidden and the RecyclerView has extra height.
+        // Guard: already at least partially on screen — nothing to do.
+        // Prevents the card bouncing back on every timer tick.
         val firstVisible = llm.findFirstVisibleItemPosition()
         val lastVisible  = llm.findLastVisibleItemPosition()
         if (position in firstVisible..lastVisible) return
 
-        llm.smoothScrollToPosition(recyclerView, null, position)
+        // Instant jump — target row snaps to the top of the viewport in one
+        // layout pass, no animation, no intermediate rows rendered.
+        llm.scrollToPositionWithOffset(position, 0)
     }
 
     private fun updateScheduleRankBadge() {
