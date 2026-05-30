@@ -57,4 +57,48 @@ object AutoSwitchPrefs {
     fun saveLastCallState(ctx: Context, state: String) {
         prefs(ctx).edit().putString(KEY_LAST_CALL_STATE, state).apply()
     }
+
+    // ── Hover bubble ──────────────────────────────────────────────────────────
+
+    private const val KEY_BUBBLE_ENABLED   = "bubble_enabled"
+    private const val KEY_BUBBLE_DRAGGABLE = "bubble_draggable"
+    private const val KEY_BUBBLE_APP_LIST  = "bubble_app_list"   // Set<String> of package names
+    private const val KEY_BUBBLE_X         = "bubble_x"
+    private const val KEY_BUBBLE_Y         = "bubble_y"
+
+    fun isBubbleEnabled(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_BUBBLE_ENABLED, false)
+
+    fun setBubbleEnabled(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_BUBBLE_ENABLED, enabled).apply()
+    }
+
+    /** true = draggable, false = fixed at saved position */
+    fun isBubbleDraggable(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_BUBBLE_DRAGGABLE, false)
+
+    fun setBubbleDraggable(ctx: Context, draggable: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_BUBBLE_DRAGGABLE, draggable).apply()
+    }
+
+    /**
+     * Package names of apps on which the bubble should appear during a call.
+     * Empty set = show on ALL apps (except EEVDF itself).
+     */
+    fun getBubbleAppList(ctx: Context): Set<String> =
+        prefs(ctx).getStringSet(KEY_BUBBLE_APP_LIST, emptySet()) ?: emptySet()
+
+    fun setBubbleAppList(ctx: Context, packages: Set<String>) {
+        prefs(ctx).edit().putStringSet(KEY_BUBBLE_APP_LIST, packages).apply()
+    }
+
+    /** Last saved X position of the bubble window (-1 = use default). */
+    fun getBubbleX(ctx: Context): Int = prefs(ctx).getInt(KEY_BUBBLE_X, -1)
+
+    /** Last saved Y position of the bubble window (-1 = use default). */
+    fun getBubbleY(ctx: Context): Int = prefs(ctx).getInt(KEY_BUBBLE_Y, -1)
+
+    fun saveBubblePosition(ctx: Context, x: Int, y: Int) {
+        prefs(ctx).edit().putInt(KEY_BUBBLE_X, x).putInt(KEY_BUBBLE_Y, y).apply()
+    }
 }

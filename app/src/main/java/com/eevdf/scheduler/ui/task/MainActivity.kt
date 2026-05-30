@@ -14,6 +14,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs
+import com.eevdf.scheduler.ui.autoswitch.BubbleEventBus
 import com.eevdf.scheduler.ui.autoswitch.CallEvents
 import com.eevdf.scheduler.ui.settings.UiCustomizationPrefs
 import androidx.appcompat.app.AlertDialog
@@ -137,6 +138,16 @@ class MainActivity : AppCompatActivity() {
         setupViews()
         setupAdapters()
         setupRecyclerView()
+        // Hover bubble: wire tap callback so the floating bubble can toggle the
+        // call task timer without bringing EEVDF to the foreground.
+        BubbleEventBus.onBubbleTap = { viewModel.toggleCallTaskTimer() }
+        // Hover bubble: sync current timer state immediately so the bubble dot
+        // colour is correct if the service is already running (e.g. screen rotation).
+        BubbleEventBus.timerRunning =
+            viewModel.timerCardAction.value.let {
+                it is TimerCardAction.Pause || it is TimerCardAction.Cancel
+            }
+
         setupTabs()
         setupObservers()
         // Restore last active tab using a one-shot observer so the tab is
@@ -177,6 +188,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(alarmStopReceiver)
+        BubbleEventBus.onBubbleTap = null    // prevent stale reference after Activity death
     }
 
     override fun onResume() {
@@ -565,6 +577,10 @@ class MainActivity : AppCompatActivity() {
             // Dot reflects timer state only when the card is manually hidden.
             // When card is visible the card itself shows the state — dot stays grey.
             updateScheduleNextDot()
+
+            // Keep the hover bubble dot in sync via the in-process volatile bus.
+            BubbleEventBus.timerRunning =
+                action is TimerCardAction.Pause || action is TimerCardAction.Cancel
         }
 
         // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)

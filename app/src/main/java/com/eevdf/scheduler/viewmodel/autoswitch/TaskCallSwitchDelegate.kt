@@ -1,6 +1,8 @@
 package com.eevdf.scheduler.viewmodel.autoswitch
 
 import com.eevdf.scheduler.model.task.Task
+import com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs
+import com.eevdf.scheduler.ui.autoswitch.BubbleOverlayService
 import com.eevdf.scheduler.viewmodel.task.TaskViewModel
 
 /**
@@ -109,6 +111,17 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
         vm._timerSeconds.value = callTask.remainingSeconds
         vm.startTimer()
         vm._toastMessage.value = "Call started → \"${callTask.name}\""
+
+        // Bubble: start the overlay service so it can show the floating dot
+        // while the user is in other apps during the call.
+        val ctx = vm.getApplication<android.app.Application>()
+        if (AutoSwitchPrefs.isBubbleEnabled(ctx)) {
+            androidx.core.content.ContextCompat.startForegroundService(
+                ctx,
+                android.content.Intent(ctx, BubbleOverlayService::class.java)
+                    .apply { action = BubbleOverlayService.ACTION_CALL_STARTED }
+            )
+        }
     }
 
     /**
@@ -145,5 +158,12 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
         } else {
             vm._toastMessage.value = "Call ended → \"${returnTo.name}\" (paused)"
         }
+
+        // Bubble: signal call ended; the service will hide the bubble and stop itself.
+        val ctx = vm.getApplication<android.app.Application>()
+        ctx.startService(
+            android.content.Intent(ctx, BubbleOverlayService::class.java)
+                .apply { action = BubbleOverlayService.ACTION_CALL_ENDED }
+        )
     }
 }

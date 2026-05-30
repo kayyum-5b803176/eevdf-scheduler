@@ -716,6 +716,16 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleAllScheduleGroupsExpanded() = groupExpand.toggleAllScheduleGroupsExpanded()
 
     /**
+     * Called from [BubbleEventBus.onBubbleTap] when the user taps the hover
+     * bubble.  Toggles the call task timer without switching back to the app:
+     *   • Timer running → pause
+     *   • Timer paused  → start
+     */
+    fun toggleCallTaskTimer() {
+        if (_timerRunning.value == true) pauseTimer() else startTimer()
+    }
+
+    /**
      * Overflow-menu hold: collapses all groups when any leaf is visible, expands
      * all when all groups are already collapsed.  Groups that are ancestors of
      * any interrupt task are excluded so the interrupt slot is never disrupted.
