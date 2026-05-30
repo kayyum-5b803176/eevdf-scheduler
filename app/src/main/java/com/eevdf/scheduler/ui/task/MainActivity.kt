@@ -198,6 +198,15 @@ class MainActivity : AppCompatActivity() {
      *
      * Called on [onResume] so changes made in [UiCustomizationActivity] are picked
      * up immediately when the user navigates back.
+     *
+     * Simple-mode note: when simple mode is enabled the RecyclerView item animator
+     * is set to null.  In simple mode [setRunningTask] uses notifyItemChanged on
+     * two cards (old running → collapse rows, new running → expand rows), and the
+     * DefaultItemAnimator runs a ~250 ms crossfade on each change.  That animation
+     * delays both the row-visibility update AND the auto-scroll jump, causing the
+     * visual stutter reported by the user.  Removing the animator makes every card
+     * change and every scroll instant.  When simple mode is off the animator is
+     * restored so normal-mode list updates keep their default feel.
      */
     private fun applyDisplayPrefs() {
         val scale      = UiCustomizationPrefs.getCardHeightScale(this)
@@ -212,6 +221,13 @@ class MainActivity : AppCompatActivity() {
         activeAdapter.setUnitFormat(unitFormat)
         scheduleAdapter.setUnitFormat(unitFormat)
         completedAdapter.setUnitFormat(unitFormat)
+
+        // Simple mode: kill the item animator so notifyItemChanged-driven row
+        // visibility changes and auto-scroll jumps are both instantaneous.
+        // Non-simple mode: restore a fresh DefaultItemAnimator so normal
+        // add/remove/change animations work as expected.
+        recyclerView.itemAnimator = if (simpleMode) null
+                                    else            androidx.recyclerview.widget.DefaultItemAnimator()
 
         updateCompactMode(scale, autoAdj)
     }
