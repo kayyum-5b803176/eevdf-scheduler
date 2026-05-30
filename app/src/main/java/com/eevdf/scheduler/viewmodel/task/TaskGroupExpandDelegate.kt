@@ -150,6 +150,63 @@ internal class TaskGroupExpandDelegate(
         scheduleExpandTrigger.value = (scheduleExpandTrigger.value ?: 0) + 1
     }
 
+    // ── Global toggle-all (hold overflow menu) ────────────────────────────────
+
+    /**
+     * Overflow-menu hold: collapse if any non-interrupt leaf is visible, expand
+     * if all groups are collapsed.  Groups whose IDs are in [excludeGroupIds]
+     * (interrupt task ancestors) are skipped entirely so the interrupt workflow
+     * is never disrupted.
+     *
+     * @param hasVisibleLeaves true when the flat list contains at least one
+     *   non-group, non-interrupt, non-completed task (i.e. a leaf is visible).
+     * @param excludeGroupIds  group IDs that must NOT be touched (interrupt
+     *   task parents / grandparents collected by the ViewModel).
+     */
+    fun toggleAllQueueGroupsGlobal(hasVisibleLeaves: Boolean, excludeGroupIds: Set<String>) {
+        val allTasks   = getActiveTasks()
+        val rootGroups = allTasks.filter {
+            it.isGroup && it.parentId == null && it.id !in excludeGroupIds
+        }
+        if (rootGroups.isEmpty()) return
+        // true = expand; false = collapse — opposite of hasVisibleLeaves
+        val next   = !hasVisibleLeaves
+        val editor = prefs.edit()
+        for (group in rootGroups) {
+            val targets = (listOf(group.id) +
+                    collectDescendantGroupIds(group.id, allTasks))
+                .filter { it !in excludeGroupIds }
+            for (id in targets) {
+                queueExpandState[id] = next
+                editor.putBoolean(QUEUE_EXPAND_PREFIX + id, next)
+            }
+        }
+        editor.apply()
+        queueExpandTrigger.value = (queueExpandTrigger.value ?: 0) + 1
+    }
+
+    /** Schedule tab equivalent of [toggleAllQueueGroupsGlobal]. */
+    fun toggleAllScheduleGroupsGlobal(hasVisibleLeaves: Boolean, excludeGroupIds: Set<String>) {
+        val allTasks   = getActiveTasks()
+        val rootGroups = allTasks.filter {
+            it.isGroup && it.parentId == null && it.id !in excludeGroupIds
+        }
+        if (rootGroups.isEmpty()) return
+        val next   = !hasVisibleLeaves
+        val editor = prefs.edit()
+        for (group in rootGroups) {
+            val targets = (listOf(group.id) +
+                    collectDescendantGroupIds(group.id, allTasks))
+                .filter { it !in excludeGroupIds }
+            for (id in targets) {
+                scheduleExpandState[id] = next
+                editor.putBoolean(SCHEDULE_EXPAND_PREFIX + id, next)
+            }
+        }
+        editor.apply()
+        scheduleExpandTrigger.value = (scheduleExpandTrigger.value ?: 0) + 1
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**

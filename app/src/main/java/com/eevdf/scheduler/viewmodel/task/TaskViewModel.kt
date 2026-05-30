@@ -715,6 +715,39 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleAllQueueGroupsExpanded()    = groupExpand.toggleAllQueueGroupsExpanded()
     fun toggleAllScheduleGroupsExpanded() = groupExpand.toggleAllScheduleGroupsExpanded()
 
+    /**
+     * Overflow-menu hold: collapses all groups when any leaf is visible, expands
+     * all when all groups are already collapsed.  Groups that are ancestors of
+     * any interrupt task are excluded so the interrupt slot is never disrupted.
+     *
+     * @param onQueueTab       true = Queue tab, false = Schedule tab
+     * @param hasVisibleLeaves true when the flat list has at least one visible
+     *                         non-group, non-interrupt, non-completed leaf task
+     */
+    fun toggleAllGroupsGlobal(onQueueTab: Boolean, hasVisibleLeaves: Boolean) {
+        val excludeIds = collectInterruptAncestorIds()
+        if (onQueueTab) groupExpand.toggleAllQueueGroupsGlobal(hasVisibleLeaves, excludeIds)
+        else            groupExpand.toggleAllScheduleGroupsGlobal(hasVisibleLeaves, excludeIds)
+    }
+
+    /**
+     * Walks up the parent chain of every interrupt task and collects all
+     * ancestor group IDs.  These groups are excluded from the global toggle so
+     * the interrupt task's visibility is never accidentally changed.
+     */
+    private fun collectInterruptAncestorIds(): Set<String> {
+        val allTasks = activeTasks.value ?: return emptySet()
+        val result   = mutableSetOf<String>()
+        allTasks.filter { it.isInterrupt }.forEach { interruptTask ->
+            var parentId: String? = interruptTask.parentId
+            while (parentId != null) {
+                result.add(parentId)
+                parentId = allTasks.find { it.id == parentId }?.parentId
+            }
+        }
+        return result
+    }
+
     // =========================================================================
     // Interrupt facade
     // =========================================================================

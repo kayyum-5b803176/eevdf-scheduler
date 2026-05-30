@@ -808,6 +808,28 @@ class MainActivity : AppCompatActivity() {
                 true
             }
         }
+        // ── Overflow (3-dot) long-press: global group collapse / expand ───────
+        // Deferred with toolbar.post so the overflow button is in the view tree.
+        // Collapse if any non-interrupt leaf is visible; expand if all collapsed.
+        // Interrupt-task ancestor groups are excluded from the toggle.
+        findViewById<Toolbar>(R.id.toolbar)?.post {
+            val desc = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description)
+            findViewByContentDesc(findViewById(R.id.toolbar), desc)
+                ?.setOnLongClickListener { v ->
+                    haptic(v)
+                    val list = if (currentTab == 0) viewModel.flatActiveTasks.value
+                               else                 viewModel.flatScheduleOrder.value
+                    val hasLeaves = list?.any {
+                        !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt
+                    } == true
+                    viewModel.toggleAllGroupsGlobal(
+                        onQueueTab       = currentTab == 0,
+                        hasVisibleLeaves = hasLeaves
+                    )
+                    true
+                }
+        }
+
         return true
     }
 
@@ -837,6 +859,29 @@ class MainActivity : AppCompatActivity() {
         }
         dot.visibility = View.VISIBLE
         dot.backgroundTintList = ColorStateList.valueOf(color)
+    }
+
+    // ── View-tree helper ──────────────────────────────────────────────────────
+
+    /**
+     * Recursively walks [root]'s view tree and returns the first child whose
+     * [android.view.View.contentDescription] exactly matches [desc], or null.
+     * Used to locate the overflow (3-dot) button by its AppCompat content-
+     * description, which is the only stable cross-version identifier.
+     */
+    private fun findViewByContentDesc(
+        root: android.view.ViewGroup,
+        desc: String
+    ): android.view.View? {
+        for (i in 0 until root.childCount) {
+            val child = root.getChildAt(i)
+            if (child.contentDescription?.toString() == desc) return child
+            if (child is android.view.ViewGroup) {
+                val found = findViewByContentDesc(child, desc)
+                if (found != null) return found
+            }
+        }
+        return null
     }
 
     // ── Sync icon update ──────────────────────────────────────────────────────
