@@ -187,23 +187,29 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
      * One representative leaf per root-level entry, cycling in UI list order.
      * For a group the representative is its first leaf (depth-first, VDL order).
      * For a root leaf task it represents itself.
+     *
+     * IMPORTANT: root entries are taken directly from the flat list in the order
+     * they appear there — NOT re-sorted by name or virtualDeadline.  The flat
+     * list already reflects RT/DL hoisting so the rotation matches what the user
+     * sees on screen.  Re-sorting here was the bug: an RT task repositioned to
+     * slot #1 by the scheduler would be cycled last because its name sorted late.
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
-        val current  = vm._currentTask.value
-        val allTasks = (if (onQueueTab) vm.listBuilder.flatActiveTasks
-                        else            vm.listBuilder.flatScheduleOrder)
-            .value?.map { it.task } ?: return
+        val current   = vm._currentTask.value
+        val flatItems = (if (onQueueTab) vm.listBuilder.flatActiveTasks
+                         else            vm.listBuilder.flatScheduleOrder)
+            .value ?: return
 
-        val base = allTasks.filter { it.parentId == null && !it.isCompleted && !it.isInterrupt }
-        val rootEntries = if (onQueueTab)
-            base.sortedWith(TaskSortHelper.taskNameComparator)
-        else
-            base.sortedBy { it.virtualDeadline }
+        val allTasks = flatItems.map { it.task }
 
-        val representatives = rootEntries.mapNotNull { root ->
-            val leaf = if (!root.isGroup) root else firstLeafOf(allTasks, root.id)
-            if (leaf == null || leaf.isInterrupt) null else Pair(root.id, leaf)
-        }
+        // Root entries in flat-list (display) order — preserves RT/DL hoisting.
+        val representatives = flatItems
+            .filter { it.task.parentId == null && !it.task.isCompleted && !it.task.isInterrupt }
+            .mapNotNull { item ->
+                val root = item.task
+                val leaf = if (!root.isGroup) root else firstLeafOf(allTasks, root.id)
+                if (leaf == null || leaf.isInterrupt) null else Pair(root.id, leaf)
+            }
         if (representatives.isEmpty()) return
 
         val currentRootId = current?.let { rootAncestorOf(allTasks, it)?.id }
