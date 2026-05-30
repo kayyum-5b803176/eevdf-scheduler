@@ -545,17 +545,9 @@ class MainActivity : AppCompatActivity() {
                 )
             btnStartPause.jumpDrawablesToCurrentState()
 
-            // Mirror timer state on key1 (Schedule Next) status dot.
-            // Grey = no task selected; green = Start; amber = Pause / Cancel.
-            schedNextDotView?.let { dot ->
-                val dotColor = if (action is TimerCardAction.Unavailable) {
-                    android.graphics.Color.parseColor("#9E9E9E") // grey — matches syncDotDisabled
-                } else {
-                    ContextCompat.getColor(this, action.colorRes)
-                }
-                dot.visibility = View.VISIBLE
-                dot.backgroundTintList = ColorStateList.valueOf(dotColor)
-            }
+            // Dot reflects timer state only when the card is manually hidden.
+            // When card is visible the card itself shows the state — dot stays grey.
+            updateScheduleNextDot()
         }
 
         // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)
@@ -780,15 +772,29 @@ class MainActivity : AppCompatActivity() {
             // Grab the status dot so timerCardAction observer can tint it.
             schedNextDotView = view.findViewById(R.id.viewScheduleNextDot)
 
-            // Tap → jump to first visible leaf task in the current tab
+            // Tap — two cases:
+            //   Case 1: any non-interrupt leaf task is visible in the current tab
+            //           → jump to the first visible leaf (interrupt tasks skipped).
+            //   Case 2: all tasks are under collapsed groups (no non-interrupt leaf
+            //           visible) → select the assigned interrupt task instead.
             view.setOnClickListener {
+                val list = if (currentTab == 0) viewModel.flatActiveTasks.value
+                           else                 viewModel.flatScheduleOrder.value
+                val hasLeaves = list?.any {
+                    !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt
+                } == true
                 haptic(view)
-                viewModel.jumpToFirst(onQueueTab = currentTab == 0)
+                if (hasLeaves) {
+                    viewModel.jumpToFirst(onQueueTab = currentTab == 0)
+                } else {
+                    // No visible normal tasks — fall back to the active interrupt slot
+                    viewModel.jumpToInterrupt()
+                }
             }
             // Hold → toggle timer card open/closed (UI only — timer state unchanged).
-            //   • Card visible    → hide it (running timer keeps ticking silently)
-            //   • Card hidden + active task → show it again
-            //   • Card hidden + no task     → no-op (nothing to show)
+            //   • Card visible    → hide it; dot switches to colored state
+            //   • Card hidden + active task → show it; dot reverts to grey
+            //   • Card hidden + no task     → no-op
             view.setOnLongClickListener {
                 haptic(view)
                 if (cardTimer.visibility == View.VISIBLE) {
@@ -798,10 +804,39 @@ class MainActivity : AppCompatActivity() {
                     isCardManuallyHidden = false
                     cardTimer.visibility = View.VISIBLE
                 }
+                updateScheduleNextDot()
                 true
             }
         }
         return true
+    }
+
+    // ── Key1 (Schedule Next) dot update ──────────────────────────────────────
+
+    /**
+     * Updates the key1 status dot to reflect timer state — but only when the
+     * timer card is manually hidden.  While the card is open (visible) the dot
+     * stays grey because the card itself already shows the full state; coloring
+     * the dot too would be redundant and visually noisy.
+     *
+     * Call from:
+     *  • timerCardAction observer  — timer state changed
+     *  • key1 hold handler         — card visibility toggled
+     */
+    private fun updateScheduleNextDot() {
+        val dot = schedNextDotView ?: return
+        val grey = android.graphics.Color.parseColor("#9E9E9E")
+        val color = if (isCardManuallyHidden) {
+            // Card is hidden — show actual timer state so user knows what's running
+            val action = viewModel.timerCardAction.value
+            if (action == null || action is TimerCardAction.Unavailable) grey
+            else ContextCompat.getColor(this, action.colorRes)
+        } else {
+            // Card is visible (or no task) — grey dot; card shows the state
+            grey
+        }
+        dot.visibility = View.VISIBLE
+        dot.backgroundTintList = ColorStateList.valueOf(color)
     }
 
     // ── Sync icon update ──────────────────────────────────────────────────────
