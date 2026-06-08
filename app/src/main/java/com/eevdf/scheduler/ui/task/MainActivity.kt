@@ -139,20 +139,6 @@ class MainActivity : AppCompatActivity() {
         setupViews()
         setupAdapters()
         setupRecyclerView()
-        // Hover bubble: wire tap callback so the floating bubble can switch tasks
-        // or toggle the call task timer without bringing EEVDF to the foreground.
-        BubbleEventBus.onBubbleTap = { viewModel.handleBubbleTap() }
-        // Hover bubble: sync current timer state immediately so the bubble dot
-        // colour is correct if the service is already running (e.g. screen rotation).
-        val initAction = viewModel.timerCardAction.value
-        val initRunning = initAction is TimerCardAction.Pause || initAction is TimerCardAction.Cancel
-        val initCallTaskId = AutoSwitchPrefs.getCallTaskId(this)
-        BubbleEventBus.timerRunning    = initRunning
-        BubbleEventBus.anyTimerRunning = initRunning
-        BubbleEventBus.callTaskRunning = initRunning &&
-            initCallTaskId != null &&
-            viewModel.currentTask.value?.id == initCallTaskId
-
         setupTabs()
         setupObservers()
         // Restore last active tab using a one-shot observer so the tab is
@@ -190,10 +176,36 @@ class MainActivity : AppCompatActivity() {
         viewModel.refreshSchedule()
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Hover bubble: wire tap callback while Activity is visible.
+        // Cleared in onStop() so BubbleOverlayService falls back to its own DB
+        // path when the Activity is in the background — avoiding stale ViewModel
+        // state and inactive LiveData observers causing wrong colour + no-op taps.
+        BubbleEventBus.onBubbleTap = { viewModel.handleBubbleTap() }
+        // Sync BubbleEventBus volatile fields immediately so the bubble dot
+        // colour is correct if the service is already running (e.g. screen rotation
+        // or returning from another app).
+        val action = viewModel.timerCardAction.value
+        val running = action is TimerCardAction.Pause || action is TimerCardAction.Cancel
+        val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
+        BubbleEventBus.timerRunning    = running
+        BubbleEventBus.anyTimerRunning = running
+        BubbleEventBus.callTaskRunning = running &&
+            callTaskId != null &&
+            viewModel.currentTask.value?.id == callTaskId
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Clear the tap callback — Activity is no longer visible.
+        // BubbleOverlayService detects null and uses its direct DB path instead.
+        BubbleEventBus.onBubbleTap = null
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(alarmStopReceiver)
-        BubbleEventBus.onBubbleTap = null    // prevent stale reference after Activity death
     }
 
     override fun onResume() {

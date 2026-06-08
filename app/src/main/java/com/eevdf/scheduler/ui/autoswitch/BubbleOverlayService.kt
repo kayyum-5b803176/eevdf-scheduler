@@ -25,6 +25,18 @@ import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.eevdf.scheduler.R
+import com.eevdf.scheduler.db.TaskDatabase
+import com.eevdf.scheduler.db.TaskRepository
+import com.eevdf.scheduler.model.runlog.RunSession
+import com.eevdf.scheduler.model.timer.TimerState
+import com.eevdf.scheduler.model.timer.timerState
+import com.eevdf.scheduler.model.timer.withTimerState
+import com.eevdf.scheduler.ui.alarm.AlarmForegroundService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Foreground service that owns the floating call-state bubble overlay.
@@ -89,6 +101,8 @@ class BubbleOverlayService : Service() {
     private var callActive = false
 
     private val handler = Handler(Looper.getMainLooper())
+    private val job     = SupervisorJob()
+    private val scope   = CoroutineScope(Dispatchers.IO + job)
     private val pollRunnable = object : Runnable {
         override fun run() {
             if (callActive) recheckVisibility()
@@ -123,6 +137,7 @@ class BubbleOverlayService : Service() {
         isRunning = false
         handler.removeCallbacks(pollRunnable)
         hideBubble()
+        scope.cancel()
     }
 
     // ── Visibility decision ───────────────────────────────────────────────────
@@ -196,7 +211,7 @@ class BubbleOverlayService : Service() {
             // Fixed mode — simple click listener with haptic
             view.setOnClickListener {
                 performHapticFeedback()
-                BubbleEventBus.onBubbleTap?.invoke()
+                dispatchTap()
             }
             return
         }
@@ -230,7 +245,7 @@ class BubbleOverlayService : Service() {
                 MotionEvent.ACTION_UP -> {
                     if (!moved) {
                         performHapticFeedback()
-                        BubbleEventBus.onBubbleTap?.invoke()
+                        dispatchTap()
                     } else {
                         AutoSwitchPrefs.saveBubblePosition(this, lp.x, lp.y)
                     }
@@ -238,6 +253,106 @@ class BubbleOverlayService : Service() {
                 }
                 else -> false
             }
+        }
+    }
+
+    // ── Tap dispatch ──────────────────────────────────────────────────────────
+
+    /**
+     * Single dispatch point for all bubble taps.
+     *
+     * [BubbleEventBus.onBubbleTap] is non-null only while MainActivity is in
+     * STARTED/RESUMED state (set in onStart, cleared in onStop).  When it is
+     * non-null the Activity is on screen, its LiveData observers are active, and
+     * the ViewModel's in-memory timer engine is authoritative — use that path.
+     *
+     * When null (Activity backgrounded or dead) the observer chain is broken:
+     * timerCardAction won't fire, callTaskRunning won't update, and the ViewModel
+     * state may be stale from before syncFromDb() last ran.  Fall through to
+     * [handleTapInBackground] which reads and writes Room directly, credits
+     * vruntime + RunLog, and updates BubbleEventBus fields immediately.
+     */
+    private fun dispatchTap() {
+        val tap = BubbleEventBus.onBubbleTap
+        if (tap != null) {
+            tap.invoke()          // Activity visible — ViewModel path
+        } else {
+            handleTapInBackground()   // Activity gone — direct DB path
+        }
+    }
+
+    /**
+     * Handles a bubble tap entirely in the background without the Activity.
+     *
+     * Decision table (mirrors TaskViewModel.handleBubbleTap):
+     *   Running task == call task → pause call task             (green → blue)
+     *   Running task != call task → pause it, start call task   (blue → green)
+     *   No task running           → start call task             (blue → green)
+     *
+     * vruntime and RunLog are credited on every pause — same pattern as
+     * CallSwitchService — so stats are never lost regardless of Activity state.
+     * BubbleEventBus.callTaskRunning is updated synchronously before the handler
+     * post so updateDotColor() sees the new value on the very next frame.
+     */
+    private fun handleTapInBackground() {
+        val callTaskId = AutoSwitchPrefs.getCallTaskId(this) ?: return
+        scope.launch {
+            val db   = TaskDatabase.getDatabase(this@BubbleOverlayService)
+            val repo = TaskRepository(db.taskDao(), this@BubbleOverlayService)
+            val nowMs = System.currentTimeMillis()
+
+            val runningTask = repo.getRunningTask()
+
+            if (runningTask?.id == callTaskId) {
+                // ── Call task is running → pause it ──────────────────────────
+                val startEpoch = runningTask.startTimeEpoch
+                val paused     = runningTask.withTimerState(
+                    TimerState.pause(runningTask.timerState, nowMs))
+                repo.update(paused)
+
+                val session = RunSession.Paused(runningTask.id, startEpoch, nowMs)
+                if (session.wallClockSeconds > 0 && startEpoch > 0L)
+                    repo.updateVruntimeAfterRun(paused, session)
+
+                BubbleEventBus.callTaskRunning = false
+                BubbleEventBus.anyTimerRunning = false
+                BubbleEventBus.timerRunning    = false
+                AlarmForegroundService.timerPause(this@BubbleOverlayService)
+
+            } else {
+                // ── Switch to call task ───────────────────────────────────────
+                if (runningTask != null) {
+                    val startEpoch = runningTask.startTimeEpoch
+                    val paused     = runningTask.withTimerState(
+                        TimerState.pause(runningTask.timerState, nowMs))
+                    repo.update(paused)
+
+                    val session = RunSession.Paused(runningTask.id, startEpoch, nowMs)
+                    if (session.wallClockSeconds > 0 && startEpoch > 0L)
+                        repo.updateVruntimeAfterRun(paused, session)
+                }
+
+                val callTask = repo.getTaskById(callTaskId)
+                if (callTask == null || callTask.isCompleted) return@launch
+
+                val runState       = TimerState.resume(callTask.timerState, nowMs)
+                val runningCallTask = callTask.withTimerState(runState)
+                repo.update(runningCallTask)
+
+                BubbleEventBus.callTaskRunning = true
+                BubbleEventBus.anyTimerRunning = true
+                BubbleEventBus.timerRunning    = true
+                AlarmForegroundService.timerStart(
+                    this@BubbleOverlayService,
+                    callTask.name,
+                    runningCallTask.remainingSeconds,
+                    callTask.taskType,
+                    runningCallTask.remainingSeconds
+                )
+            }
+
+            // Force dot repaint immediately — don't wait for the next poll tick
+            handler.post { updateDotColor() }
         }
     }
 
