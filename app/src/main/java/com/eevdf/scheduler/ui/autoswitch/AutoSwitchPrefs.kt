@@ -58,6 +58,26 @@ object AutoSwitchPrefs {
         prefs(ctx).edit().putString(KEY_LAST_CALL_STATE, state).apply()
     }
 
+    // ── Quick Switch ──────────────────────────────────────────────────────────
+
+    private const val KEY_QUICK_SWITCH = "quick_switch_enabled"
+
+    /**
+     * Master toggle for the background-switch system.
+     *
+     * true  → [CallSwitchService] handles call events in the background;
+     *          [BubbleOverlayService] can show the hover bubble (if also enabled).
+     * false → Original behaviour: switch only fires via [CallEvents] LiveData,
+     *          which requires MainActivity to be alive and observing.
+     *          No background service, no hover bubble.
+     */
+    fun isQuickSwitchEnabled(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_QUICK_SWITCH, false)
+
+    fun setQuickSwitchEnabled(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_QUICK_SWITCH, enabled).apply()
+    }
+
     // ── Hover bubble ──────────────────────────────────────────────────────────
 
     private const val KEY_BUBBLE_ENABLED   = "bubble_enabled"

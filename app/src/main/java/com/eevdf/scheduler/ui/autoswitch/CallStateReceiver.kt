@@ -74,20 +74,31 @@ class CallStateReceiver : BroadcastReceiver() {
                 //   • prevState == null (first event ever, e.g. app was installed
                 //     while a call was already ongoing, or prefs were cleared)
                 if (prevState == TelephonyManager.EXTRA_STATE_IDLE || prevState == null) {
-                    ContextCompat.startForegroundService(
-                        context,
-                        CallSwitchService.intentStarted(context)
-                    )
+                    if (AutoSwitchPrefs.isQuickSwitchEnabled(context)) {
+                        // Quick Switch ON: handle entirely in background service
+                        ContextCompat.startForegroundService(
+                            context,
+                            CallSwitchService.intentStarted(context)
+                        )
+                    } else {
+                        // Quick Switch OFF: original path — post to LiveData;
+                        // MainActivity observer fires the switch only when the app is open.
+                        CallEvents.event.postValue(CallEvents.Type.CALL_STARTED)
+                    }
                 }
             }
             TelephonyManager.EXTRA_STATE_IDLE -> {
                 if (prevState == TelephonyManager.EXTRA_STATE_RINGING ||
                     prevState == TelephonyManager.EXTRA_STATE_OFFHOOK
                 ) {
-                    ContextCompat.startForegroundService(
-                        context,
-                        CallSwitchService.intentEnded(context)
-                    )
+                    if (AutoSwitchPrefs.isQuickSwitchEnabled(context)) {
+                        ContextCompat.startForegroundService(
+                            context,
+                            CallSwitchService.intentEnded(context)
+                        )
+                    } else {
+                        CallEvents.event.postValue(CallEvents.Type.CALL_ENDED)
+                    }
                 }
             }
         }

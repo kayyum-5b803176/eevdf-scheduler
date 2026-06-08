@@ -39,6 +39,10 @@ class AutoSwitchActivity : AppCompatActivity() {
     private lateinit var tvCallTaskHint:       TextView
     private lateinit var tvPermissionStatus:   TextView
 
+    // ── Quick Switch views ───────────────────────────────────────────────────
+    private lateinit var switchQuickSwitch:      SwitchMaterial
+    private lateinit var layoutQuickSwitchOptions: View
+
     // ── Hover bubble views ────────────────────────────────────────────────────
     private lateinit var switchBubble:          SwitchMaterial
     private lateinit var tvOverlayPermStatus:   TextView
@@ -92,6 +96,7 @@ class AutoSwitchActivity : AppCompatActivity() {
         supportActionBar?.title = "Auto Switch"
 
         bindCallViews()
+        bindQuickSwitchViews()
         bindBubbleViews()
         setupTaskPicker()
     }
@@ -177,6 +182,33 @@ class AutoSwitchActivity : AppCompatActivity() {
         tvPermissionStatus.setOnClickListener {
             if (!granted) requestPhonePermission.launch(Manifest.permission.READ_PHONE_STATE)
         }
+    }
+
+    // ── Quick Switch setup ───────────────────────────────────────────────────
+
+    private fun bindQuickSwitchViews() {
+        switchQuickSwitch      = findViewById(R.id.switchQuickSwitch)
+        layoutQuickSwitchOptions = findViewById(R.id.layoutQuickSwitchOptions)
+
+        val enabled = AutoSwitchPrefs.isQuickSwitchEnabled(this)
+        switchQuickSwitch.isChecked = enabled
+        applyQuickSwitchUi(enabled)
+
+        switchQuickSwitch.setOnCheckedChangeListener { _, checked ->
+            AutoSwitchPrefs.setQuickSwitchEnabled(this, checked)
+            applyQuickSwitchUi(checked)
+            // If turning off Quick Switch while bubble was enabled, also disable
+            // the bubble so its service doesn't start on the next call.
+            if (!checked && AutoSwitchPrefs.isBubbleEnabled(this)) {
+                AutoSwitchPrefs.setBubbleEnabled(this, false)
+                switchBubble.isChecked = false
+                applyBubbleToggleUi(false)
+            }
+        }
+    }
+
+    private fun applyQuickSwitchUi(enabled: Boolean) {
+        layoutQuickSwitchOptions.visibility = if (enabled) View.VISIBLE else View.GONE
     }
 
     // ── Hover bubble setup ────────────────────────────────────────────────────
