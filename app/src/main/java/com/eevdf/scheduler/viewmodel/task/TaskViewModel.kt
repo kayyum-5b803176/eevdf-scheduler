@@ -717,13 +717,65 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Called from [BubbleEventBus.onBubbleTap] when the user taps the hover
-     * bubble.  Toggles the call task timer without switching back to the app:
-     *   • Timer running → pause
-     *   • Timer paused  → start
+     * bubble during a call.
+     *
+     * Behaviour depends on which task is currently active:
+     *
+     *   Case A — Call-assigned task IS the active timer (bubble dot = green):
+     *     Toggle pause/resume of the call task, same as before.
+     *
+     *   Case B — Another task timer is running (bubble dot = blue):
+     *     Interrupt the current task and switch to the call-assigned task.
+     *     This mirrors what [TaskCallSwitchDelegate.handleCallStarted] does
+     *     automatically, but triggered manually by the user mid-call when they
+     *     forgot to switch (e.g. they were already in a timer when the call came
+     *     in and declined the auto-switch, or the feature fired before they
+     *     picked up).
+     *
+     *   Case C — No timer is running (bubble dot = blue, timer paused):
+     *     Start the call-assigned task timer.
+     *
+     * The [com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs.getCallTaskId]
+     * value is the single source of truth for "which task is the call task".
      */
-    fun toggleCallTaskTimer() {
-        if (_timerRunning.value == true) pauseTimer() else startTimer()
+    fun handleBubbleTap() {
+        val ctx        = getApplication<android.app.Application>()
+        val callTaskId = com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs.getCallTaskId(ctx)
+
+        // No call task configured — fall back to simple toggle (safe default)
+        if (callTaskId == null) {
+            if (_timerRunning.value == true) pauseTimer() else startTimer()
+            return
+        }
+
+        val current = _currentTask.value
+
+        if (current?.id == callTaskId) {
+            // Case A: call task is already active — toggle pause/resume
+            if (_timerRunning.value == true) pauseTimer() else startTimer()
+        } else {
+            // Case B / C: switch to call task, interrupting whatever is running
+            val callTask = activeTasks.value
+                ?.firstOrNull { it.id == callTaskId && !it.isCompleted }
+                ?: run {
+                    _toastMessage.value = "Call task not found — check Auto Switch settings"
+                    return
+                }
+
+            // Pause the currently running task first (no-op if nothing is running)
+            if (_timerRunning.value == true) pauseTimer()
+
+            // Switch to the call task and start it
+            _currentTask.value  = callTask
+            _timerSeconds.value = callTask.remainingSeconds
+            startTimer()
+            _toastMessage.value = "Switched to \"${callTask.name}\""
+        }
     }
+
+    /** @deprecated Use [handleBubbleTap] — kept to avoid compile errors during migration. */
+    @Deprecated("Replaced by handleBubbleTap", ReplaceWith("handleBubbleTap()"))
+    fun toggleCallTaskTimer() = handleBubbleTap()
 
     /**
      * Overflow-menu hold: collapses all groups when any leaf is visible, expands
@@ -782,9 +834,39 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     fun handleCallStarted(callTaskId: String) = callSwitch.handleCallStarted(callTaskId)
     fun handleCallEnded()                     = callSwitch.handleCallEnded()
 
-    // =========================================================================
-    // Notice-phase LiveData passthrough
-    // =========================================================================
+    /**
+     * Reconciles ViewModel in-memory state with the DB after [CallSwitchService]
+     * may have written changes while MainActivity was dead or backgrounded.
+     *
+     * Called from MainActivity.onResume() so the UI always reflects the true
+     * DB state after the user opens (or returns to) the app.
+     *
+     * What it does:
+     *   1. Reads the currently running task from DB.
+     *   2. If it differs from what _currentTask holds, updates the LiveData so
+     *      the timer card shows the correct task and time.
+     *   3. Syncs [BubbleEventBus] volatile fields so the bubble dot colour is
+     *      correct immediately — no waiting for the next POLL_MS tick.
+     *
+     * This is intentionally lightweight — it does NOT restart the CountDownTimer
+     * engine (that is already handled by the tick-observer in init{}).  It only
+     * corrects the *displayed* task identity and remaining seconds so the user
+     * sees the right card when they open the app mid-call or after a call.
+     */
+    fun syncFromDb() {
+        viewModelScope.launch {
+            val runningTask = repository.getRunningTask() ?: return@launch
+
+            val currentId = _currentTask.value?.id
+            if (runningTask.id != currentId) {
+                // CallSwitchService switched tasks while the Activity was dead.
+                // Update LiveData on the main thread so the timer card refreshes.
+                _currentTask.postValue(runningTask)
+                _timerSeconds.postValue(runningTask.remainingSeconds)
+                _timerRunning.postValue(runningTask.isRunning)
+            }
+        }
+    }
 
     val noticePhase:             LiveData<NoticePhase> get() = notice.noticePhase
     val delayRunning:            LiveData<Boolean>     get() = notice.delayRunning

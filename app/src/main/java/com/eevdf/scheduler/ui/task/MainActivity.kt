@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs
 import com.eevdf.scheduler.ui.autoswitch.BubbleEventBus
+import com.eevdf.scheduler.ui.autoswitch.BubbleOverlayService
 import com.eevdf.scheduler.ui.autoswitch.CallEvents
 import com.eevdf.scheduler.ui.settings.UiCustomizationPrefs
 import androidx.appcompat.app.AlertDialog
@@ -138,15 +139,19 @@ class MainActivity : AppCompatActivity() {
         setupViews()
         setupAdapters()
         setupRecyclerView()
-        // Hover bubble: wire tap callback so the floating bubble can toggle the
-        // call task timer without bringing EEVDF to the foreground.
-        BubbleEventBus.onBubbleTap = { viewModel.toggleCallTaskTimer() }
+        // Hover bubble: wire tap callback so the floating bubble can switch tasks
+        // or toggle the call task timer without bringing EEVDF to the foreground.
+        BubbleEventBus.onBubbleTap = { viewModel.handleBubbleTap() }
         // Hover bubble: sync current timer state immediately so the bubble dot
         // colour is correct if the service is already running (e.g. screen rotation).
-        BubbleEventBus.timerRunning =
-            viewModel.timerCardAction.value.let {
-                it is TimerCardAction.Pause || it is TimerCardAction.Cancel
-            }
+        val initAction = viewModel.timerCardAction.value
+        val initRunning = initAction is TimerCardAction.Pause || initAction is TimerCardAction.Cancel
+        val initCallTaskId = AutoSwitchPrefs.getCallTaskId(this)
+        BubbleEventBus.timerRunning    = initRunning
+        BubbleEventBus.anyTimerRunning = initRunning
+        BubbleEventBus.callTaskRunning = initRunning &&
+            initCallTaskId != null &&
+            viewModel.currentTask.value?.id == initCallTaskId
 
         setupTabs()
         setupObservers()
@@ -195,6 +200,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         quotaTickHandler.post(quotaTickRunnable)
         viewModel.onSyncResume()
+        // Reconcile ViewModel with DB in case CallSwitchService switched tasks
+        // while the app was backgrounded or the process was dead.
+        viewModel.syncFromDb()
         // Re-read UI customization prefs every time we come back to the activity
         // (user may have changed them in UiCustomizationActivity and pressed Back)
         applyDisplayPrefs()
@@ -495,8 +503,15 @@ class MainActivity : AppCompatActivity() {
             if (type == null) return@observe
             val callTaskId = AutoSwitchPrefs.getCallTaskId(this) ?: return@observe
             when (type) {
-                CallEvents.Type.CALL_STARTED -> viewModel.handleCallStarted(callTaskId)
-                CallEvents.Type.CALL_ENDED   -> viewModel.handleCallEnded()
+                CallEvents.Type.CALL_STARTED -> {
+                    // CallSwitchService has already written the DB switch and
+                    // started the bubble. We call handleCallStarted here only
+                    // to keep the ViewModel in-memory state (savedTaskBeforeCall,
+                    // wasTimerRunning) in sync so CALL_ENDED can restore correctly
+                    // if the Activity is alive for the whole call.
+                    viewModel.handleCallStarted(callTaskId)
+                }
+                CallEvents.Type.CALL_ENDED -> viewModel.handleCallEnded()
             }
             CallEvents.event.value = null   // consume
         }
@@ -579,8 +594,13 @@ class MainActivity : AppCompatActivity() {
             updateScheduleNextDot()
 
             // Keep the hover bubble dot in sync via the in-process volatile bus.
-            BubbleEventBus.timerRunning =
-                action is TimerCardAction.Pause || action is TimerCardAction.Cancel
+            val isRunning = action is TimerCardAction.Pause || action is TimerCardAction.Cancel
+            val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
+            BubbleEventBus.timerRunning    = isRunning
+            BubbleEventBus.anyTimerRunning = isRunning
+            BubbleEventBus.callTaskRunning = isRunning &&
+                callTaskId != null &&
+                viewModel.currentTask.value?.id == callTaskId
         }
 
         // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)

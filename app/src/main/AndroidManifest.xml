@@ -124,10 +124,11 @@
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
             android:parentActivityName=".ui.settings.SettingsActivity" />
 
-        <!-- Auto Switch: phone call state receiver -->
+        <!-- Auto Switch: phone call state receiver.
+             exported=true is required for system broadcast PHONE_STATE on API 26+. -->
         <receiver
             android:name=".ui.autoswitch.CallStateReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.PHONE_STATE" />
             </intent-filter>
@@ -176,6 +177,16 @@
         -->
         <service
             android:name=".ui.autoswitch.BubbleOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+            Call-task switcher: foreground service that performs the pause/resume
+            DB writes when a call arrives or ends, without requiring MainActivity.
+            dataSync type covers the brief DB read+write window.
+        -->
+        <service
+            android:name=".ui.autoswitch.CallSwitchService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

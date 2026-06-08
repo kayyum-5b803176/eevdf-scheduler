@@ -14,6 +14,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -28,6 +31,8 @@ import com.eevdf.scheduler.R
  *
  * Lifecycle:
  *   Start  — [TaskCallSwitchDelegate] sends [ACTION_CALL_STARTED] when a call begins.
+ *            Also sent by MainActivity when a call arrives and any timer is running
+ *            (new mechanism: show bubble even before the call task is running).
  *   Poll   — every [POLL_MS] ms, checks the foreground package via UsageStats;
  *             shows or hides the bubble accordingly.
  *   Stop   — [ACTION_CALL_ENDED] hides the bubble and calls stopSelf().
@@ -38,6 +43,21 @@ import com.eevdf.scheduler.R
  *   3. The foreground package is NOT the EEVDF app itself.
  *   4. The configured app-list is either empty (show on any app) OR contains
  *      the foreground package.
+ *
+ * Bubble colour:
+ *   green (#4CAF50) — call-assigned task timer is the active timer
+ *                     (tap will pause/resume the call task)
+ *   blue  (#1565C0) — another task timer is running
+ *                     (tap will switch to the call task)
+ *
+ * Tap behaviour:
+ *   Fires [BubbleEventBus.onBubbleTap] which is wired in MainActivity to
+ *   [TaskViewModel.handleBubbleTap] — that method decides whether to
+ *   pause-current-and-start-call-task or toggle-call-task-timer.
+ *
+ * Haptic feedback:
+ *   A short confirmation buzz is produced on every tap so the user gets
+ *   tactile acknowledgement even while looking at another app.
  *
  * Timer state / tap are communicated through [BubbleEventBus] — a volatile
  * in-process singleton — so no IPC or broadcast overhead is needed.
@@ -173,8 +193,11 @@ class BubbleOverlayService : Service() {
 
     private fun wireTouch(view: View, lp: WindowManager.LayoutParams) {
         if (!AutoSwitchPrefs.isBubbleDraggable(this)) {
-            // Fixed mode — simple click listener
-            view.setOnClickListener { BubbleEventBus.onBubbleTap?.invoke() }
+            // Fixed mode — simple click listener with haptic
+            view.setOnClickListener {
+                performHapticFeedback()
+                BubbleEventBus.onBubbleTap?.invoke()
+            }
             return
         }
 
@@ -206,6 +229,7 @@ class BubbleOverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!moved) {
+                        performHapticFeedback()
                         BubbleEventBus.onBubbleTap?.invoke()
                     } else {
                         AutoSwitchPrefs.saveBubblePosition(this, lp.x, lp.y)
@@ -217,19 +241,61 @@ class BubbleOverlayService : Service() {
         }
     }
 
+    // ── Haptic feedback ───────────────────────────────────────────────────────
+
+    /**
+     * Short confirmation buzz on bubble tap.
+     * Uses EFFECT_CLICK (API 29+) for a crisp tick, falls back to a 40ms
+     * pulse on older devices.  The vibration is intentionally brief so it
+     * feels like acknowledgement, not an alarm.
+     */
+    private fun performHapticFeedback() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = getSystemService(VibratorManager::class.java)
+                vm?.defaultVibrator?.let { vib ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vib.vibrate(40L)
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val vib = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    vib?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vib?.vibrate(40L)
+                }
+            }
+        } catch (_: Exception) { /* Vibrator not available — silent fallback */ }
+    }
+
     // ── Dot colour ────────────────────────────────────────────────────────────
 
     /**
-     * Reads [BubbleEventBus.timerRunning] and tints the status dot:
-     *   running → green #4CAF50
-     *   paused  → amber #FF9800
+     * Reads [BubbleEventBus.callTaskRunning] and tints the status dot:
+     *
+     *   callTaskRunning = true  → green (#4CAF50)
+     *     The call-assigned task is the active timer.
+     *     Tap will pause / resume that task directly.
+     *
+     *   callTaskRunning = false → blue (#1565C0)
+     *     Another task is running (or timer is paused).
+     *     Tap will interrupt current work and switch to the call task.
+     *
+     * The colour difference lets the user immediately tell "am I on the
+     * call task?" without reading any text label on the bubble.
      */
     private fun updateDotColor(view: View? = bubbleView) {
         val dot = view?.findViewById<View>(R.id.bubbleDot) ?: return
-        val color = if (BubbleEventBus.timerRunning)
-            Color.parseColor("#4CAF50")
+        val color = if (BubbleEventBus.callTaskRunning)
+            Color.parseColor("#4CAF50")   // green  — call task is active
         else
-            Color.parseColor("#FF9800")
+            Color.parseColor("#1565C0")   // blue   — another task / switch needed
         dot.backgroundTintList = ColorStateList.valueOf(color)
     }
 
@@ -263,7 +329,7 @@ class BubbleOverlayService : Service() {
     private fun buildNotification(): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("EEVDF – call bubble active")
-            .setContentText("Tap the bubble to pause / resume your call task")
+            .setContentText("Tap the bubble to switch between call task and current task")
             .setSmallIcon(R.drawable.outline_skip_next_24)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
