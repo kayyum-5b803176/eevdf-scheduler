@@ -378,16 +378,13 @@ class MultiUserSyncActivity : AppCompatActivity() {
     // ── Conflict warning dialog ───────────────────────────────────────────────
 
     /**
-     * Shows a blocking dialog listing every sync conflict.
+     * Step 1 — Warning dialog.
      *
-     *  "Accept remote anyway" → [MultiUserSyncManager.forceAcceptPendingImport]
-     *                           Apply the remote snapshot, overwriting local data.
-     *  "Keep local data"      → [MultiUserSyncManager.skipPendingImport]
-     *                           Discard this snapshot, advance version pointer
-     *                           so it is not re-flagged on the next poll cycle.
+     * Lists every conflict and offers two choices:
+     *   "Keep local data" (safe default) → [MultiUserSyncManager.skipPendingImport]
+     *   "Accept remote"   (destructive)  → opens [showAcceptConfirmationDialog]
      *
-     * The dialog is non-cancelable — the user must make an explicit choice to
-     * resume sync.
+     * Non-cancelable so the user must make an explicit choice.
      */
     private fun showConflictDialog(state: SyncState.ConflictPending) {
         val conflicts = state.conflicts
@@ -419,12 +416,50 @@ class MultiUserSyncActivity : AppCompatActivity() {
             .setTitle("⚠ Sync Conflict Detected")
             .setMessage(sb.toString())
             .setCancelable(false)
-            .setPositiveButton("Accept remote anyway") { _, _ ->
-                MultiUserSyncManager.forceAcceptPendingImport(state.pendingToken)
+            .setPositiveButton("Accept remote") { _, _ ->
+                // Destructive path — require a second explicit confirmation
+                showAcceptConfirmationDialog(state)
             }
             .setNegativeButton("Keep local data") { _, _ ->
                 MultiUserSyncManager.skipPendingImport(state.pendingToken)
             }
             .show()
+            .also { dialog ->
+                // Colour the destructive button red so the risk is visually clear
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                    ?.setTextColor(getColor(android.R.color.holo_red_dark))
+            }
+    }
+
+    /**
+     * Step 2 — Confirmation dialog shown only when the user taps "Accept remote"
+     * in [showConflictDialog].
+     *
+     * Restates the consequence in plain language with the confirm button in red.
+     * Backing out returns to Idle (same as "Keep local data") rather than
+     * re-showing the first dialog, to avoid an infinite loop.
+     */
+    private fun showAcceptConfirmationDialog(state: SyncState.ConflictPending) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Overwrite local data?")
+            .setMessage(
+                "This will replace your local tasks with the remote snapshot.\n\n" +
+                "Any data listed in the previous screen will be lost. " +
+                "This cannot be undone."
+            )
+            .setCancelable(false)
+            .setPositiveButton("Yes, overwrite") { _, _ ->
+                MultiUserSyncManager.forceAcceptPendingImport(state.pendingToken)
+            }
+            .setNegativeButton("Cancel") { _, _ ->
+                // Treat cancel as "keep local" — skip this snapshot
+                MultiUserSyncManager.skipPendingImport(state.pendingToken)
+            }
+            .show()
+            .also { dialog ->
+                // Red confirm button reinforces the destructive action
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                    ?.setTextColor(getColor(android.R.color.holo_red_dark))
+            }
     }
 }
