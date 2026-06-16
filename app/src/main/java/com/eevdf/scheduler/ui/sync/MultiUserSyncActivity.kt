@@ -18,6 +18,7 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.scheduler.R
 import com.eevdf.scheduler.sync.MultiUserSyncManager
+import com.eevdf.scheduler.sync.SyncConflict
 import com.eevdf.scheduler.sync.SyncState
 import com.eevdf.scheduler.sync.SyncWriteStats
 import com.google.android.material.button.MaterialButton
@@ -146,23 +147,31 @@ class MultiUserSyncActivity : AppCompatActivity() {
         // Observe live sync state
         MultiUserSyncManager.syncState.observe(this) { state ->
             tvSyncStatus.text = when (state) {
-                SyncState.Disabled -> "Sync disabled"
-                SyncState.Idle     -> "Idle — waiting for changes"
-                SyncState.Syncing  -> "Syncing…"
-                SyncState.OK       -> "✓  Last sync successful"
-                is SyncState.Error -> "⚠  ${state.message}"
+                SyncState.Disabled           -> "Sync disabled"
+                SyncState.Idle               -> "Idle — waiting for changes"
+                SyncState.Syncing            -> "Syncing…"
+                SyncState.OK                 -> "✓  Last sync successful"
+                is SyncState.Error           -> "⚠  ${state.message}"
+                is SyncState.ConflictPending ->
+                    "⚠  Sync blocked — ${state.conflicts.size} conflict(s) need review"
             }
             tvSyncStatus.setTextColor(
                 resources.getColor(
                     when (state) {
-                        is SyncState.Error -> android.R.color.holo_red_dark
-                        SyncState.OK       -> R.color.syncDotOK  // green
-                        SyncState.Syncing  -> android.R.color.holo_orange_dark
-                        else               -> R.color.textSecondary
+                        is SyncState.Error           -> android.R.color.holo_red_dark
+                        is SyncState.ConflictPending -> android.R.color.holo_orange_dark
+                        SyncState.OK                 -> R.color.syncDotOK  // green
+                        SyncState.Syncing            -> android.R.color.holo_orange_dark
+                        else                         -> R.color.textSecondary
                     },
                     theme
                 )
             )
+
+            // Show conflict warning dialog whenever the state transitions to ConflictPending
+            if (state is SyncState.ConflictPending) {
+                showConflictDialog(state)
+            }
         }
 
         // Observe write statistics
@@ -364,5 +373,58 @@ class MultiUserSyncActivity : AppCompatActivity() {
         } catch (_: Exception) {
             uri.toString()
         }
+    }
+
+    // ── Conflict warning dialog ───────────────────────────────────────────────
+
+    /**
+     * Shows a blocking dialog listing every sync conflict.
+     *
+     *  "Accept remote anyway" → [MultiUserSyncManager.forceAcceptPendingImport]
+     *                           Apply the remote snapshot, overwriting local data.
+     *  "Keep local data"      → [MultiUserSyncManager.skipPendingImport]
+     *                           Discard this snapshot, advance version pointer
+     *                           so it is not re-flagged on the next poll cycle.
+     *
+     * The dialog is non-cancelable — the user must make an explicit choice to
+     * resume sync.
+     */
+    private fun showConflictDialog(state: SyncState.ConflictPending) {
+        val conflicts = state.conflicts
+
+        val sb = StringBuilder()
+        sb.appendLine("A remote sync would overwrite local task data with blank or deleted values.")
+        sb.appendLine()
+
+        val deleted = conflicts.filter { it.kind == SyncConflict.Kind.TASK_DELETED }
+        val blanked = conflicts.filter { it.kind == SyncConflict.Kind.FIELD_BLANKED }
+
+        if (deleted.isNotEmpty()) {
+            sb.appendLine("Deleted on remote (${deleted.size}):")
+            deleted.take(5).forEach { sb.appendLine("  • ${it.summary()}") }
+            if (deleted.size > 5) sb.appendLine("  … and ${deleted.size - 5} more")
+            sb.appendLine()
+        }
+
+        if (blanked.isNotEmpty()) {
+            sb.appendLine("Blank overwrite on remote (${blanked.size}):")
+            blanked.take(5).forEach { sb.appendLine("  • ${it.summary()}") }
+            if (blanked.size > 5) sb.appendLine("  … and ${blanked.size - 5} more")
+            sb.appendLine()
+        }
+
+        sb.append("Sync is paused. Choose how to proceed:")
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("⚠ Sync Conflict Detected")
+            .setMessage(sb.toString())
+            .setCancelable(false)
+            .setPositiveButton("Accept remote anyway") { _, _ ->
+                MultiUserSyncManager.forceAcceptPendingImport(state.pendingToken)
+            }
+            .setNegativeButton("Keep local data") { _, _ ->
+                MultiUserSyncManager.skipPendingImport(state.pendingToken)
+            }
+            .show()
     }
 }
