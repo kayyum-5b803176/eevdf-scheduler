@@ -1,89 +1,78 @@
-# EEVDF Scheduler — Linux-style subsystem rewrite
+# EEVDF Scheduler — Linux-style subsystem architecture (full migration)
 
-A clean-room rewrite of the EEVDF productivity scheduler into a Linux-kernel-style
-subsystem architecture. Existing project code was used as **reference only**; no
-dead code or muddled logic was carried over.
+The complete app, restructured into a Linux-kernel-style subsystem layout. The
+scheduler **core was rewritten from scratch** (pure, deterministic, dead-code
+removed); the rest of the app was **migrated faithfully** into the new module
+boundaries (working UI logic preserved, packages/imports/R-class re-pointed,
+seams adapted to the new domain split). Existing code was reference; no garbage
+logic was carried into the core.
 
 Priority order honored: **performance → stability → scale → maintainability → testability.**
 
-## Module layout
+## Modules
 
 ```
-:core        Pure Kotlin/JVM. No Android, no Room, no Context, no System.currentTimeMillis.
-             The EEVDF algorithm, RT/DL/quota rules, timer FSM, and all ports live here.
-:data        Room entities, DAOs, repositories. Implements core ports. Maps Entity <-> domain.
-:platform    Android API adapters (clock, RR-store, CountDownTimer driver, alarm/sound/notif).
-             Implements core ports.
-:shared      Cross-cutting pure utilities (formatters).
-:feature:*   User-facing features (Activities/Fragments/ViewModels). Currently: :feature:task.
-:testing     JVM fakes + unit tests. Proves the core is testable without an emulator.
-:app         Composition root: wires concrete implementations into core ports.
+:core      Pure Kotlin/JVM. No Android/Room/Context/System-clock. The EEVDF
+           algorithm, RT/DL/quota rules, fairness/shares, timer FSM, ports.
+:data      Room entity (Task), DAOs, repositories, RunLog, sync, backup, AND the
+           EEVDFScheduler/RtScheduler *facades* that expose the legacy API to the
+           UI while delegating the math to :core (mapping Task <-> SchedTask).
+:platform  Clean Android adapters for the core ports (SystemClock, RR-store,
+           CountdownTimerDriver, Doze-immune AlarmPort). Wired-in incrementally.
+:shared    Pure cross-cutting utilities.
+:testing   JVM fakes + unit tests proving the core is testable without Android.
+:app       All UI (feature-packaged: task/stats/settings/alarm/autoswitch/sync/
+           backup/notification), ViewModels, the Android TimerEngine, resources,
+           and the manifest. Depends on :core/:data/:platform/:shared.
 ```
 
-### Dependency rule (compiler-enforced)
-
+Dependency rule (`:core` has NO Android plugin → purity is compiler-enforced):
 ```
-feature ──▶ core ◀── data
-                 ◀── platform
-   app wires implementations into ports
-shared ◀── (anyone);  shared depends on nothing
+app ──▶ data ──▶ core ◀── platform        shared ◀── (anyone)
 ```
 
-`:core` deliberately has **no Android Gradle plugin**. If any core file ever imports
-`android.*`, `androidx.*`, or Room, the build fails — the architecture guards itself.
+## Why a facade instead of rewriting every call site
+
+The UI called `EEVDFScheduler.recalculate(...)`, `.computeShares(...)`, etc. on
+the rich `Task`. Rather than touch ~70 UI files, `:data` keeps those exact
+method names on objects named `EEVDFScheduler`/`RtScheduler`, so UI changes were
+**import-path only**. The facade maps `Task` → the pure `SchedTask`, runs the
+clean core math, and writes results back onto the entity. The pure core never
+mutates; the adapter bridges to the legacy mutate-in-place callers. You can
+delete the facade later by migrating callers onto the core directly.
 
 ## Build
 
 ```bash
-# add a Gradle wrapper jar first (not shipped in this archive):
-gradle wrapper --gradle-version 8.9
-./gradlew :testing:test      # runs the pure EEVDF unit tests
-./gradlew :app:assembleDebug # builds the app
+gradle wrapper --gradle-version 8.9     # wrapper jar is not shipped in this zip
+./gradlew :testing:test                 # pure EEVDF unit tests (no emulator)
+./gradlew :app:assembleDebug
 ```
 
-## Status — what is implemented vs. scaffolded
+## Honest status — expect a compile-fix pass
 
-This archive is an **honest, buildable foundation**, not a finished port of every screen.
+This was assembled WITHOUT a working Kotlin/Android toolchain in the authoring
+sandbox (the toolchain hosts are off the network allowlist), so it is
+**reviewed, not compiled.** Structural checks passed: zero stale package
+references, core purity intact, every import resolves to a module, facade fields
+match the entity, manifest components re-pointed. But first build WILL surface
+issues to iterate on. Most likely:
 
-**Fully implemented (the logic-bearing layers):**
-- `core` — complete: `SchedTask` + RT/DL/Quota value objects, `EevdfScheduler` (pure,
-  single-pass, reference bugs removed), `CpuShares` (cgroup shares + Jain fairness),
-  `RtPolicy` (incl. midnight-crossing windows + RR), `SchedulerService` (DL→RT→EEVDF
-  precedence), pure `TimerEngine` FSM, `Clock`/`WallClock`, all ports.
-- `data` — `TaskEntity` + mapper, `TaskDao`/`TaskDatabase`, `TaskRepositoryImpl`
-  (implements `TaskQueuePort`, does placement + pinned-weight sync).
-- `platform` — `SystemClock`, `SharedPrefsRrStateStore`, `CountdownTimerDriver`,
-  `AndroidAlarmPort` (Doze-immune, consolidates the orphaned reference module).
-- `shared` — `DurationFormat`.
-- `testing` — `InMemoryRrStateStore`, `FakeTaskQueue`, `EevdfSchedulerTest`.
-- `app` — `AppContainer` composition root + `EevdfApp`.
+- A few residual type/seam mismatches where UI code touched scheduler internals
+  in ways the facade signatures don't exactly mirror.
+- Room `@Database`/DAO details (schema version, type converters) from the
+  migrated `TaskDatabase`.
+- MPAndroidChart resolves via jitpack (configured in settings.gradle.kts).
+- Kotlin 2.0.21 + KSP 2.0.21-1.0.25 + Room 2.6.1 alignment.
 
-**Scaffolded (architecture proven, body to be ported):**
-- `feature:task` — `SchedulerHost` interface + `SchedulerDelegate` + `TaskViewModel`.
-  This demonstrates the cycle-break: delegates depend on the narrow `SchedulerHost`
-  interface, never the concrete ViewModel, so the reference's 5 ViewModel cycles cannot recur.
+Send the Android Studio errors and we'll resolve them module by module. Start
+with `:core` (should be clean) → `:data` → `:app`.
 
-## Remaining work (mechanical ports needing the original layouts/resources)
+## What was rewritten vs migrated
 
-These were intentionally **not** fabricated, because they are large, view-heavy, and
-unverifiable without the real XML layouts/resources — guessing them would risk the
-stability priority. Each ports onto the structures above with the noted owner:
-
-| Reference source | New owner | Notes |
-|---|---|---|
-| `ui/task/MainActivity` (1038 L), `AddTask*Section` | `feature:task` | Split along existing section seams; bind to `TaskViewModel`. |
-| `viewmodel/{interrupt,notice,autoswitch,groupExpand}` delegates | `feature:task` | Port onto the `SchedulerHost` pattern. |
-| `ui/stats/*` (Charts 715, Overview 616) | `feature:stats` | New module; split chart vs data-prep. |
-| `ui/settings/*` + Sound/Vibration managers | `feature:settings` + `platform/audio` | Managers implement `SoundPort`/`VibrationPort`. |
-| `ui/alarm/*` foreground service + receivers | `feature:alarm` + `platform/alarm` | Receiver targets `AndroidAlarmPort`. |
-| `ui/autoswitch/*` overlay + call-state | `feature:autoswitch` + `platform/{overlay,telephony}` | Overlay/telephony are platform. |
-| `sync/MultiUserSyncManager` (701 L) | `data/sync` + `core/sync` | Extract pure conflict-resolution rules into core. |
-| `backup/BackupManager` | `data/backup` | Relocate. |
-| `db/RunLog*` | `data/runlog` | Relocate as entities + DAO. |
-| layouts, `res/*`, drawables | each `feature:*` | Copy from reference; no logic. |
-
-## Note on verification
-
-The build toolchain (kotlinc / Android SDK) is not available in the authoring sandbox,
-so these files are **reviewed, not compiled**. Cross-checks were run on symbol resolution
-and module-boundary purity. Build locally before relying on them.
+- **Rewritten from scratch (core):** EEVDF algorithm (single-pass, no mutation,
+  dead code removed), RT window/DL/quota rules as pure value objects, timer FSM,
+  Clock/WallClock, ports, fairness/shares.
+- **Migrated faithfully:** all Activities/Fragments/adapters/ViewModels, the
+  Android TimerEngine, sync/backup, RunLog, RtScheduler (relocated out of core
+  into data — its only fault was its location), and all 65 resource files.

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Reset icon matching Google Clock's slice-reset button:
+    a counter-clockwise circular arrow with a small gap at the top-right.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Counter-clockwise arc body (270° sweep, gap at top-right) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M12,4 A8,8 0 1,0 19.3,8" />
+
+    <!-- Arrowhead pointing counter-clockwise at the gap -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M17.5,4.5 L19.8,7.6 L22.1,4.9 Z" />
+
+</vector>

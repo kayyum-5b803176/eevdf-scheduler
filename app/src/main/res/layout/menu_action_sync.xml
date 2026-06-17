@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Custom action-view for the "Sync" toolbar button.
+
+    Uses a FrameLayout so the status dot (small circle) can be overlaid
+    in the top-right corner of the sync icon:
+
+        [🔄]  ← large sync icon
+          ◉   ← small dot in top-right corner
+              Gray  = disabled / idle
+              Green = last sync OK
+              Red   = error
+              (blinking handled in MainActivity via ObjectAnimator)
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="48dp"
+    android:layout_height="48dp"
+    android:gravity="center"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="?attr/selectableItemBackgroundBorderless">
+
+    <!-- Sync icon -->
+    <ImageView
+        android:id="@+id/ivSyncIcon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:src="@drawable/ic_sync"
+        android:tint="@android:color/white"
+        android:contentDescription="Sync status" />
+
+    <!-- Status dot — overlaid in the top-right corner of the icon area -->
+    <View
+        android:id="@+id/viewSyncDot"
+        android:layout_width="9dp"
+        android:layout_height="9dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/ic_sync_dot"
+        android:elevation="2dp" />
+
+</FrameLayout>

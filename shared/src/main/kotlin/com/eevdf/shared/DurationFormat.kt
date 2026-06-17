@@ -3,7 +3,7 @@ package com.eevdf.shared
 /**
  * Pure formatting helpers shared across features. Depends on nothing; nothing
  * about presentation logic should be duplicated across screens (the reference
- * had several near-identical time formatters in adapter and stats/.
+ * had several near-identical time formatters in the adapter and stats packages).
  */
 object DurationFormat {
 

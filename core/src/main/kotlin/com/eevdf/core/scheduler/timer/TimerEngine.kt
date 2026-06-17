@@ -38,8 +38,8 @@ sealed interface TimerEffect {
 
 object TimerEngine {
     /** Pure transition. Returns the next state and any effects to perform. */
-    fun reduce(state: TimerState, event: TimerEvent): Pair<TimerState, List<TimerEffect>> =
-        when (event) {
+    fun reduce(state: TimerState, event: TimerEvent): Pair<TimerState, List<TimerEffect>> {
+        return when (event) {
             is TimerEvent.Start ->
                 TimerState(event.taskId, running = true, remainingSeconds = event.sliceSeconds) to emptyList()
 
@@ -57,4 +57,5 @@ object TimerEngine {
             TimerEvent.Pause -> state.copy(running = false) to emptyList()
             TimerEvent.Clear -> TimerState() to emptyList()
         }
+    }
 }
