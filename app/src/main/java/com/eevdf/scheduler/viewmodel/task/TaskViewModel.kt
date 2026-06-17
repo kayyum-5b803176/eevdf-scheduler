@@ -115,10 +115,17 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     internal var pendingAutoStart = false
 
     /**
-     * Holds the reset-state task while the expire card is visible.
-     * Consumed in [stopAlarmSound] to reopen the timer card with the default timer.
+     * Holds the ID of the expired task while the expire card is visible.
+     * Consumed in [stopAlarmSound] to reload the task fresh from DB (so the
+     * restored card shows updated vruntime / VDL values, not the stale
+     * pre-expiry in-memory copy).
+     *
+     * BUG FIX: previously stored a Task snapshot taken BEFORE updateVruntimeAfterRun
+     * completed, so vruntime/virtualDeadline shown after Stop were stale values
+     * from before the slice ran.  Storing only the ID and re-fetching from DB
+     * guarantees the card always reflects the committed state.
      */
-    internal var taskToRestoreAfterExpire: Task? = null
+    internal var taskIdToRestoreAfterExpire: String? = null
 
     // ── Timer engine ──────────────────────────────────────────────────────────
 
@@ -239,6 +246,35 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _alarmTaskName.postValue(alarmState.taskName)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(alarmState.taskName, elapsedSinceExpiry)
+
+                // BUG FIX (expire reappears on reopen): the app was killed while the
+                // alarm banner was showing.  The DB task still has isRunning=1 because
+                // onTimerFinished's repository.update(reset()) never ran (or ran but
+                // process died before commit).  If we just show the banner and return,
+                // the next app open finds a "running" task in DB (secondsLeft=0) and
+                // calls onTimerFinished again → banner reappears even after the user
+                // already tapped Stop in a previous session.
+                //
+                // Fix: reset the DB task now so isRunning=0, and set
+                // taskIdToRestoreAfterExpire so stopAlarmSound() can reload the fresh
+                // (post-reset) DB record for the timer card.
+                val expiredTask = repository.getRunningTask()
+                if (expiredTask != null) {
+                    // Credit vruntime for the recovered session if we can.
+                    val state = expiredTask.timerState
+                    if (state is TimerState.Running) {
+                        val sliceMs       = expiredTask.timeSliceSeconds * 1000L
+                        val expiryEpochMs = state.startTimeEpoch + sliceMs - state.accumulatedMs
+                        val session = RunSession.Recovered(
+                            taskId       = expiredTask.id,
+                            startEpochMs = state.startTimeEpoch,
+                            endEpochMs   = minOf(expiryEpochMs, alarmState.firedEpoch)
+                        )
+                        repository.updateVruntimeAfterRun(expiredTask, session)
+                    }
+                    repository.update(expiredTask.withTimerState(TimerState.reset()))
+                    taskIdToRestoreAfterExpire = expiredTask.id
+                }
                 return@launch
             }
 
@@ -607,7 +643,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _alarmTaskName.postValue(task.name)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(task.name, elapsedSinceExpiry)
-                taskToRestoreAfterExpire = task.withTimerState(TimerState.reset())
+                // BUG FIX: store only the task ID here, not a Task snapshot.
+                // The snapshot was captured before updateVruntimeAfterRun() committed
+                // its writes, so it carried stale vruntime/virtualDeadline values.
+                // stopAlarmSound() now reloads the task fresh from DB so the timer
+                // card always shows the post-run updated values.
+                taskIdToRestoreAfterExpire = task.id
                 _currentTask.postValue(null)
             }
         }
@@ -636,13 +677,30 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stopAlarmSound() {
         stopOverrunCounter()
-        _alarmTaskName.postValue(null)
-        _alarmElapsedSeconds.postValue(0L)
+        // BUG FIX (dual-card): null out alarm banner data synchronously FIRST so
+        // the alarmTaskName observer hides cardAlarmBanner before currentTask
+        // observer shows cardTimer.  Using setValue (not postValue) on the main
+        // thread guarantees the observer fires in the same message before any
+        // async postValue for _currentTask arrives.
+        _alarmTaskName.value = null
+        _alarmElapsedSeconds.value = 0L
         AlarmForegroundService.stopAlarm(app)
-        taskToRestoreAfterExpire?.let { resetTask ->
-            _currentTask.postValue(resetTask)
-            _timerSeconds.postValue(resetTask.timeSliceSeconds)
-            taskToRestoreAfterExpire = null
+
+        val idToRestore = taskIdToRestoreAfterExpire
+        taskIdToRestoreAfterExpire = null
+        if (idToRestore != null) {
+            // BUG FIX (stale vruntime): reload from DB so the timer card shows the
+            // post-run vruntime / virtualDeadline values written by updateVruntimeAfterRun,
+            // not the in-memory pre-expiry snapshot that was stored before the DB write.
+            viewModelScope.launch {
+                val fresh = repository.getTaskById(idToRestore)
+                if (fresh != null) {
+                    _currentTask.postValue(fresh)
+                    _timerSeconds.postValue(fresh.remainingSeconds)
+                }
+                // If the task was deleted while the banner was showing, just leave
+                // _currentTask null — the timer card stays hidden, which is correct.
+            }
         }
     }
 

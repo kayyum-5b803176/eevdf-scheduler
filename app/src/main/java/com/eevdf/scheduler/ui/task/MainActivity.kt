@@ -552,8 +552,11 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.currentTask.observe(this) { task ->
             if (task != null) {
-                // Only show the card if the user has not manually hidden it via hold on key1.
-                if (!isCardManuallyHidden) cardTimer.visibility = View.VISIBLE
+                // BUG FIX (dual-card): never show the timer card while the alarm
+                // expire banner is visible.  alarmTaskName drives cardAlarmBanner;
+                // when it is non-null the banner owns the display slot.
+                val alarmActive = viewModel.alarmTaskName.value != null
+                if (!isCardManuallyHidden && !alarmActive) cardTimer.visibility = View.VISIBLE
                 tvCurrentTaskName.text = task.name
                 tvTimerPriority.text = "Priority ${task.priority} · ${task.category}"
                 tvTimerDisplay.text = task.remainingDisplay
@@ -656,11 +659,16 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.alarmTaskName.observe(this) { taskName ->
             if (taskName != null) {
+                // BUG FIX (dual-card): hide the timer card while the expire banner
+                // is visible so both cards can never appear simultaneously.
+                cardTimer.visibility = View.GONE
                 cardAlarmBanner.visibility = View.VISIBLE
                 tvAlarmTaskName.text = taskName
                 tvAlarmSubtitle.text = "Time slice complete · tap Stop to dismiss"
             } else {
                 cardAlarmBanner.visibility = View.GONE
+                // Timer card visibility is driven by the currentTask observer —
+                // do not show it here; let currentTask post arrive and decide.
             }
         }
 
