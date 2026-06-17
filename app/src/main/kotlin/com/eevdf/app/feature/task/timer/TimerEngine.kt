@@ -71,6 +71,23 @@ class TimerEngine {
     private var activeTask:     Task?           = null
     private var inMemoryState:  TimerState      = TimerState.Idle
 
+    /**
+     * The session for the most recent expiry, captured synchronously the instant
+     * the slice hits zero (in onFinish / restoreFromDb) BEFORE expiredTask is
+     * posted. The ViewModel reads it via [consumeExpiredSession] in its
+     * expiredTask observer, so vruntime crediting no longer depends on the
+     * delivery order of two separate LiveData posts (the old race that caused
+     * run accounting — vruntime/totalRunTime — to be silently dropped).
+     */
+    @Volatile private var pendingExpiredSession: RunSession? = null
+
+    /** Atomically read and clear the pending expiry session. */
+    fun consumeExpiredSession(): RunSession? {
+        val s = pendingExpiredSession
+        pendingExpiredSession = null
+        return s
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
@@ -167,6 +184,7 @@ class TimerEngine {
                 startEpochMs = state.startTimeEpoch,
                 endEpochMs   = expiryEpochMs
             )
+            pendingExpiredSession = session
             _expiredSession.postValue(session)
             _expiredTask.postValue(expired)
         }
@@ -216,6 +234,7 @@ class TimerEngine {
                     startEpochMs = sessionStartMs,
                     endEpochMs   = endMs
                 )
+                pendingExpiredSession = session   // set BEFORE posting expiredTask (no race)
                 _expiredSession.postValue(session)
                 _expiredTask.postValue(task.withTimerState(expired))
             }

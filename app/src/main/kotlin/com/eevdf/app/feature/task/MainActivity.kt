@@ -659,6 +659,12 @@ class MainActivity : AppCompatActivity() {
                 cardAlarmBanner.visibility = View.VISIBLE
                 tvAlarmTaskName.text = taskName
                 tvAlarmSubtitle.text = "Time slice complete · tap Stop to dismiss"
+                // Mutual exclusivity: the expired/alarm card and the running timer
+                // card must never show at once. The currentTask observer may have
+                // just made cardTimer VISIBLE for the Expired(0:00) state, so hide
+                // it here. When the alarm is dismissed, stopAlarmSound() restores
+                // _currentTask, which re-shows cardTimer via its own observer.
+                cardTimer.visibility = View.GONE
             } else {
                 cardAlarmBanner.visibility = View.GONE
             }

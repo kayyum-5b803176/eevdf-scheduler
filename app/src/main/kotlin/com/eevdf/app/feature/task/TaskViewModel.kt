@@ -210,13 +210,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _currentTask.postValue(t.copy(remainingSeconds = remainingSecs))
             }
         }
-        var pendingExpiredSession: RunSession? = null
-        expiredSessionObserver = Observer { session: RunSession ->
-            pendingExpiredSession = session
-        }
+        // Session is now captured synchronously by the engine and read here via
+        // consumeExpiredSession(), so crediting no longer depends on the delivery
+        // order of expiredSession vs expiredTask (the old null-session race).
+        expiredSessionObserver = Observer { /* no-op: session read from engine */ }
         expiredObserver = Observer { expired: Task ->
-            val session = pendingExpiredSession
-            pendingExpiredSession = null
+            val session = timerEngine.consumeExpiredSession()
             _timerRunning.postValue(false)
             _currentTask.value = expired
             onTimerFinished(session = session)
@@ -233,6 +232,24 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             // Step 1: check if alarm is already ringing (app killed mid-alarm)
             val alarmState = AlarmScheduler.currentState(application)
             if (alarmState is AlarmState.Ringing) {
+                // The alarm fired via AlarmManager (e.g. in Doze / background), so the
+                // in-app onTimerFinished() never ran: the run was never credited and the
+                // task is still flagged running in the DB. Finalize it exactly once here.
+                // Idempotent — getRunningTask() only matches isRunning=1 & startTimeEpoch>0,
+                // so after the reset() below a later reopen will not double-credit.
+                val orphan = repository.getRunningTask()
+                val runState = orphan?.timerState as? TimerState.Running
+                if (orphan != null && runState != null) {
+                    val sliceMs       = orphan.timeSliceSeconds * 1000L
+                    val expiryEpochMs = runState.startTimeEpoch + sliceMs - runState.accumulatedMs
+                    val session = RunSession.Recovered(orphan.id, runState.startTimeEpoch, expiryEpochMs)
+                    if (orphan.taskType != "NOTIFICATION") {
+                        repository.updateVruntimeAfterRun(orphan, session)
+                    }
+                    repository.update(orphan.withTimerState(TimerState.reset()))
+                    refreshSchedule()
+                }
+
                 val elapsedSinceExpiry =
                     ((System.currentTimeMillis() - alarmState.firedEpoch) / 1000L)
                         .coerceAtLeast(0L)
