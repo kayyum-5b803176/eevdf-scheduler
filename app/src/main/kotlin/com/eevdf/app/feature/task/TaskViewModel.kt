@@ -493,6 +493,24 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         triggerSyncExport()               // notify other users: timer paused
     }
 
+    /**
+     * Hold-to-close action (Start/Pause long-press on the timer card).
+     *
+     * Pauses the running task — crediting the partial session's run time and
+     * persisting the Paused state, so progress is NOT lost — then DESELECTS it by
+     * clearing [_currentTask]. The currentTask observer in MainActivity then closes
+     * the timer card and clears the running highlight in the adapters.
+     *
+     * This is distinct from the manual hide (isCardManuallyHidden), which keeps the
+     * task selected and only hides the card. Here the task is fully deselected; the
+     * task remains Paused (not reset), so reselecting it later resumes where it left
+     * off.
+     */
+    fun pauseAndDeselect() {
+        pauseTimer()
+        _currentTask.value = null
+    }
+
     fun resetTimer() {
         pauseTimer()
         timerEngine.clear()

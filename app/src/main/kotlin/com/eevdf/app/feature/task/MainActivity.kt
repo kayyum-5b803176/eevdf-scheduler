@@ -500,6 +500,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Hold Start/Pause → pause the running task, then close the card by
+        // DESELECTING the task (not the UI-only hide used by the key1 hold).
+        // pauseAndDeselect() pauses (crediting the partial session, preserving
+        // progress) then clears currentTask; the currentTask observer closes the
+        // card and clears the running highlight. Reselecting the task resumes it.
+        btnStartPause.setOnLongClickListener {
+            if (viewModel.currentTask.value == null) return@setOnLongClickListener false
+            haptic(it)
+            viewModel.pauseAndDeselect()
+            true
+        }
+
         // ── INT button ────────────────────────────────────────────────────────
         btnInt.setOnClickListener      { haptic(it); viewModel.jumpToInterrupt() }
         btnInt.setOnLongClickListener  { haptic(it); viewModel.toggleInterruptSlot(); true }
