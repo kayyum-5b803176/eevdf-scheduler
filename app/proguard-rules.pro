@@ -1,3 +1,0 @@
--keep class com.eevdf.scheduler.model.** { *; }
--keep class com.eevdf.scheduler.scheduler.** { *; }
--keepattributes *Annotation*
