@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.app.R
+import com.eevdf.data.backup.BackupManager
 import com.eevdf.data.task.TaskDatabase
 import com.eevdf.app.feature.task.TaskViewModel
 import com.google.android.material.button.MaterialButton
@@ -24,6 +25,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 class DataBackupActivity : AppCompatActivity() {
 
@@ -68,25 +72,51 @@ class DataBackupActivity : AppCompatActivity() {
     // ── Export ────────────────────────────────────────────────────────────────
     private fun launchExport() {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        exportLauncher.launch("eevdf_backup_$timestamp.db")
+        exportLauncher.launch("eevdf_backup_$timestamp.zip")
     }
 
     private fun performExport(uri: Uri) {
         setBusy(true, "Exporting…")
         lifecycleScope.launch {
             try {
+                // 1. Read all tasks for tasks.json BEFORE the DB is checkpoint-closed.
+                val tasks = withContext(Dispatchers.IO) {
+                    TaskDatabase.getDatabase(applicationContext).taskDao().getAllTasksForBackup()
+                }
+                val tasksJson = BackupManager.exportTasksJson(tasks)
+                val settingsJson = SettingsBackup.exportJson(applicationContext)
+                val manifestJson = BackupManager.manifestJson(tasks.size)
+
+                // 2. Checkpoint + close so the raw .db file on disk is consistent.
                 viewModel.prepareForDbExport()
                 val dbFile: File = withContext(Dispatchers.IO) {
                     TaskDatabase.getDatabaseFile(applicationContext)
                 }
+
+                // 3. Write everything into one .zip container.
                 withContext(Dispatchers.IO) {
                     if (!dbFile.exists()) error("Database file not found at ${dbFile.absolutePath}")
                     contentResolver.openOutputStream(uri)?.use { out ->
-                        dbFile.inputStream().use { it.copyTo(out) }
+                        ZipOutputStream(out).use { zos ->
+                            zos.putNextEntry(ZipEntry(ENTRY_DB))
+                            dbFile.inputStream().use { it.copyTo(zos) }
+                            zos.closeEntry()
+
+                            zos.putNextEntry(ZipEntry(ENTRY_TASKS))
+                            zos.write(tasksJson.toByteArray(Charsets.UTF_8))
+                            zos.closeEntry()
+
+                            zos.putNextEntry(ZipEntry(ENTRY_SETTINGS))
+                            zos.write(settingsJson.toByteArray(Charsets.UTF_8))
+                            zos.closeEntry()
+
+                            zos.putNextEntry(ZipEntry(ENTRY_MANIFEST))
+                            zos.write(manifestJson.toByteArray(Charsets.UTF_8))
+                            zos.closeEntry()
+                        }
                     } ?: error("Could not open output stream")
                 }
-                val sizeMb = "%.2f".format(dbFile.length() / 1_048_576.0)
-                setStatus("Export complete ($sizeMb MB)")
+                setStatus("Export complete — ${tasks.size} tasks + settings (.zip)")
             } catch (e: Exception) {
                 setStatus("Export failed: ${e.message}")
             } finally {
@@ -104,7 +134,7 @@ class DataBackupActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Restore Backup")
             .setMessage(
-                "This will replace ALL current tasks with the selected database file.\n\n" +
+                "This will replace ALL current tasks AND settings with the selected backup.\n\n" +
                 "Any running timer will be stopped and the app will restart.\n\nContinue?"
             )
             .setPositiveButton("Restore") { _, _ -> performImport(uri) }
@@ -121,9 +151,28 @@ class DataBackupActivity : AppCompatActivity() {
                     TaskDatabase.getDatabaseFile(applicationContext)
                 }
                 withContext(Dispatchers.IO) {
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        dbFile.outputStream().use { input.copyTo(it) }
-                    } ?: error("Could not open the selected file")
+                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("Could not open the selected file")
+
+                    if (isZip(bytes)) {
+                        // New container: database.db + settings.json
+                        var settingsJson: String? = null
+                        ZipInputStream(bytes.inputStream()).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                when (entry.name) {
+                                    ENTRY_DB -> dbFile.outputStream().use { zis.copyTo(it) }
+                                    ENTRY_SETTINGS -> settingsJson = zis.readBytes().toString(Charsets.UTF_8)
+                                }
+                                zis.closeEntry()
+                                entry = zis.nextEntry
+                            }
+                        }
+                        settingsJson?.let { SettingsBackup.importJson(applicationContext, it) }
+                    } else {
+                        // Legacy raw .db backup (no settings) — import tasks only.
+                        dbFile.outputStream().use { it.write(bytes) }
+                    }
                     File("${dbFile.path}-wal").delete()
                     File("${dbFile.path}-shm").delete()
                 }
@@ -139,6 +188,11 @@ class DataBackupActivity : AppCompatActivity() {
         }
     }
 
+    /** ZIP local-file-header magic: 'P','K',0x03,0x04. Legacy backups are raw SQLite. */
+    private fun isZip(bytes: ByteArray): Boolean =
+        bytes.size >= 4 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte() &&
+            bytes[2] == 0x03.toByte() && bytes[3] == 0x04.toByte()
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     private fun setBusy(busy: Boolean, message: String = "") {
         progressBar.visibility = if (busy) View.VISIBLE else View.GONE
@@ -147,4 +201,11 @@ class DataBackupActivity : AppCompatActivity() {
         if (busy) tvStatus.text = message
     }
     private fun setStatus(msg: String) { tvStatus.text = msg }
+
+    private companion object {
+        const val ENTRY_DB = "database.db"
+        const val ENTRY_TASKS = "tasks.json"
+        const val ENTRY_SETTINGS = "settings.json"
+        const val ENTRY_MANIFEST = "manifest.json"
+    }
 }
