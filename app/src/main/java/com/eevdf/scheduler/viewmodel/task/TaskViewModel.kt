@@ -684,6 +684,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // async postValue for _currentTask arrives.
         _alarmTaskName.value = null
         _alarmElapsedSeconds.value = 0L
+        // BUG FIX (shows Pause instead of Start after expire + Stop):
+        // expiredObserver posts _timerRunning=false via postValue (async).
+        // If the DB-reload coroutine below posts _currentTask before that
+        // postValue settles, timerCardAction.derive() sees task!=null + running=true
+        // and emits Pause.  Force it false synchronously here so derive() always
+        // sees the correct stopped state before _currentTask arrives.
+        _timerRunning.value = false
         AlarmForegroundService.stopAlarm(app)
 
         val idToRestore = taskIdToRestoreAfterExpire
