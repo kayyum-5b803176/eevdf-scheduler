@@ -12,7 +12,10 @@ android {
         versionCode = 1
         versionName = "3.0.0"
     }
-    buildTypes { getByName("debug") { applicationIdSuffix = ".debug" } }
+    buildTypes { getByName("release") {
+        signingConfig = signingConfigs.getByName("debug")
+    }
+        getByName("debug") { applicationIdSuffix = ".debug" } }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
