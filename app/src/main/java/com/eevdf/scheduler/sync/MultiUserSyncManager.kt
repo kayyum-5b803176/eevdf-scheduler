@@ -68,6 +68,20 @@ import java.util.UUID
  *  5. Delete stale local WAL / SHM.
  *  6. Apply remote SharedPrefs.  Post importEvent → app restart.
  *
+ * ── Overwrite-conflict guard ─────────────────────────────────────────────────
+ *
+ *  Before any import is applied, [SyncFieldGuard.detectConflicts] compares the
+ *  incoming snapshot against the live local task table:
+ *
+ *    AUTO-SYNC  — remote adds or updates a field with real content → apply.
+ *    WARN+BLOCK — remote would blank/null a locally-populated field, or a task
+ *                 that exists locally is absent from the remote snapshot (deleted
+ *                 on the other device).
+ *
+ *  On conflict the import is blocked and [SyncState.ConflictPending] is posted.
+ *  The poll loop pauses so the same snapshot is not re-flagged repeatedly.
+ *  The UI calls [forceAcceptPendingImport] or [skipPendingImport] to resume.
+ *
  * ── Error safety ─────────────────────────────────────────────────────────────
  *
  *  All operations are try/catch wrapped.  On failure SyncState.Error is posted
@@ -178,6 +192,51 @@ object MultiUserSyncManager {
 
     // ── Coroutine control ─────────────────────────────────────────────────────
 
+    /**
+     * Called by the UI when the user chooses to **accept** a blocked import
+     * (i.e. they acknowledge the conflicts and want to apply the remote snapshot
+     * anyway).
+     *
+     * [token] comes from [SyncState.ConflictPending.pendingToken].
+     */
+    fun forceAcceptPendingImport(token: PendingImportToken) {
+        val s = scope ?: CoroutineScope(Dispatchers.IO + SupervisorJob()).also { scope = it }
+        s.launch {
+            try {
+                _syncState.postValue(SyncState.Syncing)
+                performImport(token.syncDir, token.meta, token.remoteVersion)
+            } catch (e: Exception) {
+                _syncState.postValue(SyncState.Error("Import failed: ${short(e)}"))
+            } finally {
+                conflictPollPaused = false
+                if (isEnabled()) startPolling()
+            }
+        }
+    }
+
+    /**
+     * Called by the UI when the user chooses to **skip** a blocked import
+     * (i.e. they want to keep their local data and discard the remote snapshot).
+     *
+     * We advance [PREFS_KEY_LAST_VER] to the remote version so we don't
+     * re-flag the same snapshot on the next poll cycle.
+     *
+     * [token] comes from [SyncState.ConflictPending.pendingToken].
+     */
+    fun skipPendingImport(token: PendingImportToken) {
+        prefs().edit().putLong(PREFS_KEY_LAST_VER, token.remoteVersion).apply()
+        conflictPollPaused = false
+        _syncState.postValue(SyncState.Idle)
+        if (isEnabled()) startPolling()
+    }
+
+    /**
+     * True while the poll loop is intentionally paused waiting for the user
+     * to resolve a [SyncState.ConflictPending] dialog.  Prevents the poller
+     * from re-flagging the same snapshot repeatedly.
+     */
+    @Volatile private var conflictPollPaused = false
+
     private fun startPolling() {
         if (scope?.isActive != true) {
             scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -185,8 +244,10 @@ object MultiUserSyncManager {
         pollJob?.cancel()
         pollJob = scope!!.launch {
             while (isActive) {
-                try { pollOnce() } catch (e: Exception) {
-                    _syncState.postValue(SyncState.Error(short(e)))
+                if (!conflictPollPaused) {
+                    try { pollOnce() } catch (e: Exception) {
+                        _syncState.postValue(SyncState.Error(short(e)))
+                    }
                 }
                 delay(POLL_INTERVAL_MS)
             }
@@ -243,6 +304,38 @@ object MultiUserSyncManager {
             prefs().edit().putLong(PREFS_KEY_LAST_VER, remoteVersion).apply()
             return
         }
+
+        // ── Overwrite-conflict guard ──────────────────────────────────────────
+        // Before applying the remote snapshot, diff it against local tasks.
+        // If any guarded field would be blanked or a local task is missing on
+        // the remote side, block the import and surface a warning to the user.
+        val remoteDbFile: java.io.File? = if (syncDir != null) {
+            java.io.File(syncDir, SYNC_DB_FILE).takeIf { it.exists() }
+        } else null
+
+        if (remoteDbFile != null) {
+            val conflicts = try {
+                SyncFieldGuard.detectConflicts(appContext, remoteDbFile)
+            } catch (e: Exception) {
+                _syncState.postValue(SyncState.Error("Conflict check failed: ${short(e)}"))
+                return
+            }
+
+            if (conflicts.isNotEmpty()) {
+                // Pause polling so we don't spam the same dialog on every cycle.
+                conflictPollPaused = true
+                _syncState.postValue(
+                    SyncState.ConflictPending(
+                        conflicts    = conflicts,
+                        pendingToken = PendingImportToken(syncDir, meta, remoteVersion),
+                    )
+                )
+                // Return here — the UI will call forceAcceptPendingImport or
+                // skipPendingImport to resume.
+                return
+            }
+        }
+        // ── No conflicts — proceed with automatic import ───────────────────
 
         try {
             _syncState.postValue(SyncState.Syncing)

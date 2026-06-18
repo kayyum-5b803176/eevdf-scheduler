@@ -1,10 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ImageButton
+<!--
+    Custom action-view for the "Schedule Next" toolbar button (key1).
+
+    FrameLayout mirrors the sync button pattern so a status dot can be
+    overlaid in the bottom-right corner of the icon:
+
+        [⏭]  ← skip-next icon
+           ◉  ← small dot at bottom-end
+               Invisible   = no active task
+               Green #4CAF50 = Start state   (task selected, timer idle)
+               Amber #FF9800 = Pause / Cancel state (timer running or notice phase)
+
+    Hold gesture: toggles the timer card open/closed without changing
+    timer running state (wired in MainActivity.onCreateOptionsMenu).
+-->
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="?attr/actionBarSize"
-    android:layout_height="?attr/actionBarSize"
-    android:src="@drawable/outline_skip_next_24"
-    android:background="?attr/selectableItemBackgroundBorderless"
-    android:tint="@android:color/white"
-    android:contentDescription="Schedule Next"
-    android:padding="12dp" />
+    android:layout_width="48dp"
+    android:layout_height="48dp"
+    android:gravity="center"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="?attr/selectableItemBackgroundBorderless">
+
+    <!-- Skip-next icon -->
+    <ImageView
+        android:id="@+id/ivScheduleNextIcon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:src="@drawable/outline_skip_next_24"
+        android:tint="@android:color/white"
+        android:contentDescription="Schedule Next" />
+
+    <!-- Timer running-state dot — top-end corner, same position as sync dot -->
+    <View
+        android:id="@+id/viewScheduleNextDot"
+        android:layout_width="9dp"
+        android:layout_height="9dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/ic_sync_dot"
+        android:elevation="2dp"
+        android:visibility="visible" />
+
+</FrameLayout>

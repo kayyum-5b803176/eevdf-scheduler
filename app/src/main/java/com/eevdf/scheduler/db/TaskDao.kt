@@ -88,4 +88,17 @@ interface TaskDao {
     /** Delete everything — used before restoring a backup. */
     @Query("DELETE FROM tasks")
     suspend fun deleteAllTasks()
+
+    /**
+     * All distinct, non-empty category strings saved across every task, sorted
+     * alphabetically.  Used to populate the category autocomplete suggestions in
+     * the Add / Edit task screen so any category a user has ever typed is
+     * immediately available as a suggestion when editing another task.
+     *
+     * Backed by the tasks table's existing `category` column — no extra table or
+     * migration needed.  The result is a LiveData so the suggestion list updates
+     * automatically whenever a task is saved with a new category.
+     */
+    @Query("SELECT DISTINCT category FROM tasks WHERE category != '' ORDER BY category ASC")
+    fun getDistinctCategories(): LiveData<List<String>>
 }

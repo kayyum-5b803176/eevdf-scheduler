@@ -158,6 +158,21 @@ internal fun AddTaskActivity.saveTask() {
         dlPeriodSeconds   = if (rawPeriod > 0L) rawPeriod else rawDeadline
     }
 
+    // ── DL period start epoch (RT Sync) ───────────────────────────────────────
+    // pendingDlPeriodStartEpoch is 0L when the user never tapped RT Sync.
+    // For new tasks 0L is the right default — TaskRepository opens the first
+    // period on first run.  For edits, populateSchedulerSection restored the
+    // existing value into pendingDlPeriodStartEpoch, so if the user did not
+    // tap RT Sync again the original period clock is carried through unchanged.
+    //
+    // dlRuntimeUsedSeconds: whenever RT Sync stamps a NEW epoch, the old runtime
+    // counter must be zeroed — otherwise the scheduler sees "budget exhausted"
+    // against the fresh period start and withholds DL priority until a full
+    // period elapses.  If RT Sync was not used (epoch == 0L) the existing
+    // counter is preserved so normal in-period accounting is not disturbed.
+    val dlPeriodStartEpoch    = pendingDlPeriodStartEpoch
+    val dlRuntimeUsedReset    = dlPeriodStartEpoch != 0L
+
     // ── RT fields ─────────────────────────────────────────────────────────────
     var rtPriority            = 50
     var rtPolicy              = "RR"
@@ -227,6 +242,8 @@ internal fun AddTaskActivity.saveTask() {
             dlRuntimeSeconds   = dlRuntimeSeconds,
             dlDeadlineSeconds  = dlDeadlineSeconds,
             dlPeriodSeconds    = dlPeriodSeconds,
+            dlPeriodStartEpoch    = dlPeriodStartEpoch,
+            dlRuntimeUsedSeconds  = if (dlRuntimeUsedReset) 0L else existingTask!!.dlRuntimeUsedSeconds,
             rtPriority            = rtPriority,
             rtPolicy              = rtPolicy,
             rtActiveDays          = rtActiveDays,
@@ -266,6 +283,9 @@ internal fun AddTaskActivity.saveTask() {
             dlRuntimeSeconds   = dlRuntimeSeconds,
             dlDeadlineSeconds  = dlDeadlineSeconds,
             dlPeriodSeconds    = dlPeriodSeconds,
+            dlPeriodStartEpoch    = dlPeriodStartEpoch,
+            // dlRuntimeUsedSeconds: new tasks always start with 0 (Task default),
+            // no explicit reset needed — included here for clarity.
             rtPriority            = rtPriority,
             rtPolicy              = rtPolicy,
             rtActiveDays          = rtActiveDays,

@@ -14,6 +14,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs
+import com.eevdf.scheduler.ui.autoswitch.BubbleEventBus
+import com.eevdf.scheduler.ui.autoswitch.BubbleOverlayService
 import com.eevdf.scheduler.ui.autoswitch.CallEvents
 import com.eevdf.scheduler.ui.settings.UiCustomizationPrefs
 import androidx.appcompat.app.AlertDialog
@@ -86,6 +88,14 @@ class MainActivity : AppCompatActivity() {
     private var syncDotView:  View?  = null
     private var syncIconView: android.widget.ImageView? = null
     private var syncSpinAnim: ObjectAnimator? = null
+
+    // ── Key1 (Schedule Next) status dot — set in onCreateOptionsMenu ──────────
+    private var schedNextDotView: View? = null
+
+    /** True when the user manually hid the timer card via hold on key1.
+     *  Prevents currentTask observer from re-showing the card until the user
+     *  explicitly reopens it (hold key1 again). Cleared when task becomes null. */
+    private var isCardManuallyHidden: Boolean = false
 
     private var currentTab = 0
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
@@ -166,6 +176,33 @@ class MainActivity : AppCompatActivity() {
         viewModel.refreshSchedule()
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Hover bubble: wire tap callback while Activity is visible.
+        // Cleared in onStop() so BubbleOverlayService falls back to its own DB
+        // path when the Activity is in the background — avoiding stale ViewModel
+        // state and inactive LiveData observers causing wrong colour + no-op taps.
+        BubbleEventBus.onBubbleTap = { viewModel.handleBubbleTap() }
+        // Sync BubbleEventBus volatile fields immediately so the bubble dot
+        // colour is correct if the service is already running (e.g. screen rotation
+        // or returning from another app).
+        val action = viewModel.timerCardAction.value
+        val running = action is TimerCardAction.Pause || action is TimerCardAction.Cancel
+        val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
+        BubbleEventBus.timerRunning    = running
+        BubbleEventBus.anyTimerRunning = running
+        BubbleEventBus.callTaskRunning = running &&
+            callTaskId != null &&
+            viewModel.currentTask.value?.id == callTaskId
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Clear the tap callback — Activity is no longer visible.
+        // BubbleOverlayService detects null and uses its direct DB path instead.
+        BubbleEventBus.onBubbleTap = null
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(alarmStopReceiver)
@@ -175,6 +212,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         quotaTickHandler.post(quotaTickRunnable)
         viewModel.onSyncResume()
+        // Reconcile ViewModel with DB in case CallSwitchService switched tasks
+        // while the app was backgrounded or the process was dead.
+        viewModel.syncFromDb()
         // Re-read UI customization prefs every time we come back to the activity
         // (user may have changed them in UiCustomizationActivity and pressed Back)
         applyDisplayPrefs()
@@ -190,6 +230,15 @@ class MainActivity : AppCompatActivity() {
      *
      * Called on [onResume] so changes made in [UiCustomizationActivity] are picked
      * up immediately when the user navigates back.
+     *
+     * Simple-mode note: when simple mode is enabled the RecyclerView item animator
+     * is set to null.  In simple mode [setRunningTask] uses notifyItemChanged on
+     * two cards (old running → collapse rows, new running → expand rows), and the
+     * DefaultItemAnimator runs a ~250 ms crossfade on each change.  That animation
+     * delays both the row-visibility update AND the auto-scroll jump, causing the
+     * visual stutter reported by the user.  Removing the animator makes every card
+     * change and every scroll instant.  When simple mode is off the animator is
+     * restored so normal-mode list updates keep their default feel.
      */
     private fun applyDisplayPrefs() {
         val scale      = UiCustomizationPrefs.getCardHeightScale(this)
@@ -204,6 +253,13 @@ class MainActivity : AppCompatActivity() {
         activeAdapter.setUnitFormat(unitFormat)
         scheduleAdapter.setUnitFormat(unitFormat)
         completedAdapter.setUnitFormat(unitFormat)
+
+        // Simple mode: kill the item animator so notifyItemChanged-driven row
+        // visibility changes and auto-scroll jumps are both instantaneous.
+        // Non-simple mode: restore a fresh DefaultItemAnimator so normal
+        // add/remove/change animations work as expected.
+        recyclerView.itemAnimator = if (simpleMode) null
+                                    else            androidx.recyclerview.widget.DefaultItemAnimator()
 
         updateCompactMode(scale, autoAdj)
     }
@@ -323,6 +379,11 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(toolbar)
         mainToolbar = toolbar
         statsBar    = findViewById(R.id.statsBar)
+        // Hold the stats bar → open the Task Statistics page
+        statsBar.setOnLongClickListener {
+            startActivity(Intent(this, StatsActivity::class.java))
+            true
+        }
         supportActionBar?.title = "EEVDF Task Scheduler"
     }
 
@@ -454,8 +515,15 @@ class MainActivity : AppCompatActivity() {
             if (type == null) return@observe
             val callTaskId = AutoSwitchPrefs.getCallTaskId(this) ?: return@observe
             when (type) {
-                CallEvents.Type.CALL_STARTED -> viewModel.handleCallStarted(callTaskId)
-                CallEvents.Type.CALL_ENDED   -> viewModel.handleCallEnded()
+                CallEvents.Type.CALL_STARTED -> {
+                    // CallSwitchService has already written the DB switch and
+                    // started the bubble. We call handleCallStarted here only
+                    // to keep the ViewModel in-memory state (savedTaskBeforeCall,
+                    // wasTimerRunning) in sync so CALL_ENDED can restore correctly
+                    // if the Activity is alive for the whole call.
+                    viewModel.handleCallStarted(callTaskId)
+                }
+                CallEvents.Type.CALL_ENDED -> viewModel.handleCallEnded()
             }
             CallEvents.event.value = null   // consume
         }
@@ -484,7 +552,11 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.currentTask.observe(this) { task ->
             if (task != null) {
-                cardTimer.visibility = View.VISIBLE
+                // BUG FIX (dual-card): never show the timer card while the alarm
+                // expire banner is visible.  alarmTaskName drives cardAlarmBanner;
+                // when it is non-null the banner owns the display slot.
+                val alarmActive = viewModel.alarmTaskName.value != null
+                if (!isCardManuallyHidden && !alarmActive) cardTimer.visibility = View.VISIBLE
                 tvCurrentTaskName.text = task.name
                 tvTimerPriority.text = "Priority ${task.priority} · ${task.category}"
                 tvTimerDisplay.text = task.remainingDisplay
@@ -494,6 +566,9 @@ class MainActivity : AppCompatActivity() {
                 // Auto mode: onTimerFinished queued the next task — start it immediately
                 if (viewModel.consumePendingAutoStart()) viewModel.startTimer()
             } else {
+                // No active task — always hide card and reset the manual-hide flag so
+                // the next task selection shows the card normally.
+                isCardManuallyHidden = false
                 cardTimer.visibility = View.GONE
                 activeAdapter.setRunningTask(null)
                 scheduleAdapter.setRunningTask(null)
@@ -528,6 +603,19 @@ class MainActivity : AppCompatActivity() {
                     ContextCompat.getColor(this, action.colorRes)
                 )
             btnStartPause.jumpDrawablesToCurrentState()
+
+            // Dot reflects timer state only when the card is manually hidden.
+            // When card is visible the card itself shows the state — dot stays grey.
+            updateScheduleNextDot()
+
+            // Keep the hover bubble dot in sync via the in-process volatile bus.
+            val isRunning = action is TimerCardAction.Pause || action is TimerCardAction.Cancel
+            val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
+            BubbleEventBus.timerRunning    = isRunning
+            BubbleEventBus.anyTimerRunning = isRunning
+            BubbleEventBus.callTaskRunning = isRunning &&
+                callTaskId != null &&
+                viewModel.currentTask.value?.id == callTaskId
         }
 
         // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)
@@ -571,11 +659,16 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.alarmTaskName.observe(this) { taskName ->
             if (taskName != null) {
+                // BUG FIX (dual-card): hide the timer card while the expire banner
+                // is visible so both cards can never appear simultaneously.
+                cardTimer.visibility = View.GONE
                 cardAlarmBanner.visibility = View.VISIBLE
                 tvAlarmTaskName.text = taskName
                 tvAlarmSubtitle.text = "Time slice complete · tap Stop to dismiss"
             } else {
                 cardAlarmBanner.visibility = View.GONE
+                // Timer card visibility is driven by the currentTask observer —
+                // do not show it here; let currentTask post arrive and decide.
             }
         }
 
@@ -656,7 +749,12 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Scrolls the RecyclerView to the card of [taskId].
-     * If the task is not in the currently visible adapter, switches to the Queue tab first.
+     *
+     * Always uses an instant positional jump (scrollToPositionWithOffset) so the
+     * target row appears on the very next frame regardless of how many rows are
+     * between the current viewport and the destination.  The previous
+     * smoothScrollToPosition call was removed because it animated through every
+     * intermediate row — unacceptable with 100+ tasks in the list.
      */
     private fun scrollToTask(taskId: String) {
         // Only scroll within the currently visible tab — never switch tabs
@@ -670,15 +768,15 @@ class MainActivity : AppCompatActivity() {
 
         val llm = recyclerView.layoutManager as? LinearLayoutManager ?: return
 
-        // Guard: if the item is already at least partially visible, don't scroll.
-        // Without this check, smoothScrollToPosition fires every time currentTask
-        // emits (every timer tick), causing the card to bounce back and forth —
-        // especially when the FAB is hidden and the RecyclerView has extra height.
+        // Guard: already at least partially on screen — nothing to do.
+        // Prevents the card bouncing back on every timer tick.
         val firstVisible = llm.findFirstVisibleItemPosition()
         val lastVisible  = llm.findLastVisibleItemPosition()
         if (position in firstVisible..lastVisible) return
 
-        llm.smoothScrollToPosition(recyclerView, null, position)
+        // Instant jump — target row snaps to the top of the viewport in one
+        // layout pass, no animation, no intermediate rows rendered.
+        llm.scrollToPositionWithOffset(position, 0)
     }
 
     private fun updateScheduleRankBadge() {
@@ -749,48 +847,110 @@ class MainActivity : AppCompatActivity() {
 
         // Action view supports both tap and long-press; a plain MenuItem only fires tap.
         menu.findItem(R.id.action_schedule_next)?.actionView?.let { view ->
-            // Tap → jump to first visible leaf task in the current tab
+            // Grab the status dot so timerCardAction observer can tint it.
+            schedNextDotView = view.findViewById(R.id.viewScheduleNextDot)
+
+            // Tap — two cases:
+            //   Case 1: any non-interrupt leaf task is visible in the current tab
+            //           → jump to the first visible leaf (interrupt tasks skipped).
+            //   Case 2: all tasks are under collapsed groups (no non-interrupt leaf
+            //           visible) → select the assigned interrupt task instead.
             view.setOnClickListener {
+                val list = if (currentTab == 0) viewModel.flatActiveTasks.value
+                           else                 viewModel.flatScheduleOrder.value
+                val hasLeaves = list?.any {
+                    !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt
+                } == true
                 haptic(view)
-                viewModel.jumpToFirst(onQueueTab = currentTab == 0)
+                if (hasLeaves) {
+                    viewModel.jumpToFirst(onQueueTab = currentTab == 0)
+                } else {
+                    // No visible normal tasks — fall back to the active interrupt slot
+                    viewModel.jumpToInterrupt()
+                }
             }
-            // Hold → if timer card active: pause + dismiss. If no active task: toggle all groups on visible tab.
+            // Hold → toggle timer card open/closed (UI only — timer state unchanged).
+            //   • Card visible    → hide it; dot switches to colored state
+            //   • Card hidden + active task → show it; dot reverts to grey
+            //   • Card hidden + no task     → no-op
             view.setOnLongClickListener {
                 haptic(view)
                 if (cardTimer.visibility == View.VISIBLE) {
-                    viewModel.pauseAndDismiss()
-                } else {
-                    if (currentTab == 0) viewModel.toggleAllQueueGroupsExpanded()
-                    else                 viewModel.toggleAllScheduleGroupsExpanded()
+                    isCardManuallyHidden = true
+                    cardTimer.visibility = View.GONE
+                } else if (viewModel.currentTask.value != null) {
+                    isCardManuallyHidden = false
+                    cardTimer.visibility = View.VISIBLE
                 }
+                updateScheduleNextDot()
                 true
             }
         }
-        // Attach Stats long-press to the overflow (3-dot) button
-        hookOverflowLongPress(findViewById(R.id.toolbar))
+        // ── Overflow (3-dot) long-press: global group collapse / expand ───────
+        // Deferred with toolbar.post so the overflow button is in the view tree.
+        // Collapse if any non-interrupt leaf is visible; expand if all collapsed.
+        // Interrupt-task ancestor groups are excluded from the toggle.
+        findViewById<Toolbar>(R.id.toolbar)?.post {
+            val desc = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description)
+            findViewByContentDesc(findViewById(R.id.toolbar), desc)
+                ?.setOnLongClickListener { v ->
+                    haptic(v)
+                    val list = if (currentTab == 0) viewModel.flatActiveTasks.value
+                               else                 viewModel.flatScheduleOrder.value
+                    val hasLeaves = list?.any {
+                        !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt
+                    } == true
+                    viewModel.toggleAllGroupsGlobal(
+                        onQueueTab       = currentTab == 0,
+                        hasVisibleLeaves = hasLeaves
+                    )
+                    true
+                }
+        }
+
         return true
     }
 
+    // ── Key1 (Schedule Next) dot update ──────────────────────────────────────
+
     /**
-     * Recursively searches the Toolbar's view tree for the overflow (3-dot) button
-     * by matching AppCompat's own content-description string, then attaches a
-     * long-click listener that opens StatsActivity.
+     * Updates the key1 status dot to reflect timer state — but only when the
+     * timer card is manually hidden.  While the card is open (visible) the dot
+     * stays grey because the card itself already shows the full state; coloring
+     * the dot too would be redundant and visually noisy.
      *
-     * Using contentDescription is the only reliable cross-version identifier —
-     * the class name ("OverflowMenuButton") is internal and varies by API level.
+     * Call from:
+     *  • timerCardAction observer  — timer state changed
+     *  • key1 hold handler         — card visibility toggled
      */
-    private fun hookOverflowLongPress(toolbar: Toolbar) {
-        toolbar.post {
-            val desc = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description)
-            val btn  = findViewByContentDesc(toolbar, desc)
-            btn?.setOnLongClickListener {
-                startActivity(Intent(this@MainActivity, StatsActivity::class.java))
-                true
-            }
+    private fun updateScheduleNextDot() {
+        val dot = schedNextDotView ?: return
+        val grey = android.graphics.Color.parseColor("#9E9E9E")
+        val color = if (isCardManuallyHidden) {
+            // Card is hidden — show actual timer state so user knows what's running
+            val action = viewModel.timerCardAction.value
+            if (action == null || action is TimerCardAction.Unavailable) grey
+            else ContextCompat.getColor(this, action.colorRes)
+        } else {
+            // Card is visible (or no task) — grey dot; card shows the state
+            grey
         }
+        dot.visibility = View.VISIBLE
+        dot.backgroundTintList = ColorStateList.valueOf(color)
     }
 
-    private fun findViewByContentDesc(root: android.view.ViewGroup, desc: String): View? {
+    // ── View-tree helper ──────────────────────────────────────────────────────
+
+    /**
+     * Recursively walks [root]'s view tree and returns the first child whose
+     * [android.view.View.contentDescription] exactly matches [desc], or null.
+     * Used to locate the overflow (3-dot) button by its AppCompat content-
+     * description, which is the only stable cross-version identifier.
+     */
+    private fun findViewByContentDesc(
+        root: android.view.ViewGroup,
+        desc: String
+    ): android.view.View? {
         for (i in 0 until root.childCount) {
             val child = root.getChildAt(i)
             if (child.contentDescription?.toString() == desc) return child

@@ -26,6 +26,17 @@
         tools:ignore="ScopedStorage" />
     <!-- Auto Switch: call detection -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- Hover bubble: draw over other apps -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Hover bubble: detect foreground app via UsageStatsManager -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Hover bubble: enumerate all installed apps for the app-picker dialog.
+         Required on API 30+ where package visibility is restricted by default. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <!-- Hover bubble: foreground service type (API 34) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     
     <application
         android:name=".EEVDFApp"
@@ -113,10 +124,11 @@
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
             android:parentActivityName=".ui.settings.SettingsActivity" />
 
-        <!-- Auto Switch: phone call state receiver -->
+        <!-- Auto Switch: phone call state receiver.
+             exported=true is required for system broadcast PHONE_STATE on API 26+. -->
         <receiver
             android:name=".ui.autoswitch.CallStateReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.PHONE_STATE" />
             </intent-filter>
@@ -156,6 +168,27 @@
             android:name=".ui.alarm.AlarmForegroundService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!--
+            Hover bubble: foreground service that shows the floating call-state
+            overlay.  Started by TaskCallSwitchDelegate on call begin; stopped on
+            call end.  dataSync type satisfies the API 34 foreground-service-type
+            requirement without requiring dangerous permissions.
+        -->
+        <service
+            android:name=".ui.autoswitch.BubbleOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+            Call-task switcher: foreground service that performs the pause/resume
+            DB writes when a call arrives or ends, without requiring MainActivity.
+            dataSync type covers the brief DB read+write window.
+        -->
+        <service
+            android:name=".ui.autoswitch.CallSwitchService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 

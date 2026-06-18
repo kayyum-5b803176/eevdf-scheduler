@@ -1,14 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  SCHED_DEADLINE sub-section — runtime, deadline, period duration fields.
+  SCHED_DEADLINE sub-section — runtime, deadline, period duration fields,
+  and the RT Sync button that stamps dlPeriodStartEpoch to current device time.
 
   This layout is included inside section_add_task_scheduler.xml.
   The root LinearLayout carries android:id="@+id/layoutDlFields" so
   AddTaskSchedulerSection.kt can show/hide it when dl_sched_class is selected.
 
-  All three fields use the NdNhNmNs format parsed by parseQuotaInput().
+  All three duration fields use the NdNhNmNs format parsed by parseQuotaInput().
   Validation rules (runtime ≤ deadline; period defaults to deadline when empty)
   live in AddTaskSaveHandler.kt.
+
+  RT Sync row:
+    • tvDlRtSyncLabel    — section label
+    • tvDlRtSyncValue    — displays the synced epoch as "yyyy-MM-dd HH:mm:ss";
+                           blank when no sync has been performed yet
+    • btnDlRtSync        — tap to capture System.currentTimeMillis(); shows an
+                           AlertDialog warning first when a non-zero epoch already
+                           exists (period reset confirmation)
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -170,7 +179,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Period  (e.g. 1d, 7d — empty = same as deadline)"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_marginBottom="16dp">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etDlPeriod"
             android:layout_width="match_parent"
@@ -180,6 +190,69 @@
             android:maxLength="20" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- ── RT Sync — period start epoch ──────────────────────────────────────
+         Tap btnDlRtSync to stamp dlPeriodStartEpoch = System.currentTimeMillis().
+         If an epoch is already stored an AlertDialog warns before overwriting.
+         tvDlRtSyncValue shows "yyyy-MM-dd HH:mm:ss" or blank when not set.
+    -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#E0E0E0"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Period Start (RT Sync)"
+        android:textSize="13sp"
+        android:textColor="#212121"
+        android:fontFamily="sans-serif-medium"
+        android:layout_marginBottom="2dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Anchor dlPeriodStartEpoch to the current device time. Tap the button to sync."
+        android:textSize="11sp"
+        android:textColor="#9E9E9E"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Read-only timestamp display; blank until synced -->
+        <TextView
+            android:id="@+id/tvDlRtSyncValue"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=""
+            android:hint="not synced"
+            android:textSize="13sp"
+            android:textColor="#212121"
+            android:fontFamily="monospace"
+            android:padding="10dp"
+            android:background="@drawable/bg_edit_text" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDlRtSync"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="RT Sync"
+            android:textSize="12sp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+
+    </LinearLayout>
+
     <TextView
         android:id="@+id/tvDlError"
         android:layout_width="match_parent"
@@ -187,7 +260,7 @@
         android:text=""
         android:textSize="12sp"
         android:textColor="#F44336"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="10dp"
         android:visibility="gone" />
 
 </LinearLayout>

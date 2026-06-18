@@ -20,6 +20,15 @@
             app:titleTextColor="@android:color/white"
             app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
 
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/colorPrimary"
+            app:tabIndicatorColor="@android:color/white"
+            app:tabTextColor="#AAFFFFFF"
+            app:tabSelectedTextColor="@android:color/white" />
+
         <!-- Stats bar -->
         <LinearLayout
             android:id="@+id/statsBar"
@@ -68,15 +77,6 @@
                 android:visibility="gone" />
 
         </LinearLayout>
-
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tabLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@color/colorPrimary"
-            app:tabIndicatorColor="@android:color/white"
-            app:tabTextColor="#AAFFFFFF"
-            app:tabSelectedTextColor="@android:color/white" />
 
     </com.google.android.material.appbar.AppBarLayout>
 

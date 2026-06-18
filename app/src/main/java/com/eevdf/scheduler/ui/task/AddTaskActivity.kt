@@ -10,7 +10,7 @@ import com.eevdf.scheduler.R
 import com.eevdf.scheduler.model.task.Task
 import com.eevdf.scheduler.viewmodel.task.TaskViewModel
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.chip.ChipGroup
+import android.widget.AutoCompleteTextView
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
@@ -48,7 +48,7 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var etHours:          TextInputEditText
     internal lateinit var etMinutes:        TextInputEditText
     internal lateinit var etSeconds:        TextInputEditText
-    internal lateinit var chipGroupCategory: ChipGroup
+    internal lateinit var etCategoryInput:  AutoCompleteTextView
     internal lateinit var btnSave:          MaterialButton
     internal lateinit var btnCancel:        MaterialButton
     internal lateinit var tvPriorityInfo:   TextView
@@ -104,6 +104,13 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var etDlPeriod:             TextInputEditText
     internal lateinit var tvDlPeriodPreview:      TextView
     internal lateinit var tvDlError:              TextView
+    internal lateinit var tvDlRtSyncValue:        TextView
+    internal lateinit var btnDlRtSync:            com.google.android.material.button.MaterialButton
+
+    // ── RT Sync state — epoch ms captured by the RT Sync button in the DL section.
+    // 0L = not yet synced (field stays blank); non-zero = will be written to
+    // dlPeriodStartEpoch on save, overriding whatever was previously stored.
+    internal var pendingDlPeriodStartEpoch: Long = 0L
 
     // ── RT (SCHED_FIFO / SCHED_RR) fields ────────────────────────────────────
     internal lateinit var layoutRtFields:          LinearLayout
@@ -154,7 +161,7 @@ class AddTaskActivity : AppCompatActivity() {
         existingTaskId = intent.getStringExtra("task_id")
 
         setupViews()
-        setupCategoryChips()
+        setupCategoryInput()
         setupPrioritySlider()
         setupGroupSection()
         setupInterruptSwitch()
@@ -187,7 +194,7 @@ class AddTaskActivity : AppCompatActivity() {
         etHours           = findViewById(R.id.etHours)
         etMinutes         = findViewById(R.id.etMinutes)
         etSeconds         = findViewById(R.id.etSeconds)
-        chipGroupCategory = findViewById(R.id.chipGroupCategory)
+        etCategoryInput   = findViewById(R.id.etCategoryInput)
         btnSave           = findViewById(R.id.btnSave)
         btnCancel         = findViewById(R.id.btnCancel)
         tvPriorityInfo    = findViewById(R.id.tvPriorityInfo)
@@ -237,6 +244,8 @@ class AddTaskActivity : AppCompatActivity() {
         etDlPeriod             = findViewById(R.id.etDlPeriod)
         tvDlPeriodPreview      = findViewById(R.id.tvDlPeriodPreview)
         tvDlError              = findViewById(R.id.tvDlError)
+        tvDlRtSyncValue        = findViewById(R.id.tvDlRtSyncValue)
+        btnDlRtSync            = findViewById(R.id.btnDlRtSync)
 
         layoutRtFields          = findViewById(R.id.layoutRtFields)
         sliderRtPriority        = findViewById(R.id.sliderRtPriority)

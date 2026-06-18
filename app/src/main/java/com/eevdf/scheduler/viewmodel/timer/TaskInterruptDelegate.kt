@@ -161,8 +161,12 @@ internal class TaskInterruptDelegate(private val vm: TaskViewModel) {
                 vm._toastMessage.value  = "No saved task to return to"
             }
         } else {
-            setSavedSlot(current)
+            // pauseTimer FIRST — this flushes _timerSeconds into _currentTask.remainingSeconds
+            // and persists it to the repository.  Only then capture the saved slot so
+            // "back.remainingSeconds" on the return trip reflects the live countdown at
+            // the moment the user tapped INT, not the stale value from the last DB load.
             vm.pauseTimer()
+            setSavedSlot(vm._currentTask.value ?: current)
             val freshInterrupt = vm.activeTasks.value
                 ?.firstOrNull { it.isInterrupt && it.interruptSlot == slotLabel && !it.isCompleted }
                 ?: interrupt

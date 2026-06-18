@@ -16,6 +16,14 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
     val completedTasks: LiveData<List<Task>> = dao.getCompletedTasks()
     val activeGroups: LiveData<List<Task>> = dao.getActiveGroups()
 
+    /**
+     * Live, alphabetically sorted list of every distinct category string stored
+     * in the tasks table.  Updated automatically whenever any task is saved with
+     * a new or changed category value, so the autocomplete suggestions in the
+     * Add / Edit screen always reflect the full set the user has ever typed.
+     */
+    val distinctCategories: LiveData<List<String>> = dao.getDistinctCategories()
+
     private val runLog = RunLogRepository(context)
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {

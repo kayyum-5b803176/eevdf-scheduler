@@ -115,10 +115,17 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     internal var pendingAutoStart = false
 
     /**
-     * Holds the reset-state task while the expire card is visible.
-     * Consumed in [stopAlarmSound] to reopen the timer card with the default timer.
+     * Holds the ID of the expired task while the expire card is visible.
+     * Consumed in [stopAlarmSound] to reload the task fresh from DB (so the
+     * restored card shows updated vruntime / VDL values, not the stale
+     * pre-expiry in-memory copy).
+     *
+     * BUG FIX: previously stored a Task snapshot taken BEFORE updateVruntimeAfterRun
+     * completed, so vruntime/virtualDeadline shown after Stop were stale values
+     * from before the slice ran.  Storing only the ID and re-fetching from DB
+     * guarantees the card always reflects the committed state.
      */
-    internal var taskToRestoreAfterExpire: Task? = null
+    internal var taskIdToRestoreAfterExpire: String? = null
 
     // ── Timer engine ──────────────────────────────────────────────────────────
 
@@ -239,6 +246,35 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _alarmTaskName.postValue(alarmState.taskName)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(alarmState.taskName, elapsedSinceExpiry)
+
+                // BUG FIX (expire reappears on reopen): the app was killed while the
+                // alarm banner was showing.  The DB task still has isRunning=1 because
+                // onTimerFinished's repository.update(reset()) never ran (or ran but
+                // process died before commit).  If we just show the banner and return,
+                // the next app open finds a "running" task in DB (secondsLeft=0) and
+                // calls onTimerFinished again → banner reappears even after the user
+                // already tapped Stop in a previous session.
+                //
+                // Fix: reset the DB task now so isRunning=0, and set
+                // taskIdToRestoreAfterExpire so stopAlarmSound() can reload the fresh
+                // (post-reset) DB record for the timer card.
+                val expiredTask = repository.getRunningTask()
+                if (expiredTask != null) {
+                    // Credit vruntime for the recovered session if we can.
+                    val state = expiredTask.timerState
+                    if (state is TimerState.Running) {
+                        val sliceMs       = expiredTask.timeSliceSeconds * 1000L
+                        val expiryEpochMs = state.startTimeEpoch + sliceMs - state.accumulatedMs
+                        val session = RunSession.Recovered(
+                            taskId       = expiredTask.id,
+                            startEpochMs = state.startTimeEpoch,
+                            endEpochMs   = minOf(expiryEpochMs, alarmState.firedEpoch)
+                        )
+                        repository.updateVruntimeAfterRun(expiredTask, session)
+                    }
+                    repository.update(expiredTask.withTimerState(TimerState.reset()))
+                    taskIdToRestoreAfterExpire = expiredTask.id
+                }
                 return@launch
             }
 
@@ -607,7 +643,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 _alarmTaskName.postValue(task.name)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(task.name, elapsedSinceExpiry)
-                taskToRestoreAfterExpire = task.withTimerState(TimerState.reset())
+                // BUG FIX: store only the task ID here, not a Task snapshot.
+                // The snapshot was captured before updateVruntimeAfterRun() committed
+                // its writes, so it carried stale vruntime/virtualDeadline values.
+                // stopAlarmSound() now reloads the task fresh from DB so the timer
+                // card always shows the post-run updated values.
+                taskIdToRestoreAfterExpire = task.id
                 _currentTask.postValue(null)
             }
         }
@@ -636,13 +677,37 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stopAlarmSound() {
         stopOverrunCounter()
-        _alarmTaskName.postValue(null)
-        _alarmElapsedSeconds.postValue(0L)
+        // BUG FIX (dual-card): null out alarm banner data synchronously FIRST so
+        // the alarmTaskName observer hides cardAlarmBanner before currentTask
+        // observer shows cardTimer.  Using setValue (not postValue) on the main
+        // thread guarantees the observer fires in the same message before any
+        // async postValue for _currentTask arrives.
+        _alarmTaskName.value = null
+        _alarmElapsedSeconds.value = 0L
+        // BUG FIX (shows Pause instead of Start after expire + Stop):
+        // expiredObserver posts _timerRunning=false via postValue (async).
+        // If the DB-reload coroutine below posts _currentTask before that
+        // postValue settles, timerCardAction.derive() sees task!=null + running=true
+        // and emits Pause.  Force it false synchronously here so derive() always
+        // sees the correct stopped state before _currentTask arrives.
+        _timerRunning.value = false
         AlarmForegroundService.stopAlarm(app)
-        taskToRestoreAfterExpire?.let { resetTask ->
-            _currentTask.postValue(resetTask)
-            _timerSeconds.postValue(resetTask.timeSliceSeconds)
-            taskToRestoreAfterExpire = null
+
+        val idToRestore = taskIdToRestoreAfterExpire
+        taskIdToRestoreAfterExpire = null
+        if (idToRestore != null) {
+            // BUG FIX (stale vruntime): reload from DB so the timer card shows the
+            // post-run vruntime / virtualDeadline values written by updateVruntimeAfterRun,
+            // not the in-memory pre-expiry snapshot that was stored before the DB write.
+            viewModelScope.launch {
+                val fresh = repository.getTaskById(idToRestore)
+                if (fresh != null) {
+                    _currentTask.postValue(fresh)
+                    _timerSeconds.postValue(fresh.remainingSeconds)
+                }
+                // If the task was deleted while the banner was showing, just leave
+                // _currentTask null — the timer card stays hidden, which is correct.
+            }
         }
     }
 
@@ -674,6 +739,9 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── LiveData passthrough ──────────────────────────────────────────────────
     val groupsEnabled:       LiveData<Boolean> get() = settings.groupsEnabled
+
+    /** Distinct category strings from the DB — drives autocomplete in Add/Edit task. */
+    val distinctCategories:  LiveData<List<String>> get() = repository.distinctCategories
     val globalRotateEnabled: LiveData<Boolean> get() = settings.globalRotateEnabled
     val allowEditEnabled:    LiveData<Boolean> get() = settings.allowEditEnabled
     val autoScrollEnabled:   LiveData<Boolean> get() = settings.autoScrollEnabled
@@ -712,6 +780,101 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleAllQueueGroupsExpanded()    = groupExpand.toggleAllQueueGroupsExpanded()
     fun toggleAllScheduleGroupsExpanded() = groupExpand.toggleAllScheduleGroupsExpanded()
 
+    /**
+     * Called from [BubbleEventBus.onBubbleTap] when the user taps the hover
+     * bubble during a call.
+     *
+     * Behaviour depends on which task is currently active:
+     *
+     *   Case A — Call-assigned task IS the active timer (bubble dot = green):
+     *     Toggle pause/resume of the call task, same as before.
+     *
+     *   Case B — Another task timer is running (bubble dot = blue):
+     *     Interrupt the current task and switch to the call-assigned task.
+     *     This mirrors what [TaskCallSwitchDelegate.handleCallStarted] does
+     *     automatically, but triggered manually by the user mid-call when they
+     *     forgot to switch (e.g. they were already in a timer when the call came
+     *     in and declined the auto-switch, or the feature fired before they
+     *     picked up).
+     *
+     *   Case C — No timer is running (bubble dot = blue, timer paused):
+     *     Start the call-assigned task timer.
+     *
+     * The [com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs.getCallTaskId]
+     * value is the single source of truth for "which task is the call task".
+     */
+    fun handleBubbleTap() {
+        val ctx        = getApplication<android.app.Application>()
+        val callTaskId = com.eevdf.scheduler.ui.autoswitch.AutoSwitchPrefs.getCallTaskId(ctx)
+
+        // No call task configured — fall back to simple toggle (safe default)
+        if (callTaskId == null) {
+            if (_timerRunning.value == true) pauseTimer() else startTimer()
+            return
+        }
+
+        val current = _currentTask.value
+
+        if (current?.id == callTaskId) {
+            // Case A: call task is already active — toggle pause/resume
+            if (_timerRunning.value == true) pauseTimer() else startTimer()
+        } else {
+            // Case B / C: switch to call task, interrupting whatever is running
+            val callTask = activeTasks.value
+                ?.firstOrNull { it.id == callTaskId && !it.isCompleted }
+                ?: run {
+                    _toastMessage.value = "Call task not found — check Auto Switch settings"
+                    return
+                }
+
+            // Pause the currently running task first (no-op if nothing is running)
+            if (_timerRunning.value == true) pauseTimer()
+
+            // Switch to the call task and start it
+            _currentTask.value  = callTask
+            _timerSeconds.value = callTask.remainingSeconds
+            startTimer()
+            _toastMessage.value = "Switched to \"${callTask.name}\""
+        }
+    }
+
+    /** @deprecated Use [handleBubbleTap] — kept to avoid compile errors during migration. */
+    @Deprecated("Replaced by handleBubbleTap", ReplaceWith("handleBubbleTap()"))
+    fun toggleCallTaskTimer() = handleBubbleTap()
+
+    /**
+     * Overflow-menu hold: collapses all groups when any leaf is visible, expands
+     * all when all groups are already collapsed.  Groups that are ancestors of
+     * any interrupt task are excluded so the interrupt slot is never disrupted.
+     *
+     * @param onQueueTab       true = Queue tab, false = Schedule tab
+     * @param hasVisibleLeaves true when the flat list has at least one visible
+     *                         non-group, non-interrupt, non-completed leaf task
+     */
+    fun toggleAllGroupsGlobal(onQueueTab: Boolean, hasVisibleLeaves: Boolean) {
+        val excludeIds = collectInterruptAncestorIds()
+        if (onQueueTab) groupExpand.toggleAllQueueGroupsGlobal(hasVisibleLeaves, excludeIds)
+        else            groupExpand.toggleAllScheduleGroupsGlobal(hasVisibleLeaves, excludeIds)
+    }
+
+    /**
+     * Walks up the parent chain of every interrupt task and collects all
+     * ancestor group IDs.  These groups are excluded from the global toggle so
+     * the interrupt task's visibility is never accidentally changed.
+     */
+    private fun collectInterruptAncestorIds(): Set<String> {
+        val allTasks = activeTasks.value ?: return emptySet()
+        val result   = mutableSetOf<String>()
+        allTasks.filter { it.isInterrupt }.forEach { interruptTask ->
+            var parentId: String? = interruptTask.parentId
+            while (parentId != null) {
+                result.add(parentId)
+                parentId = allTasks.find { it.id == parentId }?.parentId
+            }
+        }
+        return result
+    }
+
     // =========================================================================
     // Interrupt facade
     // =========================================================================
@@ -736,9 +899,39 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     fun handleCallStarted(callTaskId: String) = callSwitch.handleCallStarted(callTaskId)
     fun handleCallEnded()                     = callSwitch.handleCallEnded()
 
-    // =========================================================================
-    // Notice-phase LiveData passthrough
-    // =========================================================================
+    /**
+     * Reconciles ViewModel in-memory state with the DB after [CallSwitchService]
+     * may have written changes while MainActivity was dead or backgrounded.
+     *
+     * Called from MainActivity.onResume() so the UI always reflects the true
+     * DB state after the user opens (or returns to) the app.
+     *
+     * What it does:
+     *   1. Reads the currently running task from DB.
+     *   2. If it differs from what _currentTask holds, updates the LiveData so
+     *      the timer card shows the correct task and time.
+     *   3. Syncs [BubbleEventBus] volatile fields so the bubble dot colour is
+     *      correct immediately — no waiting for the next POLL_MS tick.
+     *
+     * This is intentionally lightweight — it does NOT restart the CountDownTimer
+     * engine (that is already handled by the tick-observer in init{}).  It only
+     * corrects the *displayed* task identity and remaining seconds so the user
+     * sees the right card when they open the app mid-call or after a call.
+     */
+    fun syncFromDb() {
+        viewModelScope.launch {
+            val runningTask = repository.getRunningTask() ?: return@launch
+
+            val currentId = _currentTask.value?.id
+            if (runningTask.id != currentId) {
+                // CallSwitchService switched tasks while the Activity was dead.
+                // Update LiveData on the main thread so the timer card refreshes.
+                _currentTask.postValue(runningTask)
+                _timerSeconds.postValue(runningTask.remainingSeconds)
+                _timerRunning.postValue(runningTask.isRunning)
+            }
+        }
+    }
 
     val noticePhase:             LiveData<NoticePhase> get() = notice.noticePhase
     val delayRunning:            LiveData<Boolean>     get() = notice.delayRunning

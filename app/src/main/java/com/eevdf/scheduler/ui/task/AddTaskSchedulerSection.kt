@@ -3,16 +3,21 @@ package com.eevdf.scheduler.ui.task
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AdapterView
+import android.widget.Button
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import com.eevdf.scheduler.model.task.Task
 import com.eevdf.scheduler.scheduler.RtScheduler
 import com.google.android.material.textfield.TextInputEditText
-import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Scheduler class section for [AddTaskActivity].
  *
  * Covers the scheduler-class dropdown and the two conditional sub-sections:
- *   • DL (SCHED_DEADLINE) — runtime, deadline, period
+ *   • DL (SCHED_DEADLINE) — runtime, deadline, period, RT Sync
  *   • RT (SCHED_FIFO / SCHED_RR) — priority slider, policy, day checkboxes, time fields
  *
  * Separated so adding a new scheduler class or changing DL/RT field semantics
@@ -22,6 +27,11 @@ import android.widget.TextView
  *   • [schedulerClassValues] / [schedulerClassLabels] / [schedulerClassDescriptions]
  *   • [AddTaskActivity.setupSchedulerClassSection]
  *   • [AddTaskActivity.populateSchedulerSection]
+ *
+ * RT Sync (DL sub-section):
+ *   • [AddTaskActivity.pendingDlPeriodStartEpoch] — epoch ms captured by the button;
+ *     0L means "not synced, do not override the stored value"
+ *   • [formatRtSyncTimestamp] — converts epoch ms → "yyyy-MM-dd HH:mm:ss"
  */
 
 // Ordered by Linux priority: highest → lowest
@@ -46,6 +56,14 @@ internal val schedulerClassDescriptions = listOf(
     "Normal CFS / EEVDF scheduling. Default for all user tasks.",
     "Runs only when no other work exists. Lowest possible CPU priority (SCHED_IDLE)."
 )
+
+/** Format for the RT Sync timestamp display field. */
+private val RT_SYNC_FMT = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+
+/** Converts an epoch-ms value to the display string used by the RT Sync field. */
+internal fun formatRtSyncTimestamp(epochMs: Long): String = RT_SYNC_FMT.format(Date(epochMs))
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 internal fun AddTaskActivity.setupSchedulerClassSection() {
     val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, schedulerClassLabels)
@@ -93,6 +111,36 @@ internal fun AddTaskActivity.setupSchedulerClassSection() {
     watchDlField(etDlDeadline, tvDlDeadlinePreview)
     watchDlField(etDlPeriod,   tvDlPeriodPreview)
 
+    // ── RT Sync button (DL sub-section) ───────────────────────────────────────
+    //
+    // Tapping btnDlRtSync captures System.currentTimeMillis() into
+    // pendingDlPeriodStartEpoch and reflects it in tvDlRtSyncValue.
+    //
+    // If a non-zero epoch is already pending (either freshly set or restored from
+    // an existing task via populateSchedulerSection), an AlertDialog warns the user
+    // that the existing period start will be overwritten before proceeding.
+
+    btnDlRtSync.setOnClickListener {
+        if (pendingDlPeriodStartEpoch != 0L) {
+            // Warn: overwriting an already-set epoch resets the period clock
+            AlertDialog.Builder(this)
+                .setTitle("Reset period start?")
+                .setMessage(
+                    "A period start is already set:\n" +
+                    "${formatRtSyncTimestamp(pendingDlPeriodStartEpoch)}\n\n" +
+                    "Syncing now will overwrite it with the current device time " +
+                    "and reset the SCHED_DEADLINE period clock. Continue?"
+                )
+                .setPositiveButton("Sync now") { _, _ ->
+                    applyRtSync()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } else {
+            applyRtSync()
+        }
+    }
+
     // ── RT section setup ──────────────────────────────────────────────────────
 
     sliderRtPriority.valueFrom = 1f
@@ -122,6 +170,14 @@ internal fun AddTaskActivity.setupSchedulerClassSection() {
     })
 }
 
+/** Stamps [pendingDlPeriodStartEpoch] with now and updates the display. */
+private fun AddTaskActivity.applyRtSync() {
+    pendingDlPeriodStartEpoch = System.currentTimeMillis()
+    tvDlRtSyncValue.text = formatRtSyncTimestamp(pendingDlPeriodStartEpoch)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** Restores scheduler class, DL, and RT fields from [task]. */
 internal fun AddTaskActivity.populateSchedulerSection(task: Task) {
     if (!task.isSchedulerClassOverridden) return
@@ -140,6 +196,13 @@ internal fun AddTaskActivity.populateSchedulerSection(task: Task) {
         if (task.dlRuntimeSeconds  > 0L) etDlRuntime.setText(formatQuotaDuration(task.dlRuntimeSeconds))
         if (task.dlDeadlineSeconds > 0L) etDlDeadline.setText(formatQuotaDuration(task.dlDeadlineSeconds))
         if (task.dlPeriodSeconds   > 0L) etDlPeriod.setText(formatQuotaDuration(task.dlPeriodSeconds))
+
+        // Restore existing period start into the RT Sync field so the user can
+        // see the current anchor and the overwrite-warning fires correctly.
+        if (task.dlPeriodStartEpoch > 0L) {
+            pendingDlPeriodStartEpoch = task.dlPeriodStartEpoch
+            tvDlRtSyncValue.text = formatRtSyncTimestamp(task.dlPeriodStartEpoch)
+        }
     }
 
     if (task.schedulerClass == "rt_sched_class") {
