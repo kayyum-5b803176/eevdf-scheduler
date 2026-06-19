@@ -24,7 +24,6 @@ internal fun AddTaskActivity.setupGroupSection() {
     }
     groupSection.visibility     = View.VISIBLE
     groupTypeSection.visibility = View.VISIBLE
-
     // Observe available groups and populate spinner
     viewModel.activeGroups.observe(this) { groups ->
         groupsList.clear()

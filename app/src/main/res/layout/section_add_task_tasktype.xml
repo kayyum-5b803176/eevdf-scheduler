@@ -4,13 +4,14 @@
 
   groupTypeSection    — hidden by default; AddTaskGroupSection.kt shows it when
                         groups mode is enabled in settings.
+  interruptSection    — always visible; INT-A and INT-B are independent of groups.
   layoutNotifDelay    — hidden by default; AddTaskTypeSection.kt shows it when
                         spinnerTaskType selection is NOTIFICATION.
 
   Notice sub-field ownership (AddTaskTypeSection.kt):
     etNotifDelay / tvNotifDelayPreview    — delay before execute starts
     etNoticeRest / tvNoticeRestPreview    — wait countdown after execute expires
-    etNoticeRepeat                        — extra execute/wait cycles (0–12)
+    etNoticeRepeat                        — extra execute/wait cycles (0-12)
     spinnerNoticeResumeType               — Middle or Initial resume position
 -->
 <androidx.cardview.widget.CardView
@@ -37,7 +38,7 @@
             android:textColor="@color/colorPrimary"
             android:layout_marginBottom="12dp" />
 
-        <!-- ── Group + Interrupt options — hidden when groups disabled ──────── -->
+        <!-- Group option — hidden when groups disabled (controlled by AddTaskGroupSection.kt) -->
         <LinearLayout
             android:id="@+id/groupTypeSection"
             android:layout_width="match_parent"
@@ -51,12 +52,27 @@
                 android:layout_height="wrap_content"
                 android:text="Assign as group (container)" />
 
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="14dp" />
+
+        </LinearLayout>
+
+        <!-- Interrupt slot options — always visible, independent of groups enable state -->
+        <LinearLayout
+            android:id="@+id/interruptSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/switchIsInterrupt"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Assign as INT-A"
-                android:layout_marginTop="8dp" />
+                android:text="Assign as INT-A" />
 
             <TextView
                 android:id="@+id/tvInterruptOwner"
@@ -94,11 +110,11 @@
 
         </LinearLayout>
 
-        <!-- ── Sound & Vibration Profile spinner ─────────────────────────── -->
+        <!-- Task Profile spinner -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Sound &amp; Vibration Profile"
+            android:text="Task Profile"
             android:textSize="12sp"
             android:textColor="#616161"
             android:layout_marginBottom="4dp" />
@@ -110,7 +126,7 @@
             android:background="@drawable/abc_spinner_mtrl_am_alpha"
             android:padding="8dp" />
 
-        <!-- ── Notice-only extra fields — hidden unless NOTIFICATION selected ── -->
+        <!-- Notice-only extra fields — hidden unless NOTIFICATION selected -->
         <LinearLayout
             android:id="@+id/layoutNotifDelay"
             android:layout_width="match_parent"
@@ -152,7 +168,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Countdown before task timer begins (mm-ss, 0–5 min)"
+                android:text="Countdown before task timer begins (mm-ss, 0-5 min)"
                 android:textSize="11sp"
                 android:textColor="#9E9E9E"
                 android:layout_marginBottom="6dp" />
@@ -198,7 +214,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Wait countdown after execute expires; 0s = skip (mm-ss, 0–5 min)"
+                android:text="Wait countdown after execute expires; 0s = skip (mm-ss, 0-5 min)"
                 android:textSize="11sp"
                 android:textColor="#9E9E9E"
                 android:layout_marginBottom="6dp" />
@@ -236,7 +252,7 @@
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Repeat count  (0–12)"
+                android:hint="Repeat count  (0-12)"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etNoticeRepeat"
