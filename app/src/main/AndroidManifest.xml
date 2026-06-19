@@ -123,6 +123,13 @@
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
             android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
 
+        <!-- Button Action settings screen -->
+        <activity
+            android:name="com.eevdf.app.feature.settings.ButtonActionActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
+
         <!-- Auto Switch: phone call state receiver.
              exported=true is required for system broadcast PHONE_STATE on API 26+. -->
         <receiver

@@ -357,6 +357,23 @@
 
     </LinearLayout>
 
+    <!-- Quick Action FAB — sits above the Add Task FAB.
+         Visible only when Quick Action is enabled in Button Action settings.
+         Taps the currently active INT button (A or B) and immediately starts
+         the timer. Uses layout_anchor to stack it 8dp above fabAdd. -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabQuickAction"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="88dp"
+        android:src="@drawable/outline_autopause_24"
+        app:backgroundTint="@color/colorPrimary"
+        app:tint="@android:color/white"
+        android:contentDescription="Quick Action"
+        android:visibility="gone" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabAdd"
         android:layout_width="wrap_content"

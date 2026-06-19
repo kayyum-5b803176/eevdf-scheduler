@@ -18,6 +18,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnOpenAutoSwitch:       MaterialButton
     private lateinit var btnOpenMultiUserSync:    MaterialButton
     private lateinit var btnOpenUiCustomization:  MaterialButton
+    private lateinit var btnOpenButtonAction:     MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +34,7 @@ class SettingsActivity : AppCompatActivity() {
         btnOpenAutoSwitch      = findViewById(R.id.btnOpenAutoSwitch)
         btnOpenMultiUserSync   = findViewById(R.id.btnOpenMultiUserSync)
         btnOpenUiCustomization = findViewById(R.id.btnOpenUiCustomization)
+        btnOpenButtonAction    = findViewById(R.id.btnOpenButtonAction)
 
         btnOpenDataBackup.setOnClickListener {
             startActivity(Intent(this, DataBackupActivity::class.java))
@@ -48,6 +50,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         btnOpenUiCustomization.setOnClickListener {
             startActivity(Intent(this, UiCustomizationActivity::class.java))
+        }
+        btnOpenButtonAction.setOnClickListener {
+            startActivity(Intent(this, ButtonActionActivity::class.java))
         }
     }
 

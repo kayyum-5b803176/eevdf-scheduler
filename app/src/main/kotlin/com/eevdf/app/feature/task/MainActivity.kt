@@ -18,6 +18,7 @@ import com.eevdf.app.feature.autoswitch.BubbleEventBus
 import com.eevdf.app.feature.autoswitch.BubbleOverlayService
 import com.eevdf.app.feature.autoswitch.CallEvents
 import com.eevdf.app.feature.settings.UiCustomizationPrefs
+import com.eevdf.app.feature.settings.QuickActionPrefs
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -55,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var completedAdapter:    TaskAdapter
     private lateinit var tabLayout:           TabLayout
     private lateinit var fabAdd:              FloatingActionButton
+    private lateinit var fabQuickAction:      FloatingActionButton
     private lateinit var cardTimer:           CardView
     private lateinit var tvCurrentTaskName:   TextView
     private lateinit var tvTimerDisplay:      TextView
@@ -262,6 +264,7 @@ class MainActivity : AppCompatActivity() {
                                     else            androidx.recyclerview.widget.DefaultItemAnimator()
 
         updateCompactMode(scale, autoAdj)
+        applyQuickActionVisibility()
     }
 
     /**
@@ -324,6 +327,22 @@ class MainActivity : AppCompatActivity() {
         val paddingDp = when (scale) { 5 -> 16f; 4 -> 13f; 3 -> 10f; 2 -> 7f; else -> 5f }
         val p = (paddingDp * density + 0.5f).toInt()
         layout.setPadding(p, p, p, p)
+    }
+
+    /**
+     * Shows [fabQuickAction] only when ALL of the following are true:
+     *  1. Quick Action is enabled in Button Action settings.
+     *  2. Allow Edit is enabled (fabAdd is visible) — the Quick Action FAB
+     *     stacks above fabAdd, so it should only appear when fabAdd is visible
+     *     to avoid an orphaned button floating at the bottom of the screen.
+     *
+     * Called from [applyDisplayPrefs] (which runs on every [onResume] and on
+     * relevant configuration changes) so the FAB state is always fresh after
+     * the user returns from the settings screen.
+     */
+    private fun applyQuickActionVisibility() {
+        val quickEnabled = QuickActionPrefs.isQuickActionEnabled(this)
+        fabQuickAction.visibility = if (quickEnabled) View.VISIBLE else View.GONE
     }
 
     // ── Window / configuration change callbacks ───────────────────────────────
@@ -391,6 +410,7 @@ class MainActivity : AppCompatActivity() {
         recyclerView      = findViewById(R.id.recyclerView)
         tabLayout         = findViewById(R.id.tabLayout)
         fabAdd            = findViewById(R.id.fabAdd)
+        fabQuickAction    = findViewById(R.id.fabQuickAction)
         cardTimer         = findViewById(R.id.cardTimer)
         tvCurrentTaskName = findViewById(R.id.tvCurrentTaskName)
         tvTimerDisplay    = findViewById(R.id.tvTimerDisplay)
@@ -414,6 +434,15 @@ class MainActivity : AppCompatActivity() {
         fabAdd.setOnClickListener {
             haptic(it)
             startActivity(Intent(this, AddTaskActivity::class.java))
+        }
+
+        // Quick Action: jump to the active INT task (A or B) then start timer.
+        // A small post-delay lets the ViewModel settle currentTask before startTimer
+        // is called — without it, startTimer() may see currentTask==null and no-op.
+        fabQuickAction.setOnClickListener {
+            haptic(it)
+            viewModel.jumpToInterrupt()
+            fabQuickAction.postDelayed({ viewModel.startTimer() }, 80L)
         }
     }
 
