@@ -264,7 +264,6 @@ class MainActivity : AppCompatActivity() {
                                     else            androidx.recyclerview.widget.DefaultItemAnimator()
 
         updateCompactMode(scale, autoAdj)
-        applyQuickActionVisibility()
     }
 
     /**
@@ -313,6 +312,15 @@ class MainActivity : AppCompatActivity() {
         mainToolbar.visibility = bannerVis
         statsBar.visibility    = bannerVis
 
+        // ── FAB hiding on float / mini profiles ───────────────────────────────
+        // When auto-adjust is on and the window matches FLOAT or MINI, both FABs
+        // are hidden — the window is too small for them to be useful and they
+        // overlap content in compact mode.  NORMAL profile and uncalibrated
+        // windows always show the FABs (subject to their own pref gates).
+        val isCompactProfile = autoAdjust && matched != null &&
+            UiCustomizationPrefs.isCompactProfile(matched)
+        applyFabVisibility(isCompactProfile)
+
         // Scale the fixed cards (timer + alarm) to match task cards
         applyCardScaleToView(layoutTimerContent, scale, density)
         applyCardScaleToView(layoutAlarmContent, scale, density)
@@ -330,19 +338,41 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Shows [fabQuickAction] only when ALL of the following are true:
-     *  1. Quick Action is enabled in Button Action settings.
-     *  2. Allow Edit is enabled (fabAdd is visible) — the Quick Action FAB
-     *     stacks above fabAdd, so it should only appear when fabAdd is visible
-     *     to avoid an orphaned button floating at the bottom of the screen.
+     * Controls visibility of both FABs in one place so they always stay in sync.
      *
-     * Called from [applyDisplayPrefs] (which runs on every [onResume] and on
-     * relevant configuration changes) so the FAB state is always fresh after
-     * the user returns from the settings screen.
+     * Rules:
+     *  • [fabAdd] — visible when Allow Edit is enabled AND not in a compact
+     *    (FLOAT / MINI) calibration profile.
+     *  • [fabQuickAction] — visible when Quick Action pref is on AND not in a
+     *    compact profile. Independent of Allow Edit.
+     *
+     * [suppressForCompactProfile] is true when auto-adjust is on and the current
+     * window matches a FLOAT or MINI calibration profile — both FABs are hidden
+     * in that case regardless of other prefs, because the window is too small.
+     *
+     * Called from [updateCompactMode] (which runs inside [applyDisplayPrefs] on
+     * every [onResume] and every relevant configuration / window change).
      */
-    private fun applyQuickActionVisibility() {
+    private fun applyFabVisibility(suppressForCompactProfile: Boolean) {
+        val editEnabled  = viewModel.allowEditEnabled.value ?: false
         val quickEnabled = QuickActionPrefs.isQuickActionEnabled(this)
-        fabQuickAction.visibility = if (quickEnabled) View.VISIBLE else View.GONE
+
+        fabAdd.visibility =
+            if (!suppressForCompactProfile && editEnabled) View.VISIBLE else View.GONE
+
+        fabQuickAction.visibility =
+            if (!suppressForCompactProfile && quickEnabled) View.VISIBLE else View.GONE
+
+        // Keep RecyclerView bottom padding in sync with fabAdd presence so
+        // smoothScrollToPosition doesn't overscroll when the FAB is hidden.
+        val fabVisible = fabAdd.visibility == View.VISIBLE
+        val fabPadPx   = if (fabVisible) (80 * resources.displayMetrics.density).toInt() else 0
+        recyclerView.setPadding(
+            recyclerView.paddingLeft,
+            recyclerView.paddingTop,
+            recyclerView.paddingRight,
+            fabPadPx
+        )
     }
 
     // ── Window / configuration change callbacks ───────────────────────────────
@@ -724,18 +754,15 @@ class MainActivity : AppCompatActivity() {
         }
         viewModel.allowEditEnabled.observe(this) { enabled ->
             allowEditMenuItem?.isChecked = enabled
-            fabAdd.visibility = if (enabled) View.VISIBLE else View.GONE
-            // Sync RecyclerView bottom padding with FAB presence.
-            // When FAB is hidden the 80dp reserved gap is no longer needed;
-            // keeping it causes smoothScrollToPosition to overscroll and bounce.
-            val fabPadPx = if (enabled)
-                (80 * resources.displayMetrics.density).toInt() else 0
-            recyclerView.setPadding(
-                recyclerView.paddingLeft,
-                recyclerView.paddingTop,
-                recyclerView.paddingRight,
-                fabPadPx
-            )
+            // FAB visibility and RecyclerView bottom padding are both managed by
+            // applyFabVisibility so the compact-profile gate is applied consistently.
+            val autoAdj = UiCustomizationPrefs.isAutoAdjustEnabled(this)
+            val widthDp = resources.configuration.screenWidthDp
+            val heightDp = resources.configuration.screenHeightDp
+            val matched = UiCustomizationPrefs.matchProfile(this, widthDp, heightDp)
+            val suppress = autoAdj && matched != null &&
+                UiCustomizationPrefs.isCompactProfile(matched)
+            applyFabVisibility(suppress)
         }
         viewModel.autoScrollEnabled.observe(this) { enabled ->
             autoScrollMenuItem?.isChecked = enabled
