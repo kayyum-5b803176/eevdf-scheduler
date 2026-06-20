@@ -130,6 +130,18 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
 
+        <!-- Hardware Keys: list of assignable keys -->
+        <activity
+            android:name="com.eevdf.app.feature.settings.HardwareKeyActionActivity"
+            android:exported="false"
+            android:parentActivityName="com.eevdf.app.feature.settings.ButtonActionActivity" />
+
+        <!-- Hardware Keys: per-key action chooser -->
+        <activity
+            android:name="com.eevdf.app.feature.settings.HardwareKeyOptionActivity"
+            android:exported="false"
+            android:parentActivityName="com.eevdf.app.feature.settings.HardwareKeyActionActivity" />
+
         <!-- Auto Switch: phone call state receiver.
              exported=true is required for system broadcast PHONE_STATE on API 26+. -->
         <receiver

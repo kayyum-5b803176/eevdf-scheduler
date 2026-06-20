@@ -26,6 +26,9 @@ class AlarmActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_TASK_NAME = "task_name"
 
+        /** Intent extra MainActivity reads to perform a "stop and start" restart. */
+        const val EXTRA_RESTART_AFTER_EXPIRE = "restart_after_expire"
+
         /** Launch this activity from anywhere (notification, broadcast). */
         fun createIntent(context: Context, taskName: String): Intent =
             Intent(context, AlarmActivity::class.java).apply {
@@ -113,5 +116,60 @@ class AlarmActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(elapsedRunnable)
+    }
+
+    /**
+     * Hardware-key handling while the full-screen alarm is showing (e.g. over the
+     * lock screen, when MainActivity is not foreground).  Mirrors MainActivity's
+     * dispatcher: the pressed key's configured action runs only here, during the
+     * expire event.
+     *
+     * STOP tears the alarm down via the existing receiver.  RESTART tears it down
+     * and asks MainActivity to start a fresh slice for the expired task.
+     */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        val keyId = when (keyCode) {
+            android.view.KeyEvent.KEYCODE_VOLUME_UP   ->
+                com.eevdf.app.feature.settings.HardwareKeyPrefs.KEY_VOLUME_UP
+            android.view.KeyEvent.KEYCODE_VOLUME_DOWN ->
+                com.eevdf.app.feature.settings.HardwareKeyPrefs.KEY_VOLUME_DOWN
+            android.view.KeyEvent.KEYCODE_POWER       ->
+                com.eevdf.app.feature.settings.HardwareKeyPrefs.KEY_POWER
+            else                                      -> null
+        }
+        if (keyId != null) {
+            when (com.eevdf.app.feature.settings.HardwareKeyPrefs.actionForKey(this, keyId)) {
+                com.eevdf.app.feature.settings.HardwareKeyPrefs.ACTION_STOP -> {
+                    sendBroadcast(
+                        Intent(this, AlarmStopReceiver::class.java).apply {
+                            action = AlarmStopReceiver.ACTION_TIMER_EXPIRED
+                        }
+                    )
+                    finish()
+                    return true
+                }
+                com.eevdf.app.feature.settings.HardwareKeyPrefs.ACTION_RESTART -> {
+                    // Tear the alarm down, then bring MainActivity forward with a
+                    // restart request it will act on once it has the ViewModel.
+                    sendBroadcast(
+                        Intent(this, AlarmStopReceiver::class.java).apply {
+                            action = AlarmStopReceiver.ACTION_TIMER_EXPIRED
+                        }
+                    )
+                    val restart = Intent(
+                        this,
+                        com.eevdf.app.feature.task.MainActivity::class.java
+                    ).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra(EXTRA_RESTART_AFTER_EXPIRE, true)
+                    }
+                    startActivity(restart)
+                    finish()
+                    return true
+                }
+                else -> { /* NONE — let the system handle the key normally */ }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 }

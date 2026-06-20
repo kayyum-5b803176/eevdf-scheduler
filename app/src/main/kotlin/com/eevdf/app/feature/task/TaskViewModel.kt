@@ -681,6 +681,41 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * True while a timer-expiry alarm is ringing.  Used by MainActivity to decide
+     * whether a hardware-key press should be consumed for Stop / Restart
+     * (requirement #4: keys act only during the expire event).
+     */
+    fun isAlarmActive(): Boolean = _alarmTaskName.value != null
+
+    /**
+     * "Stop and Start (Restart)" action for hardware keys.
+     *
+     * Captures the expired task (held in [taskToRestoreAfterExpire]) BEFORE
+     * [stopAlarmSound] consumes and nulls it, dismisses the alarm, then
+     * re-selects that task and starts a fresh full-slice timer.  Falls back to
+     * a plain stop when there is no task to restart.
+     */
+    fun restartAfterExpire() {
+        val toRestart = taskToRestoreAfterExpire
+        // Null the restore-task BEFORE stopAlarmSound() so its restore branch is
+        // skipped — otherwise its queued postValue() would overwrite _currentTask /
+        // _timerSeconds with the idle reset task moments after we start the timer.
+        taskToRestoreAfterExpire = null
+        stopAlarmSound()
+        if (toRestart != null) {
+            // Force a full fresh slice: reset timer state AND the cached
+            // remainingSeconds field (which may be 0/stale on the just-expired task),
+            // so startTimer() counts down from timeSliceSeconds.
+            val fresh = toRestart
+                .withTimerState(TimerState.reset())
+                .copy(remainingSeconds = toRestart.timeSliceSeconds)
+            setCurrentTask(fresh)
+            _timerSeconds.value = fresh.timeSliceSeconds
+            startTimer()
+        }
+    }
+
     // =========================================================================
     // Vruntime helper
     // =========================================================================

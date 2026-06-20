@@ -19,6 +19,8 @@ import com.eevdf.app.feature.autoswitch.BubbleOverlayService
 import com.eevdf.app.feature.autoswitch.CallEvents
 import com.eevdf.app.feature.settings.UiCustomizationPrefs
 import com.eevdf.app.feature.settings.QuickActionPrefs
+import com.eevdf.app.feature.settings.HardwareKeyPrefs
+import android.view.KeyEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -176,6 +178,31 @@ class MainActivity : AppCompatActivity() {
         )
 
         viewModel.refreshSchedule()
+
+        // Hardware-key "stop and start": AlarmActivity (shown over lock screen)
+        // routed a restart request here.  Run it once the VM has settled.
+        maybeHandleRestartAfterExpire(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        maybeHandleRestartAfterExpire(intent)
+    }
+
+    private fun maybeHandleRestartAfterExpire(intent: Intent?) {
+        if (intent?.getBooleanExtra(
+                com.eevdf.app.feature.alarm.AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE, false
+            ) == true
+        ) {
+            // Clear the flag so a config change / re-create won't replay it.
+            intent.removeExtra(
+                com.eevdf.app.feature.alarm.AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE
+            )
+            // Small delay lets the VM finish any startup alarm-state reconciliation
+            // before we ask it to restart; the VM no-ops if there is nothing to restart.
+            cardTimer.postDelayed({ viewModel.restartAfterExpire() }, 120L)
+        }
     }
 
     override fun onStart() {
@@ -208,6 +235,44 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(alarmStopReceiver)
+    }
+
+    /**
+     * Hardware-key handling for timer-expire actions.
+     *
+     * Only acts while a timer-expiry alarm is ringing (requirement #4); at any
+     * other time the keys keep their normal system behaviour (volume change /
+     * default handling).  The pressed key is mapped to its configured action via
+     * [HardwareKeyPrefs]; an unbound key (NONE) is ignored and passed through.
+     *
+     * Note: KEYCODE_POWER is included for completeness, but on virtually all
+     * Android builds the system consumes the power key before it reaches an
+     * Activity's onKeyDown while the screen is on, so Volume Up / Volume Down are
+     * the dependable bindings.
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (viewModel.isAlarmActive()) {
+            val keyId = when (keyCode) {
+                KeyEvent.KEYCODE_VOLUME_UP   -> HardwareKeyPrefs.KEY_VOLUME_UP
+                KeyEvent.KEYCODE_VOLUME_DOWN -> HardwareKeyPrefs.KEY_VOLUME_DOWN
+                KeyEvent.KEYCODE_POWER       -> HardwareKeyPrefs.KEY_POWER
+                else                         -> null
+            }
+            if (keyId != null) {
+                when (HardwareKeyPrefs.actionForKey(this, keyId)) {
+                    HardwareKeyPrefs.ACTION_STOP -> {
+                        viewModel.stopAlarmSound()
+                        return true   // consume — suppress volume change while ringing
+                    }
+                    HardwareKeyPrefs.ACTION_RESTART -> {
+                        viewModel.restartAfterExpire()
+                        return true
+                    }
+                    else -> { /* NONE — fall through to default handling */ }
+                }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onResume() {
