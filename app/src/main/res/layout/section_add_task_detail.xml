@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Task Detail card — task name, description, parent group spinner.
+  Task Detail card — task name, description, parent group picker.
 
-  The groupSection LinearLayout is hidden by default; AddTaskGroupSection.kt
-  sets it VISIBLE when groups mode is enabled in settings.
+  groupSection LinearLayout is hidden by default; AddTaskGroupSection.kt sets
+  it VISIBLE when groups mode is enabled in settings.
+
+  spinnerParentGroup (plain Spinner) has been replaced by btnParentGroupPicker,
+  a styled TextView that opens GroupPickerDialog on tap.  The dialog provides:
+    • pattern-match search (same contains() logic as category autocomplete)
+    • "Recent" section showing the last 8 selected group IDs
+    • "All Groups" full sorted list
 -->
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -79,14 +85,45 @@
                 android:text="Parent Group"
                 android:textSize="12sp"
                 android:textColor="#616161"
-                android:layout_marginBottom="4dp" />
+                android:layout_marginBottom="6dp" />
 
-            <Spinner
-                android:id="@+id/spinnerParentGroup"
+            <!--
+              Picker trigger — tapping opens GroupPickerDialog.
+              Styled to look like a filled outlined spinner so it is visually
+              consistent with the rest of the form.
+            -->
+            <LinearLayout
+                android:id="@+id/btnParentGroupPicker"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/abc_spinner_mtrl_am_alpha"
-                android:padding="8dp" />
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="14dp"
+                android:paddingEnd="10dp"
+                android:background="@drawable/bg_group_picker_button"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tvParentGroupLabel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="None (root level)"
+                    android:textSize="15sp"
+                    android:textColor="#212121"
+                    android:ellipsize="end"
+                    android:maxLines="1" />
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/arrow_down_float"
+                    android:alpha="0.54"
+                    android:contentDescription="Open group picker" />
+
+            </LinearLayout>
+
         </LinearLayout>
 
     </LinearLayout>

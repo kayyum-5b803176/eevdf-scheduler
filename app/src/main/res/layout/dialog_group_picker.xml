@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@android:color/white">
+
+    <!-- Title row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:background="@android:color/white"
+        android:elevation="4dp">
+
+        <TextView
+            android:id="@+id/tvPickerTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Select Parent Group"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="#212121" />
+
+        <ImageButton
+            android:id="@+id/btnPickerClose"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Close" />
+
+    </LinearLayout>
+
+    <!-- Search field -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:hint="Search groups…"
+        app:startIconDrawable="@android:drawable/ic_menu_search"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etGroupSearch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1"
+            android:imeOptions="actionSearch" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Group list -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvGroupItems"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="360dp"
+        android:nestedScrollingEnabled="true"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp" />
+
+</LinearLayout>

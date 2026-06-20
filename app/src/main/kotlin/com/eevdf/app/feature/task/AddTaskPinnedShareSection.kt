@@ -70,13 +70,10 @@ internal fun AddTaskActivity.applySliderLock(pinnedValue: Double?) {
  */
 internal fun AddTaskActivity.calcInternalWeight(targetShare: Double): Double {
     val tasks = viewModel.activeTasks.value ?: emptyList()
-    val selectedParentId: String? = if (groupsEnabled) {
-        val idx = spinnerParent.selectedItemPosition
-        groupsList.getOrNull(idx)?.id
-    } else null
+    val parentId: String? = if (groupsEnabled) selectedParentId else null
     return EEVDFScheduler.calcPinnedWeight(
         targetShare    = targetShare,
-        parentId       = selectedParentId,
+        parentId       = parentId,
         excludeId      = existingTaskId,
         allTasks       = tasks,
         fallbackWeight = sliderPriority.value.toDouble()
@@ -89,11 +86,8 @@ internal fun AddTaskActivity.validatePinnedShare(newValue: Double?) {
         return
     }
     val tasks = viewModel.activeTasks.value ?: emptyList()
-    val selectedParentId: String? = if (groupsEnabled) {
-        val idx = spinnerParent.selectedItemPosition
-        groupsList.getOrNull(idx)?.id
-    } else null
-    val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId, selectedParentId)
+    val parentId: String? = if (groupsEnabled) selectedParentId else null
+    val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId, parentId)
     val total = otherPinned + newValue
     when {
         newValue < 0.01 || newValue > 99.99 -> {

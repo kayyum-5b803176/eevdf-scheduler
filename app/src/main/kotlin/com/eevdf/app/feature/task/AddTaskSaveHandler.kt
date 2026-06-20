@@ -41,10 +41,7 @@ internal fun AddTaskActivity.saveTask() {
     val priority    = sliderPriority.value.toInt()
     val description = etDescription.text.toString().trim()
     val isGroup     = if (groupsEnabled) switchIsGroup.isChecked else false
-    val parentId: String? = if (groupsEnabled) {
-        val idx = spinnerParent.selectedItemPosition
-        groupsList.getOrNull(idx)?.id
-    } else null
+    val parentId: String? = if (groupsEnabled) selectedParentId else null
 
     // ── Task type / notice ────────────────────────────────────────────────────
     val notifDelaySecs = if (selectedTaskType == "NOTIFICATION")
@@ -63,10 +60,7 @@ internal fun AddTaskActivity.saveTask() {
     val pinnedShare: Double? = if (pinnedShareRaw != null) {
         val clamped = pinnedShareRaw.coerceIn(0.01, 99.99)
         val tasks   = viewModel.activeTasks.value ?: emptyList()
-        val selectedParentId: String? = if (groupsEnabled) {
-            val idx = spinnerParent.selectedItemPosition
-            groupsList.getOrNull(idx)?.id
-        } else null
+        val selectedParentId: String? = if (groupsEnabled) selectedParentId else null
         val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId, selectedParentId)
         if (otherPinned + clamped > 100.0) {
             tvPinnedShareWarning.text =

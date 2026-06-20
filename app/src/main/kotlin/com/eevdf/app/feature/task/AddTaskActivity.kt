@@ -60,10 +60,14 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var tvInterruptOwnerB:  TextView
 
     // ── Groups section ────────────────────────────────────────────────────────
-    internal lateinit var groupSection:     LinearLayout
-    internal lateinit var groupTypeSection: LinearLayout
-    internal lateinit var switchIsGroup:    SwitchMaterial
-    internal lateinit var spinnerParent:    Spinner
+    internal lateinit var groupSection:        LinearLayout
+    internal lateinit var groupTypeSection:    LinearLayout
+    internal lateinit var switchIsGroup:       SwitchMaterial
+    // Parent group picker — replaces the plain Spinner
+    internal lateinit var btnParentGroupPicker: LinearLayout
+    internal lateinit var tvParentGroupLabel:   TextView
+    /** Currently selected parent group id; null = root level ("None"). */
+    internal var selectedParentId: String? = null
 
     // ── Realtime / pinned share section ──────────────────────────────────────
     internal lateinit var switchRealtimeShare:       SwitchMaterial
@@ -204,10 +208,11 @@ class AddTaskActivity : AppCompatActivity() {
         switchIsInterruptB = findViewById(R.id.switchIsInterruptB)
         tvInterruptOwnerB  = findViewById(R.id.tvInterruptOwnerB)
 
-        groupSection     = findViewById(R.id.groupSection)
-        groupTypeSection = findViewById(R.id.groupTypeSection)
-        switchIsGroup    = findViewById(R.id.switchIsGroup)
-        spinnerParent    = findViewById(R.id.spinnerParentGroup)
+        groupSection        = findViewById(R.id.groupSection)
+        groupTypeSection    = findViewById(R.id.groupTypeSection)
+        switchIsGroup       = findViewById(R.id.switchIsGroup)
+        btnParentGroupPicker = findViewById(R.id.btnParentGroupPicker)
+        tvParentGroupLabel  = findViewById(R.id.tvParentGroupLabel)
 
         spinnerTaskType       = findViewById(R.id.spinnerTaskType)
         layoutNoticeSection   = findViewById(R.id.layoutNotifDelay)

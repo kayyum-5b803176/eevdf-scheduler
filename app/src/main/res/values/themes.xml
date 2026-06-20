@@ -11,4 +11,9 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
+
+    <!-- Used by GroupPickerDialog — a min-width Material dialog theme,
+         declared locally so it resolves via this app's generated R.style. -->
+    <style name="AppTheme.GroupPickerDialog" parent="Theme.MaterialComponents.Light.Dialog.MinWidth" />
+
 </resources>
