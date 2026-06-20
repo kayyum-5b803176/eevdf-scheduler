@@ -32,7 +32,9 @@
             android:id="@+id/btnPickerClose"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:padding="8dp"
+            android:src="@drawable/ic_close_modern"
+            android:tint="#616161"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Close" />
 
@@ -47,7 +49,8 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"
         android:hint="Search groups…"
-        app:startIconDrawable="@android:drawable/ic_menu_search"
+        app:startIconDrawable="@drawable/ic_search_modern"
+        app:startIconTint="#9E9E9E"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
 
         <com.google.android.material.textfield.TextInputEditText

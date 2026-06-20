@@ -24,7 +24,8 @@
         android:id="@+id/ivPickerCheck"
         android:layout_width="20dp"
         android:layout_height="20dp"
-        android:src="@android:drawable/checkbox_on_background"
+        android:src="@drawable/ic_check_modern"
+        android:tint="@color/colorPrimary"
         android:visibility="invisible"
         android:contentDescription="Selected" />
 

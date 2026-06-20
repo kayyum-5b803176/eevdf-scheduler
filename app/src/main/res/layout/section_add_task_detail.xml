@@ -118,8 +118,9 @@
                 <ImageView
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:src="@android:drawable/arrow_down_float"
-                    android:alpha="0.54"
+                    android:src="@drawable/ic_chevron_down_modern"
+                    android:tint="#757575"
+                    android:alpha="0.87"
                     android:contentDescription="Open group picker" />
 
             </LinearLayout>
