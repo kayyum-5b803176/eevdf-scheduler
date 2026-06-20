@@ -40,6 +40,9 @@ internal fun AddTaskActivity.saveTask() {
 
     val priority    = sliderPriority.value.toInt()
     val description = etDescription.text.toString().trim()
+    // Load factor: float, default 1.00 when blank/invalid; clamp to a sane range.
+    val loadFactor  = (etLoadFactor.text.toString().trim().toDoubleOrNull() ?: 1.00)
+        .coerceIn(0.0, 1000.0)
     val isGroup     = if (groupsEnabled) switchIsGroup.isChecked else false
     val parentId: String? = if (groupsEnabled) selectedParentId else null
 
@@ -219,6 +222,7 @@ internal fun AddTaskActivity.saveTask() {
             name             = name,
             description      = description,
             priority         = priority,
+            loadFactor       = loadFactor,
             timeSliceSeconds = totalSeconds,
             category         = selectedCategory,
             isGroup          = isGroup,
@@ -259,6 +263,7 @@ internal fun AddTaskActivity.saveTask() {
             name             = name,
             description      = description,
             priority         = priority,
+            loadFactor       = loadFactor,
             timeSliceSeconds = totalSeconds,
             remainingSeconds = totalSeconds,
             category         = selectedCategory,

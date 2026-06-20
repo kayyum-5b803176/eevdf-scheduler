@@ -43,6 +43,7 @@ class AddTaskActivity : AppCompatActivity() {
     // ── Basic task fields ─────────────────────────────────────────────────────
     internal lateinit var etName:           TextInputEditText
     internal lateinit var etDescription:    TextInputEditText
+    internal lateinit var etLoadFactor:     TextInputEditText
     internal lateinit var sliderPriority:   Slider
     internal lateinit var tvPriorityLabel:  TextView
     internal lateinit var etHours:          TextInputEditText
@@ -193,6 +194,7 @@ class AddTaskActivity : AppCompatActivity() {
     private fun setupViews() {
         etName            = findViewById(R.id.etTaskName)
         etDescription     = findViewById(R.id.etDescription)
+        etLoadFactor      = findViewById(R.id.etLoadFactor)
         sliderPriority    = findViewById(R.id.sliderPriority)
         tvPriorityLabel   = findViewById(R.id.tvPriorityLabel)
         etHours           = findViewById(R.id.etHours)
@@ -308,6 +310,7 @@ class AddTaskActivity : AppCompatActivity() {
     private fun populateBasicFields(task: Task) {
         etName.setText(task.name)
         etDescription.setText(task.description)
+        etLoadFactor.setText("%.2f".format(task.loadFactor))
         sliderPriority.value = task.priority.coerceIn(1, 7).toFloat()
         val totalSec = task.timeSliceSeconds
         etHours.setText((totalSec / 3600).toString())

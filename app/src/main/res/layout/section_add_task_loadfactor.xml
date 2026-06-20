@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Load Factor card — float numeric input (default 1.00).
+
+  etLoadFactor — read by AddTaskSaveHandler; the task's instantaneous load
+  contribution while running, used by the Linux-style load-average calculation
+  shown as "load: X.XX" in the stats bar.
+-->
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="3dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Load Factor"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/colorPrimary" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="How much load this task adds while running (default 1.00). Contributes to the system load average shown in the stats bar, smoothed over a 24-hour window like the Linux load average."
+            android:textSize="12sp"
+            android:textColor="@color/textSecondary"
+            android:lineSpacingMultiplier="1.3" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etLoadFactor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="1.00"
+                android:inputType="numberDecimal"
+                android:maxLength="8"
+                android:text="1.00" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

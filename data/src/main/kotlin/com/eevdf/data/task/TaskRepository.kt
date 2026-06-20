@@ -113,6 +113,7 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
         EEVDFScheduler.updateVruntime(task, secondsRan)
         applyQuotaAccounting(task, secondsRan)
         applyDlAccounting(task, secondsRan)
+        applyLoadAccounting(task, session)
         dao.update(task)
 
         // Propagate up the ancestor chain — credit time but do NOT increment runCount
@@ -155,6 +156,31 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
 
         task.quotaPeriodStartEpoch = nowMs
         task.quotaUsedSeconds      = (decayedNow + secondsRan).coerceAtLeast(0L)
+    }
+
+    /**
+     * Advances the task's load average to reflect a completed run, mirroring the
+     * Linux load-average EWMA (see [com.eevdf.data.scheduler.LoadAverage]).
+     *
+     * Two-step integration so the run window is captured exactly:
+     *   1. decay toward 0 (idle) over the gap from the last update → session start,
+     *   2. integrate toward [Task.loadFactor] (running) over session start → end.
+     *
+     * The resulting loadAverage + loadLastUpdateEpoch are written back onto the
+     * task (var fields); the caller persists it.  Foreground ticking later decays
+     * it further while the task sits idle.
+     */
+    private fun applyLoadAccounting(task: Task, session: RunSession) {
+        // Step 1: idle decay up to the moment the run began.
+        val atStart = com.eevdf.data.scheduler.LoadAverage.advanced(
+            task, session.startEpochMs, isRunning = false
+        )
+        // Step 2: running integration across the real run window.
+        val atEnd = com.eevdf.data.scheduler.LoadAverage.advanced(
+            atStart, session.endEpochMs, isRunning = true
+        )
+        task.loadAverage         = atEnd.loadAverage
+        task.loadLastUpdateEpoch = atEnd.loadLastUpdateEpoch
     }
 
     /**

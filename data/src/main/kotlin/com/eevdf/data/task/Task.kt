@@ -188,7 +188,28 @@ data class Task(
     val rtActivationHour: Int = 0,
     val rtActivationMinute: Int = 0,
     val rtActivationSecond: Int = 0,
-    val rtSliceTimeoutSeconds: Long = 0L
+    val rtSliceTimeoutSeconds: Long = 0L,
+
+    // ── Load factor / load average ────────────────────────────────────────────
+    //
+    // Mirrors the Linux system load average, adapted per-task.
+    //
+    // loadFactor — the task's instantaneous load contribution while it is running
+    //              (analogous to how many run-queue slots the task occupies).
+    //              Default 1.00 = behaves like one ordinary runnable task.
+    //
+    // loadAverage / loadLastUpdateEpoch — the persisted exponentially-weighted
+    //              moving average (EWMA) of this task's load, and the epoch ms at
+    //              which it was last advanced.  Decays toward `loadFactor` while
+    //              the task is running and toward 0 while idle, over a 24-hour
+    //              smoothing window (LOAD_WINDOW_SECONDS).  Computed lazily from
+    //              elapsed wall-time (no background sampler) — see LoadAverage.
+    //
+    // The stats bar shows the SUM of every task's current loadAverage.
+
+    val loadFactor: Double = 1.00,
+    var loadAverage: Double = 0.0,
+    var loadLastUpdateEpoch: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()

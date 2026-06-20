@@ -113,6 +113,10 @@ object BackupManager {
         put("rtActivationMinute", t.rtActivationMinute)
         put("rtActivationSecond", t.rtActivationSecond)
         put("rtSliceTimeoutSeconds", t.rtSliceTimeoutSeconds)
+        // Load factor / load average
+        put("loadFactor", t.loadFactor)
+        put("loadAverage", t.loadAverage)
+        put("loadLastUpdateEpoch", t.loadLastUpdateEpoch)
     }
 
     private fun taskFromJson(j: JSONObject): Task = Task(
@@ -164,6 +168,9 @@ object BackupManager {
         rtActivationMinute = j.optInt("rtActivationMinute", 0),
         rtActivationSecond = j.optInt("rtActivationSecond", 0),
         rtSliceTimeoutSeconds = j.optLong("rtSliceTimeoutSeconds", 0L),
+        loadFactor = j.optDouble("loadFactor", 1.00),
+        loadAverage = j.optDouble("loadAverage", 0.0),
+        loadLastUpdateEpoch = j.optLong("loadLastUpdateEpoch", 0L),
     )
 
     // ── Multi-user sync (preserves live timer state) ─────────────────────────────

@@ -115,6 +115,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Load average ticker — foreground-only, every 60 s.  Re-publishes scheduler
+    // stats so the "load: X.XX" figure in the stats bar decays live while the app
+    // is visible.  The per-task EWMA is read lazily (integrated from the last
+    // persisted update), so no DB writes happen here and nothing runs in the
+    // background — exactly the requested behaviour.
+    private val loadTickHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val loadTickRunnable = object : Runnable {
+        override fun run() {
+            viewModel.refreshSchedule()
+            loadTickHandler.postDelayed(this, 60_000L)
+        }
+    }
+
     /** Convenience: fire haptic feedback on [v] if enabled in prefs. */
     private fun haptic(v: View) {
         if (!prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)) return
@@ -282,6 +295,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         quotaTickHandler.post(quotaTickRunnable)
+        loadTickHandler.postDelayed(loadTickRunnable, 60_000L)
         viewModel.onSyncResume()
         // Reconcile ViewModel with DB in case CallSwitchService switched tasks
         // while the app was backgrounded or the process was dead.
@@ -293,6 +307,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause()  {
         super.onPause()
         quotaTickHandler.removeCallbacks(quotaTickRunnable)
+        loadTickHandler.removeCallbacks(loadTickRunnable)
     }
 
     /**
@@ -783,7 +798,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.stats.observe(this) { stats ->
-            tvStats.text    = "Active: ${stats.activeTasks}  |  Done: ${stats.completedTasks}  |  Weight: ${"%.1f".format(stats.totalWeight)}"
+            tvStats.text    = "Active: ${stats.activeTasks}  |  Done: ${stats.completedTasks}  |  Weight: ${"%.1f".format(stats.totalWeight)}  |  load: ${"%.2f".format(stats.systemLoad)}"
             tvFairness.text = "Fairness: ${"%.0f".format(stats.fairnessScore * 100)}%  |  Avg VRT: ${"%.2f".format(stats.averageVruntime)}"
         }
 

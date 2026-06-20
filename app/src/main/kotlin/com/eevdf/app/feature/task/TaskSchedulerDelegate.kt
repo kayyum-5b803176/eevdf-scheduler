@@ -110,7 +110,8 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         vm._scheduleOrder.postValue(order)
         val allTasks      = order + (vm.completedTasks.value ?: emptyList())
         val groupsEnabled = vm.groupsEnabled.value ?: false
-        vm._stats.postValue(EEVDFScheduler.getStats(allTasks, groupsEnabled))
+        val runningId     = vm.currentTask.value?.id?.takeIf { vm.currentTask.value?.isRunning == true }
+        vm._stats.postValue(EEVDFScheduler.getStats(allTasks, groupsEnabled, runningId))
     }
 
     /**

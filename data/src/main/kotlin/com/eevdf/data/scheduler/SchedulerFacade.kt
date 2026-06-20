@@ -51,6 +51,7 @@ data class SchedulerStats(
     val averageVruntime: Double,
     val totalWeight: Double,
     val fairnessScore: Double,
+    val systemLoad: Double = 0.0,
 )
 
 object EEVDFScheduler {
@@ -115,19 +116,22 @@ object EEVDFScheduler {
         }
     }
 
-    fun getStats(tasks: List<Task>, groupsEnabled: Boolean = false): SchedulerStats {
+    fun getStats(tasks: List<Task>, groupsEnabled: Boolean = false, runningId: String? = null): SchedulerStats {
         val active = tasks.filter { !it.isCompleted }
         val completed = tasks.filter { it.isCompleted }
+        // System load = sum of all tasks' current (lazily-decayed) load averages.
+        val load = LoadAverage.systemLoad(tasks, System.currentTimeMillis(), runningId)
         return if (!groupsEnabled) {
             SchedulerStats(
                 totalTasks = tasks.size, activeTasks = active.size, completedTasks = completed.size,
                 averageVruntime = averageVruntime(tasks), totalWeight = totalWeight(active),
                 fairnessScore = CpuShares.fairness(tasks.map { it.toSched() }),
+                systemLoad = load,
             )
         } else {
             val leaves = countReachableLeaves(active)
             val (w, vr, fair) = aggregate(active, active.filter { it.parentId == null })
-            SchedulerStats(tasks.size, leaves, completed.size, vr, w, fair)
+            SchedulerStats(tasks.size, leaves, completed.size, vr, w, fair, load)
         }
     }
 
