@@ -55,7 +55,7 @@ class HardwareKeyOptionActivity : AppCompatActivity() {
 
         val current = HardwareKeyPrefs.getAction(this, keyId)
 
-        HardwareKeyPrefs.SELECTABLE_ACTIONS.forEachIndexed { index, action ->
+        HardwareKeyPrefs.selectableActionsFor(keyId).forEachIndexed { index, action ->
             val rb = RadioButton(this).apply {
                 id = index + 1                       // 1-based, never View.NO_ID
                 text = HardwareKeyPrefs.actionLabel(action)

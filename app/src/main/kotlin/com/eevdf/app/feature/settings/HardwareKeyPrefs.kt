@@ -44,6 +44,20 @@ object HardwareKeyPrefs {
     /** Actions the user can pick on the option page (NONE is the implicit default). */
     val SELECTABLE_ACTIONS = listOf(ACTION_NONE, ACTION_STOP, ACTION_RESTART)
 
+    /**
+     * Actions a given key is permitted to perform.
+     *
+     * The Power key is restricted to NONE / STOP only: it is driven by screen-off
+     * detection (the screen always turns off on a Power press), which can reliably
+     * dismiss the alarm but is a poor fit for "Stop and Start" — restarting a task
+     * the instant the screen goes dark is surprising.  Volume keys allow the full
+     * set.
+     */
+    fun selectableActionsFor(key: String): List<String> = when (key) {
+        KEY_POWER -> listOf(ACTION_NONE, ACTION_STOP)
+        else      -> SELECTABLE_ACTIONS
+    }
+
     private fun prefKey(key: String) = "hw_key_action_$key"
 
     private fun prefs(ctx: Context): SharedPreferences =
@@ -52,8 +66,12 @@ object HardwareKeyPrefs {
     // ── Read / write ───────────────────────────────────────────────────────────
 
     /** Action bound to [key]; [ACTION_NONE] when unassigned. */
-    fun getAction(ctx: Context, key: String): String =
-        prefs(ctx).getString(prefKey(key), ACTION_NONE) ?: ACTION_NONE
+    fun getAction(ctx: Context, key: String): String {
+        val stored = prefs(ctx).getString(prefKey(key), ACTION_NONE) ?: ACTION_NONE
+        // Defend against a stale/disallowed value (e.g. Power=RESTART from an old
+        // backup) so it never takes effect.
+        return if (stored in selectableActionsFor(key)) stored else ACTION_NONE
+    }
 
     /**
      * Bind [action] to [key], enforcing exclusivity: if [action] is a real action
@@ -61,16 +79,19 @@ object HardwareKeyPrefs {
      * cleared to NONE first so the action ends up bound to exactly one key.
      */
     fun setAction(ctx: Context, key: String, action: String) {
+        // Enforce per-key limits (e.g. Power may only be NONE or STOP); fall back
+        // to NONE for a disallowed action so an illegal pairing can never persist.
+        val effective = if (action in selectableActionsFor(key)) action else ACTION_NONE
         val editor = prefs(ctx).edit()
-        if (action != ACTION_NONE) {
+        if (effective != ACTION_NONE) {
             // Clear the same action from any other key.
             for (other in ALL_KEYS) {
-                if (other != key && getAction(ctx, other) == action) {
+                if (other != key && getAction(ctx, other) == effective) {
                     editor.putString(prefKey(other), ACTION_NONE)
                 }
             }
         }
-        editor.putString(prefKey(key), action)
+        editor.putString(prefKey(key), effective)
         editor.apply()
     }
 

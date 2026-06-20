@@ -66,7 +66,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:visibility="gone"
-                android:text="Note: Android always turns the screen off when Power is pressed and apps can't prevent that. This action runs via screen-off detection (like the Clock app), so for Stop the alarm is dismissed as the screen turns off; for Stop and Start the app wakes the screen and restarts the task. Volume Up / Volume Down act instantly without the screen flicker."
+                android:text="The Power button can only Stop the alarm. Android always turns the screen off when Power is pressed, so this works via screen-off detection (like the Clock app): the alarm is dismissed as the screen turns off. For Stop and Start, use Volume Up or Volume Down."
                 android:textSize="12sp"
                 android:textColor="#9E9E9E"
                 android:lineSpacingMultiplier="1.3" />

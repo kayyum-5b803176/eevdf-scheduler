@@ -10,7 +10,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "3.3.2"
+        versionName = "3.3.3"
     }
     buildTypes { getByName("release") {
         signingConfig = signingConfigs.getByName("debug")
