@@ -59,6 +59,15 @@ class AlarmForegroundService : Service() {
         const val EXTRA_TASK_TYPE      = "task_type"
         const val EXTRA_NOTIF_DELAY    = "notif_delay_secs"
 
+        // ── AOSP-Clock-style alarm lifecycle broadcasts ───────────────────────
+        // Sent when a timer expiry alarm starts ringing and when it stops, so any
+        // component (overlay activity, the service, external apps / Tasker) can
+        // stay in sync regardless of which one is foreground.  These are exported
+        // with no permission for maximum interop, mirroring AOSP DeskClock's
+        // ALARM_ALERT / ALARM_DONE broadcasts.
+        const val ACTION_ALARM_ALERT = "com.eevdf.scheduler.ALARM_ALERT"
+        const val ACTION_ALARM_DONE  = "com.eevdf.scheduler.ALARM_DONE"
+
         private const val CHANNEL_TIMER = "eevdf_timer_fg_channel"
         private const val CHANNEL_DELAY = "eevdf_delay_fg_channel"
         private const val CHANNEL_ALARM = "eevdf_alarm_fg_channel"
@@ -225,6 +234,30 @@ class AlarmForegroundService : Service() {
                     val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
                     SoundManager.startAlarmForType(this, prefs, taskType)
                     VibrationManager.startAlarmForType(this, prefs, taskType)
+
+                    // AOSP-parity: broadcast that the alarm started ringing so any
+                    // listener (overlay, external apps / Tasker) can react.  Sent
+                    // unrestricted (exported, no permission) for max interop.
+                    sendBroadcast(
+                        Intent(ACTION_ALARM_ALERT).apply {
+                            putExtra(EXTRA_TASK_NAME, taskName)
+                            putExtra(EXTRA_TASK_TYPE, taskType)
+                        }
+                    )
+
+                    // Force-launch the full-screen overlay so a focused window always
+                    // exists for hardware-key handling — not merely a full-screen
+                    // intent (which the system may downgrade to a heads-up while the
+                    // device is in use, leaving no window to receive key events).
+                    // The service was started from an alarm broadcast, so it holds a
+                    // short background-activity-launch grant here.  The notification's
+                    // setFullScreenIntent remains as the fallback path.
+                    try {
+                        startActivity(AlarmActivity.createIntent(this, taskName))
+                    } catch (_: Exception) {
+                        // BAL denied (rare): the full-screen intent on the notification
+                        // is the fallback and will still surface the overlay.
+                    }
                 }
             }
 
@@ -355,11 +388,18 @@ class AlarmForegroundService : Service() {
     // ── Cleanup ───────────────────────────────────────────────────────────────
 
     private fun stopEverything() {
+        val wasRinging = isAlarmRinging
         VibrationManager.stop(this)
         SoundManager.stop(this)
         isAlarmRinging = false
         releaseWakeLock()
         stopForegroundCompat()
+        // AOSP-parity: broadcast that the alarm finished (stopped/dismissed) so any
+        // listener stays in sync.  Only emit if it was actually ringing, to avoid
+        // spurious DONE events on pause/start teardown.
+        if (wasRinging) {
+            sendBroadcast(Intent(ACTION_ALARM_DONE))
+        }
         stopSelf()
     }
 

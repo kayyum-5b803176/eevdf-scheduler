@@ -100,11 +100,15 @@ class AlarmActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val filter = IntentFilter().apply {
+            addAction(AlarmStopReceiver.ACTION_STOP_ALARM)
+            addAction(AlarmForegroundService.ACTION_ALARM_DONE)
+        }
         ContextCompat.registerReceiver(
             this,
             stopReceiver,
-            IntentFilter(AlarmStopReceiver.ACTION_STOP_ALARM),
-            ContextCompat.RECEIVER_NOT_EXPORTED
+            filter,
+            ContextCompat.RECEIVER_EXPORTED
         )
     }
 
