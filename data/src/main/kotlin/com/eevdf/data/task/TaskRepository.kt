@@ -78,6 +78,9 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
 
     suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) { dao.getTaskById(id) }
 
+    suspend fun getActiveTaskByName(name: String): Task? =
+        withContext(Dispatchers.IO) { dao.getActiveTaskByName(name) }
+
     suspend fun getActiveTasksSync(): List<Task> = withContext(Dispatchers.IO) { dao.getActiveTasksSync() }
 
     /**

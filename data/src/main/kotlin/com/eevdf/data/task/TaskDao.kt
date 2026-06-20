@@ -18,6 +18,11 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE id = :id")
     suspend fun getTaskById(id: String): Task?
 
+    /** First non-completed task matching the given name — used as a restart
+     *  fallback when the in-memory expired task is gone (e.g. process death). */
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND name = :name LIMIT 1")
+    suspend fun getActiveTaskByName(name: String): Task?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(task: Task)
 

@@ -691,29 +691,40 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * "Stop and Start (Restart)" action for hardware keys.
      *
-     * Captures the expired task (held in [taskToRestoreAfterExpire]) BEFORE
-     * [stopAlarmSound] consumes and nulls it, dismisses the alarm, then
-     * re-selects that task and starts a fresh full-slice timer.  Falls back to
-     * a plain stop when there is no task to restart.
+     * Restarts the just-expired task on a fresh full slice.  Prefers the
+     * in-memory [taskToRestoreAfterExpire]; if that is gone (e.g. the stop
+     * broadcast already cleared it, or the process was killed and recreated),
+     * falls back to resolving the task by [fallbackName] from the DB.
      */
-    fun restartAfterExpire() {
-        val toRestart = taskToRestoreAfterExpire
-        // Null the restore-task BEFORE stopAlarmSound() so its restore branch is
-        // skipped — otherwise its queued postValue() would overwrite _currentTask /
-        // _timerSeconds with the idle reset task moments after we start the timer.
+    fun restartAfterExpire(fallbackName: String? = null) {
+        val inMemory = taskToRestoreAfterExpire
+        // Null BEFORE stopAlarmSound() so its restore branch is skipped — otherwise
+        // its queued postValue() would overwrite _currentTask / _timerSeconds with
+        // the idle reset task moments after we start the timer.
         taskToRestoreAfterExpire = null
         stopAlarmSound()
-        if (toRestart != null) {
-            // Force a full fresh slice: reset timer state AND the cached
-            // remainingSeconds field (which may be 0/stale on the just-expired task),
-            // so startTimer() counts down from timeSliceSeconds.
-            val fresh = toRestart
-                .withTimerState(TimerState.reset())
-                .copy(remainingSeconds = toRestart.timeSliceSeconds)
-            setCurrentTask(fresh)
-            _timerSeconds.value = fresh.timeSliceSeconds
-            startTimer()
+
+        if (inMemory != null) {
+            startFreshSlice(inMemory)
+            return
         }
+        // Fallback: resolve from DB by name (survives process death / broadcast race).
+        if (!fallbackName.isNullOrBlank()) {
+            viewModelScope.launch {
+                val task = repository.getActiveTaskByName(fallbackName) ?: return@launch
+                startFreshSlice(task)
+            }
+        }
+    }
+
+    /** Seats [task] on the timer card with a full reset slice and starts it. */
+    private fun startFreshSlice(task: Task) {
+        val fresh = task
+            .withTimerState(TimerState.reset())
+            .copy(remainingSeconds = task.timeSliceSeconds)
+        setCurrentTask(fresh)
+        _timerSeconds.value = fresh.timeSliceSeconds
+        startTimer()
     }
 
     // =========================================================================

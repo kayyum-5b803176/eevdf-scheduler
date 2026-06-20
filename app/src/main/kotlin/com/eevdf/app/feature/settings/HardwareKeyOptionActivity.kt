@@ -41,6 +41,11 @@ class HardwareKeyOptionActivity : AppCompatActivity() {
 
         radioGroup = findViewById(R.id.radioGroupHwKeyOption)
 
+        // Surface the honest limitation when configuring the Power key.
+        if (keyId == HardwareKeyPrefs.KEY_POWER) {
+            findViewById<TextView>(R.id.tvHwKeyPowerWarning).visibility = android.view.View.VISIBLE
+        }
+
         buildOptions()
     }
 

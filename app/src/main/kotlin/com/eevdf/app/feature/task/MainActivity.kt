@@ -195,13 +195,17 @@ class MainActivity : AppCompatActivity() {
                 com.eevdf.app.feature.alarm.AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE, false
             ) == true
         ) {
+            val taskName = intent.getStringExtra(
+                com.eevdf.app.feature.alarm.AlarmActivity.EXTRA_TASK_NAME
+            )
             // Clear the flag so a config change / re-create won't replay it.
             intent.removeExtra(
                 com.eevdf.app.feature.alarm.AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE
             )
             // Small delay lets the VM finish any startup alarm-state reconciliation
-            // before we ask it to restart; the VM no-ops if there is nothing to restart.
-            cardTimer.postDelayed({ viewModel.restartAfterExpire() }, 120L)
+            // before we ask it to restart; the VM falls back to a DB lookup by name
+            // if its in-memory restore-task is gone.
+            cardTimer.postDelayed({ viewModel.restartAfterExpire(taskName) }, 120L)
         }
     }
 
