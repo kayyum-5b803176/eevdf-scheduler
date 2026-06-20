@@ -16,6 +16,11 @@ object UiCustomizationPrefs {
     private const val KEY_SIMPLE_MODE_ENABLED  = "simple_mode_enabled"
     private const val KEY_UNIT_FORMAT_ENABLED  = "unit_format_enabled"
 
+    // ── Overlay Intent suppression ────────────────────────────────────────────
+    private const val KEY_OVERLAY_INTENT_ENABLED   = "overlay_intent_enabled"
+    private const val KEY_OVERLAY_INTENT_APP_LIST  = "overlay_intent_app_list" // Set<String> pkgs
+    private const val KEY_OVERLAY_INTENT_LOCK_ONLY = "overlay_intent_lock_only"
+
     // ── Window Calibrate profile keys ─────────────────────────────────────────
     private const val KEY_CAL_FLOAT_W  = "cal_float_w"
     private const val KEY_CAL_FLOAT_H  = "cal_float_h"
@@ -74,6 +79,62 @@ object UiCustomizationPrefs {
 
     fun setUnitFormatEnabled(ctx: Context, enabled: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_UNIT_FORMAT_ENABLED, enabled).apply()
+    }
+
+    // ── Overlay Intent (suppress full-screen expiry overlay on chosen apps) ───
+    //
+    // When enabled, the full-screen timer-expiry overlay (AlarmActivity) is NOT
+    // shown while one of the configured apps is in the foreground.  The alarm
+    // still rings and posts its notification; only the overlay is suppressed.
+    // Because the hardware-key Stop/Restart handlers live in the overlay, keys
+    // are inactive whenever the overlay is suppressed — by design.
+
+    fun isOverlayIntentEnabled(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_OVERLAY_INTENT_ENABLED, false)
+
+    fun setOverlayIntentEnabled(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_OVERLAY_INTENT_ENABLED, enabled).apply()
+    }
+
+    fun getOverlayIntentAppList(ctx: Context): Set<String> =
+        prefs(ctx).getStringSet(KEY_OVERLAY_INTENT_APP_LIST, emptySet()) ?: emptySet()
+
+    fun setOverlayIntentAppList(ctx: Context, packages: Set<String>) {
+        prefs(ctx).edit().putStringSet(KEY_OVERLAY_INTENT_APP_LIST, packages).apply()
+    }
+
+    /** When true, the overlay is shown ONLY while the device is locked (AOSP-style). */
+    fun isOverlayIntentLockOnly(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_OVERLAY_INTENT_LOCK_ONLY, false)
+
+    fun setOverlayIntentLockOnly(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_OVERLAY_INTENT_LOCK_ONLY, enabled).apply()
+    }
+
+    /**
+     * True when the overlay should be SUPPRESSED.  The feature must be enabled.
+     *
+     * Decision:
+     *   • If "show only on lock screen" is ON:
+     *       – device LOCKED   → never suppress (always show on the lock screen,
+     *         even for a listed app — the lock screen is the priority context).
+     *       – device UNLOCKED → suppress (this is the whole point of the option).
+     *   • Otherwise (lock-only OFF):
+     *       – suppress only when the foreground app is in the configured list.
+     */
+    fun shouldSuppressOverlay(
+        ctx: Context,
+        foregroundPkg: String?,
+        deviceLocked: Boolean
+    ): Boolean {
+        if (!isOverlayIntentEnabled(ctx)) return false
+
+        if (isOverlayIntentLockOnly(ctx)) {
+            return !deviceLocked
+        }
+
+        return !foregroundPkg.isNullOrBlank() &&
+            foregroundPkg in getOverlayIntentAppList(ctx)
     }
 
     // ── Window Calibrate profile storage ─────────────────────────────────────

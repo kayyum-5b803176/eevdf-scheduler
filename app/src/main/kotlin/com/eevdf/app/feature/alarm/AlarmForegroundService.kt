@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.eevdf.app.feature.settings.SoundManager
+import com.eevdf.app.feature.settings.UiCustomizationPrefs
 import com.eevdf.app.feature.settings.VibrationManager
 import com.eevdf.app.feature.task.MainActivity
 
@@ -230,7 +231,18 @@ class AlarmForegroundService : Service() {
                 if (!isAlarmRinging) {
                     isAlarmRinging = true
                     acquireWakeLock()
-                    showExpiredNotification(taskName)
+
+                    // Overlay Intent suppression (UI Customization): when the user
+                    // has enabled it and the foreground app is in the configured
+                    // list, suppress the full-screen overlay.  The alarm still
+                    // rings and shows its notification; only the overlay is hidden.
+                    // Because the hardware-key handlers live in the overlay, keys
+                    // are inactive while it is suppressed — by design.
+                    val suppressOverlay = UiCustomizationPrefs.shouldSuppressOverlay(
+                        this, getForegroundPackage(), isDeviceLocked()
+                    )
+
+                    showExpiredNotification(taskName, suppressOverlay)
                     val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
                     SoundManager.startAlarmForType(this, prefs, taskType)
                     VibrationManager.startAlarmForType(this, prefs, taskType)
@@ -245,18 +257,21 @@ class AlarmForegroundService : Service() {
                         }
                     )
 
-                    // Force-launch the full-screen overlay so a focused window always
-                    // exists for hardware-key handling — not merely a full-screen
-                    // intent (which the system may downgrade to a heads-up while the
-                    // device is in use, leaving no window to receive key events).
-                    // The service was started from an alarm broadcast, so it holds a
-                    // short background-activity-launch grant here.  The notification's
-                    // setFullScreenIntent remains as the fallback path.
-                    try {
-                        startActivity(AlarmActivity.createIntent(this, taskName))
-                    } catch (_: Exception) {
-                        // BAL denied (rare): the full-screen intent on the notification
-                        // is the fallback and will still surface the overlay.
+                    if (!suppressOverlay) {
+                        // Force-launch the full-screen overlay so a focused window
+                        // always exists for hardware-key handling — not merely a
+                        // full-screen intent (which the system may downgrade to a
+                        // heads-up while the device is in use, leaving no window to
+                        // receive key events).  The service was started from an
+                        // alarm broadcast, so it holds a short background-activity-
+                        // launch grant here.  The notification's setFullScreenIntent
+                        // remains as the fallback path.
+                        try {
+                            startActivity(AlarmActivity.createIntent(this, taskName))
+                        } catch (_: Exception) {
+                            // BAL denied (rare): the full-screen intent on the
+                            // notification is the fallback and surfaces the overlay.
+                        }
                     }
                 }
             }
@@ -340,7 +355,7 @@ class AlarmForegroundService : Service() {
         return builder.build()
     }
 
-    private fun showExpiredNotification(taskName: String) {
+    private fun showExpiredNotification(taskName: String, suppressOverlay: Boolean = false) {
         val stopPi = PendingIntent.getBroadcast(
             this, 20,
             Intent(this, AlarmStopReceiver::class.java).apply {
@@ -353,7 +368,7 @@ class AlarmForegroundService : Service() {
             AlarmActivity.createIntent(this, taskName),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(this, CHANNEL_ALARM)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ALARM)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("Timer expired")
             .setContentText(taskName)
@@ -367,9 +382,82 @@ class AlarmForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setFullScreenIntent(fullScreenPi, true)
-            .build()
-        updateNotification(notification)
+        // When suppressed, omit the full-screen intent so the overlay does NOT pop
+        // over the configured app.  The high-priority alarm notification still
+        // appears (with its Stop action) so the user isn't silently missing it.
+        if (!suppressOverlay) {
+            builder.setFullScreenIntent(fullScreenPi, true)
+        }
+        updateNotification(builder.build())
+    }
+
+    /**
+     * Best-effort current foreground package via UsageStatsManager (same approach
+     * as the hover-bubble service).  Returns null when PACKAGE_USAGE_STATS is not
+     * granted or no recent usage is available — in which case overlay suppression
+     * is skipped (fail-open: the overlay shows).
+     */
+    /**
+     * Current foreground package, resolved precisely via UsageStatsManager
+     * EVENTS (not aggregated stats).
+     *
+     * The previous implementation used queryUsageStats(INTERVAL_DAILY) and picked
+     * the entry with the largest lastTimeUsed.  Those are coarse daily buckets
+     * whose lastTimeUsed lags by seconds-to-minutes and frequently resolve to the
+     * wrong app (or to our own app, which just ran the alarm) — which is why the
+     * overlay showed even when a configured app was in the foreground.
+     *
+     * queryEvents() returns the actual ordered stream of foreground/background
+     * transitions.  We scan a short recent window and take the package of the
+     * most recent MOVE_TO_FOREGROUND (a.k.a. ACTIVITY_RESUMED) event — the real
+     * current foreground app.  We widen the window if nothing is found.
+     *
+     * Returns null when PACKAGE_USAGE_STATS is not granted or no event is found
+     * (fail-open: suppression is skipped and the overlay shows).
+     */
+    private fun getForegroundPackage(): String? {
+        val usm = getSystemService(USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
+            ?: return null
+        val now = System.currentTimeMillis()
+        // Try a tight window first, then progressively widen if the device has
+        // been idle (no recent transition events).
+        for (windowMs in longArrayOf(10_000L, 60_000L, 300_000L, 3_600_000L)) {
+            val pkg = lastForegroundFromEvents(usm, now - windowMs, now)
+            if (pkg != null) return pkg
+        }
+        return null
+    }
+
+    private fun lastForegroundFromEvents(
+        usm: android.app.usage.UsageStatsManager,
+        begin: Long,
+        end: Long
+    ): String? {
+        val events = usm.queryEvents(begin, end)
+        val e = android.app.usage.UsageEvents.Event()
+        var lastPkg: String? = null
+        while (events.hasNextEvent()) {
+            events.getNextEvent(e)
+            if (e.eventType == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                // Events arrive in time order, so the last match is the most recent.
+                lastPkg = e.packageName
+            }
+        }
+        return lastPkg
+    }
+
+    /**
+     * True when the device is locked OR the screen is off — i.e. the AOSP "alarm
+     * fires on the lock screen" situation.  Uses KeyguardManager.isKeyguardLocked
+     * and falls back to PowerManager interactivity so a powered-off screen counts
+     * as locked even on no-secure-lock setups.
+     */
+    private fun isDeviceLocked(): Boolean {
+        val km = getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        val keyguardLocked = km?.isKeyguardLocked == true
+        val pm = getSystemService(POWER_SERVICE) as? PowerManager
+        val screenOff = pm?.isInteractive == false
+        return keyguardLocked || screenOff
     }
 
     private fun updateNotification(notification: Notification) {

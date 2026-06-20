@@ -20,6 +20,12 @@ class UiCustomizationActivity : AppCompatActivity() {
     private lateinit var switchSimpleMode:   SwitchMaterial
     private lateinit var switchUnitFormat:   SwitchMaterial
 
+    // ── Overlay Intent ────────────────────────────────────────────────────────
+    private lateinit var switchOverlayIntent: SwitchMaterial
+    private lateinit var switchOverlayIntentLockOnly: SwitchMaterial
+    private lateinit var rowOverlayIntentApps: android.widget.LinearLayout
+    private lateinit var tvOverlayIntentApps:  TextView
+
     // ── Window Calibrate: live stats + profile cards ──────────────────────────
     private lateinit var tvWindowLiveStats:  TextView
     private lateinit var cardCalFloat:       CardView
@@ -44,6 +50,11 @@ class UiCustomizationActivity : AppCompatActivity() {
         switchSimpleMode  = findViewById(R.id.switchSimpleMode)
         switchUnitFormat  = findViewById(R.id.switchUnitFormat)
 
+        switchOverlayIntent  = findViewById(R.id.switchOverlayIntent)
+        switchOverlayIntentLockOnly = findViewById(R.id.switchOverlayIntentLockOnly)
+        rowOverlayIntentApps = findViewById(R.id.rowOverlayIntentApps)
+        tvOverlayIntentApps  = findViewById(R.id.tvOverlayIntentApps)
+
         tvWindowLiveStats = findViewById(R.id.tvWindowLiveStats)
         cardCalFloat      = findViewById(R.id.cardCalFloat)
         cardCalNormal     = findViewById(R.id.cardCalNormal)
@@ -59,6 +70,11 @@ class UiCustomizationActivity : AppCompatActivity() {
         switchAutoAdjust.isChecked = UiCustomizationPrefs.isAutoAdjustEnabled(this)
         switchSimpleMode.isChecked = UiCustomizationPrefs.isSimpleModeEnabled(this)
         switchUnitFormat.isChecked = UiCustomizationPrefs.isUnitFormatEnabled(this)
+
+        switchOverlayIntent.isChecked = UiCustomizationPrefs.isOverlayIntentEnabled(this)
+        switchOverlayIntentLockOnly.isChecked = UiCustomizationPrefs.isOverlayIntentLockOnly(this)
+        refreshOverlayIntentAppsSummary()
+        updateOverlayIntentRowState(switchOverlayIntent.isChecked)
 
         // ── Card height slider ────────────────────────────────────────────────
         sliderCardHeight.addOnChangeListener { _, value, _ ->
@@ -76,6 +92,24 @@ class UiCustomizationActivity : AppCompatActivity() {
         }
         switchUnitFormat.setOnCheckedChangeListener { _, isChecked ->
             UiCustomizationPrefs.setUnitFormatEnabled(this, isChecked)
+        }
+
+        switchOverlayIntent.setOnCheckedChangeListener { _, isChecked ->
+            UiCustomizationPrefs.setOverlayIntentEnabled(this, isChecked)
+            updateOverlayIntentRowState(isChecked)
+            // App-list mode needs Usage Access to read the foreground app.
+            // Lock-only mode does not (it uses the keyguard state), so don't
+            // prompt when lock-only is the active mode.
+            val needsUsage = isChecked &&
+                !switchOverlayIntentLockOnly.isChecked &&
+                !hasUsageStatsPermission()
+            if (needsUsage) showUsageAccessDialog()
+        }
+        rowOverlayIntentApps.setOnClickListener { showOverlayIntentAppPicker() }
+
+        switchOverlayIntentLockOnly.setOnCheckedChangeListener { _, isChecked ->
+            UiCustomizationPrefs.setOverlayIntentLockOnly(this, isChecked)
+            updateOverlayIntentRowState(switchOverlayIntent.isChecked)
         }
 
         // ── Calibrate profile cards ───────────────────────────────────────────
@@ -182,5 +216,107 @@ class UiCustomizationActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) { finish(); return true }
         return super.onOptionsItemSelected(item)
+    }
+
+    // ── Overlay Intent: app picker (same picker UI as Auto Switch / bubble) ────
+
+    private data class AppInfo(val packageName: String, val label: String)
+
+    private fun getInstalledUserApps(): List<AppInfo> =
+        packageManager
+            .getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            .filter { ai ->
+                ai.packageName != packageName &&
+                packageManager.getLaunchIntentForPackage(ai.packageName) != null
+            }
+            .map { ai -> AppInfo(ai.packageName, ai.loadLabel(packageManager).toString()) }
+            .distinctBy { it.packageName }
+            .sortedBy { it.label.lowercase() }
+
+    private fun showOverlayIntentAppPicker() {
+        val apps         = getInstalledUserApps()
+        val currentSet   = UiCustomizationPrefs.getOverlayIntentAppList(this)
+        val mutableCheck = apps.map { it.packageName in currentSet }.toBooleanArray()
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Hide overlay on these apps")
+            .setMultiChoiceItems(
+                apps.map { it.label }.toTypedArray(), mutableCheck
+            ) { _, which, isChecked -> mutableCheck[which] = isChecked }
+            .setPositiveButton("Save") { _, _ ->
+                val selected = apps.filterIndexed { i, _ -> mutableCheck[i] }
+                    .map { it.packageName }.toSet()
+                UiCustomizationPrefs.setOverlayIntentAppList(this, selected)
+                refreshOverlayIntentAppsSummary()
+            }
+            .setNeutralButton("Clear all") { _, _ ->
+                UiCustomizationPrefs.setOverlayIntentAppList(this, emptySet())
+                refreshOverlayIntentAppsSummary()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun refreshOverlayIntentAppsSummary() {
+        val list = UiCustomizationPrefs.getOverlayIntentAppList(this)
+        tvOverlayIntentApps.text = if (list.isEmpty()) "No apps selected"
+        else list.joinToString(", ") { pkg ->
+            try {
+                packageManager.getApplicationLabel(
+                    packageManager.getApplicationInfo(pkg, 0)
+                ).toString()
+            } catch (_: android.content.pm.PackageManager.NameNotFoundException) { pkg }
+        }
+    }
+
+    /**
+     * Reflects sub-control availability:
+     *   • Lock-only switch is usable only when the feature is enabled.
+     *   • The app list is irrelevant when lock-only is on (it overrides the list)
+     *     or when the feature is off, so dim it in those cases.
+     */
+    private fun updateOverlayIntentRowState(enabled: Boolean) {
+        val lockOnly = switchOverlayIntentLockOnly.isChecked
+        switchOverlayIntentLockOnly.isEnabled = enabled
+        switchOverlayIntentLockOnly.alpha = if (enabled) 1.0f else 0.5f
+
+        val appsUsable = enabled && !lockOnly
+        rowOverlayIntentApps.alpha = if (appsUsable) 1.0f else 0.5f
+        rowOverlayIntentApps.isEnabled = appsUsable
+    }
+
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(APP_OPS_SERVICE) as android.app.AppOpsManager
+        val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q)
+            appOps.unsafeCheckOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName)
+        else
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName)
+        return mode == android.app.AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun showUsageAccessDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Usage access needed")
+            .setMessage(
+                "Overlay Intent needs Usage Access to detect which app is in the " +
+                "foreground when a timer expires. Without it, the overlay will " +
+                "always show."
+            )
+            .setPositiveButton("Open settings") { _, _ ->
+                try {
+                    startActivity(android.content.Intent(
+                        android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Couldn't open Usage Access settings",
+                        Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Later", null)
+            .show()
     }
 }

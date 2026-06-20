@@ -116,6 +116,112 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- ══ OVERLAY INTENT ═══════════════════════════════════════════ -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchOverlayIntent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Overlay Intent"
+                        android:textSize="16sp"
+                        android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Don't show the full-screen timer-expiry overlay while one of the selected apps is open. The alarm still rings and shows a notification. Hardware keys (Stop / Restart) work only while the overlay is shown, so they are inactive on these apps."
+                        android:textSize="12sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginTop="4dp"
+                        android:lineSpacingMultiplier="1.3" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#EEEEEE"
+                        android:layout_marginTop="16dp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchOverlayIntentLockOnly"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Show intent only on lock screen"
+                        android:textSize="15sp"
+                        android:textColor="@color/textPrimary"
+                        android:layout_marginTop="12dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="When on, the overlay appears only while the device is locked (like the Clock app). On an unlocked device the alarm just rings with a notification. This overrides the app list below."
+                        android:textSize="12sp"
+                        android:textColor="@color/textSecondary"
+                        android:layout_marginTop="4dp"
+                        android:lineSpacingMultiplier="1.3" />
+
+                    <LinearLayout
+                        android:id="@+id/rowOverlayIntentApps"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingTop="16dp"
+                        android:paddingBottom="4dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Configure apps"
+                                android:textSize="15sp"
+                                android:textColor="@color/textPrimary" />
+
+                            <TextView
+                                android:id="@+id/tvOverlayIntentApps"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="No apps selected"
+                                android:textSize="12sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:text="\u203A"
+                            android:textSize="24sp"
+                            android:textColor="#BDBDBD" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- ══ CARD HEIGHT ══════════════════════════════════════════════ -->
             <TextView
                 android:layout_width="match_parent"
