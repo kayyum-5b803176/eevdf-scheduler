@@ -25,18 +25,19 @@ import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.eevdf.app.R
-import com.eevdf.data.task.TaskDatabase
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.app.feature.task.timer.TimerState
 import com.eevdf.app.feature.task.timer.timerState
 import com.eevdf.app.feature.task.timer.withTimerState
 import com.eevdf.app.feature.alarm.AlarmForegroundService
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Foreground service that owns the floating call-state bubble overlay.
@@ -74,7 +75,11 @@ import kotlinx.coroutines.launch
  * Timer state / tap are communicated through [BubbleEventBus] — a volatile
  * in-process singleton — so no IPC or broadcast overhead is needed.
  */
+@AndroidEntryPoint
 class BubbleOverlayService : Service() {
+
+    /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
+    @Inject lateinit var repository: TaskRepository
 
     // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -297,8 +302,7 @@ class BubbleOverlayService : Service() {
     private fun handleTapInBackground() {
         val callTaskId = AutoSwitchPrefs.getCallTaskId(this) ?: return
         scope.launch {
-            val db   = TaskDatabase.getDatabase(this@BubbleOverlayService)
-            val repo = TaskRepository(db.taskDao(), this@BubbleOverlayService)
+            val repo = repository   // Hilt-injected singleton
             val nowMs = System.currentTimeMillis()
 
             val runningTask = repo.getRunningTask()

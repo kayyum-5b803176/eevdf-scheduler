@@ -1,14 +1,16 @@
 package com.eevdf.data.runlog
-import com.eevdf.data.task.TaskDatabase
 
 import android.content.Context
 import com.eevdf.data.runlog.RunDailySummary
 import com.eevdf.data.runlog.RunLogEntry
 import com.eevdf.data.runlog.RunMonthlySummary
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.TimeZone
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Manages the three-tier RunLog storage system:
@@ -27,9 +29,12 @@ import java.util.TimeZone
  *   run_monthly ~240K × 77 bytes ≈  18 MB   (200 active tasks/month avg)
  *   Total                         ≈  70 MB  (well under 256 MB)
  */
-class RunLogRepository(context: Context) {
+@Singleton
+class RunLogRepository @Inject constructor(
+    private val dao: RunLogDao,
+    @ApplicationContext context: Context,
+) {
 
-    private val dao    = TaskDatabase.getDatabase(context).runLogDao()
     private val prefs  = context.getSharedPreferences("run_log_prefs", Context.MODE_PRIVATE)
     private val utc    = TimeZone.getTimeZone("UTC")
 

@@ -16,11 +16,13 @@ import androidx.lifecycle.lifecycleScope
 import com.eevdf.app.R
 import com.eevdf.data.backup.BackupManager
 import com.eevdf.data.task.TaskDatabase
+import com.eevdf.data.task.TaskDao
 import com.eevdf.app.feature.task.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -28,10 +30,14 @@ import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class DataBackupActivity : AppCompatActivity() {
 
     private val viewModel: TaskViewModel by viewModels()
+
+    @Inject lateinit var taskDao: TaskDao
 
     private lateinit var btnExport:   MaterialButton
     private lateinit var btnImport:   MaterialButton
@@ -81,7 +87,7 @@ class DataBackupActivity : AppCompatActivity() {
             try {
                 // 1. Read all tasks for tasks.json BEFORE the DB is checkpoint-closed.
                 val tasks = withContext(Dispatchers.IO) {
-                    TaskDatabase.getDatabase(applicationContext).taskDao().getAllTasksForBackup()
+                    taskDao.getAllTasksForBackup()
                 }
                 val tasksJson = BackupManager.exportTasksJson(tasks)
                 val settingsJson = SettingsBackup.exportJson(applicationContext)
@@ -146,7 +152,7 @@ class DataBackupActivity : AppCompatActivity() {
         setBusy(true, "Importing…")
         lifecycleScope.launch {
             try {
-                viewModel.prepareForDbExport()
+                viewModel.prepareForDbImport()
                 val dbFile: File = withContext(Dispatchers.IO) {
                     TaskDatabase.getDatabaseFile(applicationContext)
                 }
@@ -181,6 +187,12 @@ class DataBackupActivity : AppCompatActivity() {
                 startActivity(restart)
                 kotlinx.coroutines.delay(300)
                 finish()
+                // Fully restart the process so the Hilt @Singleton graph (which
+                // cached the now-closed Room instance from prepareForDbImport())
+                // is rebuilt against the freshly-replaced .db file. Relaunching
+                // the activity alone is not enough — the closed DB handle would
+                // survive in the Hilt container and every DAO call would fail.
+                android.os.Process.killProcess(android.os.Process.myPid())
             } catch (e: Exception) {
                 setStatus("Import failed: ${e.message}")
                 setBusy(false)

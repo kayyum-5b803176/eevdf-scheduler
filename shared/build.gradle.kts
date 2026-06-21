@@ -1,1 +1,1 @@
-plugins { id("org.jetbrains.kotlin.jvm") }
+plugins { alias(libs.plugins.kotlin.jvm) }

@@ -10,7 +10,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.app.R
 import com.eevdf.data.runlog.RunLogDao
-import com.eevdf.data.task.TaskDatabase
+import com.eevdf.data.task.TaskDao
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import com.eevdf.data.runlog.RunDailySummary
 import com.eevdf.data.runlog.RunLogEntry
 import com.eevdf.data.task.Task
@@ -29,7 +31,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.eevdf.app.feature.autoswitch.AutoSwitchPrefs
 
+@AndroidEntryPoint
 class StatsChartsFragment : Fragment() {
+
+    @Inject lateinit var taskDao: TaskDao
+    @Inject lateinit var runLogDao: RunLogDao
 
     // ── Views ─────────────────────────────────────────────────────────────────
     private lateinit var etWindowRange:      TextInputEditText
@@ -110,7 +116,6 @@ class StatsChartsFragment : Fragment() {
 
     private fun loadAndRender() {
         val ctx = requireContext()
-        val db  = TaskDatabase.getDatabase(ctx)
 
         // Call-assign task ID from SharedPrefs — on main thread is fine (cached)
         val callTaskId = AutoSwitchPrefs.getCallTaskId(ctx)
@@ -119,10 +124,10 @@ class StatsChartsFragment : Fragment() {
             val nowMs  = System.currentTimeMillis()
             val fromMs = nowMs - windowSeconds * 1_000L
 
-            val allTasks   = withContext(Dispatchers.IO) { db.taskDao().getAllTasksForStats() }
-            val logEntries = withContext(Dispatchers.IO) { db.runLogDao().getEntriesInRange(fromMs, nowMs) }
-            val dailyRows  = withContext(Dispatchers.IO) { db.runLogDao().getDailyInRange(fromMs) }
-            val weekdayTot = withContext(Dispatchers.IO) { db.runLogDao().getGlobalWeekdayTotals() }
+            val allTasks   = withContext(Dispatchers.IO) { taskDao.getAllTasksForStats() }
+            val logEntries = withContext(Dispatchers.IO) { runLogDao.getEntriesInRange(fromMs, nowMs) }
+            val dailyRows  = withContext(Dispatchers.IO) { runLogDao.getDailyInRange(fromMs) }
+            val weekdayTot = withContext(Dispatchers.IO) { runLogDao.getGlobalWeekdayTotals() }
 
             // ── Build category map: taskId → CAT_INT_A / CAT_INT_B / CAT_CALL ──
             // Only leaf tasks that are interrupt or the designated call task

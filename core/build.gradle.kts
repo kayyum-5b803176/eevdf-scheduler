@@ -1,6 +1,8 @@
-plugins { id("org.jetbrains.kotlin.jvm") }
+plugins { alias(libs.plugins.kotlin.jvm) }
 dependencies {
-    // INTENTIONALLY EMPTY of Android/Room. If a core file ever needs them,
-    // the build fails here — that is the architectural guard rail.
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    // INTENTIONALLY EMPTY of Android/Room/Hilt. If a core file ever needs them,
+    // the build fails here — that is the architectural guard rail. Core stays a
+    // pure, deterministic JVM module; its services are wired into Hilt graphs
+    // from :app via @Provides bindings, never by annotating core classes.
+    implementation(libs.kotlinx.coroutines.core)
 }

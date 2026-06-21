@@ -27,7 +27,9 @@ import com.eevdf.data.task.Task
 import com.eevdf.app.feature.task.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class AutoSwitchActivity : AppCompatActivity() {
 
     private val viewModel: TaskViewModel by viewModels()

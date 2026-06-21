@@ -12,7 +12,10 @@ import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.app.R
-import com.eevdf.data.task.TaskDatabase
+import com.eevdf.data.task.TaskDao
+import com.eevdf.data.runlog.RunLogDao
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import com.eevdf.data.runlog.RunDailySummary
 import com.eevdf.data.runlog.RunLogEntry
 import com.eevdf.data.task.Task
@@ -23,7 +26,11 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
+@AndroidEntryPoint
 class StatsCalendarFragment : Fragment() {
+
+    @Inject lateinit var taskDao: TaskDao
+    @Inject lateinit var runLogDao: RunLogDao
 
     // ── Views ─────────────────────────────────────────────────────────────────
     private lateinit var btnPrevMonth:     MaterialButton
@@ -118,12 +125,11 @@ class StatsCalendarFragment : Fragment() {
     // ── Data Loading ──────────────────────────────────────────────────────────
 
     private fun loadData() {
-        val db  = TaskDatabase.getDatabase(requireContext())
         viewLifecycleOwner.lifecycleScope.launch {
             val nowMs      = System.currentTimeMillis()
-            val tasks      = withContext(Dispatchers.IO) { db.taskDao().getAllTasksForStats() }
-            val logEntries = withContext(Dispatchers.IO) { db.runLogDao().getEntriesInRange(0L, nowMs) }
-            val dailyRows  = withContext(Dispatchers.IO) { db.runLogDao().getDailyInRange(0L) }
+            val tasks      = withContext(Dispatchers.IO) { taskDao.getAllTasksForStats() }
+            val logEntries = withContext(Dispatchers.IO) { runLogDao.getEntriesInRange(0L, nowMs) }
+            val dailyRows  = withContext(Dispatchers.IO) { runLogDao.getDailyInRange(0L) }
 
             taskById = tasks.associateBy { it.id }
 

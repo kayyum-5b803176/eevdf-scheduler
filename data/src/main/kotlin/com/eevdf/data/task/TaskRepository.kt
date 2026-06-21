@@ -1,7 +1,6 @@
 package com.eevdf.data.task
 import com.eevdf.data.runlog.RunLogRepository
 
-import android.content.Context
 import androidx.lifecycle.LiveData
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.Task
@@ -9,8 +8,14 @@ import com.eevdf.data.scheduler.EEVDFScheduler
 import com.eevdf.data.scheduler.RtScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class TaskRepository(private val dao: TaskDao, context: Context) {
+@Singleton
+class TaskRepository @Inject constructor(
+    private val dao: TaskDao,
+    private val runLog: RunLogRepository,
+) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
     val activeTasks: LiveData<List<Task>> = dao.getActiveTasks()
@@ -24,8 +29,6 @@ class TaskRepository(private val dao: TaskDao, context: Context) {
      * Add / Edit screen always reflect the full set the user has ever typed.
      */
     val distinctCategories: LiveData<List<String>> = dao.getDistinctCategories()
-
-    private val runLog = RunLogRepository(context)
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
         val existing = dao.getActiveTasksSync().toMutableList()

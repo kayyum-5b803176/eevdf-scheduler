@@ -15,6 +15,7 @@ import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
+import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * Add / Edit task form activity.
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
  *   • AddTaskSchedulerSection.kt         — scheduler class, DL, and RT sub-sections
  *   • AddTaskSaveHandler.kt              — full saveTask() validation + persistence
  */
+@AndroidEntryPoint
 class AddTaskActivity : AppCompatActivity() {
 
     internal val viewModel: TaskViewModel by viewModels()

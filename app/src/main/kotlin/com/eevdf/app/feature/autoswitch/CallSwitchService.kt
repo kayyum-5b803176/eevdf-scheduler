@@ -10,7 +10,6 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.eevdf.app.R
-import com.eevdf.data.task.TaskDatabase
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.app.feature.task.timer.TimerState
 import com.eevdf.app.feature.task.timer.timerState
@@ -18,11 +17,13 @@ import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.Task
 import com.eevdf.app.feature.task.timer.withTimerState
 import com.eevdf.app.feature.alarm.AlarmForegroundService
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Background foreground-service that performs call-task switching without
@@ -82,7 +83,11 @@ import kotlinx.coroutines.launch
  *     6. Post CallEvents.CALL_ENDED.
  *     7. stopSelf().
  */
+@AndroidEntryPoint
 class CallSwitchService : Service() {
+
+    /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
+    @Inject lateinit var repository: TaskRepository
 
     companion object {
         const val ACTION_CALL_STARTED = "com.eevdf.callswitch.CALL_STARTED"
@@ -134,8 +139,7 @@ class CallSwitchService : Service() {
         if (callTaskId == null) { stopSelf(startId); return }
 
         scope.launch {
-            val db   = TaskDatabase.getDatabase(this@CallSwitchService)
-            val repo = TaskRepository(db.taskDao(), this@CallSwitchService)
+            val repo = repository   // Hilt-injected singleton
 
             val nowMs    = System.currentTimeMillis()
 
@@ -233,8 +237,7 @@ class CallSwitchService : Service() {
         val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
 
         scope.launch {
-            val db   = TaskDatabase.getDatabase(this@CallSwitchService)
-            val repo = TaskRepository(db.taskDao(), this@CallSwitchService)
+            val repo = repository   // Hilt-injected singleton
 
             val nowMs = System.currentTimeMillis()
 

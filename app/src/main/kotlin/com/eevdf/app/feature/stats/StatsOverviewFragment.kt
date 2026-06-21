@@ -12,7 +12,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.app.R
 import com.eevdf.data.runlog.RunLogDao
-import com.eevdf.data.task.TaskDatabase
+import com.eevdf.data.task.TaskDao
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import com.eevdf.data.runlog.RunDailySummary
 import com.eevdf.data.runlog.RunLogEntry
 import com.eevdf.data.task.Task
@@ -24,7 +26,11 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
+@AndroidEntryPoint
 class StatsOverviewFragment : Fragment() {
+
+    @Inject lateinit var taskDao: TaskDao
+    @Inject lateinit var runLogDao: RunLogDao
 
     private lateinit var etWindowRange:   TextInputEditText
     private lateinit var btnApplyWindow:  MaterialButton
@@ -84,9 +90,8 @@ class StatsOverviewFragment : Fragment() {
     // ── Data loading ──────────────────────────────────────────────────────────
 
     private fun loadStats() {
-        val db  = TaskDatabase.getDatabase(requireContext())
-        val dao = db.taskDao()
-        val rld = db.runLogDao()
+        val dao = taskDao
+        val rld = runLogDao
         viewLifecycleOwner.lifecycleScope.launch {
             val nowMs  = System.currentTimeMillis()
             val fromMs = nowMs - windowSeconds * 1_000L

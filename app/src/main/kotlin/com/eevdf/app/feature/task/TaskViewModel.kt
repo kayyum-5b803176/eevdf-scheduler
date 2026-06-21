@@ -1,12 +1,12 @@
 package com.eevdf.app.feature.task
 
 import android.app.Application
-import android.content.Context
+import android.content.SharedPreferences
 import android.os.CountDownTimer
 import androidx.lifecycle.*
-import com.eevdf.data.task.TaskDatabase
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.data.task.Task
+import com.eevdf.app.di.AppPreferences
 import com.eevdf.app.feature.task.notice.NoticePhase
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.app.feature.task.timer.TimerStartEvent
@@ -31,6 +31,8 @@ import com.eevdf.app.feature.task.timer.TaskInterruptDelegate
 import com.eevdf.app.feature.autoswitch.TaskCallSwitchDelegate
 import com.eevdf.app.feature.task.notice.TaskNoticeStateMachine
 import com.eevdf.app.feature.task.TaskSchedulerDelegate
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
 /**
  * Root coordinator ViewModel.
@@ -61,18 +63,24 @@ import com.eevdf.app.feature.task.TaskSchedulerDelegate
  *  Edit only the relevant delegate file.  Expose the new public method here
  *  as a one-liner facade if the UI needs to call it.
  */
-class TaskViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class TaskViewModel @Inject constructor(
+    application: Application,
+    @AppPreferences internal val prefs: SharedPreferences,
+    internal val repository: TaskRepository,
+) : AndroidViewModel(application) {
 
     // ── Shared preferences (internal so delegates can access prefs directly) ──
-
-    internal val prefs = application.getSharedPreferences("eevdf_prefs", Context.MODE_PRIVATE)
+    //
+    // Injected from PlatformModule (@AppPreferences → "eevdf_prefs"); previously
+    // built inline via application.getSharedPreferences(...).
 
     /** Convenience accessor for delegates that need an Application context. */
     internal val app: Application = application
 
     // ── Repository + DB-backed LiveData ───────────────────────────────────────
-
-    internal val repository: TaskRepository
+    // [repository] is constructor-injected above; the DB-backed LiveData streams
+    // are bound in init{} once the superclass + injected fields are ready.
     val allTasks:       LiveData<List<Task>>
     val activeTasks:    LiveData<List<Task>>
     val completedTasks: LiveData<List<Task>>
@@ -196,8 +204,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // ── init ──────────────────────────────────────────────────────────────────
 
     init {
-        val db = TaskDatabase.getDatabase(application)
-        repository     = TaskRepository(db.taskDao(), application)
         allTasks       = repository.allTasks
         activeTasks    = repository.activeTasks
         completedTasks = repository.completedTasks
@@ -978,11 +984,29 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // =========================================================================
 
     /**
-     * Stops the timer, clears the current task, then flushes and closes the
-     * Room connection so SettingsActivity can safely copy / replace the .db file.
-     * Room re-initialises automatically the next time any DAO is accessed.
+     * Prepares the database for a **non-destructive export copy**.
+     *
+     * Flushes the WAL into the main `.db` file (TRUNCATE checkpoint) so the file
+     * copied by the export path is self-contained, but keeps Room OPEN. This is
+     * deliberate under Hilt: the Room instance is `@Singleton` and cached inside
+     * the Hilt graph, so closing it here would leave Hilt handing out a closed
+     * handle (the old `getDatabase()` auto-reinit no longer covers the cached
+     * reference). Export never replaces the file, so there is no need to close.
      */
     fun prepareForDbExport() {
+        pauseTimer()
+        _currentTask.postValue(null)
+        TaskDatabase.checkpointWal(app)
+    }
+
+    /**
+     * Prepares the database for a **destructive import** that overwrites the
+     * `.db` file on disk. Checkpoints and CLOSES Room so no file locks are held
+     * during the swap. Safe to close the cached Hilt handle here only because
+     * every import path restarts the process (`killProcess`) immediately after,
+     * rebuilding the Hilt graph — the closed instance is never reused.
+     */
+    fun prepareForDbImport() {
         pauseTimer()
         _currentTask.postValue(null)
         TaskDatabase.checkpointAndClose(app)

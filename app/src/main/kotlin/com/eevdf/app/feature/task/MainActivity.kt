@@ -47,7 +47,9 @@ import com.eevdf.app.feature.alarm.AlarmStopReceiver
 import com.eevdf.app.feature.notification.NotificationHelper
 import com.eevdf.app.feature.stats.StatsActivity
 import com.eevdf.app.feature.settings.SettingsActivity
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private val viewModel: TaskViewModel by viewModels()
