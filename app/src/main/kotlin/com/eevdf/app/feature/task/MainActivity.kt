@@ -798,8 +798,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.stats.observe(this) { stats ->
-            tvStats.text    = "Active: ${stats.activeTasks}  |  Done: ${stats.completedTasks}  |  Weight: ${"%.1f".format(stats.totalWeight)}  |  load: ${"%.2f".format(stats.systemLoad)}"
-            tvFairness.text = "Fairness: ${"%.0f".format(stats.fairnessScore * 100)}%  |  Avg VRT: ${"%.2f".format(stats.averageVruntime)}"
+            tvStats.text    = "Active: ${stats.activeTasks}  |  Done: ${stats.completedTasks}"
+            tvFairness.text = "Fairness: ${"%.0f".format(stats.fairnessScore * 100)}%  |  load: ${"%.2f".format(stats.systemLoad)}"
         }
 
         viewModel.toastMessage.observe(this) { msg ->
