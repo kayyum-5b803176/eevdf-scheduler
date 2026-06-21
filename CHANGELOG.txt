@@ -1,0 +1,59 @@
+EEVDF Scheduler 3.0 — Hilt Dependency Injection Migration
+Changeset (changed files only; folder structure preserved)
+================================================================
+
+HOW TO APPLY
+----------------------------------------------------------------
+Unzip this archive over the root of your existing EEVDFScheduler project,
+letting it overwrite. Then perform the one DELETION listed below by hand
+(a zip cannot express a file removal).
+
+ADDED (9)
+----------------------------------------------------------------
+  + HILT_MIGRATION.md
+  + app/src/main/kotlin/com/eevdf/app/SchedulerApplication.kt
+  + app/src/main/kotlin/com/eevdf/app/di/DatabaseModule.kt
+  + app/src/main/kotlin/com/eevdf/app/di/PlatformModule.kt
+  + app/src/main/kotlin/com/eevdf/app/di/RepositoryModule.kt
+  + app/src/main/kotlin/com/eevdf/app/di/SchedulerModule.kt
+  + data/src/main/kotlin/com/eevdf/data/scheduler/EevdfSchedulerService.kt
+  + data/src/main/kotlin/com/eevdf/data/scheduler/RtSchedulerService.kt
+  + gradle/libs.versions.toml
+
+MODIFIED (21)
+----------------------------------------------------------------
+  * app/build.gradle.kts
+  * app/src/main/AndroidManifest.xml
+  * app/src/main/kotlin/com/eevdf/app/feature/autoswitch/AutoSwitchActivity.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/autoswitch/BubbleOverlayService.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/autoswitch/CallSwitchService.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/backup/DataBackupActivity.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/stats/StatsActivity.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/stats/StatsCalendarFragment.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/stats/StatsChartsFragment.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/stats/StatsOverviewFragment.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/task/AddTaskActivity.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/task/MainActivity.kt
+  * app/src/main/kotlin/com/eevdf/app/feature/task/TaskViewModel.kt
+  * build.gradle.kts
+  * core/build.gradle.kts
+  * data/build.gradle.kts
+  * data/src/main/kotlin/com/eevdf/data/runlog/RunLogRepository.kt
+  * data/src/main/kotlin/com/eevdf/data/task/TaskRepository.kt
+  * platform/build.gradle.kts
+  * shared/build.gradle.kts
+  * testing/build.gradle.kts
+
+REMOVED (1) — delete manually after unzipping
+----------------------------------------------------------------
+  - app/src/main/kotlin/com/eevdf/app/EevdfApp.kt
+
+NOTES
+----------------------------------------------------------------
+• EevdfApp.kt was replaced by SchedulerApplication.kt (@HiltAndroidApp).
+  AndroidManifest.xml already points android:name at the new class, so
+  after deleting EevdfApp.kt the build is consistent.
+• Full rationale, dependency graph, remaining manual deps and risk
+  assessment are in HILT_MIGRATION.md (included).
+• A full Gradle/AGP compile (Android SDK + Hilt/KSP) should be run in
+  Android Studio / CI to generate the DI code.
