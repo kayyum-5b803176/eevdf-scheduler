@@ -455,10 +455,25 @@ class MainActivity : AppCompatActivity() {
         fabQuickAction.visibility =
             if (!suppressForCompactProfile && quickEnabled) View.VISIBLE else View.GONE
 
-        // Keep RecyclerView bottom padding in sync with fabAdd presence so
-        // smoothScrollToPosition doesn't overscroll when the FAB is hidden.
-        val fabVisible = fabAdd.visibility == View.VISIBLE
-        val fabPadPx   = if (fabVisible) (80 * resources.displayMetrics.density).toInt() else 0
+        // Keep RecyclerView bottom padding in sync with the VISIBLE FAB stack so
+        // the last card can always scroll clear of any FAB and its buttons stay
+        // tappable. The two FABs are stacked at bottom|end (FAB height ≈ 56dp):
+        //   • fabAdd          — margin 16dp        → top edge ≈ 72dp from bottom
+        //   • fabQuickAction  — marginBottom 88dp  → top edge ≈ 144dp from bottom
+        //
+        // The add-only case uses 80dp padding = its 72dp top edge + an 8dp gap of
+        // breathing room above the FAB. To make the Quick Action FAB behave
+        // IDENTICALLY, we pad to its top edge plus the SAME 8dp gap:
+        //   88 (margin) + 56 (height) + 8 (gap) = 152dp.
+        val density        = resources.displayMetrics.density
+        val addVisible     = fabAdd.visibility == View.VISIBLE
+        val quickVisible   = fabQuickAction.visibility == View.VISIBLE
+        val fabPadDp = when {
+            quickVisible -> 152   // quick-action sits highest; match add-only's 8dp gap
+            addVisible   -> 80    // only the add FAB is present
+            else         -> 0     // no FABs — no extra padding
+        }
+        val fabPadPx = (fabPadDp * density).toInt()
         recyclerView.setPadding(
             recyclerView.paddingLeft,
             recyclerView.paddingTop,
