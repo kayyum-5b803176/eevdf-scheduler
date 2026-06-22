@@ -74,8 +74,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var emptyView:           LinearLayout
     private lateinit var viewPhaseStatus:     View
 
-    // ── UI Customization: card content container for height scaling ───────────
+    // ── Expired/alarm block — dedicated views, fully styled in XML ─────────────
+    private lateinit var tvAlarmTaskName:     TextView
+    private lateinit var tvAlarmSubtitle:     TextView
+    private lateinit var tvAlarmElapsed:      TextView
+    private lateinit var btnStopAlarm:        MaterialButton
+
+    // ── UI Customization: card content containers for height scaling ───────────
     private lateinit var layoutTimerContent:  LinearLayout
+    private lateinit var layoutAlarmContent:  LinearLayout
 
     // ── Float-mode banner hiding ───────────────────────────────────────────────
     private lateinit var mainToolbar:  Toolbar
@@ -408,6 +415,7 @@ class MainActivity : AppCompatActivity() {
 
         // Scale the fixed cards (timer + alarm) to match task cards
         applyCardScaleToView(layoutTimerContent, scale, density)
+        applyCardScaleToView(layoutAlarmContent, scale, density)
     }
 
     /**
@@ -538,6 +546,11 @@ class MainActivity : AppCompatActivity() {
         emptyView         = findViewById(R.id.emptyView)
         viewPhaseStatus   = findViewById(R.id.viewPhaseStatus)
         layoutTimerContent = findViewById(R.id.layoutTimerContent)
+        layoutAlarmContent = findViewById(R.id.layoutAlarmContent)
+        tvAlarmTaskName   = findViewById(R.id.tvAlarmTaskName)
+        tvAlarmSubtitle   = findViewById(R.id.tvAlarmSubtitle)
+        tvAlarmElapsed    = findViewById(R.id.tvAlarmElapsed)
+        btnStopAlarm      = findViewById(R.id.btnStopAlarm)
 
         fabAdd.setOnClickListener {
             haptic(it)
@@ -555,10 +568,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupAlarmBanner() {
-        // Stop is now wired through the unified btnStartPause click handler in
-        // setupTimerCard(). When timerCardAction == Expired, clicking btnStartPause
-        // calls viewModel.stopAlarmSound(). Nothing to do here; kept so the
-        // onCreate call site compiles without further changes.
+        btnStopAlarm.setOnClickListener { haptic(it); viewModel.stopAlarmSound() }
     }
 
     private fun makeAdapter(showRank: Boolean = false, scheduleTab: Boolean = false) = TaskAdapter(
@@ -622,109 +632,73 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Renders the merged timer card from a single [TimerCardAction].
+     * Renders the timer card from a single [TimerCardAction].
      *
-     * KEY DESIGN: this function NEVER changes the visibility of any child layout
-     * or removes views from the hierarchy. Doing so causes the CardView to
-     * remeasure, which shifts the RecyclerView below it — the "layout jump" bug.
+     * CLEAN/STABLE CONTRACT — this function never mutates text size, typeface, or
+     * text color on any view. All styling lives in activity_main.xml, baked into
+     * two independent blocks (layoutTimerContent and layoutAlarmContent). Here we
+     * only ever:
+     *   1. set the card's visibility,
+     *   2. set the card's background color,
+     *   3. choose which block is visible,
+     *   4. write TEXT CONTENT into that block's own views.
      *
-     * Instead, both the countdown state and the expired/alarm state use the EXACT
-     * same view hierarchy. Only text content, colors, and enabled/alpha states are
-     * updated in-place:
+     * Because the countdown views and the alarm views are completely separate,
+     * styling one state can never affect the other — there is no shared view whose
+     * size/font/color could leak across states. The two blocks have matching
+     * structure and heights, so switching them does not resize the card.
      *
-     *   tvCurrentTaskName  — task name (both states, same text)
-     *   tvTimerPriority    — priority line  OR  "Time slice complete…" subtitle
-     *   tvTimerDisplay     — countdown  OR  elapsed overrun counter
-     *   btnScheduleNext    — INVISIBLE (not GONE) in expired state to hold layout height
-     *   btnStartPause      — Start/Pause/Cancel  OR  Stop (full-width either way)
-     *   btnInt             — INVISIBLE (not GONE) in expired state
-     *
-     * Card visibility rule:
-     *   Hidden  → card GONE (no task selected, nothing to show)
-     *   Expired → always VISIBLE regardless of manual-hide (alarm must be seen)
-     *   others  → VISIBLE unless the user manually closed it (isCardManuallyHidden)
+     * Card visibility:
+     *   Hidden  → GONE (no task selected)
+     *   Expired → always VISIBLE (the alarm must be seen, even if manually hidden)
+     *   others  → VISIBLE unless the user manually closed the card
      */
     private fun renderTimerCard(action: TimerCardAction) {
-        val expiredRed = android.graphics.Color.parseColor("#B71C1C")
-        val normalBg   = ContextCompat.getColor(this, R.color.colorPrimary)
-
         when (action) {
             is TimerCardAction.Hidden -> {
                 cardTimer.visibility = View.GONE
-                return
             }
 
             is TimerCardAction.Expired -> {
-                // Alarm view: card always visible, red tint, shared views carry alarm data.
-                cardTimer.setCardBackgroundColor(expiredRed)
+                cardTimer.setCardBackgroundColor(android.graphics.Color.parseColor("#B71C1C"))
                 cardTimer.visibility = View.VISIBLE
+                layoutTimerContent.visibility = View.GONE
+                layoutAlarmContent.visibility = View.VISIBLE
 
-                // tvCurrentTaskName: same task name — the currentTask observer already
-                // wrote it; nothing to do unless the alarm fired before currentTask
-                // was set (timer expiry path nulls currentTask), in which case write it.
-                if (viewModel.currentTask.value == null) {
-                    tvCurrentTaskName.text = action.taskName
-                }
-                // Re-use the priority line as the subtitle.
-                tvTimerPriority.text  = "Time slice complete · tap Stop to dismiss"
-                tvTimerPriority.setTextColor(android.graphics.Color.parseColor("#FFCDD2"))
-
-                // Re-use the big number for the elapsed overrun counter.
-                tvTimerDisplay.text = NotificationHelper.formatElapsed(action.elapsedSeconds)
-
-                // Hide the side buttons so Stop (layout_weight=1) expands to occupy
-                // the full button-row width — matching the original full-width Stop.
-                // GONE is safe here: only the BUTTON-ROW WIDTH changes; the row's
-                // HEIGHT is unchanged (Stop keeps its height), so the card height —
-                // and the RecyclerView below it — never shift. The vertical layout
-                // jump only ever came from height changes, not width changes.
-                btnScheduleNext.visibility = View.GONE
-                btnInt.visibility          = View.GONE
-
-                // btnStartPause becomes "Stop" — match original alarm-button styling:
-                // bold, 15sp, white background, dark-red text.
-                btnStartPause.text      = action.label          // "Stop"
-                btnStartPause.icon      = null
-                btnStartPause.isEnabled = true
-                btnStartPause.backgroundTintList =
-                    ColorStateList.valueOf(android.graphics.Color.parseColor("#FFFFFF"))
-                btnStartPause.setTextColor(expiredRed)
-                btnStartPause.textSize  = 15f
-                btnStartPause.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                btnStartPause.jumpDrawablesToCurrentState()
+                // Text content only — styling is fixed in XML.
+                tvAlarmTaskName.text = action.taskName
+                tvAlarmElapsed.text  = NotificationHelper.formatElapsed(action.elapsedSeconds)
             }
 
             else -> {
-                // Normal countdown states: Start / Pause / Cancel / Unavailable.
-                cardTimer.setCardBackgroundColor(normalBg)
-                cardTimer.visibility =
-                    if (isCardManuallyHidden) View.GONE else View.VISIBLE
+                // Start / Pause / Cancel / Unavailable.
+                cardTimer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.colorPrimary))
+                cardTimer.visibility = if (isCardManuallyHidden) View.GONE else View.VISIBLE
+                layoutAlarmContent.visibility = View.GONE
+                layoutTimerContent.visibility = View.VISIBLE
 
-                // Restore the priority subtitle text color to the normal faded-white.
-                tvTimerPriority.setTextColor(android.graphics.Color.parseColor("#AAFFFFFF"))
-                // Content is written by the currentTask observer — nothing to do here.
-
-                // Restore side buttons (they are GONE while the Stop button is full-width).
-                btnScheduleNext.visibility = View.VISIBLE
-                btnInt.visibility          = View.VISIBLE
-
-                // Restore btnStartPause to the normal MaterialButton styling: white
-                // text, default size (14sp) and default medium weight — undoing the
-                // bold/15sp/red Stop styling applied in the Expired branch.
-                btnStartPause.setTextColor(android.graphics.Color.parseColor("#FFFFFF"))
-                btnStartPause.textSize = 14f
-                btnStartPause.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+                // Text content + enabled state only — styling is fixed in XML.
                 btnStartPause.text      = action.label
-                btnStartPause.icon      = null
                 btnStartPause.isEnabled = action.enabled
                 btnStartPause.backgroundTintList =
                     ColorStateList.valueOf(ContextCompat.getColor(this, action.colorRes))
+                // Snap the new tint instantly. MaterialButton's background drawable
+                // otherwise cross-fades between the old and new tint (light → dark),
+                // producing a visible color-transition flash on Start↔Pause. Jumping
+                // the drawable to its current state skips that animation so the color
+                // changes immediately, with no fade.
                 btnStartPause.jumpDrawablesToCurrentState()
             }
         }
     }
 
     private fun setupTimerCard() {
+        // Remove the button's state-list animator so changing its tint never
+        // triggers a state-driven elevation/color animation. Combined with
+        // jumpDrawablesToCurrentState() in renderTimerCard(), this makes the
+        // Start↔Pause color change instant — no light→dark cross-fade.
+        btnStartPause.stateListAnimator = null
+
         // ── Start / Pause / Cancel ────────────────────────────────────────────
         // CRITICAL: dispatch from timerCardAction — the pre-derived, already-settled
         // value — NEVER from viewModel.timerRunning.value or viewModel.noticePhase.value
@@ -739,7 +713,7 @@ class MainActivity : AppCompatActivity() {
                 TimerCardAction.Cancel         -> viewModel.cancelNotice()
                 TimerCardAction.Unavailable    -> Unit   // disabled — no-op
                 TimerCardAction.Hidden         -> Unit   // card not shown — no-op
-                is TimerCardAction.Expired     -> viewModel.stopAlarmSound()  // Stop
+                is TimerCardAction.Expired     -> Unit   // alarm block uses btnStopAlarm
                 null                           -> Unit   // not yet derived — no-op
             }
         }
@@ -905,13 +879,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         // The elapsed overrun counter ticks once per second via its own LiveData.
-        // In the unified layout tvTimerDisplay is the big-number view for both the
-        // countdown AND the elapsed overrun — update it here on every tick so the
-        // counter animates smoothly without waiting for the next timerCardAction emit.
+        // It writes the alarm block's own tvAlarmElapsed view directly so the
+        // counter animates smoothly without re-running renderTimerCard.
         viewModel.alarmElapsedSeconds.observe(this) { elapsed ->
-            if (viewModel.timerCardAction.value is TimerCardAction.Expired) {
-                tvTimerDisplay.text = NotificationHelper.formatElapsed(elapsed)
-            }
+            tvAlarmElapsed.text = NotificationHelper.formatElapsed(elapsed)
         }
 
         // Sync groups menu checkmark
