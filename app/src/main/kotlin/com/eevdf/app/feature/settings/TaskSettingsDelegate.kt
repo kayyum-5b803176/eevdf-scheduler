@@ -32,6 +32,8 @@ internal class TaskSettingsDelegate(private val prefs: SharedPreferences) {
     private val KEY_AUTO_MODE                 = "auto_mode"
     private val KEY_GLOBAL_ROTATE_BEFORE_AUTO = "global_rotate_before_auto"
     private val KEY_LAST_TAB                  = "last_tab"
+    private val KEY_SELECTED_TASK_ID          = "selected_timer_task_id"
+    private val KEY_CARD_MANUALLY_HIDDEN      = "timer_card_manually_hidden"
 
     // ── Groups ────────────────────────────────────────────────────────────────
 
@@ -135,4 +137,32 @@ internal class TaskSettingsDelegate(private val prefs: SharedPreferences) {
 
     fun saveTab(tab: Int) { prefs.edit().putInt(KEY_LAST_TAB, tab).apply() }
     fun getSavedTab(): Int = prefs.getInt(KEY_LAST_TAB, 0)
+
+    // ── Timer-card persistence (selected task + manual-hide state) ────────────
+    //
+    //  The merged timer card must survive both reboot and app re-open, restoring:
+    //   • WHICH task was last selected (so the card reopens on the same task), and
+    //   • WHETHER the user had manually closed it (so a closed card stays closed).
+    //
+    //  Only the task *id* is stored — the live Task row is re-read from the DB on
+    //  startup so any state change (paused / reset / completed) is reflected. A
+    //  null id means "no task selected"; the card stays hidden.
+
+    /** Persisted id of the last task seated on the timer card, or null if none. */
+    fun saveSelectedTaskId(id: String?) {
+        prefs.edit().apply {
+            if (id == null) remove(KEY_SELECTED_TASK_ID)
+            else            putString(KEY_SELECTED_TASK_ID, id)
+        }.apply()
+    }
+
+    fun getSavedSelectedTaskId(): String? = prefs.getString(KEY_SELECTED_TASK_ID, null)
+
+    /** Persisted manual-hide flag — true when the user closed the card by hand. */
+    fun saveCardManuallyHidden(hidden: Boolean) {
+        prefs.edit().putBoolean(KEY_CARD_MANUALLY_HIDDEN, hidden).apply()
+    }
+
+    fun getSavedCardManuallyHidden(): Boolean =
+        prefs.getBoolean(KEY_CARD_MANUALLY_HIDDEN, false)
 }

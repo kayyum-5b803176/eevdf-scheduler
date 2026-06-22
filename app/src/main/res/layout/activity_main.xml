@@ -86,99 +86,24 @@
         android:orientation="vertical"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <!-- ALARM EXPIRED BANNER (visible when timer has expired, like Google Clock) -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardAlarmBanner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="0dp"
-            android:visibility="gone"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="12dp"
-            app:cardBackgroundColor="#B71C1C">
 
-            <LinearLayout
-                android:id="@+id/layoutAlarmContent"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+        <!-- ════════════════════════════════════════════════════════════════
+             MERGED TIMER CARD
+             ────────────────────────────────────────────────────────────────
+             Single CardView replacing the former cardTimer + cardAlarmBanner.
+             It hosts TWO mutually-exclusive child layouts:
 
-                <!-- "Timer expired" label -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Timer expired"
-                    android:textColor="#FFFDE7"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.1"
-                    android:textAllCaps="true" />
+               • layoutTimerContent — normal countdown view (Start/Pause/Cancel)
+               • layoutAlarmContent — expired/alarm view (red, "Stop", overrun)
 
-                <!-- Task name + elapsed row -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="6dp">
+             The single timerCardAction observer in MainActivity:
+               - hides the whole card        when state == Hidden
+               - shows layoutTimerContent    for Start/Pause/Cancel/Unavailable
+               - shows layoutAlarmContent     for Expired (and tints the card red)
 
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/tvAlarmTaskName"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Task Name"
-                            android:textColor="@android:color/white"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            android:maxLines="1"
-                            android:ellipsize="end" />
-
-                        <TextView
-                            android:id="@+id/tvAlarmSubtitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Time slice complete"
-                            android:textColor="#FFCDD2"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-
-                    <!-- Elapsed time counting up -->
-                    <TextView
-                        android:id="@+id/tvAlarmElapsed"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0:00"
-                        android:textColor="@android:color/white"
-                        android:textSize="36sp"
-                        android:textStyle="bold"
-                        android:fontFamily="monospace"
-                        android:layout_marginStart="12dp" />
-                </LinearLayout>
-
-                <!-- Stop button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnStopAlarm"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Stop"
-                    android:textColor="#B71C1C"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    app:backgroundTint="@android:color/white"
-                    app:cornerRadius="8dp" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- TIMER CARD (visible when a task is selected) -->
+             No code anywhere else toggles this card's visibility — the old
+             manual cardTimer.visibility = GONE mutual-exclusion hack is gone.
+             ════════════════════════════════════════════════════════════════ -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardTimer"
             android:layout_width="match_parent"
@@ -189,12 +114,11 @@
             app:cardElevation="8dp"
             app:cardBackgroundColor="@color/colorPrimary">
 
-            <LinearLayout
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:layout_height="wrap_content">
 
-                <!-- Content area with padding -->
+                <!-- ░░░░░░░░░░ NORMAL COUNTDOWN VIEW ░░░░░░░░░░ -->
                 <LinearLayout
                     android:id="@+id/layoutTimerContent"
                     android:layout_width="match_parent"
@@ -297,14 +221,6 @@
                                 app:backgroundTint="@android:color/white" />
                         </LinearLayout>
 
-                        <!-- Phase underline: overlays just below the button row.
-                             layout_gravity=bottom anchors to the bottom of the FrameLayout
-                             (height = button row height, wrap_content).
-                             translationY=5dp draws it 5dp below that bottom edge.
-                             clipChildren=false on this FrameLayout and its parent
-                             LinearLayout allows drawing outside bounds — no card
-                             height change because layout measurement is unaffected
-                             by translationY (it is a draw-only transform). -->
                         <View
                             android:id="@+id/viewPhaseStatus"
                             android:layout_width="match_parent"
@@ -317,7 +233,77 @@
                     </FrameLayout>
                 </LinearLayout>
 
-            </LinearLayout>
+                <!-- ░░░░░░░░░░ EXPIRED / ALARM VIEW ░░░░░░░░░░ -->
+                <LinearLayout
+                    android:id="@+id/layoutAlarmContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:visibility="gone">
+
+                    <!-- Task name + elapsed row -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="6dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvAlarmTaskName"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Task Name"
+                                android:textColor="@android:color/white"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end" />
+
+                            <TextView
+                                android:id="@+id/tvAlarmSubtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Time slice complete"
+                                android:textColor="#FFCDD2"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <!-- Elapsed time counting up -->
+                        <TextView
+                            android:id="@+id/tvAlarmElapsed"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0:00"
+                            android:textColor="@android:color/white"
+                            android:textSize="36sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:layout_marginStart="12dp" />
+                    </LinearLayout>
+
+                    <!-- Stop button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnStopAlarm"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Stop"
+                        android:textColor="#B71C1C"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        app:backgroundTint="@android:color/white"
+                        app:cornerRadius="8dp" />
+                </LinearLayout>
+
+            </FrameLayout>
         </androidx.cardview.widget.CardView>
 
         <!-- Empty state -->

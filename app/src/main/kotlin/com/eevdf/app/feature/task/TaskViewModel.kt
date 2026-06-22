@@ -163,17 +163,45 @@ class TaskViewModel @Inject constructor(
     // settled value — no race window between separate LiveData reads.
 
     /**
-     * Start / Pause / Cancel button state.
-     * Derivation priority: task==null → notice phase → timerRunning.
+     * THE single source of truth for the whole (merged) timer card.
+     *
+     * After merging cardAlarmBanner into cardTimer there is exactly one card and
+     * exactly one state object describing it. The derivation combines every input
+     * that can affect the card into one atomic value:
+     *
+     *   _alarmTaskName  → alarm ringing?      (was a separate, un-wired LiveData)
+     *   notice.noticePhase → notice phase
+     *   _timerRunning   → countdown running?
+     *   _currentTask    → is anything selected?
+     *
+     * Derivation priority (highest first):
+     *   1. alarm ringing  → Expired(name, elapsed)   [red banner + Stop]
+     *   2. no task         → Hidden                   [card removed from layout]
+     *   3. notice Delay/Wait → Cancel
+     *   4. notice Execute  → Pause
+     *   5. notice Expired (transient, pre-alarm) → Unavailable
+     *   6. running         → Pause
+     *   7. otherwise       → Start
+     *
+     * Bug 2 fix: _alarmTaskName / _alarmElapsedSeconds are now addSource()'d, so
+     * the alarm can never be visible while this value simultaneously reports an
+     * actionable Start/Pause. The alarm branch sits ABOVE the task==null branch
+     * because during expiry _currentTask is momentarily nulled while the alarm is
+     * up — without this ordering the card would flash Hidden between the two.
      */
     val timerCardAction: MediatorLiveData<TimerCardAction> =
         MediatorLiveData<TimerCardAction>().apply {
             fun derive() {
-                val phase   = notice.noticePhase.value ?: NoticePhase.Idle
-                val running = _timerRunning.value       ?: false
-                val task    = _currentTask.value
+                val alarmName = _alarmTaskName.value
+                val phase     = notice.noticePhase.value ?: NoticePhase.Idle
+                val running   = _timerRunning.value       ?: false
+                val task      = _currentTask.value
                 value = when {
-                    task == null                 -> TimerCardAction.Unavailable
+                    alarmName != null            -> TimerCardAction.Expired(
+                                                        taskName       = alarmName,
+                                                        elapsedSeconds = _alarmElapsedSeconds.value ?: 0L
+                                                    )
+                    task == null                 -> TimerCardAction.Hidden
                     phase is NoticePhase.Delay   -> TimerCardAction.Cancel
                     phase is NoticePhase.Wait    -> TimerCardAction.Cancel
                     phase is NoticePhase.Execute -> TimerCardAction.Pause
@@ -182,10 +210,12 @@ class TaskViewModel @Inject constructor(
                     else                         -> TimerCardAction.Start
                 }
             }
-            // Sources wired in init{} after notice is ready
-            addSource(notice.noticePhase) { derive() }
-            addSource(_timerRunning)      { derive() }
-            addSource(_currentTask)       { derive() }
+            addSource(notice.noticePhase)     { derive() }
+            addSource(_timerRunning)          { derive() }
+            addSource(_currentTask)           { derive() }
+            // Bug 2 fix: alarm state is now part of the same atomic derivation.
+            addSource(_alarmTaskName)         { derive() }
+            addSource(_alarmElapsedSeconds)   { derive() }
         }
 
     /** INT button state — slot label + whether a task is assigned. */
@@ -280,6 +310,7 @@ class TaskViewModel @Inject constructor(
                     _timerSeconds.postValue(secondsLeft)
                     _timerRunning.postValue(true)
                     timerEngine.restoreFromDb(corrected)
+                    settings.saveSelectedTaskId(corrected.id)
                 } else {
                     val state         = running.timerState as TimerState.Running
                     val expiryEpochMs = state.startTimeEpoch +
@@ -291,7 +322,15 @@ class TaskViewModel @Inject constructor(
                     )
                     onTimerFinished(running, session = session)
                 }
+                return@launch
             }
+
+            // Step 3: nothing was mid-run or ringing — re-seat the last-selected
+            // task on the card so it survives reboot / app re-open in its idle
+            // (Start) state. Whether the card is actually shown is decided by the
+            // persisted manual-hide flag, applied in MainActivity. No-op if no id
+            // is stored or the task was since deleted/completed.
+            restorePersistedSelection()
         }
 
         // ── Build flat lists (must come after repository + delegates are ready) ─
@@ -344,6 +383,7 @@ class TaskViewModel @Inject constructor(
         if (task.id == _currentTask.value?.id) {
             pauseTimer()
             _currentTask.postValue(null)
+            clearPersistedSelection()
         }
         repository.delete(task)
         syncPinnedWeights()
@@ -516,6 +556,7 @@ class TaskViewModel @Inject constructor(
     fun pauseAndDeselect() {
         pauseTimer()
         _currentTask.value = null
+        clearPersistedSelection()
     }
 
     fun resetTimer() {
@@ -543,11 +584,14 @@ class TaskViewModel @Inject constructor(
         val task = _currentTask.value ?: return
         _toastMessage.value = "Skipped \"${task.name}\""
         _currentTask.value  = null
+        clearPersistedSelection()
         scheduler.scheduleNext()
     }
 
     fun setCurrentTask(task: Task) {
         pauseTimer()
+        // Bug 1 fix — stale NoticePhase.Expired locking the button:
+        //
         // After a NOTIFICATION task expires, triggerAlarmExpire() sets
         // _noticePhase = Expired (sync) then nulls _currentTask via postValue
         // (async).  By the time the user taps the task row, _currentTask is
@@ -561,9 +605,61 @@ class TaskViewModel @Inject constructor(
         // idempotent: if pauseTimer() already transitioned the phase to Idle
         // (normal cancel/pause paths) this is a harmless no-op.
         notice.resetState()
+
+        // If an expiry alarm is up when the user selects a (possibly different)
+        // task, clear it synchronously so timerCardAction does not derive Expired
+        // for the freshly-selected task on the next frame.
+        if (_alarmTaskName.value != null) {
+            taskToRestoreAfterExpire = null
+            stopAlarmSound()
+        }
+
         _currentTask.value  = task
         _timerSeconds.value = task.remainingSeconds
+
+        // Selecting a task is an explicit "open this card" gesture: clear any
+        // prior manual-hide and persist the selection so it survives reboot.
+        setCardManuallyHidden(false)
+        settings.saveSelectedTaskId(task.id)
     }
+
+    /**
+     * Persists the manual card-hidden flag so a hand-closed card stays closed
+     * across app reopen / reboot. Called by MainActivity's key1-hold handler and
+     * by [setCurrentTask] (which always reopens the card).
+     */
+    fun setCardManuallyHidden(hidden: Boolean) = settings.saveCardManuallyHidden(hidden)
+
+    /** Restored on startup by MainActivity to decide whether to show the card. */
+    fun getCardManuallyHidden(): Boolean = settings.getSavedCardManuallyHidden()
+
+    /**
+     * Re-seats the persisted last-selected task onto the card on startup, without
+     * the side effects of [setCurrentTask] (no notice reset, no re-persist). Reads
+     * the live row from the DB so paused/reset state is reflected. No-op if no id
+     * is stored or the task no longer exists (e.g. it was deleted/completed).
+     */
+    fun restorePersistedSelection() {
+        // Don't clobber a task already seated by the mid-run / alarm recovery paths.
+        if (_currentTask.value != null || _alarmTaskName.value != null) return
+        val savedId = settings.getSavedSelectedTaskId() ?: return
+        viewModelScope.launch {
+            val task = repository.getTaskById(savedId)
+            if (task == null || task.isCompleted) {
+                settings.saveSelectedTaskId(null)
+                return@launch
+            }
+            _currentTask.postValue(task)
+            _timerSeconds.postValue(task.remainingSeconds)
+        }
+    }
+
+    /**
+     * Clears the timer card's persisted selection. Call from GENUINE deselection
+     * paths (delete, skip, complete, hold-to-deselect) — NOT from the expiry path,
+     * where requirement #3 mandates the card stay seated on the just-expired task.
+     */
+    private fun clearPersistedSelection() = settings.saveSelectedTaskId(null)
 
     fun cancelNotice() = notice.cancelNotice()
 
@@ -576,6 +672,7 @@ class TaskViewModel @Inject constructor(
             viewModelScope.launch {
                 repository.markCompleted(task)
                 _currentTask.postValue(null)
+                clearPersistedSelection()
                 _toastMessage.postValue("\"${task.name}\" completed!")
                 refreshSchedule()
             }
@@ -637,9 +734,11 @@ class TaskViewModel @Inject constructor(
                     pendingAutoStart = true
                     _currentTask.postValue(next)
                     _timerSeconds.postValue(next.remainingSeconds)
+                    settings.saveSelectedTaskId(next.id)   // card follows the auto task
                     _toastMessage.postValue("Auto → \"${next.name}\"")
                 } else {
                     _currentTask.postValue(null)
+                    clearPersistedSelection()
                     _toastMessage.postValue("Auto: no more active tasks")
                 }
             } else if (task.taskType == "NOTIFICATION") {
@@ -650,6 +749,11 @@ class TaskViewModel @Inject constructor(
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(task.name, elapsedSinceExpiry)
                 taskToRestoreAfterExpire = task.withTimerState(TimerState.reset())
+                // Requirement #3: do NOT clear the persisted selection on expiry.
+                // The merged card stays seated on the just-expired task (showing the
+                // Expired/alarm state); keep its id stored so a reboot mid-alarm
+                // reopens the card on the same task.
+                settings.saveSelectedTaskId(task.id)
                 _currentTask.postValue(null)
             }
         }

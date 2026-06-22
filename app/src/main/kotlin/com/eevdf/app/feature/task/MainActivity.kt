@@ -72,7 +72,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvFairness:          TextView
     private lateinit var tvScheduleRank:      TextView
     private lateinit var emptyView:           LinearLayout
-    private lateinit var cardAlarmBanner:     CardView
     private lateinit var tvAlarmTaskName:     TextView
     private lateinit var tvAlarmElapsed:      TextView
     private lateinit var tvAlarmSubtitle:     TextView
@@ -156,6 +155,11 @@ class MainActivity : AppCompatActivity() {
 
         setupToolbar()
         setupViews()
+        // Restore the persisted manual-hide flag BEFORE observers fire, so the
+        // first renderTimerCard() honours a card the user had closed by hand.
+        // The persisted last-selected task is re-seated by the ViewModel's startup
+        // recovery; whether its card actually shows is gated by this flag.
+        isCardManuallyHidden = viewModel.getCardManuallyHidden()
         setupAdapters()
         setupRecyclerView()
         setupTabs()
@@ -538,7 +542,6 @@ class MainActivity : AppCompatActivity() {
         tvFairness        = findViewById(R.id.tvFairness)
         tvScheduleRank    = findViewById(R.id.tvScheduleRank)
         emptyView         = findViewById(R.id.emptyView)
-        cardAlarmBanner   = findViewById(R.id.cardAlarmBanner)
         tvAlarmTaskName   = findViewById(R.id.tvAlarmTaskName)
         tvAlarmElapsed    = findViewById(R.id.tvAlarmElapsed)
         tvAlarmSubtitle   = findViewById(R.id.tvAlarmSubtitle)
@@ -626,6 +629,60 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    /**
+     * Renders the merged timer card from a single [TimerCardAction].
+     *
+     * This is the ONLY place that touches cardTimer.visibility, the card tint, or
+     * which child layout (countdown vs expired/alarm) is shown. Driving everything
+     * from one function off one LiveData is what eliminates the old two-card race
+     * (Bugs 2 & 3): there is no second observer that can disagree about the card's
+     * state.
+     *
+     * Visibility rule:
+     *   • Hidden          → card GONE (no task selected)
+     *   • manual-hide ON  → card GONE even with a task (user closed it by hand);
+     *                       EXCEPT for Expired, which always shows so the user
+     *                       can't miss a ringing alarm.
+     *   • otherwise        → card VISIBLE
+     */
+    private fun renderTimerCard(action: TimerCardAction) {
+        val expiredRed = android.graphics.Color.parseColor("#B71C1C")
+        val normalBg   = ContextCompat.getColor(this, R.color.colorPrimary)
+
+        when (action) {
+            is TimerCardAction.Hidden -> {
+                cardTimer.visibility = View.GONE
+                return
+            }
+            is TimerCardAction.Expired -> {
+                // Alarm always shows, regardless of manual-hide.
+                cardTimer.visibility = View.VISIBLE
+                cardTimer.setCardBackgroundColor(expiredRed)
+                layoutTimerContent.visibility = View.GONE
+                layoutAlarmContent.visibility = View.VISIBLE
+                tvAlarmTaskName.text = action.taskName
+                tvAlarmSubtitle.text = "Time slice complete · tap Stop to dismiss"
+                tvAlarmElapsed.text  = NotificationHelper.formatElapsed(action.elapsedSeconds)
+                return
+            }
+            else -> {
+                // Normal countdown states (Start / Pause / Cancel / Unavailable).
+                cardTimer.visibility =
+                    if (isCardManuallyHidden) View.GONE else View.VISIBLE
+                cardTimer.setCardBackgroundColor(normalBg)
+                layoutAlarmContent.visibility = View.GONE
+                layoutTimerContent.visibility = View.VISIBLE
+
+                btnStartPause.text      = action.label
+                btnStartPause.icon      = null
+                btnStartPause.isEnabled = action.enabled
+                btnStartPause.backgroundTintList =
+                    ColorStateList.valueOf(ContextCompat.getColor(this, action.colorRes))
+                btnStartPause.jumpDrawablesToCurrentState()
+            }
+        }
+    }
+
     private fun setupTimerCard() {
         // ── Start / Pause / Cancel ────────────────────────────────────────────
         // CRITICAL: dispatch from timerCardAction — the pre-derived, already-settled
@@ -635,13 +692,16 @@ class MainActivity : AppCompatActivity() {
         // if the tap lands between two LiveData dispatches, one value is stale.
         btnStartPause.setOnClickListener {
             haptic(it)
-            viewModel.stopAlarmSound()
+            // btnStartPause only lives in the countdown layout, so it is never
+            // clickable while Expired/Hidden — but the when must stay exhaustive.
             when (viewModel.timerCardAction.value) {
-                TimerCardAction.Start       -> viewModel.startTimer()
-                TimerCardAction.Pause       -> viewModel.pauseTimer()
-                TimerCardAction.Cancel      -> viewModel.cancelNotice()
-                TimerCardAction.Unavailable -> Unit   // disabled — no-op
-                null                        -> Unit   // not yet derived — no-op
+                TimerCardAction.Start          -> viewModel.startTimer()
+                TimerCardAction.Pause          -> viewModel.pauseTimer()
+                TimerCardAction.Cancel         -> viewModel.cancelNotice()
+                TimerCardAction.Unavailable    -> Unit   // disabled — no-op
+                TimerCardAction.Hidden         -> Unit   // card not shown — no-op
+                is TimerCardAction.Expired     -> Unit   // alarm view owns its own button
+                null                           -> Unit   // not yet derived — no-op
             }
         }
 
@@ -709,8 +769,8 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.currentTask.observe(this) { task ->
             if (task != null) {
-                // Only show the card if the user has not manually hidden it via hold on key1.
-                if (!isCardManuallyHidden) cardTimer.visibility = View.VISIBLE
+                // Content only — card VISIBILITY is owned solely by the
+                // timerCardAction observer below (single source of truth).
                 tvCurrentTaskName.text = task.name
                 tvTimerPriority.text = "Priority ${task.priority} · ${task.category}"
                 tvTimerDisplay.text = task.remainingDisplay
@@ -720,10 +780,6 @@ class MainActivity : AppCompatActivity() {
                 // Auto mode: onTimerFinished queued the next task — start it immediately
                 if (viewModel.consumePendingAutoStart()) viewModel.startTimer()
             } else {
-                // No active task — always hide card and reset the manual-hide flag so
-                // the next task selection shows the card normally.
-                isCardManuallyHidden = false
-                cardTimer.visibility = View.GONE
                 activeAdapter.setRunningTask(null)
                 scheduleAdapter.setRunningTask(null)
                 tvTimerDisplay.text = "00:00"
@@ -741,22 +797,20 @@ class MainActivity : AppCompatActivity() {
                 String.format("%02d:%02d", m, s)
         }
 
-        // ── Start / Pause / Cancel button ─────────────────────────────────────
+        // ── Merged timer card — SINGLE source of truth ────────────────────────
         //
-        // Single observer on timerCardAction. The ViewModel has already combined
-        // noticePhase + timerRunning + currentTask into one atomic value, so this
-        // fires ONCE per logical state change — not once per individual LiveData
-        // update.  The click handler (setupTimerCard) dispatches from the same
-        // object, so UI and behaviour are guaranteed to match.
+        // One observer on timerCardAction drives the ENTIRE card: visibility,
+        // which child layout is shown (countdown vs expired/alarm), the card
+        // tint, the button, and the alarm fields. The ViewModel has already
+        // combined currentTask + noticePhase + timerRunning + alarm state into
+        // this one atomic value.
+        //
+        // Bug 3 fix: mutual exclusivity between the (former) two cards is no
+        // longer enforced by hand-toggling cardTimer.visibility from a separate
+        // alarm observer. There is one card and one observer; impossible to show
+        // both the countdown and the alarm at once.
         viewModel.timerCardAction.observe(this) { action ->
-            btnStartPause.text    = action.label
-            btnStartPause.icon    = null
-            btnStartPause.isEnabled = action.enabled
-            btnStartPause.backgroundTintList =
-                ColorStateList.valueOf(
-                    ContextCompat.getColor(this, action.colorRes)
-                )
-            btnStartPause.jumpDrawablesToCurrentState()
+            renderTimerCard(action)
 
             // Dot reflects timer state only when the card is manually hidden.
             // When card is visible the card itself shows the state — dot stays grey.
@@ -811,22 +865,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        viewModel.alarmTaskName.observe(this) { taskName ->
-            if (taskName != null) {
-                cardAlarmBanner.visibility = View.VISIBLE
-                tvAlarmTaskName.text = taskName
-                tvAlarmSubtitle.text = "Time slice complete · tap Stop to dismiss"
-                // Mutual exclusivity: the expired/alarm card and the running timer
-                // card must never show at once. The currentTask observer may have
-                // just made cardTimer VISIBLE for the Expired(0:00) state, so hide
-                // it here. When the alarm is dismissed, stopAlarmSound() restores
-                // _currentTask, which re-shows cardTimer via its own observer.
-                cardTimer.visibility = View.GONE
-            } else {
-                cardAlarmBanner.visibility = View.GONE
-            }
-        }
-
+        // Alarm fields are also fed by renderTimerCard() from the Expired action,
+        // but the elapsed counter ticks once per second via its own LiveData, so
+        // keep this lightweight observer for the live overrun count. No visibility
+        // toggling here — that is owned by the single timerCardAction observer.
         viewModel.alarmElapsedSeconds.observe(this) { elapsed ->
             tvAlarmElapsed.text = NotificationHelper.formatElapsed(elapsed)
         }
@@ -1022,17 +1064,25 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             // Hold → toggle timer card open/closed (UI only — timer state unchanged).
-            //   • Card visible    → hide it; dot switches to colored state
-            //   • Card hidden + active task → show it; dot reverts to grey
+            //   • Alarm ringing → no-op (the expired card must stay visible)
+            //   • Card visible  → hide it; persist; dot switches to colored state
+            //   • Card hidden + active task → show it; persist; dot reverts to grey
             //   • Card hidden + no task     → no-op
             view.setOnLongClickListener {
                 haptic(view)
-                if (cardTimer.visibility == View.VISIBLE) {
-                    isCardManuallyHidden = true
-                    cardTimer.visibility = View.GONE
-                } else if (viewModel.currentTask.value != null) {
-                    isCardManuallyHidden = false
-                    cardTimer.visibility = View.VISIBLE
+                val action = viewModel.timerCardAction.value
+                when {
+                    action is TimerCardAction.Expired -> Unit   // can't hide a ringing alarm
+                    cardTimer.visibility == View.VISIBLE -> {
+                        isCardManuallyHidden = true
+                        cardTimer.visibility = View.GONE
+                        viewModel.setCardManuallyHidden(true)
+                    }
+                    viewModel.currentTask.value != null -> {
+                        isCardManuallyHidden = false
+                        cardTimer.visibility = View.VISIBLE
+                        viewModel.setCardManuallyHidden(false)
+                    }
                 }
                 updateScheduleNextDot()
                 true
@@ -1079,10 +1129,16 @@ class MainActivity : AppCompatActivity() {
         val dot = schedNextDotView ?: return
         val grey = android.graphics.Color.parseColor("#9E9E9E")
         val color = if (isCardManuallyHidden) {
-            // Card is hidden — show actual timer state so user knows what's running
+            // Card is hidden — show actual timer state so user knows what's running.
+            // Hidden (no task) and Unavailable have no meaningful colour → grey.
+            // Expired never reaches here (the alarm forces the card visible).
             val action = viewModel.timerCardAction.value
-            if (action == null || action is TimerCardAction.Unavailable) grey
-            else ContextCompat.getColor(this, action.colorRes)
+            when (action) {
+                null,
+                is TimerCardAction.Hidden,
+                is TimerCardAction.Unavailable -> grey
+                else -> ContextCompat.getColor(this, action.colorRes)
+            }
         } else {
             // Card is visible (or no task) — grey dot; card shows the state
             grey

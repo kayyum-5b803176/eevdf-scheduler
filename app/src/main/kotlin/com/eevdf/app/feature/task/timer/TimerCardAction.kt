@@ -37,7 +37,36 @@ sealed class TimerCardAction {
     /** Whether the button should be enabled (clickable). */
     open val enabled: Boolean = true
 
+    /**
+     * Whether the whole card should be hidden from the layout.
+     * Only [Hidden] sets this true — every other state shows the card.
+     *
+     * NOTE: this is the *content-driven* hide (no task selected). It is distinct
+     * from the user's manual hide (isCardManuallyHidden in MainActivity), which
+     * can hide the card even when a task IS selected.
+     */
+    open val cardHidden: Boolean = false
+
+    /**
+     * Whether this state is the post-expiry alarm view (red banner, "Stop"
+     * button, elapsed-overrun counter) rather than the normal countdown view.
+     * The single UI observer switches the card's whole appearance on this flag.
+     */
+    open val isExpiredAlarm: Boolean = false
+
     // ── Concrete actions ──────────────────────────────────────────────────────
+
+    /**
+     * No task is selected — the card is removed from the layout entirely.
+     * Replaces the old `_currentTask == null → cardTimer.visibility = GONE` path
+     * that lived as an imperative side-effect in MainActivity.
+     */
+    object Hidden : TimerCardAction() {
+        override val label      = "—"
+        override val colorRes   = R.color.timerGreen
+        override val enabled    = false
+        override val cardHidden = true
+    }
 
     /**
      * Timer is idle — tapping starts the countdown.
@@ -67,13 +96,38 @@ sealed class TimerCardAction {
     }
 
     /**
-     * Timer card is in an unactionable state (alarm banner visible, task expired,
-     * no task selected). Button is shown but disabled so the layout doesn't jump.
+     * Timer card is in an unactionable state (task selected but in a transient
+     * notice-Expired phase before the alarm view takes over). Button is shown
+     * but disabled so the layout doesn't jump.
      */
     object Unavailable : TimerCardAction() {
         override val label    = "—"
         override val colorRes = R.color.timerGreen
         override val enabled  = false
+    }
+
+    /**
+     * The slice has expired and the alarm is ringing — the merged card shows the
+     * red "Timer expired" banner: task name, an elapsed-overrun counter, and a
+     * "Stop" button.
+     *
+     * This is the single biggest part of the two-card merge: the old
+     * `cardAlarmBanner` had no representation in this sealed class, which meant
+     * (a) the alarm state was tracked by a *separate* LiveData not wired into the
+     * timerCardAction mediator (Bug 2), and (b) mutual exclusivity between the two
+     * cards was enforced by hand in the UI layer (Bug 3). Folding it in here makes
+     * the alarm just another card state derived atomically alongside the others.
+     *
+     * [taskName]       — name shown in the banner.
+     * [elapsedSeconds] — overrun counter value (ticks up after expiry).
+     */
+    data class Expired(
+        val taskName: String,
+        val elapsedSeconds: Long,
+    ) : TimerCardAction() {
+        override val label          = "Stop"
+        override val colorRes       = R.color.timerRed
+        override val isExpiredAlarm = true
     }
 }
 

@@ -444,6 +444,11 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         vm._alarmTaskName.postValue(task.name)
         vm._alarmElapsedSeconds.postValue(0L)
         vm.startInAppOverrunCounter(task.name)
+        // Requirement #3: keep the card seated on the just-expired task. Store the
+        // reset task for Stop/Restart restoration and persist its id so a reboot
+        // mid-alarm reopens the card on the same task (mirrors onTimerFinished).
+        vm.taskToRestoreAfterExpire = task.withTimerState(TimerState.reset())
+        vm.settings.saveSelectedTaskId(task.id)
         vm._currentTask.postValue(null)
     }
 
