@@ -15,6 +15,7 @@ import javax.inject.Singleton
 class TaskRepository @Inject constructor(
     private val dao: TaskDao,
     private val runLog: RunLogRepository,
+    private val interruptReturnDao: InterruptReturnDao,
 ) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
@@ -60,6 +61,8 @@ class TaskRepository @Inject constructor(
         // Also delete all descendants
         deleteDescendants(task.id)
         dao.delete(task)
+        // Drop any per-tab/slot return-to that pointed at this task.
+        interruptReturnDao.clearByTask(task.id)
     }
 
     private suspend fun deleteDescendants(parentId: String) {
@@ -67,12 +70,15 @@ class TaskRepository @Inject constructor(
         children.forEach { child ->
             if (child.isGroup) deleteDescendants(child.id)
             dao.delete(child)
+            interruptReturnDao.clearByTask(child.id)
         }
     }
 
     suspend fun markCompleted(task: Task) = withContext(Dispatchers.IO) {
         val updated = task.copy(isCompleted = true, isRunning = false, remainingSeconds = 0)
         dao.update(updated)
+        // A completed task is no longer a valid return-to target.
+        interruptReturnDao.clearByTask(task.id)
     }
 
     suspend fun stopAll() = withContext(Dispatchers.IO) { dao.stopAllRunning() }
@@ -80,6 +86,39 @@ class TaskRepository @Inject constructor(
     suspend fun clearCompleted() = withContext(Dispatchers.IO) { dao.clearCompleted() }
 
     suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) { dao.getTaskById(id) }
+
+    // ── Per-tab, per-slot interrupt return-to persistence ─────────────────────
+
+    /** Stores the non-interrupt task to return to for a (tab, slot) cell. */
+    suspend fun saveInterruptReturn(tab: String, slot: String, taskId: String) =
+        withContext(Dispatchers.IO) {
+            interruptReturnDao.upsert(
+                InterruptReturnEntry(
+                    cellKey = InterruptReturnEntry.keyOf(tab, slot),
+                    tab     = tab,
+                    slot    = slot,
+                    taskId  = taskId,
+                )
+            )
+        }
+
+    /** Returns the stored return-to task id for a (tab, slot) cell, or null. */
+    suspend fun getInterruptReturnTaskId(tab: String, slot: String): String? =
+        withContext(Dispatchers.IO) {
+            interruptReturnDao.get(InterruptReturnEntry.keyOf(tab, slot))?.taskId
+        }
+
+    /** Clears the stored return-to for a (tab, slot) cell. */
+    suspend fun clearInterruptReturn(tab: String, slot: String) =
+        withContext(Dispatchers.IO) {
+            interruptReturnDao.clear(InterruptReturnEntry.keyOf(tab, slot))
+        }
+
+    /** Removes any stored return-to pointing at [taskId] (e.g. on delete/complete). */
+    suspend fun clearInterruptReturnByTask(taskId: String) =
+        withContext(Dispatchers.IO) {
+            interruptReturnDao.clearByTask(taskId)
+        }
 
     suspend fun getActiveTaskByName(name: String): Task? =
         withContext(Dispatchers.IO) { dao.getActiveTaskByName(name) }

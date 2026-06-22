@@ -19,6 +19,7 @@ local.properties
 *.iml
 *.ipr
 *.iws
+.kotlin/
 
 # OS
 .DS_Store

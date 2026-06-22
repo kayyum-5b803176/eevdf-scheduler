@@ -14,8 +14,9 @@ import com.eevdf.app.feature.task.TaskViewModel
  * [intButtonState] mediator that the UI reads for button label + colour.
  *
  * Adding a new interrupt slot (e.g. INT-C):
- *  1. Add _interruptTaskC + savedTaskBeforeInterruptC fields here.
- *  2. Add assignInterruptTaskC / clearInterruptTaskC / jumpToInterruptC methods.
+ *  1. Add _interruptTaskC field + assign/clear/jump methods here.
+ *  2. The per-tab return-to persistence is slot-agnostic (keyed by "tab|slot"),
+ *     so no new saved-state field is needed — just pass "C" as the slot label.
  *  3. Update [intButtonState] to include the new slot.
  *  No timer logic, CRUD, or scheduler code is touched.
  */
@@ -40,10 +41,72 @@ internal class TaskInterruptDelegate(private val vm: TaskViewModel) {
     private val _interruptTaskB = MutableLiveData<Task?>(null)
     val interruptTaskB: LiveData<Task?> = _interruptTaskB
 
-    // ── Saved-card state (one per slot) ──────────────────────────────────────
+    // ── Saved-card state (per TAB + per SLOT, DB-backed) ──────────────────────
+    //
+    // The "return-to" task for an interrupt jump is now tracked per (tab, slot):
+    //   ("queue","A") ("queue","B") ("schedule","A") ("schedule","B")
+    //
+    // This in-memory map is a fast cache mirroring the interrupt_return DB table.
+    // On a cold start it is empty; the first INT-back tap in a cell reads the DB
+    // (restorePersistedReturn) so the saved task survives an app reboot.
+    //
+    // RULE: only NON-interrupt tasks are ever stored here. An INT task can never
+    // become another slot's return-to target.
+    private val savedReturnByCell = HashMap<String, Task?>()
 
-    private var savedTaskBeforeInterrupt:  Task? = null
-    private var savedTaskBeforeInterruptB: Task? = null
+    private fun cellKey(tab: Int, slot: String): String {
+        val tabName = if (tab == 1) com.eevdf.data.task.InterruptReturnEntry.TAB_SCHEDULE
+                      else          com.eevdf.data.task.InterruptReturnEntry.TAB_QUEUE
+        return "$tabName|$slot"
+    }
+
+    private fun tabName(tab: Int): String =
+        if (tab == 1) com.eevdf.data.task.InterruptReturnEntry.TAB_SCHEDULE
+        else          com.eevdf.data.task.InterruptReturnEntry.TAB_QUEUE
+
+    /**
+     * Records [task] as the return-to for the current tab + [slot], in memory and
+     * in the DB — but ONLY when [task] is a real, non-interrupt task. A null task
+     * or an interrupt task clears the cell instead (rule 3 & 4).
+     */
+    private fun saveReturn(slot: String, task: Task?) {
+        val tab = vm.activeTab
+        val key = cellKey(tab, slot)
+        if (task == null || task.isInterrupt) {
+            savedReturnByCell[key] = null
+            vm.viewModelScope.launch { vm.repository.clearInterruptReturn(tabName(tab), slot) }
+            return
+        }
+        savedReturnByCell[key] = task
+        val id = task.id
+        vm.viewModelScope.launch { vm.repository.saveInterruptReturn(tabName(tab), slot, id) }
+    }
+
+    /**
+     * Reads the return-to for the current tab + [slot]. Uses the in-memory cache
+     * first; on a miss (e.g. fresh after reboot) it loads from the DB, resolves
+     * the live Task row, caches it, and invokes [onReady]. If nothing is stored
+     * or the task no longer exists / is completed / is itself an interrupt, the
+     * cell is cleared and [onReady] receives null.
+     */
+    private fun withSavedReturn(slot: String, onReady: (Task?) -> Unit) {
+        val tab = vm.activeTab
+        val key = cellKey(tab, slot)
+        if (savedReturnByCell.containsKey(key)) {
+            onReady(savedReturnByCell[key])
+            return
+        }
+        vm.viewModelScope.launch {
+            val savedId = vm.repository.getInterruptReturnTaskId(tabName(tab), slot)
+            val task = savedId?.let { vm.repository.getTaskById(it) }
+            val usable = task?.takeIf { !it.isCompleted && !it.isInterrupt }
+            if (usable == null && savedId != null) {
+                vm.repository.clearInterruptReturn(tabName(tab), slot)
+            }
+            savedReturnByCell[key] = usable
+            onReady(usable)
+        }
+    }
 
     // ── Derived button state ──────────────────────────────────────────────────
 
@@ -103,33 +166,21 @@ internal class TaskInterruptDelegate(private val vm: TaskViewModel) {
         if (_activeInterruptSlot.value == "B") jumpToInterruptB() else jumpToInterruptA()
     }
 
-    fun jumpToInterruptA() = jumpToInterruptSlot(
-        interruptLiveData = _interruptTask,
-        savedSlotField    = { savedTaskBeforeInterrupt },
-        setSavedSlot      = { savedTaskBeforeInterrupt = it },
-        slotLabel         = "A"
-    )
-
-    fun jumpToInterruptB() = jumpToInterruptSlot(
-        interruptLiveData = _interruptTaskB,
-        savedSlotField    = { savedTaskBeforeInterruptB },
-        setSavedSlot      = { savedTaskBeforeInterruptB = it },
-        slotLabel         = "B"
-    )
+    fun jumpToInterruptA() = jumpToInterruptSlot(_interruptTask,  "A")
+    fun jumpToInterruptB() = jumpToInterruptSlot(_interruptTaskB, "B")
 
     /**
-     * Core jump logic shared by both slots.
+     * Core jump logic shared by both slots, now per-tab + per-slot.
      *
      * Behaviour:
-     *  - Not on the interrupt task → save current card, jump to interrupt.
-     *  - Already on the interrupt task → jump back to the saved card.
-     *    If no saved card existed (jumped from empty state), close the card
-     *    and reset so the next tap enters the JUMP branch again (bug-fix path).
+     *  - Not on the interrupt task → save the current (non-interrupt) card as the
+     *    return-to for THIS tab + slot, then jump to the interrupt task.
+     *  - Already on the interrupt task → return to the saved card for THIS tab +
+     *    slot (read from the in-memory cache, falling back to the DB so it works
+     *    after a reboot). If none, close the card so the next tap jumps again.
      */
     private fun jumpToInterruptSlot(
         interruptLiveData: MutableLiveData<Task?>,
-        savedSlotField:    () -> Task?,
-        setSavedSlot:      (Task?) -> Unit,
         slotLabel:         String
     ) {
         val interrupt = interruptLiveData.value
@@ -144,29 +195,35 @@ internal class TaskInterruptDelegate(private val vm: TaskViewModel) {
 
         val current = vm._currentTask.value
         if (current?.id == interrupt.id) {
-            val back = savedSlotField()
-            setSavedSlot(null)
-            if (back != null) {
-                vm.pauseTimer()
-                vm._currentTask.value?.let { paused -> interruptLiveData.value = paused }
-                vm._currentTask.value  = back
-                vm._timerSeconds.value = back.remainingSeconds
-                vm._toastMessage.value = "Returned to \"${back.name}\""
-            } else {
-                // BUG FIX: No saved card → close the timer card so the next INT tap
-                // enters the JUMP branch instead of getting stuck in an infinite loop.
-                vm.pauseTimer()
-                interruptLiveData.value = interrupt   // preserve interrupt reference
-                vm._currentTask.value   = null        // close card, exits stuck loop
-                vm._toastMessage.value  = "No saved task to return to"
+            // ── INT-back: return to the saved card for this tab + slot ──────────
+            withSavedReturn(slotLabel) { back ->
+                // Clear the cell either way — a return-to is consumed once used.
+                saveReturn(slotLabel, null)
+                if (back != null) {
+                    vm.pauseTimer()
+                    // Preserve the interrupt reference with its live remaining time.
+                    vm._currentTask.value?.let { paused -> interruptLiveData.value = paused }
+                    vm._currentTask.value  = back
+                    vm._timerSeconds.value = back.remainingSeconds
+                    vm._toastMessage.value = "Returned to \"${back.name}\""
+                } else {
+                    // No saved card → close the timer card so the next INT tap
+                    // enters the JUMP branch instead of looping.
+                    vm.pauseTimer()
+                    interruptLiveData.value = interrupt
+                    vm._currentTask.value   = null
+                    vm._toastMessage.value  = "No saved task to return to"
+                }
             }
         } else {
-            // pauseTimer FIRST — this flushes _timerSeconds into _currentTask.remainingSeconds
-            // and persists it to the repository.  Only then capture the saved slot so
-            // "back.remainingSeconds" on the return trip reflects the live countdown at
-            // the moment the user tapped INT, not the stale value from the last DB load.
+            // ── JUMP: save current card (if non-interrupt) then seat the INT task ─
+            // pauseTimer FIRST so _timerSeconds is flushed into
+            // _currentTask.remainingSeconds and persisted, making the saved
+            // return-to reflect the live countdown at tap time.
             vm.pauseTimer()
-            setSavedSlot(vm._currentTask.value ?: current)
+            // Only a non-interrupt task is eligible as a return-to (rule 3 & 4);
+            // saveReturn() enforces this and clears the cell otherwise.
+            saveReturn(slotLabel, vm._currentTask.value ?: current)
             val freshInterrupt = vm.activeTasks.value
                 ?.firstOrNull { it.isInterrupt && it.interruptSlot == slotLabel && !it.isCompleted }
                 ?: interrupt

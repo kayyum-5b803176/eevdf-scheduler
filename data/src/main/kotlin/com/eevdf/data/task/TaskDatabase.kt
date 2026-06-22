@@ -14,14 +14,15 @@ import com.eevdf.data.runlog.RunMonthlySummary
 import com.eevdf.data.task.Task
 
 @Database(
-    entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class],
-    version  = 20,
+    entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class, InterruptReturnEntry::class],
+    version  = 21,
     exportSchema = false
 )
 abstract class TaskDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
     abstract fun runLogDao(): RunLogDao
+    abstract fun interruptReturnDao(): InterruptReturnDao
 
     companion object {
         @Volatile
@@ -479,6 +480,19 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /** version 20 → 21: per-tab, per-slot interrupt return-to table */
+        private val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS interrupt_return (" +
+                        "cellKey TEXT NOT NULL PRIMARY KEY, " +
+                        "tab TEXT NOT NULL, " +
+                        "slot TEXT NOT NULL, " +
+                        "taskId TEXT NOT NULL)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -486,7 +500,7 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
                     .build()
                 INSTANCE = instance
                 instance

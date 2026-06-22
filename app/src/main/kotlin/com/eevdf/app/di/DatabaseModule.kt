@@ -3,6 +3,7 @@ package com.eevdf.app.di
 import android.content.Context
 import com.eevdf.data.runlog.RunLogDao
 import com.eevdf.data.task.TaskDao
+import com.eevdf.data.task.InterruptReturnDao
 import com.eevdf.data.task.TaskDatabase
 import dagger.Module
 import dagger.Provides
@@ -39,4 +40,7 @@ object DatabaseModule {
 
     @Provides
     fun provideRunLogDao(db: TaskDatabase): RunLogDao = db.runLogDao()
+
+    @Provides
+    fun provideInterruptReturnDao(db: TaskDatabase): InterruptReturnDao = db.interruptReturnDao()
 }
