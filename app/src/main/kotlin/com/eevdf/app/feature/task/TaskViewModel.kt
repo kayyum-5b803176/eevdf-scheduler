@@ -786,6 +786,16 @@ class TaskViewModel @Inject constructor(
         _alarmElapsedSeconds.postValue(0L)
         AlarmForegroundService.stopAlarm(app)
         taskToRestoreAfterExpire?.let { resetTask ->
+            // The just-expired task is being re-seated on the card. For a
+            // NOTIFICATION task, triggerAlarmExpire() left _noticePhase == Expired
+            // and never cleared it; without resetting here the timerCardAction
+            // derivation would see (task != null, phase == Expired) and emit
+            // Unavailable ("—") — a dead button — until the user manually
+            // re-selected the task. Reset the notice state to Idle so the button
+            // correctly shows Start. resetState() is idempotent, and this branch
+            // only runs on the alarm-restore path (not on pause/cancel), so it
+            // cannot interfere with an in-flight delay/wait phase.
+            notice.resetState()
             _currentTask.postValue(resetTask)
             _timerSeconds.postValue(resetTask.timeSliceSeconds)
             taskToRestoreAfterExpire = null
