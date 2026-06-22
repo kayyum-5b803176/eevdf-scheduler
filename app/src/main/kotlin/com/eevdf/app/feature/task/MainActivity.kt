@@ -672,17 +672,25 @@ class MainActivity : AppCompatActivity() {
                 // Re-use the big number for the elapsed overrun counter.
                 tvTimerDisplay.text = NotificationHelper.formatElapsed(action.elapsedSeconds)
 
-                // Side buttons disappear visually but hold their space (INVISIBLE ≠ GONE).
-                btnScheduleNext.visibility = View.INVISIBLE
-                btnInt.visibility          = View.INVISIBLE
+                // Hide the side buttons so Stop (layout_weight=1) expands to occupy
+                // the full button-row width — matching the original full-width Stop.
+                // GONE is safe here: only the BUTTON-ROW WIDTH changes; the row's
+                // HEIGHT is unchanged (Stop keeps its height), so the card height —
+                // and the RecyclerView below it — never shift. The vertical layout
+                // jump only ever came from height changes, not width changes.
+                btnScheduleNext.visibility = View.GONE
+                btnInt.visibility          = View.GONE
 
-                // btnStartPause becomes "Stop" — same view, full width already.
+                // btnStartPause becomes "Stop" — match original alarm-button styling:
+                // bold, 15sp, white background, dark-red text.
                 btnStartPause.text      = action.label          // "Stop"
                 btnStartPause.icon      = null
                 btnStartPause.isEnabled = true
                 btnStartPause.backgroundTintList =
                     ColorStateList.valueOf(android.graphics.Color.parseColor("#FFFFFF"))
                 btnStartPause.setTextColor(expiredRed)
+                btnStartPause.textSize  = 15f
+                btnStartPause.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                 btnStartPause.jumpDrawablesToCurrentState()
             }
 
@@ -696,12 +704,16 @@ class MainActivity : AppCompatActivity() {
                 tvTimerPriority.setTextColor(android.graphics.Color.parseColor("#AAFFFFFF"))
                 // Content is written by the currentTask observer — nothing to do here.
 
-                // Restore side buttons.
+                // Restore side buttons (they are GONE while the Stop button is full-width).
                 btnScheduleNext.visibility = View.VISIBLE
                 btnInt.visibility          = View.VISIBLE
 
-                // Restore btnStartPause text color to white (it was red in expired state).
+                // Restore btnStartPause to the normal MaterialButton styling: white
+                // text, default size (14sp) and default medium weight — undoing the
+                // bold/15sp/red Stop styling applied in the Expired branch.
                 btnStartPause.setTextColor(android.graphics.Color.parseColor("#FFFFFF"))
+                btnStartPause.textSize = 14f
+                btnStartPause.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
                 btnStartPause.text      = action.label
                 btnStartPause.icon      = null
                 btnStartPause.isEnabled = action.enabled
