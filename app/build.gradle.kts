@@ -23,6 +23,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName =
+                "eevdf-scheduler-v${versionName}(${versionCode})-${buildType.name}.apk"
+        }
+    }
 }
 dependencies {
     implementation(project(":core"))
