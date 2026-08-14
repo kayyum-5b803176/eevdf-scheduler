@@ -49,6 +49,25 @@ gradle wrapper --gradle-version 8.9     # wrapper jar is not shipped in this zip
 ./gradlew :app:assembleDebug
 ```
 
+## Guard rails (Phase 1 — see ARCHITECTURE.md)
+
+Before adding a feature, read `docs/ADDING_A_FEATURE.md`. Short version:
+
+```bash
+./gradlew verifyAll          # architecture guard + all unit tests + detekt
+```
+
+The build now fails if a feature imports another feature, if a `Task` field is
+missing from backup or unclassified for sync, or if the DB version, migrations
+and exported schemas disagree.
+
+**One-time setup after your first successful build:**
+
+```bash
+./gradlew :data:assembleDebug   # Room writes data/schemas/*.json
+git add data/schemas            # commit them — migration tests need them
+```
+
 ## Honest status — expect a compile-fix pass
 
 This was assembled WITHOUT a working Kotlin/Android toolchain in the authoring

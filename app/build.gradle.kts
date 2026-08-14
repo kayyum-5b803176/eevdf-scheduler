@@ -1,9 +1,31 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
+// ── Release signing ──────────────────────────────────────────────────────────
+// The previous config signed release builds with the DEBUG key. An app shipped
+// that way can never be updated under a real key, and Play will reject it.
+//
+// Create keystore.properties in the project root (it is gitignored):
+//
+//   storeFile=/absolute/path/to/release.jks
+//   storePassword=...
+//   keyAlias=...
+//   keyPassword=...
+//
+// Until that file exists, release builds fall back to debug signing so the
+// build still works — but they are NOT publishable, and the build prints a
+// warning saying so.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val hasReleaseKeystore = keystorePropsFile.exists()
+val keystoreProps = Properties().apply {
+    if (hasReleaseKeystore) keystorePropsFile.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.eevdf.app"
     compileSdk = 34
@@ -12,23 +34,57 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "4.2.0"
+        versionName = "4.3.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    buildTypes { getByName("release") {
-        isMinifyEnabled = true
-        isShrinkResources = true
-        proguardFiles(
-            getDefaultProguardFile("proguard-android-optimize.txt"),
-            "proguard-rules.pro"
-        )
-        signingConfig = signingConfigs.getByName("debug")
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
-        getByName("debug") { applicationIdSuffix = ".debug" } }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "WARNING: keystore.properties not found — release build is signed with the " +
+                        "DEBUG key and CANNOT be published to Play. See app/build.gradle.kts."
+                )
+                signingConfigs.getByName("debug")
+            }
+        }
+        getByName("debug") { applicationIdSuffix = ".debug" }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    sourceSets {
+        getByName("test")        { java.srcDir("src/test/kotlin") }
+        getByName("androidTest") { java.srcDir("src/androidTest/kotlin") }
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
 
     applicationVariants.all {
         outputs.all {
@@ -66,4 +122,15 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+
+    // ── Tests ────────────────────────────────────────────────────────────────
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }

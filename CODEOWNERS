@@ -1,0 +1,37 @@
+# Ownership of shared surfaces.
+#
+# These are the files where one person's change can break another person's
+# feature. Requiring a second pair of eyes here is not bureaucracy — it is the
+# only review gate that actually pays for itself.
+#
+# Replace @your-team / @your-handle with real GitHub handles, then enable
+# "Require review from Code Owners" in branch protection.
+
+# Build configuration — a version bump here affects every module.
+/build.gradle.kts            @your-handle
+/settings.gradle.kts         @your-handle
+/gradle/libs.versions.toml   @your-handle
+/gradle.properties           @your-handle
+/app/build.gradle.kts        @your-handle
+
+# Database schema and migrations. THE highest-risk shared file in the repo:
+# two people writing MIGRATION_21_22 on parallel branches ships a
+# crash-on-upgrade. Coordinate before touching.
+/data/src/main/kotlin/com/eevdf/data/task/TaskDatabase.kt   @your-handle
+/data/schemas/                                              @your-handle
+
+# The god entity. Every new column here widens a structure eight features read.
+# Default answer to "can I add a column" is no — use a side table.
+/data/src/main/kotlin/com/eevdf/data/task/Task.kt           @your-handle
+
+# Backup and sync contracts — a mistake here loses user data silently.
+/data/src/main/kotlin/com/eevdf/data/backup/                @your-handle
+/data/src/main/kotlin/com/eevdf/data/sync/                  @your-handle
+
+# The pure core. Changes here alter scheduling behaviour app-wide.
+/core/                                                      @your-handle
+
+# Guard rails themselves. Weakening these should never be a quiet change.
+/scripts/                                                   @your-handle
+/config/detekt/                                             @your-handle
+/.github/workflows/                                         @your-handle

@@ -1,0 +1,87 @@
+# Detekt config for EEVDF Scheduler.
+#
+# Deliberately narrow. The goal is not style policing — it is catching the
+# specific patterns that made this codebase fragile. Everything else inherits
+# detekt's defaults via buildUponDefaultConfig.
+
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+complexity:
+  active: true
+  LongMethod:
+    active: true
+    # setupObservers() in MainActivity is 223 lines. This is the ceiling for
+    # anything NEW; the existing offenders are tracked in the Phase 2 plan.
+    threshold: 60
+  LongParameterList:
+    active: true
+    functionThreshold: 8
+    constructorThreshold: 12
+  LargeClass:
+    active: true
+    threshold: 400
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 30
+    thresholdInClasses: 30
+    ignorePrivate: false
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 18
+
+exceptions:
+  active: true
+  TooGenericExceptionCaught:
+    active: true
+    # There are several `catch (_: Exception) { /* ignore */ }` sites in the
+    # sync and DB code. Each one is a bug that will be invisible in the field.
+    exceptionNames: ['Exception', 'Throwable', 'RuntimeException']
+  SwallowedException:
+    active: true
+  EmptyCatchBlock:
+    active: true
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+
+naming:
+  active: true
+  FunctionNaming:
+    active: true
+    # Backtick-quoted test names must not be flagged.
+    excludes: ['**/test/**', '**/androidTest/**']
+
+performance:
+  active: true
+  SpreadOperator:
+    active: false
+
+potential-bugs:
+  active: true
+  UnsafeCallOnNullableType:
+    active: true
+  LateinitUsage:
+    active: false        # unavoidable with View binding in Activities
+  IgnoredReturnValue:
+    active: true
+
+style:
+  active: true
+  MaxLineLength:
+    active: true
+    maxLineLength: 140
+    excludeCommentStatements: true
+  MagicNumber:
+    active: false        # too noisy against existing UI/dimension code
+  WildcardImport:
+    active: true
+  ReturnCount:
+    active: true
+    max: 5
+  UnusedPrivateMember:
+    active: true
+  ForbiddenComment:
+    active: false
+  ThrowsCount:
+    active: true
+    max: 3

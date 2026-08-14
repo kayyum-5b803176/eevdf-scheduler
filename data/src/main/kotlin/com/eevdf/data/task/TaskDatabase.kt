@@ -16,7 +16,7 @@ import com.eevdf.data.task.Task
 @Database(
     entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class, InterruptReturnEntry::class],
     version  = 21,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
 

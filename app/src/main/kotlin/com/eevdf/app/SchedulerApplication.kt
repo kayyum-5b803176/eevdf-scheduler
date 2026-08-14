@@ -1,6 +1,8 @@
 package com.eevdf.app
 
 import android.app.Application
+import com.eevdf.app.core.LogcatCrashReporter
+import com.eevdf.shared.CrashIsolation
 import dagger.hilt.android.HiltAndroidApp
 
 /**
@@ -16,4 +18,12 @@ import dagger.hilt.android.HiltAndroidApp
  * provided through the Hilt modules in `com.eevdf.app.di`.
  */
 @HiltAndroidApp
-class SchedulerApplication : Application()
+class SchedulerApplication : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        // Install the sink for feature-level contained failures before any
+        // feature can produce one. See com.eevdf.shared.safeFeature.
+        CrashIsolation.install(LogcatCrashReporter)
+    }
+}

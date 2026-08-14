@@ -1,0 +1,23 @@
+# BASELINE of cross-feature imports that already existed before the
+# architecture guard was introduced. Each line is technical debt.
+#
+# The guard blocks any edge NOT listed here, so the graph can only get
+# better. When Phase 2 removes an edge, DELETE its line — never add one.
+#
+# Generated 2026-08-14 from the current tree.
+
+alarm -> notification
+alarm -> settings
+alarm -> task
+autoswitch -> alarm
+autoswitch -> task
+backup -> task
+settings -> autoswitch
+settings -> backup
+settings -> sync
+stats -> autoswitch
+task -> alarm
+task -> autoswitch
+task -> notification
+task -> settings
+task -> stats
