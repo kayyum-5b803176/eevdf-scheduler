@@ -11,10 +11,10 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import com.eevdf.app.feature.settings.SoundManager
-import com.eevdf.app.feature.settings.UiCustomizationPrefs
-import com.eevdf.app.feature.settings.VibrationManager
-import com.eevdf.app.feature.task.MainActivity
+import com.eevdf.app.core.media.SoundManager
+import com.eevdf.app.core.prefs.UiCustomizationPrefs
+import com.eevdf.app.core.media.VibrationManager
+import com.eevdf.app.core.nav.AppRoutes
 
 /**
  * Foreground service that owns the notification UI and alarm sound/wake.
@@ -467,7 +467,7 @@ class AlarmForegroundService : Service() {
 
     private fun openMainActivityPi(reqCode: Int) = PendingIntent.getActivity(
         this, reqCode,
-        Intent(this, MainActivity::class.java).apply {
+        AppRoutes.main(this).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         },
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

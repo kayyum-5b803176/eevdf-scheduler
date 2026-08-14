@@ -14,6 +14,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Qualifier
 import javax.inject.Singleton
+import com.eevdf.app.core.notification.NotificationHelper
 
 /**
  * Qualifies the app's primary `SharedPreferences` file ("eevdf_prefs"),

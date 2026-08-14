@@ -11,6 +11,7 @@ import androidx.cardview.widget.CardView
 import com.eevdf.app.R
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
+import com.eevdf.app.core.prefs.UiCustomizationPrefs
 
 class UiCustomizationActivity : AppCompatActivity() {
 

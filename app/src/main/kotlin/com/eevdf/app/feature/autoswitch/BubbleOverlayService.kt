@@ -27,9 +27,9 @@ import androidx.core.app.NotificationCompat
 import com.eevdf.app.R
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.data.runlog.RunSession
-import com.eevdf.app.feature.task.timer.TimerState
-import com.eevdf.app.feature.task.timer.timerState
-import com.eevdf.app.feature.task.timer.withTimerState
+import com.eevdf.data.task.timer.TaskTimerState
+import com.eevdf.data.task.timer.timerState
+import com.eevdf.data.task.timer.withTimerState
 import com.eevdf.app.feature.alarm.AlarmForegroundService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +38,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.app.core.signals.BubbleEventBus
+import com.eevdf.app.feature.task.TaskCallSwitchDelegate
 
 /**
  * Foreground service that owns the floating call-state bubble overlay.
@@ -311,7 +314,7 @@ class BubbleOverlayService : Service() {
                 // ── Call task is running → pause it ──────────────────────────
                 val startEpoch = runningTask.startTimeEpoch
                 val paused     = runningTask.withTimerState(
-                    TimerState.pause(runningTask.timerState, nowMs))
+                    TaskTimerState.pause(runningTask.timerState, nowMs))
                 repo.update(paused)
 
                 val session = RunSession.Paused(runningTask.id, startEpoch, nowMs)
@@ -328,7 +331,7 @@ class BubbleOverlayService : Service() {
                 if (runningTask != null) {
                     val startEpoch = runningTask.startTimeEpoch
                     val paused     = runningTask.withTimerState(
-                        TimerState.pause(runningTask.timerState, nowMs))
+                        TaskTimerState.pause(runningTask.timerState, nowMs))
                     repo.update(paused)
 
                     val session = RunSession.Paused(runningTask.id, startEpoch, nowMs)
@@ -339,7 +342,7 @@ class BubbleOverlayService : Service() {
                 val callTask = repo.getTaskById(callTaskId)
                 if (callTask == null || callTask.isCompleted) return@launch
 
-                val runState       = TimerState.resume(callTask.timerState, nowMs)
+                val runState       = TaskTimerState.resume(callTask.timerState, nowMs)
                 val runningCallTask = callTask.withTimerState(runState)
                 repo.update(runningCallTask)
 

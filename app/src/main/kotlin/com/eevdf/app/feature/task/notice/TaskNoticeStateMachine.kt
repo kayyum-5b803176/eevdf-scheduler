@@ -8,11 +8,11 @@ import androidx.lifecycle.viewModelScope
 import com.eevdf.app.feature.task.notice.NoticePhase
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.Task
-import com.eevdf.app.feature.task.timer.TimerState
-import com.eevdf.app.feature.task.timer.timerState
-import com.eevdf.app.feature.task.timer.withTimerState
+import com.eevdf.data.task.timer.TaskTimerState
+import com.eevdf.data.task.timer.timerState
+import com.eevdf.data.task.timer.withTimerState
 import com.eevdf.app.feature.alarm.AlarmForegroundService
-import com.eevdf.app.feature.settings.SoundManager
+import com.eevdf.app.core.media.SoundManager
 import kotlinx.coroutines.launch
 import com.eevdf.app.feature.task.TaskViewModel
 
@@ -137,7 +137,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 // resolveAfterDelay() can use them.  currentRepeatIteration will be
                 // set there once the timestamp check decides resume vs skip.
             }
-            task.timerState is TimerState.Idle -> {
+            task.timerState is TaskTimerState.Idle -> {
                 // Fresh start: reset all iteration counters.
                 currentRepeatIteration = 0
                 lastExecuteIteration   = 0
@@ -177,7 +177,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 // TimerStartEvent.from(Expired) computes accumulated = sliceMs, so the
                 // engine starts with 0 remaining and onFinish fires in ~0 ms.
                 // Reset to Idle so the next execute gets the full slice duration.
-                startExecutePhase(task.withTimerState(TimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
+                startExecutePhase(task.withTimerState(TaskTimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
             }
             else                                   -> triggerAlarmExpire(task)
         }
@@ -322,7 +322,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                     currentRepeatIteration++
                     // Bug fix #2 (wait path): same Expired-timerState issue —
                     // reset to Idle so the repeat execute gets the full slice.
-                    startExecutePhase(task.withTimerState(TimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
+                    startExecutePhase(task.withTimerState(TaskTimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
                 } else {
                     triggerAlarmExpire(task)
                 }
@@ -391,7 +391,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         vm._currentTask.value?.let { t ->
             // Reset timerState to Idle so the engine does not treat next Start as
             // an execute resume (it's a wait-resume, handled by resolveAfterDelay).
-            val reset = t.copy(remainingSeconds = sliceSecs).withTimerState(TimerState.reset())
+            val reset = t.copy(remainingSeconds = sliceSecs).withTimerState(TaskTimerState.reset())
             vm._currentTask.value = reset
             vm.viewModelScope.launch { vm.repository.update(reset) }
         }
@@ -436,7 +436,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                     totalPhaseSecs = sessionSecs
                 ))
             }
-            vm.repository.update(task.withTimerState(TimerState.reset()))
+            vm.repository.update(task.withTimerState(TaskTimerState.reset()))
             vm.refreshSchedule()
         }
 
@@ -447,7 +447,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         // Requirement #3: keep the card seated on the just-expired task. Store the
         // reset task for Stop/Restart restoration and persist its id so a reboot
         // mid-alarm reopens the card on the same task (mirrors onTimerFinished).
-        vm.taskToRestoreAfterExpire = task.withTimerState(TimerState.reset())
+        vm.taskToRestoreAfterExpire = task.withTimerState(TaskTimerState.reset())
         vm.settings.saveSelectedTaskId(task.id)
         vm._currentTask.postValue(null)
     }
@@ -491,7 +491,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 val nextIter  = if (savedIter < maxRepeat) savedIter + 1 else 0
                 currentRepeatIteration = nextIter
                 lastExecuteIteration   = nextIter
-                startExecutePhase(task.withTimerState(TimerState.reset()), task.timeSliceSeconds, nextIter)
+                startExecutePhase(task.withTimerState(TaskTimerState.reset()), task.timeSliceSeconds, nextIter)
             }
             return
         }

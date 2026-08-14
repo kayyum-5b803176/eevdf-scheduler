@@ -1,4 +1,4 @@
-package com.eevdf.app.feature.settings
+package com.eevdf.app.core.media
 
 import android.content.Context
 import android.content.SharedPreferences

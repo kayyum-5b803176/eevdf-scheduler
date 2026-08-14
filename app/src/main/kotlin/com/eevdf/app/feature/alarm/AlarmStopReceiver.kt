@@ -3,7 +3,7 @@ package com.eevdf.app.feature.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.eevdf.app.feature.notification.NotificationHelper
+import com.eevdf.app.core.notification.NotificationHelper
 
 class AlarmStopReceiver : BroadcastReceiver() {
 

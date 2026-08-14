@@ -7,9 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.app.R
 import com.google.android.material.button.MaterialButton
-import com.eevdf.app.feature.backup.DataBackupActivity
-import com.eevdf.app.feature.autoswitch.AutoSwitchActivity
-import com.eevdf.app.feature.sync.MultiUserSyncActivity
+import com.eevdf.app.core.nav.AppRoutes
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -37,16 +35,16 @@ class SettingsActivity : AppCompatActivity() {
         btnOpenButtonAction    = findViewById(R.id.btnOpenButtonAction)
 
         btnOpenDataBackup.setOnClickListener {
-            startActivity(Intent(this, DataBackupActivity::class.java))
+            startActivity(AppRoutes.backup(this))
         }
         btnOpenSoundVib.setOnClickListener {
             startActivity(Intent(this, SoundVibrationActivity::class.java))
         }
         btnOpenAutoSwitch.setOnClickListener {
-            startActivity(Intent(this, AutoSwitchActivity::class.java))
+            startActivity(AppRoutes.autoSwitch(this))
         }
         btnOpenMultiUserSync.setOnClickListener {
-            startActivity(Intent(this, MultiUserSyncActivity::class.java))
+            startActivity(AppRoutes.sync(this))
         }
         btnOpenUiCustomization.setOnClickListener {
             startActivity(Intent(this, UiCustomizationActivity::class.java))

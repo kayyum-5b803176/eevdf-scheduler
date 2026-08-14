@@ -1,5 +1,8 @@
 package com.eevdf.app.feature.task.timer
 
+import com.eevdf.data.task.timer.TaskTimerState
+import com.eevdf.data.task.timer.timerState
+
 /**
  * Sealed class representing a Start button press on the timer card.
  *
@@ -24,7 +27,7 @@ package com.eevdf.app.feature.task.timer
  *
  * RULE:
  *  [TimerStartEvent.from] is the ONLY legal way to build a start event.
- *  It reads accumulatedMs from [TimerState.elapsedMs] — which operates on
+ *  It reads accumulatedMs from [TaskTimerState.elapsedMs] — which operates on
  *  the exact millisecond values stored in the sealed state — never from
  *  (timeSliceSeconds - remainingSeconds) * 1000 which truncates to 1s granularity.
  */
@@ -36,9 +39,9 @@ sealed class TimerStartEvent {
     /** Wall-clock epoch ms of this Start press. */
     abstract val startEpochMs: Long
 
-    /** The [TimerState.Running] this event produces — the only correct way to start a timer. */
-    val toRunning: TimerState.Running
-        get() = TimerState.Running(
+    /** The [TaskTimerState.Running] this event produces — the only correct way to start a timer. */
+    val toRunning: TaskTimerState.Running
+        get() = TaskTimerState.Running(
             accumulatedMs  = accumulatedMs,
             startTimeEpoch = startEpochMs
         )
@@ -47,7 +50,7 @@ sealed class TimerStartEvent {
 
     /**
      * First press: task is Idle, accumulated = 0.
-     * Produced when [TimerState.elapsedMs] == 0 for the current state.
+     * Produced when [TaskTimerState.elapsedMs] == 0 for the current state.
      */
     data class Fresh(override val startEpochMs: Long) : TimerStartEvent() {
         override val accumulatedMs: Long = 0L
@@ -75,21 +78,21 @@ sealed class TimerStartEvent {
 
     companion object {
         /**
-         * Build the correct event type from the task's current [TimerState].
+         * Build the correct event type from the task's current [TaskTimerState].
          *
          * This is the ONLY permitted entry point.  Call this inside startActualTimer
-         * before constructing [TimerState.Running] — never pass remainingSeconds here.
+         * before constructing [TaskTimerState.Running] — never pass remainingSeconds here.
          *
          * @param state   task.timerState — the exact sealed state last written by the engine.
          * @param nowMs   wall-clock epoch of the Start press (default = System.currentTimeMillis()).
          */
         fun from(
-            state: TimerState,
+            state: TaskTimerState,
             nowMs: Long = System.currentTimeMillis()
         ): TimerStartEvent {
             // elapsedMs reads accumulatedMs directly from the Paused/Running state —
             // no seconds conversion, no truncation.
-            val accumulated = TimerState.elapsedMs(state, nowMs)
+            val accumulated = TaskTimerState.elapsedMs(state, nowMs)
             return if (accumulated == 0L) Fresh(nowMs) else Resume(accumulated, nowMs)
         }
     }

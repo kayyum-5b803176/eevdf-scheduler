@@ -11,11 +11,11 @@ import com.eevdf.app.di.AppPreferences
 import com.eevdf.app.feature.task.notice.NoticePhase
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.app.feature.task.timer.TimerStartEvent
-import com.eevdf.app.feature.task.timer.TimerState
+import com.eevdf.data.task.timer.TaskTimerState
 import com.eevdf.app.feature.task.timer.TimerCardAction
 import com.eevdf.app.feature.task.timer.NextButtonState
-import com.eevdf.app.feature.task.timer.timerState
-import com.eevdf.app.feature.task.timer.withTimerState
+import com.eevdf.data.task.timer.timerState
+import com.eevdf.data.task.timer.withTimerState
 import com.eevdf.data.task.TaskDisplayItem
 import com.eevdf.data.scheduler.EEVDFScheduler
 import com.eevdf.data.scheduler.SchedulerStats
@@ -27,13 +27,13 @@ import kotlinx.coroutines.launch
 import com.eevdf.data.sync.MultiUserSyncManager
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import com.eevdf.app.feature.settings.TaskSettingsDelegate
 import com.eevdf.app.feature.task.timer.TaskInterruptDelegate
-import com.eevdf.app.feature.autoswitch.TaskCallSwitchDelegate
 import com.eevdf.app.feature.task.notice.TaskNoticeStateMachine
 import com.eevdf.app.feature.task.TaskSchedulerDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.app.core.signals.BubbleEventBus
 
 /**
  * Root coordinator ViewModel.
@@ -275,7 +275,7 @@ class TaskViewModel @Inject constructor(
                 // Idempotent — getRunningTask() only matches isRunning=1 & startTimeEpoch>0,
                 // so after the reset() below a later reopen will not double-credit.
                 val orphan = repository.getRunningTask()
-                val runState = orphan?.timerState as? TimerState.Running
+                val runState = orphan?.timerState as? TaskTimerState.Running
                 if (orphan != null && runState != null) {
                     val sliceMs       = orphan.timeSliceSeconds * 1000L
                     val expiryEpochMs = runState.startTimeEpoch + sliceMs - runState.accumulatedMs
@@ -283,7 +283,7 @@ class TaskViewModel @Inject constructor(
                     if (orphan.taskType != "NOTIFICATION") {
                         repository.updateVruntimeAfterRun(orphan, session)
                     }
-                    repository.update(orphan.withTimerState(TimerState.reset()))
+                    repository.update(orphan.withTimerState(TaskTimerState.reset()))
                     refreshSchedule()
                 }
 
@@ -300,7 +300,7 @@ class TaskViewModel @Inject constructor(
             val running = repository.getRunningTask()
             if (running != null) {
                 val nowMs       = System.currentTimeMillis()
-                val secondsLeft = TimerState.remainingSecs(
+                val secondsLeft = TaskTimerState.remainingSecs(
                     running.timerState, running.timeSliceSeconds, nowMs
                 )
                 if (secondsLeft > 0L) {
@@ -312,7 +312,7 @@ class TaskViewModel @Inject constructor(
                     timerEngine.restoreFromDb(corrected)
                     settings.saveSelectedTaskId(corrected.id)
                 } else {
-                    val state         = running.timerState as TimerState.Running
+                    val state         = running.timerState as TaskTimerState.Running
                     val expiryEpochMs = state.startTimeEpoch +
                         running.timeSliceSeconds * 1000L - state.accumulatedMs
                     val session = RunSession.Recovered(
@@ -394,7 +394,7 @@ class TaskViewModel @Inject constructor(
 
     /** Moves a completed task back to the active queue, restoring its timer slice. */
     fun revertTask(task: Task) = viewModelScope.launch {
-        val reverted = task.copy(isCompleted = false).withTimerState(TimerState.reset())
+        val reverted = task.copy(isCompleted = false).withTimerState(TaskTimerState.reset())
         repository.update(reverted)
         syncPinnedWeights()
     }
@@ -459,10 +459,10 @@ class TaskViewModel @Inject constructor(
         // pending-wait paths are unaffected.
         val isInitialResume = task.taskType == "NOTIFICATION" &&
             task.notificationResumeType == "INITIAL" &&
-            task.timerState is TimerState.Paused &&
+            task.timerState is TaskTimerState.Paused &&
             !notice.hasPendingWait()
 
-        val effectiveTask      = if (isInitialResume) task.withTimerState(TimerState.reset()) else task
+        val effectiveTask      = if (isInitialResume) task.withTimerState(TaskTimerState.reset()) else task
         val effectiveRemaining = if (isInitialResume) task.timeSliceSeconds else remaining
 
         if (delaySecs > 0) {
@@ -564,7 +564,7 @@ class TaskViewModel @Inject constructor(
         timerEngine.clear()
         notice.resetState()
         val task  = _currentTask.value ?: return
-        val reset = task.withTimerState(TimerState.reset())
+        val reset = task.withTimerState(TaskTimerState.reset())
         _timerSeconds.value = reset.remainingSeconds
         viewModelScope.launch {
             repository.update(reset)
@@ -575,7 +575,7 @@ class TaskViewModel @Inject constructor(
     /** Resets the timer slice of any task back to its default [timeSliceSeconds]. */
     fun resetSlice(task: Task) {
         if (task.id == _currentTask.value?.id) { resetTimer(); return }
-        viewModelScope.launch { repository.update(task.withTimerState(TimerState.reset())) }
+        viewModelScope.launch { repository.update(task.withTimerState(TaskTimerState.reset())) }
     }
 
     fun skipTask() {
@@ -722,7 +722,7 @@ class TaskViewModel @Inject constructor(
                     notice.accumulateSessionSeconds(session.wallClockSeconds)
                 }
             }
-            repository.update(task.withTimerState(TimerState.reset()))
+            repository.update(task.withTimerState(TaskTimerState.reset()))
             _toastMessage.postValue("Time slice done for \"${task.name}\"")
             refreshSchedule()
 
@@ -748,7 +748,7 @@ class TaskViewModel @Inject constructor(
                 _alarmTaskName.postValue(task.name)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(task.name, elapsedSinceExpiry)
-                taskToRestoreAfterExpire = task.withTimerState(TimerState.reset())
+                taskToRestoreAfterExpire = task.withTimerState(TaskTimerState.reset())
                 // Requirement #3: do NOT clear the persisted selection on expiry.
                 // The merged card stays seated on the just-expired task (showing the
                 // Expired/alarm state); keep its id stored so a reboot mid-alarm
@@ -841,7 +841,7 @@ class TaskViewModel @Inject constructor(
     /** Seats [task] on the timer card with a full reset slice and starts it. */
     private fun startFreshSlice(task: Task) {
         val fresh = task
-            .withTimerState(TimerState.reset())
+            .withTimerState(TaskTimerState.reset())
             .copy(remainingSeconds = task.timeSliceSeconds)
         setCurrentTask(fresh)
         _timerSeconds.value = fresh.timeSliceSeconds
@@ -937,12 +937,12 @@ class TaskViewModel @Inject constructor(
      *   Case C — No timer is running (bubble dot = blue, timer paused):
      *     Start the call-assigned task timer.
      *
-     * The [com.eevdf.app.feature.autoswitch.AutoSwitchPrefs.getCallTaskId]
+     * The [com.eevdf.app.core.prefs.AutoSwitchPrefs.getCallTaskId]
      * value is the single source of truth for "which task is the call task".
      */
     fun handleBubbleTap() {
         val ctx        = getApplication<android.app.Application>()
-        val callTaskId = com.eevdf.app.feature.autoswitch.AutoSwitchPrefs.getCallTaskId(ctx)
+        val callTaskId = com.eevdf.app.core.prefs.AutoSwitchPrefs.getCallTaskId(ctx)
 
         // No call task configured — fall back to simple toggle (safe default)
         if (callTaskId == null) {

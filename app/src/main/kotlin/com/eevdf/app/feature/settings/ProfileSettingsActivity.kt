@@ -18,6 +18,8 @@ import com.eevdf.app.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.slider.Slider
 import com.google.android.material.tabs.TabLayout
+import com.eevdf.app.core.media.SoundManager
+import com.eevdf.app.core.media.VibrationManager
 
 class ProfileSettingsActivity : AppCompatActivity() {
 

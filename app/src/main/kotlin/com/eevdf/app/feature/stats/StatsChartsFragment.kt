@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
-import com.eevdf.app.feature.autoswitch.AutoSwitchPrefs
+import com.eevdf.app.core.prefs.AutoSwitchPrefs
 
 @AndroidEntryPoint
 class StatsChartsFragment : Fragment() {

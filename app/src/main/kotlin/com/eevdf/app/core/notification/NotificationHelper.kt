@@ -1,4 +1,4 @@
-package com.eevdf.app.feature.notification
+package com.eevdf.app.core.notification
 
 import android.content.Context
 import androidx.core.app.NotificationManagerCompat

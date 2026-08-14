@@ -1,4 +1,4 @@
-package com.eevdf.app.feature.autoswitch
+package com.eevdf.app.core.signals
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

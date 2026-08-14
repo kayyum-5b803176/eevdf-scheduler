@@ -1,20 +1,20 @@
-package com.eevdf.app.feature.task.timer
+package com.eevdf.data.task.timer
 
 import com.eevdf.data.task.Task
 // ── Read: reconstruct sealed state from DB columns ───────────────────────────
 
 /**
- * Reconstructs the canonical [TimerState] from the two stored epoch columns.
+ * Reconstructs the canonical [TaskTimerState] from the two stored epoch columns.
  *
  * THE ONLY PLACE in the app that reads accumulatedMs / startTimeEpoch directly
- * from a Task. All other code must go through TimerState functions.
+ * from a Task. All other code must go through TaskTimerState functions.
  */
-val Task.timerState: TimerState
+val Task.timerState: TaskTimerState
     get() = when {
-        isCompleted         -> TimerState.Expired(timeSliceSeconds * 1000L)
-        startTimeEpoch > 0L -> TimerState.Running(accumulatedMs, startTimeEpoch)
-        accumulatedMs  > 0L -> TimerState.Paused(accumulatedMs)
-        else                -> TimerState.Idle
+        isCompleted         -> TaskTimerState.Expired(timeSliceSeconds * 1000L)
+        startTimeEpoch > 0L -> TaskTimerState.Running(accumulatedMs, startTimeEpoch)
+        accumulatedMs  > 0L -> TaskTimerState.Paused(accumulatedMs)
+        else                -> TaskTimerState.Idle
     }
 
 // ── Write: the ONLY legal path to change timer columns on a Task ─────────────
@@ -33,21 +33,21 @@ val Task.timerState: TimerState
  *   isRunning        — derived from whether newState is Running
  *   remainingSeconds — cached snapshot for adapters / EEVDF
  */
-fun Task.withTimerState(newState: TimerState): Task {
+fun Task.withTimerState(newState: TaskTimerState): Task {
     val nowMs     = System.currentTimeMillis()
     val sliceMs   = timeSliceSeconds * 1000L
-    val elapsedMs = TimerState.elapsedMs(newState, nowMs).coerceAtMost(sliceMs)
+    val elapsedMs = TaskTimerState.elapsedMs(newState, nowMs).coerceAtMost(sliceMs)
     val remainSec = ((sliceMs - elapsedMs) / 1000L).coerceAtLeast(0L)
 
     return copy(
         accumulatedMs    = when (newState) {
-            is TimerState.Idle    -> 0L
-            is TimerState.Paused  -> newState.accumulatedMs
-            is TimerState.Running -> newState.accumulatedMs
-            is TimerState.Expired -> sliceMs
+            is TaskTimerState.Idle    -> 0L
+            is TaskTimerState.Paused  -> newState.accumulatedMs
+            is TaskTimerState.Running -> newState.accumulatedMs
+            is TaskTimerState.Expired -> sliceMs
         },
-        startTimeEpoch   = if (newState is TimerState.Running) newState.startTimeEpoch else 0L,
-        isRunning        = newState is TimerState.Running,
+        startTimeEpoch   = if (newState is TaskTimerState.Running) newState.startTimeEpoch else 0L,
+        isRunning        = newState is TaskTimerState.Running,
         remainingSeconds = remainSec
     )
 }

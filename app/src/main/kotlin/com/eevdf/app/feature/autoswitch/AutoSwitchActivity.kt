@@ -28,6 +28,7 @@ import com.eevdf.app.feature.task.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import dagger.hilt.android.AndroidEntryPoint
+import com.eevdf.app.core.prefs.AutoSwitchPrefs
 
 @AndroidEntryPoint
 class AutoSwitchActivity : AppCompatActivity() {

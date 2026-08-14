@@ -1,23 +1,30 @@
-# BASELINE of cross-feature imports that already existed before the
-# architecture guard was introduced. Each line is technical debt.
+# BASELINE of cross-feature imports.
 #
-# The guard blocks any edge NOT listed here, so the graph can only get
-# better. When Phase 2 removes an edge, DELETE its line — never add one.
+# Each line is technical debt. The guard blocks any edge NOT listed here, so
+# the graph can only get better. When an edge is removed, DELETE its line —
+# never add one to make a build go green.
 #
-# Generated 2026-08-14 from the current tree.
+# History:
+#   v4.3.0  15 edges  (baseline when the guard was introduced)
+#   v4.4.0   5 edges  (Phase 2a: relocated misfiled shared code + AppRoutes)
+#
+# The five that remain are all SERVICE CONTROL, not misfiling — one feature
+# starting, stopping or reading the state of another feature's foreground
+# service. Removing them needs an abstraction (Phase 2b):
+#
+#   task -> alarm        TaskViewModel/TaskNoticeStateMachine drive
+#                        AlarmForegroundService + AlarmScheduler + AlarmState
+#   task -> autoswitch   MainActivity starts/stops BubbleOverlayService
+#   autoswitch -> alarm  CallSwitchService stops the alarm on call start
+#   autoswitch -> task   autoswitch services observe TaskViewModel
+#   backup -> task       DataBackupActivity reads TaskViewModel
+#
+# Planned fix: an `AlarmController` / `OverlayController` interface in :data or
+# a new :core:ui module, implemented in :app, injected via Hilt. Callers then
+# depend on the contract instead of the service class.
 
-alarm -> notification
-alarm -> settings
-alarm -> task
 autoswitch -> alarm
 autoswitch -> task
 backup -> task
-settings -> autoswitch
-settings -> backup
-settings -> sync
-stats -> autoswitch
 task -> alarm
 task -> autoswitch
-task -> notification
-task -> settings
-task -> stats

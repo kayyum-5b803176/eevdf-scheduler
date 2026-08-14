@@ -1,4 +1,4 @@
-package com.eevdf.app.feature.task.timer
+package com.eevdf.data.task.timer
 
 /**
  * The complete, self-consistent timer state for one task slice.
@@ -13,11 +13,11 @@ package com.eevdf.app.feature.task.timer
  *     updates all four columns atomically.
  *
  *  3. The only legal state transitions are the companion functions below.
- *     Idle    → Running   : TimerState.resume(Idle)
- *     Paused  → Running   : TimerState.resume(Paused)
- *     Running → Paused    : TimerState.pause(Running)
- *     Running → Expired   : TimerState.expire(sliceMs)
- *     any     → Idle      : TimerState.reset()
+ *     Idle    → Running   : TaskTimerState.resume(Idle)
+ *     Paused  → Running   : TaskTimerState.resume(Paused)
+ *     Running → Paused    : TaskTimerState.pause(Running)
+ *     Running → Expired   : TaskTimerState.expire(sliceMs)
+ *     any     → Idle      : TaskTimerState.reset()
  *
  * Why sealed instead of flags on Task:
  *  task.copy() only updates fields you name. A caller can silently forget
@@ -25,18 +25,18 @@ package com.eevdf.app.feature.task.timer
  *  A sealed class makes that impossible state unrepresentable — Running requires
  *  a non-zero startTimeEpoch by construction.
  */
-sealed class TimerState {
+sealed class TaskTimerState {
 
     // ── States ────────────────────────────────────────────────────────────────
 
     /** Never started or fully reset. Both epoch columns are 0. */
-    object Idle : TimerState()
+    object Idle : TaskTimerState()
 
     /**
      * Paused mid-run.
      * [accumulatedMs] = total ms consumed across all sessions so far.
      */
-    data class Paused(val accumulatedMs: Long) : TimerState() {
+    data class Paused(val accumulatedMs: Long) : TaskTimerState() {
         init { require(accumulatedMs >= 0) { "accumulatedMs must be ≥ 0, got $accumulatedMs" } }
     }
 
@@ -50,7 +50,7 @@ sealed class TimerState {
     data class Running(
         val accumulatedMs: Long,
         val startTimeEpoch: Long
-    ) : TimerState() {
+    ) : TaskTimerState() {
         init {
             require(accumulatedMs  >= 0) { "accumulatedMs must be ≥ 0, got $accumulatedMs" }
             require(startTimeEpoch  > 0) { "startTimeEpoch must be a real epoch ms, got $startTimeEpoch" }
@@ -61,7 +61,7 @@ sealed class TimerState {
      * Slice fully consumed. Stored in DB as Paused(sliceMs) with isRunning=false.
      * [sliceMs] = timeSliceSeconds * 1000.
      */
-    data class Expired(val sliceMs: Long) : TimerState()
+    data class Expired(val sliceMs: Long) : TaskTimerState()
 
     // ── Pure math — no side effects, safe to call from anywhere ──────────────
 
@@ -71,7 +71,7 @@ sealed class TimerState {
          * Total milliseconds consumed as of [nowMs].
          * THE ONLY function in the app that computes elapsed time.
          */
-        fun elapsedMs(state: TimerState, nowMs: Long = System.currentTimeMillis()): Long =
+        fun elapsedMs(state: TaskTimerState, nowMs: Long = System.currentTimeMillis()): Long =
             when (state) {
                 is Idle    -> 0L
                 is Paused  -> state.accumulatedMs
@@ -81,21 +81,21 @@ sealed class TimerState {
 
         /** Remaining milliseconds — never negative. */
         fun remainingMs(
-            state: TimerState,
+            state: TaskTimerState,
             sliceMs: Long,
             nowMs: Long = System.currentTimeMillis()
         ): Long = (sliceMs - elapsedMs(state, nowMs)).coerceAtLeast(0L)
 
         /** Remaining whole seconds for UI display. */
         fun remainingSecs(
-            state: TimerState,
+            state: TaskTimerState,
             sliceSecs: Long,
             nowMs: Long = System.currentTimeMillis()
         ): Long = remainingMs(state, sliceSecs * 1000L, nowMs) / 1000L
 
         /** Progress 0–100 for the card progress bar. */
         fun progress(
-            state: TimerState,
+            state: TaskTimerState,
             sliceMs: Long,
             nowMs: Long = System.currentTimeMillis()
         ): Int {
@@ -104,7 +104,7 @@ sealed class TimerState {
         }
 
         fun isExpired(
-            state: TimerState,
+            state: TaskTimerState,
             sliceMs: Long,
             nowMs: Long = System.currentTimeMillis()
         ): Boolean = remainingMs(state, sliceMs, nowMs) == 0L
@@ -116,7 +116,7 @@ sealed class TimerState {
          * Carries forward any already-accumulated ms so partial slices resume correctly.
          */
         fun resume(
-            state: TimerState,
+            state: TaskTimerState,
             nowMs: Long = System.currentTimeMillis()
         ): Running = Running(
             accumulatedMs  = elapsedMs(state, nowMs),
@@ -128,7 +128,7 @@ sealed class TimerState {
          * Snapshots elapsed ms at [nowMs]. Safe on already-Paused / Idle state.
          */
         fun pause(
-            state: TimerState,
+            state: TaskTimerState,
             nowMs: Long = System.currentTimeMillis()
         ): Paused = Paused(elapsedMs(state, nowMs))
 

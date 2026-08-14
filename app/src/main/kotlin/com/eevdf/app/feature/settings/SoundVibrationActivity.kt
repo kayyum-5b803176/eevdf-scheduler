@@ -9,6 +9,7 @@ import androidx.appcompat.widget.Toolbar
 import com.eevdf.app.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
+import com.eevdf.app.core.media.VibrationManager
 
 class SoundVibrationActivity : AppCompatActivity() {
 

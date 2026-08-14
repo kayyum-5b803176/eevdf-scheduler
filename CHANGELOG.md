@@ -1,5 +1,111 @@
 # Changelog
 
+## 4.4.0 — Phase 2a: collapse the cross-feature dependency graph
+
+`versionName` 4.3.0 → **4.4.0** (MINOR). `versionCode` unchanged at 1.
+
+Rationale: no user-visible behaviour changes, but this is structural work rather
+than bug fixing — internal package locations and one public class name changed.
+MINOR communicates "safe to take, but not a no-op patch."
+
+**Cross-feature import edges: 15 → 5 (−67%).** That number is the whole point of
+this release: those edges are what prevent the feature packages from becoming
+real Gradle modules, and every one of them is a path by which a change in one
+feature can break another.
+
+### Moved — code that was filed under the wrong feature
+
+None of these are logic changes. Each class was being reached across a feature
+boundary because it lived in the wrong place, not because the coupling was real.
+
+| Class | From | To |
+|---|---|---|
+| `TimerState` → **`TaskTimerState`** | `app.feature.task.timer` | `data.task.timer` |
+| `TaskTimerExt` (`timerState`, `withTimerState`) | `app.feature.task.timer` | `data.task.timer` |
+| `NotificationHelper` | `app.feature.notification` | `app.core.notification` |
+| `SoundManager`, `VibrationManager` | `app.feature.settings` | `app.core.media` |
+| `UiCustomizationPrefs`, `QuickActionPrefs`, `HardwareKeyPrefs` | `app.feature.settings` | `app.core.prefs` |
+| `AutoSwitchPrefs` | `app.feature.autoswitch` | `app.core.prefs` |
+| `RecentGroupPrefs` | `app.feature.task` | `app.core.prefs` |
+| `BubbleEventBus`, `CallEvents` | `app.feature.autoswitch` | `app.core.signals` |
+| `TaskSettingsDelegate` | `app.feature.settings` | `app.feature.task` |
+| `TaskCallSwitchDelegate` | `app.feature.autoswitch` | `app.feature.task` |
+
+`TimerState` operates on the `:data` `Task` entity and was used by both `task`
+and `autoswitch`, so `:data` is its real home. The two delegates both exist to
+serve `TaskViewModel` — `TaskCallSwitchDelegate` literally takes one in its
+constructor — so they belong in the task feature.
+
+The `app.feature.notification` package is now empty and removed.
+
+### Renamed — `TimerState` → `TaskTimerState`
+
+**Breaking for any code you have outside this zip.** There were two unrelated
+classes named `TimerState`: the pure FSM state in
+`core.scheduler.timer` and the persisted-task state formerly in
+`app.feature.task.timer`. Once the latter moved into `:data`, both were
+reachable from the same files.
+
+This is not hypothetical — the collision produced four wrong import insertions
+during this very refactor before being caught. Renaming removes the trap.
+
+`timerState` and `withTimerState` (the extensions) keep their names.
+
+### Added — `AppRoutes` navigation seam
+
+`app.core.nav.AppRoutes` resolves screens by class **name** rather than by
+`Activity::class.java`. A direct class reference is a compile-time dependency,
+and it is exactly what would stop `:feature:task` and `:feature:stats` from
+becoming separate modules. Eight navigation call sites now go through it:
+
+```kotlin
+startActivity(AppRoutes.stats(this))        // was Intent(this, StatsActivity::class.java)
+AppRoutes.main(context).apply { flags = … }  // for the alarm PendingIntents
+```
+
+Intents are explicit (`setClassName` with the app's own package), so nothing
+becomes interceptable by another app.
+
+`AppRoutesTest` restores the safety the compiler used to provide: it resolves
+every route with `Class.forName`, asserts each is an `Activity` subclass, and
+reflects over the declared constants so a new route that is not added to
+`ALL_ROUTES` fails the build.
+
+### Changed
+
+- `scripts/feature_import_allowlist.txt` rebaselined from 15 edges to 5, with
+  each survivor documented and a named plan for removing it.
+
+### Still coupled — the 5 remaining edges
+
+All five are **service control**, which a file move cannot fix:
+
+```
+task -> alarm         TaskViewModel / TaskNoticeStateMachine drive
+                      AlarmForegroundService, AlarmScheduler, AlarmState
+task -> autoswitch    MainActivity starts/stops BubbleOverlayService
+autoswitch -> alarm   CallSwitchService stops the alarm when a call starts
+autoswitch -> task    autoswitch services observe TaskViewModel
+backup -> task        DataBackupActivity reads TaskViewModel
+```
+
+Phase 2b: an `AlarmController` / `OverlayController` interface implemented in
+`:app` and injected, so callers depend on a contract instead of a service class.
+
+### Verification performed
+
+No compiler was available here, so every change was verified mechanically:
+
+- Zero stale references to any old package (`grep`, including the 14
+  fully-qualified inline usages in `AlarmActivity`, `TaskViewModel` and
+  `TaskCallSwitchDelegate` that a plain import rewrite would have missed).
+- Every `package` declaration matches its directory.
+- No file references both `TimerState` classes.
+- Brace balance unchanged in every touched file.
+- Architecture guard passes at the new 5-edge baseline.
+
+---
+
 ## 4.3.0 — Phase 1: guard rails, characterization tests, build fixes
 
 `versionName` 4.2.0 → **4.3.0** (MINOR). `versionCode` unchanged at 1.

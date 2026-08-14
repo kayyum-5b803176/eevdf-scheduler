@@ -1,7 +1,8 @@
-package com.eevdf.app.feature.autoswitch
+package com.eevdf.app.core.prefs
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.eevdf.app.core.signals.CallEvents
 
 /**
  * Thin helpers around the "auto_switch" SharedPreferences file.

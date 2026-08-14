@@ -5,7 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.eevdf.app.feature.task.MainActivity
+import com.eevdf.app.core.nav.AppRoutes
 
 /**
  * The ONLY class in the app that is allowed to call AlarmManager or write AlarmState.
@@ -72,7 +72,7 @@ object AlarmScheduler {
         val receiverPi = buildReceiverPiCreate(context, taskName, taskType)
         val showPi     = PendingIntent.getActivity(
             context, REQUEST_CODE + 1,
-            Intent(context, MainActivity::class.java).apply {
+            AppRoutes.main(context).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
             },
             PendingIntent.FLAG_IMMUTABLE

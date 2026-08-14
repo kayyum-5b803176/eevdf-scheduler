@@ -1,5 +1,6 @@
 package com.eevdf.data.runlog
 
+
 /**
  * Sealed class representing one completed wall-clock run session.
  *

@@ -5,9 +5,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.Task
-import com.eevdf.app.feature.task.timer.TimerState
-import com.eevdf.app.feature.task.timer.timerState
-import com.eevdf.app.feature.task.timer.withTimerState
+import com.eevdf.data.task.timer.TaskTimerState
+import com.eevdf.data.task.timer.timerState
+import com.eevdf.data.task.timer.withTimerState
 
 /**
  * Owns ALL running-timer mechanics for one active task.
@@ -39,7 +39,7 @@ class TimerEngine {
 
     /**
      * Emits remaining seconds on every 1-second tick.
-     * Always derived from [TimerState.remainingSecs] — never from
+     * Always derived from [TaskTimerState.remainingSecs] — never from
      * CountDownTimer.millisUntilFinished, so immune to CountDownTimer drift.
      */
     private val _tickSeconds   = MutableLiveData<Long>()
@@ -69,7 +69,7 @@ class TimerEngine {
 
     private var countDownTimer: CountDownTimer? = null
     private var activeTask:     Task?           = null
-    private var inMemoryState:  TimerState      = TimerState.Idle
+    private var inMemoryState:  TaskTimerState      = TaskTimerState.Idle
 
     /**
      * The session for the most recent expiry, captured synchronously the instant
@@ -93,20 +93,20 @@ class TimerEngine {
     /**
      * Start or resume the engine for [task].
      * [task] must already have correct epoch columns written by
-     * task.withTimerState(TimerState.resume(…)) before this call.
+     * task.withTimerState(TaskTimerState.resume(…)) before this call.
      * Idempotent: same task id already running → no-op.
      */
     fun start(task: Task) {
-        if (activeTask?.id == task.id && inMemoryState is TimerState.Running) return
+        if (activeTask?.id == task.id && inMemoryState is TaskTimerState.Running) return
 
         val state   = task.timerState
-        val running = if (state is TimerState.Running) state
-                      else TimerState.resume(state)
+        val running = if (state is TaskTimerState.Running) state
+                      else TaskTimerState.resume(state)
 
         inMemoryState = running
         activeTask    = task
 
-        val remaining = TimerState.remainingMs(running, task.timeSliceSeconds * 1000L)
+        val remaining = TaskTimerState.remainingMs(running, task.timeSliceSeconds * 1000L)
         attachTicker(task, remaining)
     }
 
@@ -121,10 +121,10 @@ class TimerEngine {
         val task = activeTask ?: return null
 
         // Capture start epoch BEFORE transitioning state — inMemoryState is still Running.
-        val sessionStartMs = (inMemoryState as? TimerState.Running)?.startTimeEpoch ?: nowMs
+        val sessionStartMs = (inMemoryState as? TaskTimerState.Running)?.startTimeEpoch ?: nowMs
 
         stopTicker()
-        val paused    = TimerState.pause(inMemoryState, nowMs)
+        val paused    = TaskTimerState.pause(inMemoryState, nowMs)
         inMemoryState = paused
         val updated   = task.withTimerState(paused)
         activeTask    = updated
@@ -144,8 +144,8 @@ class TimerEngine {
     fun reset(): Task? {
         val task = activeTask ?: return null
         stopTicker()
-        inMemoryState = TimerState.Idle
-        val updated   = task.withTimerState(TimerState.Idle)
+        inMemoryState = TaskTimerState.Idle
+        val updated   = task.withTimerState(TaskTimerState.Idle)
         activeTask    = updated
         return updated
     }
@@ -159,13 +159,13 @@ class TimerEngine {
      */
     fun restoreFromDb(task: Task) {
         val state = task.timerState
-        if (state !is TimerState.Running) return
+        if (state !is TaskTimerState.Running) return
 
         inMemoryState = state
         activeTask    = task
 
         val sliceMs   = task.timeSliceSeconds * 1000L
-        val remaining = TimerState.remainingMs(state, sliceMs)
+        val remaining = TaskTimerState.remainingMs(state, sliceMs)
 
         if (remaining > 0L) {
             attachTicker(task, remaining)
@@ -173,8 +173,8 @@ class TimerEngine {
             // Timer expired while the app was dead.
             // expiryEpoch = when the slice actually ran out (not necessarily now).
             val expiryEpochMs = state.startTimeEpoch + sliceMs - state.accumulatedMs
-            val expired       = task.withTimerState(TimerState.expire(sliceMs))
-            inMemoryState     = TimerState.expire(sliceMs)
+            val expired       = task.withTimerState(TaskTimerState.expire(sliceMs))
+            inMemoryState     = TaskTimerState.expire(sliceMs)
 
             // Recovered session: credits only the final session's real elapsed time.
             // wallClockSeconds = (expiryEpoch - startEpoch) / 1000 = remaining slice,
@@ -191,13 +191,13 @@ class TimerEngine {
     }
 
     /** Snapshot of current in-memory state (ViewModel reads on pause for vruntime). */
-    fun currentState(): TimerState = inMemoryState
+    fun currentState(): TaskTimerState = inMemoryState
 
     /** Hard-stop everything. Idempotent. */
     fun clear() {
         stopTicker()
         activeTask    = null
-        inMemoryState = TimerState.Idle
+        inMemoryState = TaskTimerState.Idle
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ class TimerEngine {
             override fun onTick(millisUntilFinished: Long) {
                 // Re-derive from epoch every tick — intentionally ignoring
                 // CountDownTimer's own millisUntilFinished to avoid drift.
-                val secs = TimerState.remainingSecs(inMemoryState, sliceSecs)
+                val secs = TaskTimerState.remainingSecs(inMemoryState, sliceSecs)
                 _tickSeconds.postValue(secs)
             }
             override fun onFinish() {
@@ -221,10 +221,10 @@ class TimerEngine {
                 // Capture start epoch BEFORE overwriting inMemoryState.
                 // inMemoryState is still Running here — this is the last moment
                 // startTimeEpoch is available.  After expire() it is gone.
-                val sessionStartMs = (inMemoryState as? TimerState.Running)
+                val sessionStartMs = (inMemoryState as? TaskTimerState.Running)
                     ?.startTimeEpoch ?: endMs
 
-                val expired = TimerState.expire(sliceMs)
+                val expired = TaskTimerState.expire(sliceMs)
                 inMemoryState = expired
 
                 // session.wallClockSeconds = (endMs - sessionStartMs) / 1000

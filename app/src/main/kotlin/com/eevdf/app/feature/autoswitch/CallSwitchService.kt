@@ -11,11 +11,11 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.eevdf.app.R
 import com.eevdf.data.task.TaskRepository
-import com.eevdf.app.feature.task.timer.TimerState
-import com.eevdf.app.feature.task.timer.timerState
+import com.eevdf.data.task.timer.TaskTimerState
+import com.eevdf.data.task.timer.timerState
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.Task
-import com.eevdf.app.feature.task.timer.withTimerState
+import com.eevdf.data.task.timer.withTimerState
 import com.eevdf.app.feature.alarm.AlarmForegroundService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +24,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.app.core.signals.BubbleEventBus
+import com.eevdf.app.core.signals.CallEvents
+import com.eevdf.app.feature.task.TaskCallSwitchDelegate
 
 /**
  * Background foreground-service that performs call-task switching without
@@ -153,7 +157,7 @@ class CallSwitchService : Service() {
                 // We need the startTimeEpoch BEFORE withTimerState overwrites it,
                 // so read it from the DB row directly here.
                 val startEpoch  = running.startTimeEpoch   // epoch when timer last started
-                val pausedState = TimerState.pause(running.timerState, nowMs)
+                val pausedState = TaskTimerState.pause(running.timerState, nowMs)
                 val pausedTask  = running.withTimerState(pausedState)
                 repo.update(pausedTask)
 
@@ -193,7 +197,7 @@ class CallSwitchService : Service() {
             if (callTask.isRunning) {
                 // Already running (user started it manually before call) — just show bubble
             } else {
-                val runningState = TimerState.resume(callTask.timerState, nowMs)
+                val runningState = TaskTimerState.resume(callTask.timerState, nowMs)
                 val runningTask  = callTask.withTimerState(runningState)
                 repo.update(runningTask)
 
@@ -248,7 +252,7 @@ class CallSwitchService : Service() {
                     ?: repo.getTaskById(callTaskId)
                 if (callTask != null && callTask.isRunning) {
                     val startEpoch = callTask.startTimeEpoch
-                    val paused     = callTask.withTimerState(TimerState.pause(callTask.timerState, nowMs))
+                    val paused     = callTask.withTimerState(TaskTimerState.pause(callTask.timerState, nowMs))
                     repo.update(paused)
 
                     // Credit vruntime + RunLog for the call task session
@@ -271,7 +275,7 @@ class CallSwitchService : Service() {
                 val savedTask = repo.getTaskById(savedTaskId)
                 if (savedTask != null && !savedTask.isCompleted) {
                     if (wasRunning) {
-                        val resumed = savedTask.withTimerState(TimerState.resume(savedTask.timerState, nowMs))
+                        val resumed = savedTask.withTimerState(TaskTimerState.resume(savedTask.timerState, nowMs))
                         repo.update(resumed)
                         AlarmForegroundService.timerStart(
                             this@CallSwitchService,

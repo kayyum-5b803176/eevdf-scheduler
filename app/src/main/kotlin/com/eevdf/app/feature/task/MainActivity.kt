@@ -13,13 +13,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
-import com.eevdf.app.feature.autoswitch.AutoSwitchPrefs
-import com.eevdf.app.feature.autoswitch.BubbleEventBus
+import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.app.core.signals.BubbleEventBus
 import com.eevdf.app.feature.autoswitch.BubbleOverlayService
-import com.eevdf.app.feature.autoswitch.CallEvents
-import com.eevdf.app.feature.settings.UiCustomizationPrefs
-import com.eevdf.app.feature.settings.QuickActionPrefs
-import com.eevdf.app.feature.settings.HardwareKeyPrefs
+import com.eevdf.app.core.signals.CallEvents
+import com.eevdf.app.core.prefs.UiCustomizationPrefs
+import com.eevdf.app.core.prefs.QuickActionPrefs
+import com.eevdf.app.core.prefs.HardwareKeyPrefs
 import android.view.KeyEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -42,12 +42,11 @@ import android.content.res.ColorStateList
 import com.eevdf.data.sync.SyncState
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.app.feature.settings.VibrationManager
+import com.eevdf.app.core.media.VibrationManager
 import com.eevdf.app.feature.alarm.AlarmStopReceiver
-import com.eevdf.app.feature.notification.NotificationHelper
-import com.eevdf.app.feature.stats.StatsActivity
-import com.eevdf.app.feature.settings.SettingsActivity
+import com.eevdf.app.core.notification.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
+import com.eevdf.app.core.nav.AppRoutes
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -537,7 +536,7 @@ class MainActivity : AppCompatActivity() {
         statsBar    = findViewById(R.id.statsBar)
         // Hold the stats bar → open the Task Statistics page
         statsBar.setOnLongClickListener {
-            startActivity(Intent(this, StatsActivity::class.java))
+            startActivity(AppRoutes.stats(this))
             true
         }
         supportActionBar?.title = "EEVDF Task Scheduler"
@@ -1272,7 +1271,7 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_clear_completed -> { viewModel.clearCompleted(); true }
             R.id.action_settings -> {
-                startActivity(Intent(this, SettingsActivity::class.java))
+                startActivity(AppRoutes.settings(this))
                 true
             }
             else -> super.onOptionsItemSelected(item)
