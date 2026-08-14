@@ -1,5 +1,58 @@
 # Changelog
 
+## 4.4.1 — Gradle wrapper committed
+
+`versionName` 4.4.0 → **4.4.1** (PATCH). `versionCode` unchanged at 1.
+Build tooling only; no application code changed.
+
+### Added
+
+- `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`
+
+Taken verbatim from the official Gradle repository at tag `v8.9.0`
+(`raw.githubusercontent.com/gradle/gradle/v8.9.0/...`).
+
+    gradle-wrapper.jar
+      sha256  498495120a03b9a6ab5d155f5de3c8f0d986a449153702fb80fc80e134484f17
+      size    43504 bytes
+      contains org/gradle/wrapper/GradleWrapperMain.class
+
+Verify it yourself before trusting a binary from a zip:
+
+```bash
+sha256sum gradle/wrapper/gradle-wrapper.jar
+unzip -l gradle/wrapper/gradle-wrapper.jar | grep GradleWrapperMain
+```
+
+### Changed
+
+- `gradle/wrapper/gradle-wrapper.properties` — upstream ships pointing at
+  `gradle-8.9-rc-2-bin.zip`; repointed to **`gradle-8.9-bin.zip`** (final), which
+  is what the project already specified. Also added `networkTimeout=10000` and
+  `validateDistributionUrl=true` from the official template.
+- `.gitignore` — explicit `!gradle/wrapper/gradle-wrapper.jar`, `!gradlew`,
+  `!gradlew.bat`. Many Android `.gitignore` templates ignore `*.jar` and
+  silently break the wrapper for everyone who clones.
+- `README.md` — removed the `gradle wrapper --gradle-version 8.9` bootstrap
+  step; it is no longer needed.
+
+### Why this matters for a team
+
+Without a committed wrapper, every developer and CI runner needs a matching
+Gradle installed by hand. Different local Gradle versions are a direct source of
+"works on my machine" build differences — the exact class of problem the rest of
+this work is trying to eliminate.
+
+### Note
+
+`gradlew` needs its executable bit. Zip archives do not reliably preserve it:
+
+```bash
+chmod +x gradlew scripts/*.sh
+```
+
+---
+
 ## 4.4.0 — Phase 2a: collapse the cross-feature dependency graph
 
 `versionName` 4.3.0 → **4.4.0** (MINOR). `versionCode` unchanged at 1.

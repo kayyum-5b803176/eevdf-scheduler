@@ -44,7 +44,6 @@ delete the facade later by migrating callers onto the core directly.
 ## Build
 
 ```bash
-gradle wrapper --gradle-version 8.9     # wrapper jar is not shipped in this zip
 ./gradlew :testing:test                 # pure EEVDF unit tests (no emulator)
 ./gradlew :app:assembleDebug
 ```
