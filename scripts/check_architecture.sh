@@ -24,7 +24,7 @@ fail() { red "  FAIL: $*"; FAILURES=$((FAILURES+1)); }
 FEATURE_ROOT="app/src/main/kotlin/com/eevdf/app/feature"
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[1/6] Feature isolation — no feature may import another feature"
+echo "[1/7] Feature isolation — no feature may import another feature"
 # ─────────────────────────────────────────────────────────────────────────────
 # Some cross-feature imports exist today. List them here so the check passes on
 # the current tree while blocking any NEW ones. Delete entries as Phase 2
@@ -66,7 +66,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[2/6] Core purity — :core must stay free of Android, Room and Hilt"
+echo "[2/7] Core purity — :core must stay free of Android, Room and Hilt"
 # ─────────────────────────────────────────────────────────────────────────────
 IMPURE=$(grep -rn "^import \(android\|androidx\|dagger\|javax\.inject\)\." core/src/main --include=*.kt 2>/dev/null || true)
 if [ -n "$IMPURE" ]; then
@@ -77,7 +77,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[3/6] Database versioning — version, migrations and schemas must agree"
+echo "[3/7] Database versioning — version, migrations and schemas must agree"
 # ─────────────────────────────────────────────────────────────────────────────
 DB_FILE="data/src/main/kotlin/com/eevdf/data/task/TaskDatabase.kt"
 if [ -f "$DB_FILE" ]; then
@@ -142,7 +142,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[4/6] The tasks table is frozen"
+echo "[4/7] The tasks table is frozen"
 # ─────────────────────────────────────────────────────────────────────────────
 # `tasks` reached 51 columns because every feature became columns on one shared
 # row. TaskSchemaFreezeTest enforces this properly (it reflects over the
@@ -163,7 +163,7 @@ if [ -f "$DB_FILE" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[5/6] No new global mutable singletons"
+echo "[5/7] No new global mutable singletons"
 # ─────────────────────────────────────────────────────────────────────────────
 # Counts 'object X { ... @Volatile var / var ... }' style shared state. The
 # current count is the ceiling: it may go down, never up.
@@ -179,7 +179,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[6/6] God-file ceiling"
+echo "[6/7] God-file ceiling"
 # ─────────────────────────────────────────────────────────────────────────────
 # MainActivity (1281) and TaskViewModel (1151) are the known offenders and are
 # grandfathered until Phase 2. Nothing else may join them.
@@ -195,6 +195,54 @@ while IFS= read -r f; do
   fi
 done < <(find app core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
 [ "$FAILURES" -eq "$FAILURES_BEFORE_STEP5" ] && grn "  OK (2 files grandfathered: MainActivity, TaskViewModel)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo "[7/7] Long-function ratchet"
+# ─────────────────────────────────────────────────────────────────────────────
+# File length is the wrong metric. Splitting setupObservers() into nine named
+# functions made MainActivity.kt 65 lines LONGER while making it dramatically
+# easier to work in. What hurts a team is one huge function every feature must
+# edit, not the file's total size.
+#
+# Two numbers, both ratchets — they may go DOWN, never up:
+#   CEILING     no function may exceed today's worst.
+#   DEBT_COUNT  how many functions exceed the target. Split one, lower this.
+#
+# Set to the measured state at v4.7.0. Lower them as you split things; never
+# raise them to make a build go green.
+TARGET=60
+CEILING=199
+DEBT_COUNT=29
+
+WORST=0; WORST_NAME=""; OVER=0
+while IFS= read -r f; do
+  while IFS= read -r line; do
+    len=${line%% *}; name=${line#* }
+    [ -z "$len" ] && continue
+    if [ "$len" -gt "$WORST" ]; then WORST=$len; WORST_NAME="$name (${f#./})"; fi
+    if [ "$len" -gt "$TARGET" ]; then OVER=$((OVER+1)); fi
+    if [ "$len" -gt "$CEILING" ]; then
+      fail "${f#./} — function is $len lines, above the $CEILING ceiling: $name"
+    fi
+  done < <(awk '/^    (private |internal |public )?(override )?(suspend )?fun /{
+                  if(n){printf "%d %s\n", NR-s-1, n} n=$0; s=NR
+                } END{ if(n) printf "%d %s\n", NR-s-1, n }' "$f" \
+            | sed 's/  */ /g; s/(.*//')
+done < <(find app core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
+
+echo "  longest: $WORST lines (ceiling $CEILING) — $WORST_NAME"
+echo "  over the ${TARGET}-line target: $OVER (debt baseline $DEBT_COUNT)"
+
+if [ "$OVER" -gt "$DEBT_COUNT" ]; then
+  fail "long-function debt grew from $DEBT_COUNT to $OVER"
+  ylw "  A long function is a shared edit surface — every feature touching that"
+  ylw "  concern collides in it. Split it into named sub-functions, as"
+  ylw "  MainActivity.setupObservers() was split into nine observeX() functions."
+elif [ "$OVER" -lt "$DEBT_COUNT" ]; then
+  grn "  OK — debt DOWN to $OVER. Lower DEBT_COUNT in this script to lock the win in."
+else
+  grn "  OK"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo

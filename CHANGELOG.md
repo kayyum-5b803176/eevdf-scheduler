@@ -1,5 +1,75 @@
 # Changelog
 
+## 4.7.0 — Phase 2d: break up the worst shared edit surface
+
+`versionName` 4.6.0 → **4.7.0** (MINOR). `versionCode` unchanged at 1.
+Behaviour-preserving refactor plus one new guard.
+
+### Changed — `MainActivity.setupObservers()`: 213 lines → nine functions
+
+This was the single worst merge-conflict surface in the app. Any feature that
+observed anything edited it, so two people working in parallel collided here
+constantly — and the conflicts were the nasty kind, both sides valid, resolution
+requiring you to understand both features.
+
+Now:
+
+```
+setupObservers()
+  ├─ observeCallEvents()        auto-switch call detection
+  ├─ observeTaskLists()         queue / schedule / completed tabs
+  ├─ observeCurrentTask()       task identity + countdown text
+  ├─ observeTimerCard()         the merged card, single source of truth
+  ├─ observeNoticePhase()       phase bar + adapter segmented progress
+  ├─ observeStatsAndToasts()    header stats, toasts, overrun counter
+  ├─ observeDisplayToggles()    menu checkmarks, FAB visibility
+  ├─ observeSync()              sync dot + restart-after-import
+  └─ observeActionButtons()     Next/Auto and INT
+```
+
+Two features touching different concerns now touch different functions, and git
+merges them cleanly.
+
+**No logic changed.** Every block was already self-contained — no local crossed
+a boundary — so this is a pure extraction. Verified mechanically: all 20
+observers present, and a whitespace-insensitive diff of the whole file shows
+exactly nine added declarations and nine added call lines, nothing else.
+
+The longest function in the file dropped 213 → 60.
+
+### Added — guard check `[7/7] Long-function ratchet`
+
+**File length is the wrong metric.** This split made `MainActivity.kt` 65 lines
+*longer* while making it much easier to work in. What hurts a team is one huge
+function every feature must edit, not the file's total size. So the ratchet
+measures functions:
+
+```
+longest: 199 lines (ceiling 199) — TaskAdapter.onBindViewHolder
+over the 60-line target: 29 (debt baseline 29)
+```
+
+Two numbers, both one-way. No function may exceed today's worst, and the count
+over target may shrink but never grow. Split something, lower `DEBT_COUNT`,
+lock the win in.
+
+Set to the measured state rather than an aspirational one — a limit of 60 fails
+on 29 pre-existing functions on day one, and a guard that fails immediately is a
+guard that gets disabled. Verified by bloating a function: caught, 29 → 30.
+
+The worst offenders it surfaces, for when you want them:
+`TaskAdapter.onBindViewHolder` (199), `SyncFieldGuard.detectConflicts` (64),
+`BackupManager.taskToJson` (62) / `taskFromJson` (61).
+
+### Still open
+
+`TaskViewModel` (1151 lines). Its state is spread across ~40 LiveData fields
+that its delegates already reach into, so extraction is a genuinely different
+and riskier job than this one — not a pure line move. Best done with the
+characterization tests confirmed green first.
+
+---
+
 ## 4.6.0 — Phase 2c: freeze the `tasks` table
 
 `versionName` 4.5.1 → **4.6.0** (MINOR). `versionCode` unchanged at 1.

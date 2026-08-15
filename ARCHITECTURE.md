@@ -77,9 +77,21 @@ committed schema JSON all agree; that every migration is registered in
 exists at the end — schema validation alone won't catch a migration that
 recreates a table without copying rows.
 
-### 5. Complexity ceilings
-No new file over 800 lines (`MainActivity` and `TaskViewModel` grandfathered
-until Phase 2). No growth in global mutable state. Detekt on top.
+### 5. Complexity ratchets
+No new file over 800 lines (`MainActivity`, `TaskViewModel` grandfathered). No
+growth in global mutable state.
+
+**Long-function ratchet** — the metric that actually matters for a team. No
+function may exceed today's worst (199), and the count of functions over the
+60-line target (29) may shrink but never grow. File length is deliberately NOT
+the metric: splitting `setupObservers()` into nine functions made the file 65
+lines longer and far easier to work in.
+
+### 6. The `tasks` table is frozen
+51 columns, enforced by `TaskSchemaFreezeTest` and by a guard check on widening
+`ALTER TABLE`s. New feature data goes in a side table
+(`docs/SIDE_TABLE_TEMPLATE.md`). This is the only guard that prevents a cause
+rather than detecting a symptom.
 
 ---
 

@@ -752,7 +752,34 @@ class MainActivity : AppCompatActivity() {
         btnScheduleNext.setOnLongClickListener { haptic(it); viewModel.toggleAutoMode(); true }
     }
 
+    /**
+     * Wires every LiveData observer.
+     *
+     * SPLIT DELIBERATELY. This was one 213-line function, and it was the single
+     * worst merge-conflict surface in the app: any feature that observed
+     * anything edited it, so two people working in parallel collided here
+     * constantly, and the conflicts were the nasty kind — both sides valid.
+     *
+     * Now each concern has its own function. Two features touching different
+     * concerns touch different functions, and git merges them cleanly. Adding an
+     * observer means adding it to the matching group, or writing a new
+     * `observeX()` and one line here.
+     */
     private fun setupObservers() {
+        observeCallEvents()
+        observeTaskLists()
+        observeCurrentTask()
+        observeTimerCard()
+        observeNoticePhase()
+        observeStatsAndToasts()
+        observeDisplayToggles()
+        observeSync()
+        observeActionButtons()
+    }
+
+    /** Auto-switch call detection. Keeps the ViewModel's in-memory call state in
+     * sync when the Activity is alive; CallSwitchService owns the DB writes. */
+    private fun observeCallEvents() {
         // ── Auto Switch — Call Detection ──────────────────────────────────────
         CallEvents.event.observe(this) { type ->
             if (type == null) return@observe
@@ -770,7 +797,10 @@ class MainActivity : AppCompatActivity() {
             }
             CallEvents.event.value = null   // consume
         }
+    }
 
+    /** The three tab lists: queue, schedule order and completed. */
+    private fun observeTaskLists() {
         // Queue tab — flat group-aware list
         viewModel.flatActiveTasks.observe(this) { items ->
             activeAdapter.submitList(items)
@@ -792,7 +822,13 @@ class MainActivity : AppCompatActivity() {
             })
             updateEmptyView()
         }
+    }
 
+    /** Current task identity and the raw countdown text.
+     *
+     * Card VISIBILITY is deliberately NOT handled here — that belongs solely to
+     * [observeTimerCard], which is the single source of truth. */
+    private fun observeCurrentTask() {
         viewModel.currentTask.observe(this) { task ->
             if (task != null) {
                 // Content only — card VISIBILITY is owned solely by the
@@ -822,7 +858,14 @@ class MainActivity : AppCompatActivity() {
             else
                 String.format("%02d:%02d", m, s)
         }
+    }
 
+    /** The merged timer card: visibility, which child layout shows, tint, button
+     * and alarm fields, all from one atomic [TimerCardAction].
+     *
+     * One observer drives the whole card, so it is structurally impossible to
+     * show the countdown and the alarm at the same time. */
+    private fun observeTimerCard() {
         // ── Merged timer card — SINGLE source of truth ────────────────────────
         //
         // One observer on timerCardAction drives the ENTIRE card: visibility,
@@ -851,7 +894,13 @@ class MainActivity : AppCompatActivity() {
                 callTaskId != null &&
                 viewModel.currentTask.value?.id == callTaskId
         }
+    }
 
+    /** Phase-status bar and the adapters' segmented notice progress.
+     *
+     * Driven separately from the timer card because it needs NoticePhase's
+     * remainingSecs detail, which TimerCardAction intentionally omits. */
+    private fun observeNoticePhase() {
         // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)
         // that TimerCardAction intentionally omits, so driven separately here.
         viewModel.noticePhase.observe(this) { phase ->
@@ -878,7 +927,10 @@ class MainActivity : AppCompatActivity() {
             activeAdapter.setNoticeState(noticeTaskId, phase)
             scheduleAdapter.setNoticeState(noticeTaskId, phase)
         }
+    }
 
+    /** Header statistics, one-shot toasts, and the alarm overrun counter. */
+    private fun observeStatsAndToasts() {
         viewModel.stats.observe(this) { stats ->
             tvStats.text    = "Active: ${stats.activeTasks}  |  Done: ${stats.completedTasks}"
             tvFairness.text = "Fairness: ${"%.0f".format(stats.fairnessScore * 100)}%  |  load: ${"%.2f".format(stats.systemLoad)}"
@@ -897,7 +949,10 @@ class MainActivity : AppCompatActivity() {
         viewModel.alarmElapsedSeconds.observe(this) { elapsed ->
             tvAlarmElapsed.text = NotificationHelper.formatElapsed(elapsed)
         }
+    }
 
+    /** Menu checkmarks and FAB visibility for the display preference toggles. */
+    private fun observeDisplayToggles() {
         // Sync groups menu checkmark
         viewModel.groupsEnabled.observe(this) { enabled ->
             groupsMenuItem?.isChecked = enabled
@@ -920,7 +975,10 @@ class MainActivity : AppCompatActivity() {
         viewModel.autoScrollEnabled.observe(this) { enabled ->
             autoScrollMenuItem?.isChecked = enabled
         }
+    }
 
+    /** Sync status dot, and the restart-after-remote-import path. */
+    private fun observeSync() {
         // ── Sync state → toolbar dot color ────────────────────────────────────
         viewModel.syncState.observe(this) { state -> updateSyncIcon(state) }
 
@@ -939,7 +997,14 @@ class MainActivity : AppCompatActivity() {
                 android.os.Process.killProcess(android.os.Process.myPid())
             }, 600)
         }
+    }
 
+    /** The Next/Auto and INT buttons.
+     *
+     * INT is a single observer on intButtonState rather than three on slot,
+     * taskA and taskB: interleaved dispatches used to render colour and label
+     * from mismatched values for one frame. */
+    private fun observeActionButtons() {
         // ── Next / Auto button ────────────────────────────────────────────────
         viewModel.nextButtonState.observe(this) { state ->
             btnScheduleNext.text = state.label
