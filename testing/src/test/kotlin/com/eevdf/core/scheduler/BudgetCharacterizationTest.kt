@@ -18,6 +18,9 @@ import org.junit.Test
  */
 class BudgetCharacterizationTest {
 
+    /** A real (non-sentinel) period start. See the sentinel test below. */
+    private val START = 1_700_000_000L
+
     private fun t(id: String, priority: Int = 4, vruntime: Double = 0.0, running: Boolean = false) =
         SchedTask(
             id = id, parentId = null, isGroup = false, isCompleted = false, isRunning = running,
@@ -31,27 +34,44 @@ class BudgetCharacterizationTest {
         assertEquals(-1L, QuotaBudget(quotaSeconds = 0L).remainingAt(1_000L))
     }
 
-    @Test fun `unstarted quota period reports raw usage`() {
+    /**
+     * periodStartEpochSeconds == 0L is a SENTINEL meaning "the period has not
+     * started", not a real timestamp. usedAt() short-circuits on it and returns
+     * raw usage with no leak-back.
+     *
+     * Latent quirk, deliberately recorded: epoch 0 is also a legal instant
+     * (1 Jan 1970). A budget genuinely started then would never replenish. Not
+     * reachable in practice, but it is why every other test here uses a
+     * non-zero start.
+     */
+    @Test fun `zero period start is a sentinel meaning not started`() {
         val q = QuotaBudget(quotaSeconds = 3600L, periodSeconds = 86_400L, periodStartEpochSeconds = 0L, usedSeconds = 600L)
-        assertEquals(600L, q.usedAt(999_999L))
+        assertEquals("no leak-back when the period has not started", 600L, q.usedAt(999_999L))
     }
 
     @Test fun `quota leaks back over the period`() {
         // 3600s quota over an 86400s period; half a period elapsed replenishes 1800s.
-        val q = QuotaBudget(quotaSeconds = 3600L, periodSeconds = 86_400L, periodStartEpochSeconds = 0L, usedSeconds = 3600L)
-        assertEquals(1800L, q.usedAt(43_200L))
-        assertEquals(1800L, q.remainingAt(43_200L))
+        val q = QuotaBudget(quotaSeconds = 3600L, periodSeconds = 86_400L, periodStartEpochSeconds = START, usedSeconds = 3600L)
+        assertEquals(1800L, q.usedAt(START + 43_200L))
+        assertEquals(1800L, q.remainingAt(START + 43_200L))
     }
 
     @Test fun `quota usage floors at zero after a full period`() {
-        val q = QuotaBudget(quotaSeconds = 3600L, periodSeconds = 86_400L, periodStartEpochSeconds = 0L, usedSeconds = 3600L)
-        assertEquals(0L, q.usedAt(200_000L))
-        assertEquals(3600L, q.remainingAt(200_000L))
+        val q = QuotaBudget(quotaSeconds = 3600L, periodSeconds = 86_400L, periodStartEpochSeconds = START, usedSeconds = 3600L)
+        assertEquals(0L, q.usedAt(START + 200_000L))
+        assertEquals(3600L, q.remainingAt(START + 200_000L))
     }
 
     @Test fun `quota exceeded exactly at the limit`() {
-        val q = QuotaBudget(quotaSeconds = 100L, periodSeconds = 86_400L, periodStartEpochSeconds = 0L, usedSeconds = 100L)
-        assertTrue(q.isExceededAt(0L))
+        // now == start, so nothing has replenished yet.
+        val q = QuotaBudget(quotaSeconds = 100L, periodSeconds = 86_400L, periodStartEpochSeconds = START, usedSeconds = 100L)
+        assertTrue(q.isExceededAt(START))
+    }
+
+    @Test fun `quota is not exceeded once enough has leaked back`() {
+        val q = QuotaBudget(quotaSeconds = 100L, periodSeconds = 86_400L, periodStartEpochSeconds = START, usedSeconds = 100L)
+        // 864s elapsed replenishes 1s of a 100s quota -> 99 used, under the limit.
+        assertTrue(!q.isExceededAt(START + 864L))
     }
 
     // ── DlBudget ─────────────────────────────────────────────────────────────
@@ -65,6 +85,15 @@ class BudgetCharacterizationTest {
     @Test fun `dl period falls back to deadline when unset`() {
         assertEquals(200L, DlBudget(runtimeSeconds = 100L, deadlineSeconds = 200L).effectivePeriodSeconds)
         assertEquals(500L, DlBudget(runtimeSeconds = 100L, deadlineSeconds = 200L, periodSeconds = 500L).effectivePeriodSeconds)
+    }
+
+    /** Same sentinel as QuotaBudget: 0L start means never started -> full budget. */
+    @Test fun `dl zero period start means the budget is untouched`() {
+        val dl = DlBudget(
+            runtimeSeconds = 100L, deadlineSeconds = 200L, periodSeconds = 200L,
+            periodStartEpochSeconds = 0L, runtimeUsedSeconds = 999L,
+        )
+        assertTrue("never started -> active regardless of recorded usage", dl.isBudgetActiveAt(1_000L))
     }
 
     @Test fun `dl budget replenishes once the period elapses`() {

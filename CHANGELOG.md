@@ -1,5 +1,68 @@
 # Changelog
 
+## 4.7.1 — Fix: two self-contradictory quota tests
+
+`versionName` 4.7.0 → **4.7.1** (PATCH). `versionCode` unchanged at 1.
+Test-only. No production code changed.
+
+### First real test run: 60 of 62 passed
+
+Both failures were mine, not the app's. Notably, all three `KNOWN BUG` /
+`KNOWN GAP` assertions **passed**, which confirms the readings behind them:
+
+- `TimerEffect.Expired.ranSeconds` really is hardcoded to `0L`
+- `RtConfig.secondsUntilClose` really does ignore `isConfigured`
+- `SchedTask.weight` really does divide by zero at `priority = 0`
+
+Those are genuine bugs in `:core`, now locked in by passing tests. Fix them when
+convenient; the tests will go red on purpose and should be updated deliberately.
+
+### Cause of the two failures
+
+`QuotaBudget.usedAt()`:
+
+```kotlin
+if (!isEnabled || periodStartEpochSeconds == 0L) return usedSeconds.coerceAtLeast(0L)
+```
+
+`periodStartEpochSeconds == 0L` is a **sentinel meaning "the period has not
+started"**, not a real timestamp. I wrote one test asserting exactly that (it
+passed), then wrote two more using `0L` as though it were a real epoch and
+expected leak-back. The suite contradicted itself; the app was right both times.
+
+### Fix
+
+Leak-back tests now use a real start (`START = 1_700_000_000L`). Arithmetic
+re-derived independently before shipping:
+
+```
+elapsed 43_200  -> replenished 1_800  -> used 1_800, remaining 1_800
+elapsed 200_000 -> replenished 8_333  -> used 0,     remaining 3_600
+```
+
+`quota exceeded exactly at the limit` also moved off `0L` — it was passing via
+the sentinel path rather than the behaviour it claimed to test.
+
+### Added — the sentinel is now tested on purpose
+
+`zero period start is a sentinel meaning not started` (QuotaBudget) and
+`dl zero period start means the budget is untouched` (DlBudget, which has the
+same short-circuit at `isBudgetActiveAt` line 83). Plus
+`quota is not exceeded once enough has leaked back`, which exercises the real
+replenishment path at the limit.
+
+Recorded as a latent quirk rather than fixed: epoch 0 is also a legal instant
+(1 Jan 1970), so a budget genuinely started then would never replenish. Not
+reachable in practice, but it is why every other budget test uses a non-zero
+start.
+
+### Net
+
+64 tests, expected all green. The safety net for the `TaskViewModel` work is now
+verified rather than assumed.
+
+---
+
 ## 4.7.0 — Phase 2d: break up the worst shared edit surface
 
 `versionName` 4.6.0 → **4.7.0** (MINOR). `versionCode` unchanged at 1.
