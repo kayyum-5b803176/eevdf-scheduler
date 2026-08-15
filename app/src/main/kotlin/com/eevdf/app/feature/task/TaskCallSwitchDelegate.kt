@@ -2,8 +2,6 @@ package com.eevdf.app.feature.task
 
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.timer.timerState
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
-import com.eevdf.app.feature.autoswitch.BubbleOverlayService
 import com.eevdf.app.feature.task.TaskViewModel
 import com.eevdf.app.core.signals.CallEvents
 
@@ -117,15 +115,9 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
             vm.startTimer()
             vm._toastMessage.value = "Call started → \"${callTask.name}\""
 
-            // Bubble: start the overlay service (Path A would have done this too).
-            val ctx = vm.getApplication<android.app.Application>()
-            if (AutoSwitchPrefs.isBubbleEnabled(ctx)) {
-                androidx.core.content.ContextCompat.startForegroundService(
-                    ctx,
-                    android.content.Intent(ctx, BubbleOverlayService::class.java)
-                        .apply { action = BubbleOverlayService.ACTION_CALL_STARTED }
-                )
-            }
+            // Bubble: the controller owns both the enablement check and the
+            // foreground-start details.
+            vm.overlay.onCallStarted()
         }
     }
 
@@ -176,11 +168,7 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
                 vm._currentTask.value  = null
                 vm._toastMessage.value = "Call ended"
 
-                val ctx = vm.getApplication<android.app.Application>()
-                ctx.startService(
-                    android.content.Intent(ctx, BubbleOverlayService::class.java)
-                        .apply { action = BubbleOverlayService.ACTION_CALL_ENDED }
-                )
+                vm.overlay.onCallEnded()
                 return
             }
 
@@ -194,11 +182,7 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
                 vm._toastMessage.value = "Call ended → \"${returnTo.name}\" (paused)"
             }
 
-            val ctx = vm.getApplication<android.app.Application>()
-            ctx.startService(
-                android.content.Intent(ctx, BubbleOverlayService::class.java)
-                    .apply { action = BubbleOverlayService.ACTION_CALL_ENDED }
-            )
+            vm.overlay.onCallEnded()
         }
     }
 }

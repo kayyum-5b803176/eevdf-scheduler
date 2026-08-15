@@ -18,7 +18,7 @@ class AlarmStopReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val ACTION_STOP_ALARM    = "com.eevdf.scheduler.ACTION_STOP_ALARM"
+        const val ACTION_STOP_ALARM    = com.eevdf.app.core.control.AlarmActions.ACTION_STOP_ALARM
         const val ACTION_TIMER_EXPIRED = "com.eevdf.scheduler.ACTION_TIMER_EXPIRED"
     }
 }

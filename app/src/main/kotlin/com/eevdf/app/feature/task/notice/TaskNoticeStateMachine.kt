@@ -11,7 +11,6 @@ import com.eevdf.data.task.Task
 import com.eevdf.data.task.timer.TaskTimerState
 import com.eevdf.data.task.timer.timerState
 import com.eevdf.data.task.timer.withTimerState
-import com.eevdf.app.feature.alarm.AlarmForegroundService
 import com.eevdf.app.core.media.SoundManager
 import kotlinx.coroutines.launch
 import com.eevdf.app.feature.task.TaskViewModel
@@ -268,7 +267,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 resolveAfterDelay(task, remaining)
             }
         }.start()
-        AlarmForegroundService.delayStart(vm.app, task.name, delaySecs)
+        vm.alarms.delayStart(task.name, delaySecs)
     }
 
     /** Step 2: the actual timed work window. Hands off to the engine in ViewModel. */
@@ -298,7 +297,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         _noticePhase.value          = NoticePhase.Wait(waitSecs, currentRepeatIteration)
         val waitStart = System.currentTimeMillis()
         SoundManager.playWaitSound(vm.app, vm.prefs)
-        AlarmForegroundService.delayStart(vm.app, task.name, waitSecs)
+        vm.alarms.delayStart(task.name, waitSecs)
         waitTimer?.cancel()
         waitTimer = object : CountDownTimer(waitSecs * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
@@ -351,7 +350,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
                 totalPhaseSecs = elapsed
             ))
         }
-        AlarmForegroundService.timerPause(vm.app)
+        vm.alarms.timerPause()
     }
 
     fun cancelWaitPhase() {
@@ -395,7 +394,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
             vm._currentTask.value = reset
             vm.viewModelScope.launch { vm.repository.update(reset) }
         }
-        AlarmForegroundService.timerPause(vm.app)
+        vm.alarms.timerPause()
     }
 
     // ── Alarm expiry ──────────────────────────────────────────────────────────
@@ -407,7 +406,6 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      * stuck bug caused by two concurrent dao.update() calls overwriting each other.
      */
     fun triggerAlarmExpire(task: Task) {
-        val ctx = vm.app
         _noticePhase.value = NoticePhase.Expired
 
         // Cancel the AlarmManager backup alarm BEFORE starting the in-app expire path.
@@ -421,7 +419,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
         // When the app IS dead the CountDownTimer never runs — the AlarmManager fires alone,
         // onAlarmFired() finds AlarmState==Scheduled, transitions to Ringing, and the
         // service rings normally.  No conflict in that path.
-        AlarmForegroundService.cancelScheduledAlarm(ctx)
+        vm.alarms.cancelScheduledAlarm()
 
         val sessionSecs  = noticeSessionSeconds
         noticeSessionSeconds = 0L
@@ -440,7 +438,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
             vm.refreshSchedule()
         }
 
-        AlarmForegroundService.timerExpire(ctx, task.name, task.taskType)
+        vm.alarms.timerExpire(task.name, task.taskType)
         vm._alarmTaskName.postValue(task.name)
         vm._alarmElapsedSeconds.postValue(0L)
         vm.startInAppOverrunCounter(task.name)
@@ -524,7 +522,7 @@ internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
      *   = 10 + 5 + (10 + 5) × (1 − 0) = 30 s
      *   Alarm fires 30 s from now, after: execute(10) → wait(5) → execute(10) → wait(5).
      *
-     * On pause: the caller cancels the alarm via [AlarmForegroundService.timerPause].
+     * On pause: the caller cancels the alarm via [com.eevdf.app.core.control.AlarmController.timerPause].
      * On resume: [startExecutePhase] is called with the actual remaining execute seconds
      * so the formula always produces a precise, up-to-date trigger time.
      *

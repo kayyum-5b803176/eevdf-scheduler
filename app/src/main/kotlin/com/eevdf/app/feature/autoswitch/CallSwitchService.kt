@@ -16,7 +16,6 @@ import com.eevdf.data.task.timer.timerState
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.timer.withTimerState
-import com.eevdf.app.feature.alarm.AlarmForegroundService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +26,7 @@ import javax.inject.Inject
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import com.eevdf.app.core.signals.BubbleEventBus
 import com.eevdf.app.core.signals.CallEvents
-import com.eevdf.app.feature.task.TaskCallSwitchDelegate
+import com.eevdf.app.core.control.AlarmController
 
 /**
  * Background foreground-service that performs call-task switching without
@@ -92,6 +91,7 @@ class CallSwitchService : Service() {
 
     /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
     @Inject lateinit var repository: TaskRepository
+    @Inject lateinit var alarms: AlarmController
 
     companion object {
         const val ACTION_CALL_STARTED = "com.eevdf.callswitch.CALL_STARTED"
@@ -202,8 +202,7 @@ class CallSwitchService : Service() {
                 repo.update(runningTask)
 
                 // Update AlarmForegroundService notification to show call task countdown
-                AlarmForegroundService.timerStart(
-                    this@CallSwitchService,
+                alarms.timerStart(
                     callTask.name,
                     runningTask.remainingSeconds,
                     callTask.taskType,
@@ -277,8 +276,7 @@ class CallSwitchService : Service() {
                     if (wasRunning) {
                         val resumed = savedTask.withTimerState(TaskTimerState.resume(savedTask.timerState, nowMs))
                         repo.update(resumed)
-                        AlarmForegroundService.timerStart(
-                            this@CallSwitchService,
+                        alarms.timerStart(
                             savedTask.name,
                             resumed.remainingSeconds,
                             savedTask.taskType,
@@ -288,10 +286,10 @@ class CallSwitchService : Service() {
                     // If paused before — leave it paused (no AlarmForegroundService start)
                 } else {
                     // Saved task gone — stop foreground service notification
-                    AlarmForegroundService.timerPause(this@CallSwitchService)
+                    alarms.timerPause()
                 }
             } else {
-                AlarmForegroundService.timerPause(this@CallSwitchService)
+                alarms.timerPause()
             }
 
             // ── 3. Stop bubble ────────────────────────────────────────────────

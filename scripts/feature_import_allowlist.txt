@@ -6,25 +6,19 @@
 #
 # History:
 #   v4.3.0  15 edges  (baseline when the guard was introduced)
-#   v4.4.0   5 edges  (Phase 2a: relocated misfiled shared code + AppRoutes)
+#   v4.4.0   5 edges  (Phase 2a: relocated misfiled code + AppRoutes)
+#   v4.5.0   1 edge   (Phase 2b: AlarmController / OverlayController contracts)
 #
-# The five that remain are all SERVICE CONTROL, not misfiling — one feature
-# starting, stopping or reading the state of another feature's foreground
-# service. Removing them needs an abstraction (Phase 2b):
+# THE LAST ONE:
 #
-#   task -> alarm        TaskViewModel/TaskNoticeStateMachine drive
-#                        AlarmForegroundService + AlarmScheduler + AlarmState
-#   task -> autoswitch   MainActivity starts/stops BubbleOverlayService
-#   autoswitch -> alarm  CallSwitchService stops the alarm on call start
-#   autoswitch -> task   autoswitch services observe TaskViewModel
-#   backup -> task       DataBackupActivity reads TaskViewModel
+#   backup -> task    DataBackupActivity calls TaskViewModel.prepareForDbExport()
+#                     and .prepareForDbImport(). Each is pauseTimer() +
+#                     clear-current-task + a WAL checkpoint/close.
 #
-# Planned fix: an `AlarmController` / `OverlayController` interface in :data or
-# a new :core:ui module, implemented in :app, injected via Hilt. Callers then
-# depend on the contract instead of the service class.
+# Deliberately left alone. Extracting it needs a TimerSessionController that can
+# stop a running timer from outside the ViewModel, and getting that wrong risks
+# a half-written database during a restore — the one operation where a bug
+# destroys user data. It gets done with the MainActivity/TaskViewModel split,
+# where the timer lifecycle is being reworked anyway.
 
-autoswitch -> alarm
-autoswitch -> task
 backup -> task
-task -> alarm
-task -> autoswitch

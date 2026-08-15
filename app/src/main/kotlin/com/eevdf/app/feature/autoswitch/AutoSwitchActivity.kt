@@ -17,23 +17,29 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.app.R
 import com.eevdf.data.task.Task
-import com.eevdf.app.feature.task.TaskViewModel
+import com.eevdf.data.task.TaskRepository
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import dagger.hilt.android.AndroidEntryPoint
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class AutoSwitchActivity : AppCompatActivity() {
 
-    private val viewModel: TaskViewModel by viewModels()
+    /**
+     * Reads the task list straight from the repository instead of borrowing the
+     * task feature's ViewModel. This screen only ever observed `activeTasks`,
+     * which is the repository's own LiveData — going through TaskViewModel added
+     * a cross-feature dependency for nothing.
+     */
+    @Inject lateinit var repository: TaskRepository
 
     // ── Call detection views ──────────────────────────────────────────────────
     private lateinit var switchCallDetection:  SwitchMaterial
@@ -151,7 +157,7 @@ class AutoSwitchActivity : AppCompatActivity() {
     }
 
     private fun setupTaskPicker() {
-        viewModel.activeTasks.observe(this) { tasks ->
+        repository.activeTasks.observe(this) { tasks ->
             taskList = tasks.filter { !it.isGroup && !it.isCompleted && !it.isInterrupt }
             actvCallTask.setAdapter(ArrayAdapter(
                 this, android.R.layout.simple_dropdown_item_1line, taskList.map { it.name }

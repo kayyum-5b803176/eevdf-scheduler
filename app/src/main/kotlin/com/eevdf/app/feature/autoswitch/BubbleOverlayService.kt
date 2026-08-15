@@ -30,7 +30,6 @@ import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.timer.TaskTimerState
 import com.eevdf.data.task.timer.timerState
 import com.eevdf.data.task.timer.withTimerState
-import com.eevdf.app.feature.alarm.AlarmForegroundService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +39,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import com.eevdf.app.core.signals.BubbleEventBus
-import com.eevdf.app.feature.task.TaskCallSwitchDelegate
+import com.eevdf.app.core.control.AlarmController
 
 /**
  * Foreground service that owns the floating call-state bubble overlay.
@@ -83,6 +82,7 @@ class BubbleOverlayService : Service() {
 
     /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
     @Inject lateinit var repository: TaskRepository
+    @Inject lateinit var alarms: AlarmController
 
     // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -324,7 +324,7 @@ class BubbleOverlayService : Service() {
                 BubbleEventBus.callTaskRunning = false
                 BubbleEventBus.anyTimerRunning = false
                 BubbleEventBus.timerRunning    = false
-                AlarmForegroundService.timerPause(this@BubbleOverlayService)
+                alarms.timerPause()
 
             } else {
                 // ── Switch to call task ───────────────────────────────────────
@@ -349,8 +349,7 @@ class BubbleOverlayService : Service() {
                 BubbleEventBus.callTaskRunning = true
                 BubbleEventBus.anyTimerRunning = true
                 BubbleEventBus.timerRunning    = true
-                AlarmForegroundService.timerStart(
-                    this@BubbleOverlayService,
+                alarms.timerStart(
                     callTask.name,
                     runningCallTask.remainingSeconds,
                     callTask.taskType,

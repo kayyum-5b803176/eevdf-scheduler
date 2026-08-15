@@ -1,5 +1,150 @@
 # Changelog
 
+## 4.5.1 — Fix: AlarmController lost the ringing alarm's data
+
+`versionName` 4.5.0 → **4.5.1** (PATCH). `versionCode` unchanged at 1.
+
+Fixes `:app:compileDebugKotlin` failure introduced in 4.5.0:
+
+```
+TaskViewModel.kt:296 Unresolved reference 'alarmState'
+```
+
+### Cause
+
+4.5.0 collapsed `AlarmScheduler.currentState(ctx) is AlarmState.Ringing` into a
+boolean `alarms.isRinging()`. That threw away the value itself — and the
+app-kill recovery path further down the same block still needed
+`alarmState.firedEpoch` and `alarmState.taskName` to work out how long the alarm
+had been overrunning. Replacing a value with a predicate is only safe when the
+value is genuinely unused; here it was not.
+
+### Fix
+
+`AlarmController` now returns a neutral snapshot instead of a boolean:
+
+```kotlin
+data class RingingAlarm(val taskName: String, val taskType: String, val firedEpoch: Long)
+
+fun ringingAlarm(): RingingAlarm?
+fun isRinging(): Boolean = ringingAlarm() != null   // default, for callers that only need the predicate
+```
+
+`AlarmControllerImpl` maps `AlarmState.Ringing` to it, so the sealed class still
+never leaves the alarm feature. `TaskViewModel` uses
+`val ringing = alarms.ringingAlarm(); if (ringing != null) { … }`, which also
+gives a non-null smart cast for the rest of the block.
+
+### Also cleaned
+
+Two locals left dangling by the 4.5.0 rewiring — `val ctx = app` in
+`TaskViewModel` and `val ctx = vm.app` in
+`TaskNoticeStateMachine.triggerAlarmExpire`. Warnings rather than errors, but
+they were dead. Every other file touched in 4.5.0 was scanned for the same
+pattern and is clean.
+
+---
+
+## 4.5.0 — Phase 2b: service-control contracts
+
+`versionName` 4.4.1 → **4.5.0** (MINOR). `versionCode` unchanged at 1.
+
+**Cross-feature import edges: 5 → 1.** Combined with Phase 2a, the graph has
+gone 15 → 1 and the feature packages are now, with one documented exception,
+independently extractable into Gradle modules.
+
+### Added — two contracts, implemented by the features that own the behaviour
+
+`app.core.control.AlarmController` and `app.core.control.OverlayController`.
+
+The implementations live **inside** the features they wrap —
+`AlarmControllerImpl` in `feature/alarm`, `OverlayControllerImpl` in
+`feature/autoswitch` — each with its own `@Binds` Hilt module. That placement is
+the point: when `:feature:alarm` becomes a Gradle module it ships its binding
+with it and `:app` needs no change. The dependency arrow now points inward to a
+contract instead of sideways to a sibling.
+
+Before / after:
+
+```kotlin
+AlarmForegroundService.timerPause(app)                 // task -> alarm
+alarms.timerPause()                                    // task -> contract
+
+AlarmScheduler.currentState(ctx) is AlarmState.Ringing // leaks a sealed class
+alarms.isRinging()                                     // a boolean crosses cleanly
+
+ContextCompat.startForegroundService(ctx, Intent(ctx, BubbleOverlayService::class.java)
+    .apply { action = BubbleOverlayService.ACTION_CALL_STARTED })
+overlay.onCallStarted()                                // task -> contract
+```
+
+Two incidental improvements fell out of this:
+
+- **No more `Context` at call sites.** The old static API took one everywhere.
+  The implementations are `@Singleton`s holding the application context.
+- **The bubble-enabled preference check moved into `OverlayControllerImpl`.**
+  A caller in the task feature should not have to read autoswitch preferences
+  to decide whether it is allowed to make a request.
+
+### Added — `app.core.control.AlarmActions`
+
+`MainActivity` depended on the alarm feature solely to read
+`AlarmStopReceiver.ACTION_STOP_ALARM` — a string constant. Moved to a neutral
+object; `AlarmStopReceiver` now re-exports it so there is still one source of
+truth and nothing inside the alarm feature changed.
+
+### Changed — `AutoSwitchActivity` reads the repository directly
+
+It borrowed `TaskViewModel` for exactly one thing: `activeTasks.observe(...)`.
+That is `TaskRepository`'s own LiveData, so the ViewModel was pure overhead plus
+a cross-feature edge. Now `@Inject lateinit var repository: TaskRepository`.
+
+### Removed — three dead imports
+
+`BubbleOverlayService`, `CallStateReceiver` and `CallSwitchService` each
+imported `TaskCallSwitchDelegate` while referencing it only in KDoc comments.
+`MainActivity` imported `BubbleOverlayService` on the same basis. Four edges
+that existed only on paper.
+
+### Files rewired
+
+`TaskViewModel` (constructor-injected `alarms` + `overlay`, `internal` so the
+delegates in its package reuse them), `TaskNoticeStateMachine` (5 call sites via
+`vm.alarms`), `TaskCallSwitchDelegate` (3 overlay call sites),
+`CallSwitchService` and `BubbleOverlayService` (field-injected — both were
+already `@AndroidEntryPoint`), `MainActivity`, `AutoSwitchActivity`,
+`AlarmStopReceiver`.
+
+### The one remaining edge
+
+```
+backup -> task    DataBackupActivity calls TaskViewModel.prepareForDbExport()
+                  and .prepareForDbImport()
+```
+
+Deliberately left. Each is `pauseTimer()` + clear-current-task + a WAL
+checkpoint/close. Extracting it needs a controller that can stop a running timer
+from outside the ViewModel, and getting that wrong risks a half-written database
+during a restore — the one operation where a bug destroys user data. It gets
+done alongside the `MainActivity`/`TaskViewModel` split, where the timer
+lifecycle is being reworked anyway.
+
+### Verification performed
+
+No compiler available here, so: guard green at the new 1-edge baseline; every
+`package` declaration matches its directory; brace balance unchanged in every
+touched file; no `AlarmForegroundService.` or `BubbleOverlayService.` reference
+survives outside its own feature; `Context` arguments removed from all six
+migrated `timerStart` call sites; imports orphaned by the rewiring
+(`AutoSwitchPrefs`, `viewModels`) removed.
+
+**Most likely compile issue:** Hilt now has to construct `TaskViewModel` with
+two extra parameters. If `AlarmController` or `OverlayController` fails to
+resolve, check that `AlarmControlModule` and `OverlayControlModule` were both
+copied in — they are new files inside the feature packages, not in `app/di/`.
+
+---
+
 ## 4.4.1 — Gradle wrapper committed
 
 `versionName` 4.4.0 → **4.4.1** (PATCH). `versionCode` unchanged at 1.

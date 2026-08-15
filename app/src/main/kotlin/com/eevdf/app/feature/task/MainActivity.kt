@@ -15,7 +15,6 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import com.eevdf.app.core.signals.BubbleEventBus
-import com.eevdf.app.feature.autoswitch.BubbleOverlayService
 import com.eevdf.app.core.signals.CallEvents
 import com.eevdf.app.core.prefs.UiCustomizationPrefs
 import com.eevdf.app.core.prefs.QuickActionPrefs
@@ -43,10 +42,10 @@ import com.eevdf.data.sync.SyncState
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
 import com.eevdf.app.core.media.VibrationManager
-import com.eevdf.app.feature.alarm.AlarmStopReceiver
 import com.eevdf.app.core.notification.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import com.eevdf.app.core.nav.AppRoutes
+import com.eevdf.app.core.control.AlarmActions
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -193,7 +192,7 @@ class MainActivity : AppCompatActivity() {
 
         ContextCompat.registerReceiver(
             this, alarmStopReceiver,
-            IntentFilter(AlarmStopReceiver.ACTION_STOP_ALARM),
+            IntentFilter(AlarmActions.ACTION_STOP_ALARM),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
 

@@ -33,10 +33,15 @@ another feature. Grandfathered edges live in
 `scripts/feature_import_allowlist.txt`. **That list may shrink, never grow.**
 
     v4.3.0  15 edges
-    v4.4.0   5 edges   (Phase 2a)
+    v4.4.0   5 edges   (Phase 2a: relocations + AppRoutes)
+    v4.5.0   1 edge    (Phase 2b: service-control contracts)
 
-The five survivors are all service control — one feature starting, stopping or
-reading another feature's foreground service. See Phase 2b.
+**Cross-feature behaviour goes through a contract in `app.core.control`**, with
+the implementation living inside the feature that owns the behaviour and bound
+by that feature's own Hilt module (`AlarmController` ->
+`feature/alarm/AlarmControlModule`, `OverlayController` ->
+`feature/autoswitch/OverlayControlModule`). The arrow points inward to an
+interface, never sideways to a sibling.
 
 **Shared code lives in `app.core.*`, not in a feature.** If two features need
 something, it belongs in `core.prefs`, `core.media`, `core.notification`,
@@ -110,13 +115,14 @@ Relocated misfiled shared code out of feature packages, renamed the colliding
 `TimerState` to `TaskTimerState`, and added the `AppRoutes` navigation seam.
 Cross-feature edges 15 → 5.
 
-## Phase 2b — next
+## Phase 2b — done (v4.5.0)
 
-1. **Service-control abstraction.** `AlarmController` / `OverlayController`
-   interfaces implemented in `:app` and injected, so `task` and `autoswitch`
-   depend on a contract rather than on each other's `Service` classes. This
-   clears the last 5 edges and unblocks the module split.
-2. Split `MainActivity` (1281 lines) and `TaskViewModel` (1151) into per-feature
+`AlarmController` / `OverlayController` contracts, `AlarmActions`,
+`AutoSwitchActivity` onto the repository. Edges 5 -> 1.
+
+## Phase 2c — next
+
+1. Split `MainActivity` (1281 lines) and `TaskViewModel` (1151) into per-feature
    fragments and ViewModels. **Highest value** — the two files every feature
    currently edits. Follow the delegate pattern already used here
    (`TaskSchedulerDelegate`, `TaskListBuilderDelegate`, ...) rather than

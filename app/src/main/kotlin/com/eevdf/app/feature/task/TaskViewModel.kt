@@ -20,9 +20,6 @@ import com.eevdf.data.task.TaskDisplayItem
 import com.eevdf.data.scheduler.EEVDFScheduler
 import com.eevdf.data.scheduler.SchedulerStats
 import com.eevdf.app.feature.task.timer.TimerEngine
-import com.eevdf.app.feature.alarm.AlarmForegroundService
-import com.eevdf.app.feature.alarm.AlarmScheduler
-import com.eevdf.app.feature.alarm.AlarmState
 import kotlinx.coroutines.launch
 import com.eevdf.data.sync.MultiUserSyncManager
 import kotlinx.coroutines.withContext
@@ -34,6 +31,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import com.eevdf.app.core.signals.BubbleEventBus
+import com.eevdf.app.core.control.AlarmController
+import com.eevdf.app.core.control.OverlayController
 
 /**
  * Root coordinator ViewModel.
@@ -69,6 +68,13 @@ class TaskViewModel @Inject constructor(
     application: Application,
     @AppPreferences internal val prefs: SharedPreferences,
     internal val repository: TaskRepository,
+    /**
+     * Alarm + overlay are reached through contracts, not through the alarm and
+     * autoswitch feature classes. `internal` so the delegates in this package
+     * (notice state machine, call-switch) can use them without re-injecting.
+     */
+    internal val alarms: AlarmController,
+    internal val overlay: OverlayController,
 ) : AndroidViewModel(application) {
 
     // ── Shared preferences (internal so delegates can access prefs directly) ──
@@ -267,8 +273,8 @@ class TaskViewModel @Inject constructor(
             interrupt.postInterruptTaskB(repository.getInterruptTaskB())
 
             // Step 1: check if alarm is already ringing (app killed mid-alarm)
-            val alarmState = AlarmScheduler.currentState(application)
-            if (alarmState is AlarmState.Ringing) {
+            val ringing = alarms.ringingAlarm()
+            if (ringing != null) {
                 // The alarm fired via AlarmManager (e.g. in Doze / background), so the
                 // in-app onTimerFinished() never ran: the run was never credited and the
                 // task is still flagged running in the DB. Finalize it exactly once here.
@@ -288,11 +294,11 @@ class TaskViewModel @Inject constructor(
                 }
 
                 val elapsedSinceExpiry =
-                    ((System.currentTimeMillis() - alarmState.firedEpoch) / 1000L)
+                    ((System.currentTimeMillis() - ringing.firedEpoch) / 1000L)
                         .coerceAtLeast(0L)
-                _alarmTaskName.postValue(alarmState.taskName)
+                _alarmTaskName.postValue(ringing.taskName)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
-                startInAppOverrunCounter(alarmState.taskName, elapsedSinceExpiry)
+                startInAppOverrunCounter(ringing.taskName, elapsedSinceExpiry)
                 return@launch
             }
 
@@ -504,7 +510,7 @@ class TaskViewModel @Inject constructor(
             repository.update(updated)
             triggerSyncExport()          // notify other users: timer started
         }
-        AlarmForegroundService.timerStart(app, task.name, remaining, task.taskType, alarmSecs)
+        alarms.timerStart(task.name, remaining, task.taskType, alarmSecs)
         timerEngine.start(updated)
     }
 
@@ -536,7 +542,7 @@ class TaskViewModel @Inject constructor(
         } else if (session != null && session.wallClockSeconds > 0) {
             applyVruntimeUpdate(session)
         }
-        AlarmForegroundService.timerPause(app)
+        alarms.timerPause()
         triggerSyncExport()               // notify other users: timer paused
     }
 
@@ -691,7 +697,6 @@ class TaskViewModel @Inject constructor(
         session:      RunSession? = null
     ) {
         val task = taskOverride ?: _currentTask.value ?: return
-        val ctx  = app
 
         val expiryEpochMs      = session?.endEpochMs ?: System.currentTimeMillis()
         val elapsedSinceExpiry = ((System.currentTimeMillis() - expiryEpochMs) / 1000L)
@@ -744,7 +749,7 @@ class TaskViewModel @Inject constructor(
             } else if (task.taskType == "NOTIFICATION") {
                 notice.handleExpiredNotificationTask(task)
             } else {
-                AlarmForegroundService.timerExpire(ctx, task.name, task.taskType)
+                alarms.timerExpire(task.name, task.taskType)
                 _alarmTaskName.postValue(task.name)
                 _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 startInAppOverrunCounter(task.name, elapsedSinceExpiry)
@@ -784,7 +789,7 @@ class TaskViewModel @Inject constructor(
         stopOverrunCounter()
         _alarmTaskName.postValue(null)
         _alarmElapsedSeconds.postValue(0L)
-        AlarmForegroundService.stopAlarm(app)
+        alarms.stopAlarm()
         taskToRestoreAfterExpire?.let { resetTask ->
             // The just-expired task is being re-seated on the card. For a
             // NOTIFICATION task, triggerAlarmExpire() left _noticePhase == Expired
