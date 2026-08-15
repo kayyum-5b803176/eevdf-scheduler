@@ -3,6 +3,7 @@ package com.eevdf.app.feature.task
 import androidx.lifecycle.viewModelScope
 import com.eevdf.data.task.Task
 import com.eevdf.data.scheduler.EEVDFScheduler
+import com.eevdf.data.scheduler.RtScheduler
 import kotlinx.coroutines.launch
 import com.eevdf.app.feature.task.TaskViewModel
 import com.eevdf.app.feature.task.TaskSortHelper
@@ -148,23 +149,45 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
 
     /**
      * Cycles through siblings that share the same parentId, in UI list order.
+     *
+     * Queue tab:    siblings sorted by task name (static number order).
+     * Schedule tab: siblings taken directly from [flatScheduleOrder] in display
+     *               order, which already applies DL → RT → EEVDF hoisting.
+     *               Re-sorting by virtualDeadline here was the bug: a DL/RT-class
+     *               sibling sitting at position #1 in the UI would be skipped
+     *               because its vdl happened to be larger than a plain EEVDF
+     *               sibling's.
+     *
      * NOTIFICATION parent: always jumps to the lowest-VDL sibling (no rotation).
      */
     private fun rotateSiblings(onQueueTab: Boolean) {
-        val current  = vm._currentTask.value
-        val allTasks = (if (onQueueTab) vm.listBuilder.flatActiveTasks
-                        else            vm.listBuilder.flatScheduleOrder)
-            .value?.map { it.task } ?: return
+        val current   = vm._currentTask.value
+        val flatItems = (if (onQueueTab) vm.listBuilder.flatActiveTasks
+                         else            vm.listBuilder.flatScheduleOrder)
+            .value ?: return
 
+        val allTasks   = flatItems.map { it.task }
         val parentId   = current?.parentId
         val parentType = allTasks.find { it.id == parentId }?.taskType
 
+        // Unordered sibling pool — used by the NOTIFICATION branch which always
+        // wants the lowest-VDL sibling regardless of scheduler class.
         val base = allTasks
             .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
-        val siblings = if (onQueueTab)
+
+        // Queue tab:    sort by task name.
+        // Schedule tab: preserve the order already in flatScheduleOrder.
+        //               flatScheduleOrder applies DL-active → RT-active → EEVDF at
+        //               every level; filtering it by parentId retains that ordering
+        //               without any re-sort.
+        val siblings = if (onQueueTab) {
             base.sortedWith(TaskSortHelper.taskNameComparator)
-        else
-            base.sortedBy { it.virtualDeadline }
+        } else {
+            flatItems
+                .map { it.task }
+                .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
+            // No re-sort: flatScheduleOrder already reflects DL → RT → EEVDF.
+        }
 
         if (siblings.size <= 1) {
             vm._toastMessage.value = "No other siblings to rotate"
@@ -186,7 +209,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
 
     /**
      * One representative leaf per root-level entry, cycling in UI list order.
-     * For a group the representative is its first leaf (depth-first, VDL order).
+     * For a group the representative is its first leaf (depth-first, schedule order).
      * For a root leaf task it represents itself.
      *
      * IMPORTANT: root entries are taken directly from the flat list in the order
@@ -194,6 +217,11 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
      * list already reflects RT/DL hoisting so the rotation matches what the user
      * sees on screen.  Re-sorting here was the bug: an RT task repositioned to
      * slot #1 by the scheduler would be cycled last because its name sorted late.
+     *
+     * On the Schedule tab, [firstLeafOf] traverses child levels with the same
+     * DL → RT → EEVDF tier sort as [TaskListBuilderDelegate.buildScheduleList],
+     * so the representative leaf for a group matches the task the UI shows at
+     * rank #1 within that group — not merely the child with the smallest vdl.
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
         val current   = vm._currentTask.value
@@ -208,7 +236,8 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
             .filter { it.task.parentId == null && !it.task.isCompleted && !it.task.isInterrupt }
             .mapNotNull { item ->
                 val root = item.task
-                val leaf = if (!root.isGroup) root else firstLeafOf(allTasks, root.id)
+                val leaf = if (!root.isGroup) root
+                           else firstLeafOf(allTasks, root.id, scheduleSort = !onQueueTab)
                 if (leaf == null || leaf.isInterrupt) null else Pair(root.id, leaf)
             }
         if (representatives.isEmpty()) return
@@ -226,17 +255,84 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
 
     // ── Tree traversal helpers ────────────────────────────────────────────────
 
-    /** Returns the first non-group, non-completed leaf under [parentId] in VDL order. */
-    private fun firstLeafOf(tasks: List<Task>, parentId: String?): Task? {
+    /**
+     * Returns the first non-group, non-completed leaf under [parentId].
+     *
+     * [scheduleSort] = false (Queue tab / legacy):
+     *   Children at each level are sorted by virtualDeadline — the original
+     *   EEVDF-only ordering.
+     *
+     * [scheduleSort] = true (Schedule tab):
+     *   Children at each level are sorted with the same DL → RT → EEVDF tier
+     *   order that [TaskListBuilderDelegate.buildScheduleList] applies, so the
+     *   leaf returned matches what the user sees at rank #1 in the UI — even
+     *   for collapsed groups whose children are absent from the flat display list.
+     *
+     * [nowMs] is captured once at the [rotateGlobal] call site and threaded down
+     * through every recursive level so all sibling sets see the same wall-clock
+     * instant, preventing boundary flicker when an RT window sits exactly on
+     * the activation edge.
+     */
+    private fun firstLeafOf(
+        tasks: List<Task>,
+        parentId: String?,
+        scheduleSort: Boolean = false,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Task? {
         val children = tasks
             .filter { it.parentId == parentId && !it.isCompleted && !it.isInterrupt }
-            .sortedBy { it.virtualDeadline }
-        for (child in children) {
+        val sorted = if (scheduleSort) scheduleSortChildren(children, tasks, nowMs)
+                     else              children.sortedBy { it.virtualDeadline }
+        for (child in sorted) {
             if (!child.isGroup) return child
-            val leaf = firstLeafOf(tasks, child.id)
+            val leaf = firstLeafOf(tasks, child.id, scheduleSort, nowMs)
             if (leaf != null) return leaf
         }
         return null
+    }
+
+    /**
+     * Mirrors the per-level sort applied by [TaskListBuilderDelegate.buildScheduleList]
+     * so that [firstLeafOf] and [rotateSiblings] produce the same ordering the user
+     * sees on the Schedule tab:
+     *
+     *   Tier 1 — DL-active  ([Task.isDlBudgetActive], or group with an active DL
+     *             descendant): sorted by [Task.dlPeriodRemainingSeconds] ascending
+     *             (shortest deadline remaining = most urgent, matching EDF policy).
+     *
+     *   Tier 2 — RT-active  ([RtScheduler.isRtWindowActive], or group with an active
+     *             RT descendant): sorted by [Task.rtPriority] descending (higher
+     *             priority value = more urgent, matching Linux rt_sched_class).
+     *
+     *   Tier 3 — Everything else: sorted by [Task.virtualDeadline] ascending (EEVDF
+     *             policy — earliest virtual deadline first).
+     *
+     * [nowMs] is passed in (not read from [System.currentTimeMillis]) so that all
+     * levels within a single [firstLeafOf] traversal share one consistent instant.
+     */
+    private fun scheduleSortChildren(
+        children: List<Task>,
+        allTasks: List<Task>,
+        nowMs: Long,
+    ): List<Task> {
+        val (dlChildren, nonDl) = children.partition { child ->
+            if (child.isGroup) EEVDFScheduler.hasActiveDlDescendant(child, allTasks)
+            else child.isDlBudgetActive
+        }
+        val (rtChildren, restChildren) = nonDl.partition { child ->
+            if (child.isGroup) RtScheduler.hasActiveRtDescendant(child, allTasks, nowMs)
+            else RtScheduler.isRtWindowActive(child, nowMs)
+        }
+        // dlUrgency mirrors the same local function used in buildScheduleList:
+        // leaf → dlPeriodRemainingSeconds; group → minimum across its children.
+        fun dlUrgency(task: Task): Long =
+            if (!task.isGroup) task.dlPeriodRemainingSeconds
+            else allTasks
+                .filter { it.parentId == task.id && !it.isCompleted }
+                .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+        return dlChildren.sortedBy  { dlUrgency(it) } +
+               rtChildren.sortedByDescending { if (it.isGroup) 0 else it.rtPriority } +
+               restChildren.sortedBy { it.virtualDeadline }
     }
 
     /** Traces up the parentId chain to return the root-level ancestor (parentId == null). */
