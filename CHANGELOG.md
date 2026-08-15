@@ -1,5 +1,68 @@
 # Changelog
 
+## 4.6.0 — Phase 2c: freeze the `tasks` table
+
+`versionName` 4.5.1 → **4.6.0** (MINOR). `versionCode` unchanged at 1.
+No production code changed — this release is a guard, a guard-script check, and
+a documentation correction.
+
+### Added — `TaskSchemaFreezeTest`
+
+`tasks` is pinned at its current 51 columns. Adding a 52nd fails the build with
+a message pointing at `docs/SIDE_TABLE_TEMPLATE.md`.
+
+This is the most important guard in the repo, because it is the only one that
+prevents a cause rather than detecting a symptom. 51 columns and 21 migrations
+exist because every feature ever added became columns on one shared row — and
+that is precisely the mechanism by which a new feature breaks a working one
+here. A new column forces edits to `Task`, `TaskDatabase`, `TaskDao`,
+`TaskRepository`, `BackupManager`, `SyncFieldGuard` and every UI mapper: six
+shared files, six chances to break something unrelated, on every feature.
+
+`BackupRoundTripCoverageTest` and `TaskFieldClassificationTest` catch the
+fallout. This one stops it happening.
+
+The escape hatch is deliberate and narrow: a value the scheduler reads on every
+tick (a `vruntime`-class field on the `tickQuotaOnVisibleItems` path, where a
+join costs real frame time). Add it to `FROZEN_FIELDS` and justify it in the PR.
+Editing that list should feel like a decision.
+
+### Added — guard check `[4/6] The tasks table is frozen`
+
+Counts `ALTER TABLE tasks ADD COLUMN` in `TaskDatabase.kt` against a measured
+baseline of 39 (the legitimate history of migrations 1→21). Catches a widening
+migration in two seconds, before the test suite runs, with a message that names
+the alternative. Verified by planting a column: caught.
+
+### Fixed — wrong backup guidance in `SIDE_TABLE_TEMPLATE.md`
+
+Tracing `DataBackupActivity` showed export writes the **raw `.db` file** into a
+zip and import replaces that file wholesale. **Side tables are therefore backed
+up automatically** — the explicit export/import step the template previously
+told you to write was unnecessary coupling.
+
+Corrected, with the wrong advice left visible and struck through rather than
+quietly deleted: "the doc said so" is exactly how unnecessary coupling gets
+added, and the correction is more useful than a clean-looking document.
+
+### Documented — sync is the real exposure, not backup
+
+Sync is field-by-field JSON (`toSyncJson` / `fromSyncJson`) and knows only about
+`Task`. **A side table is invisible to sync until explicitly handled.** It will
+be correct locally and in backups, and silently absent on a peer device. Both
+docs now require an explicit decision — local-only or synced — and a written
+note either way. Silent divergence between two users' devices is among the
+hardest bugs to diagnose in this app.
+
+### Not in this release
+
+The `MainActivity` (1281 lines) / `TaskViewModel` (1151) split. It is the last
+big item and the riskiest, and it is the one place where the characterization
+tests stop being insurance and become load-bearing. Worth running
+`:testing:test` and `:data:testDebugUnitTest` before starting it.
+
+---
+
 ## 4.5.1 — Fix: AlarmController lost the ringing alarm's data
 
 `versionName` 4.5.0 → **4.5.1** (PATCH). `versionCode` unchanged at 1.

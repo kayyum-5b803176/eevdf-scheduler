@@ -148,18 +148,39 @@ Room.databaseBuilder(context, TaskDatabase::class.java, DB_NAME)
     .build()
 ```
 
-## 7. Backup
+## 7. Backup — nothing to do
 
-Until Phase 2 lands multibound contributors, add an explicit export/import for
-the new table alongside the existing task JSON, and a round-trip test modelled
-on `BackupRoundTripCoverageTest`. **A feature whose data isn't in the backup is
-a feature that silently loses user data on restore.**
+Export writes the raw `.db` file into a zip, and import replaces that file
+wholesale (`DataBackupActivity`, entry `database.db`). **Your table is included
+automatically.** No contributor, no serializer, no test.
 
-## 8. Sync
+The `tasks.json` written alongside it is for the legacy raw-`.db` import path
+and human inspection; it is not what a modern restore reads.
 
-Nothing to do — `TaskFieldClassification` covers `Task` fields only. When you
-want the new table synced, extend `SyncFieldGuard` and add the same style of
-coverage test.
+> Earlier revisions of this document told you to add an explicit export/import
+> here. That was wrong — it was written before the backup path was traced. Left
+> visible rather than quietly deleted, because "the doc said so" is exactly how
+> unnecessary coupling gets added.
+
+## 8. Sync — this one you DO have to handle
+
+Multi-user sync is field-by-field JSON (`BackupManager.toSyncJson` /
+`fromSyncJson`), and it only knows about `Task`. **A side table is invisible to
+sync until you add it.** The table will be correct locally and on backup, and
+silently absent on a synced peer.
+
+Two options:
+
+- **Local-only data** (UI state, device-specific preferences) — correct as-is.
+  Say so in a comment on the entity so the next person does not assume it is a
+  bug.
+- **Should sync** — extend the sync payload with a section for your table and
+  add a round-trip test modelled on `BackupRoundTripCoverageTest`. Follow the
+  `TaskFieldClassification` pattern: decide per field whether a remote blank may
+  overwrite a local value.
+
+Decide deliberately and write the decision down. Silent divergence between two
+users' devices is among the hardest bugs to diagnose in this app.
 
 ---
 
@@ -169,12 +190,12 @@ coverage test.
 @Test fun `migration 21 to 22 creates focus_config`()      // in TaskDatabaseMigrationTest
 @Test fun `missing row yields defaults`()
 @Test fun `deleting a task cascades its config away`()
-@Test fun `focus config survives backup round trip`()
 ```
 
 ## What you did *not* touch
 
-`Task.kt` · `TaskDao.kt` · `TaskRepository.kt` · `BackupManager.taskToJson` ·
+`Task.kt` · `TaskDao.kt` · `TaskRepository.kt` · `BackupManager` ·
 `SyncFieldGuard` · every UI file that maps the entity.
 
-That's the point.
+That's the point. `TaskSchemaFreezeTest` exists to make sure it stays that way:
+add a column to `tasks` and the build fails, pointing back here.

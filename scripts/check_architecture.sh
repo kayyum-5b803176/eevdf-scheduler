@@ -24,7 +24,7 @@ fail() { red "  FAIL: $*"; FAILURES=$((FAILURES+1)); }
 FEATURE_ROOT="app/src/main/kotlin/com/eevdf/app/feature"
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[1/5] Feature isolation — no feature may import another feature"
+echo "[1/6] Feature isolation — no feature may import another feature"
 # ─────────────────────────────────────────────────────────────────────────────
 # Some cross-feature imports exist today. List them here so the check passes on
 # the current tree while blocking any NEW ones. Delete entries as Phase 2
@@ -66,7 +66,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[2/5] Core purity — :core must stay free of Android, Room and Hilt"
+echo "[2/6] Core purity — :core must stay free of Android, Room and Hilt"
 # ─────────────────────────────────────────────────────────────────────────────
 IMPURE=$(grep -rn "^import \(android\|androidx\|dagger\|javax\.inject\)\." core/src/main --include=*.kt 2>/dev/null || true)
 if [ -n "$IMPURE" ]; then
@@ -77,7 +77,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[3/5] Database versioning — version, migrations and schemas must agree"
+echo "[3/6] Database versioning — version, migrations and schemas must agree"
 # ─────────────────────────────────────────────────────────────────────────────
 DB_FILE="data/src/main/kotlin/com/eevdf/data/task/TaskDatabase.kt"
 if [ -f "$DB_FILE" ]; then
@@ -142,7 +142,28 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[4/5] No new global mutable singletons"
+echo "[4/6] The tasks table is frozen"
+# ─────────────────────────────────────────────────────────────────────────────
+# `tasks` reached 51 columns because every feature became columns on one shared
+# row. TaskSchemaFreezeTest enforces this properly (it reflects over the
+# entity); this catches the migration SQL earlier and with a clearer message.
+if [ -f "$DB_FILE" ]; then
+  WIDEN=$(grep -n "ALTER TABLE .*tasks.* ADD COLUMN\|ALTER TABLE \`tasks\`" "$DB_FILE" | grep -v "^\s*//" || true)
+  KNOWN_WIDENING=39   # measured at v4.6.0 — migrations 1..21 widened it this many times
+  COUNT=$(printf '%s\n' "$WIDEN" | grep -c "ALTER TABLE" || true)
+  echo "  ALTER TABLE tasks ADD COLUMN statements: $COUNT (historical baseline $KNOWN_WIDENING)"
+  if [ "$COUNT" -gt "$KNOWN_WIDENING" ]; then
+    fail "a migration adds a new column to \`tasks\` — the table is frozen"
+    ylw "  Put the feature's data in its own table: docs/SIDE_TABLE_TEMPLATE.md"
+    ylw "  A new column forces edits to Task, TaskDatabase, TaskDao, TaskRepository,"
+    ylw "  BackupManager, SyncFieldGuard and the UI mappers. A new table forces none."
+  else
+    grn "  OK"
+  fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo "[5/6] No new global mutable singletons"
 # ─────────────────────────────────────────────────────────────────────────────
 # Counts 'object X { ... @Volatile var / var ... }' style shared state. The
 # current count is the ceiling: it may go down, never up.
@@ -158,7 +179,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[5/5] God-file ceiling"
+echo "[6/6] God-file ceiling"
 # ─────────────────────────────────────────────────────────────────────────────
 # MainActivity (1281) and TaskViewModel (1151) are the known offenders and are
 # grandfathered until Phase 2. Nothing else may join them.

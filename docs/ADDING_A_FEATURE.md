@@ -16,6 +16,8 @@ Copy this into the PR description.
 - [ ] Lives in its own package under `feature/` (Phase 2: its own Gradle module)
 - [ ] Does **not** import from another `feature/` package — `scripts/check_architecture.sh` enforces this
 - [ ] Persisted data is in **its own table**, not new columns on `tasks`
+      (`tasks` is frozen — `TaskSchemaFreezeTest` fails the build if it grows)
+- [ ] Decided explicitly whether the new table needs to sync (backup is automatic; sync is not)
 - [ ] If it added a Room migration: version bumped, migration registered in `addMigrations()`, schema JSON committed
 - [ ] Any new `Task` field is classified in `TaskFieldClassification` (the test forces this)
 - [ ] Any new `Task` field round-trips through backup (the test forces this)
@@ -66,8 +68,15 @@ added became columns on one shared row. Adding one now forces edits to `Task`,
 and every UI file that maps the entity — six shared files, six chances to break
 something unrelated.
 
-`tasks` is **frozen**. Use the pattern in
-[`SIDE_TABLE_TEMPLATE.md`](SIDE_TABLE_TEMPLATE.md).
+`tasks` is **frozen**, and enforced twice: `TaskSchemaFreezeTest` reflects over
+the entity, and the architecture guard flags a widening `ALTER TABLE` in a
+migration. Use the pattern in [`SIDE_TABLE_TEMPLATE.md`](SIDE_TABLE_TEMPLATE.md).
+
+Two things worth knowing about a side table:
+
+- **Backup covers it for free.** Export copies the raw `.db` file into a zip.
+- **Sync does not.** Sync is field-by-field JSON that only knows about `Task`.
+  Decide deliberately whether your table should sync, and write it down.
 
 The narrow exception: a field the **scheduler itself** reasons about on every
 tick (a `vruntime`-class value). Joining for those on a hot path costs real
