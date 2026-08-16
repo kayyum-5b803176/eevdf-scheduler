@@ -260,7 +260,7 @@ class TaskAdapter(
         if (task.isGroup) {
             // Group header row
             holder.tvCategory.text  = "Group · ${item.childCount} task${if (item.childCount != 1) "s" else ""}"
-            holder.tvTimeSlice.text = "TRT: ${fmtDur(item.childTotalRuntime)}"
+            holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = "VRT: ${fmtFloat(task.vruntime)}"
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.progressBar.visibility    = View.GONE
