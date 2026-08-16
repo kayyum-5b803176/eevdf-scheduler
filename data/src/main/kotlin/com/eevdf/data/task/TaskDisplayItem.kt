@@ -14,6 +14,12 @@ data class TaskDisplayItem(
     /** Total number of descendant leaf tasks at any depth — only meaningful when task.isGroup == true. */
     val childTaskCount: Int = 0,
     val childTotalRuntime: Long = 0L, // sum of all direct children's totalRunTime
+    /**
+     * Count of all descendant leaf tasks (isGroup=false) that exist in the DB under this
+     * task but are invisible in the flat list because addLevel never recurses into
+     * non-group nodes. Meaningful only for leaf task cards; always 0 for group cards.
+     */
+    val hiddenNodeCount: Int = 0,
     val cpuShare: Double = 0.0,       // real-time CPU share % from EEVDFScheduler.computeShares()
     /**
      * True when this task itself OR any ancestor group has its quota exceeded for

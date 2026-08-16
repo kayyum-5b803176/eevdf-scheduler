@@ -157,7 +157,8 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                         cpuShare               = shares[it.id] ?: 0.0,
                         effectiveQuotaExceeded = it.isQuotaExceeded,
                         effectiveQuotaWarning  = it.isQuotaWarning,
-                        queueNumber            = "${index + 1}")
+                        queueNumber            = "${index + 1}",
+                        hiddenNodeCount        = countHiddenNodes(it.id, tasks))
                 }
         }
         val result = mutableListOf<TaskDisplayItem>()
@@ -180,6 +181,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     effectiveQuotaExceeded = quotaExceeded,
                     effectiveQuotaWarning  = quotaWarning,
                     queueNumber            = number,
+                    hiddenNodeCount        = if (!task.isGroup) countHiddenNodes(task.id, tasks) else 0,
                     isExpanded             = if (task.isGroup) (vm.groupExpand.queueExpandState[task.id] ?: true) else true))
                 if (task.isGroup && (vm.groupExpand.queueExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning)
@@ -224,7 +226,8 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     effectiveQuotaWarning  = it.isQuotaWarning,
                     queueNumber            = "${index + 1}",
                     isDlActive             = it.isDlBudgetActive,
-                    isRtActive             = RtScheduler.isRtWindowActive(it, nowMs))
+                    isRtActive             = RtScheduler.isRtWindowActive(it, nowMs),
+                    hiddenNodeCount        = countHiddenNodes(it.id, tasks))
             }
         }
         val result = mutableListOf<TaskDisplayItem>()
@@ -282,6 +285,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     isDlGroupHoisted       = isDlGroupHoisted,
                     isRtActive             = isRtActive,
                     isRtGroupHoisted       = isRtGroupHoisted,
+                    hiddenNodeCount        = if (!task.isGroup) countHiddenNodes(task.id, tasks) else 0,
                     isExpanded             = if (task.isGroup) (vm.groupExpand.scheduleExpandState[task.id] ?: true) else true))
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
@@ -296,6 +300,23 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
      * at any depth within [allTasks] (active-only; completed/deleted are absent).
      * Returns Pair(descendantGroupCount, descendantTaskCount).
      */
+    /**
+     * Counts all descendant leaf tasks (isGroup=false) under [taskId] at any depth.
+     * Recurses into every child regardless of isGroup — groups in the subtree are
+     * traversed but not counted; only isGroup=false nodes contribute to the total.
+     * These are the nodes hidden from the UI when a task is not shown as a group.
+     */
+    private fun countHiddenNodes(taskId: String, allTasks: List<Task>): Int {
+        val children = allTasks.filter { it.parentId == taskId }
+        if (children.isEmpty()) return 0
+        var count = 0
+        for (child in children) {
+            if (!child.isGroup) count++
+            count += countHiddenNodes(child.id, allTasks)
+        }
+        return count
+    }
+
     private fun countDescendants(groupId: String, allTasks: List<Task>): Pair<Int, Int> {
         val children = allTasks.filter { it.parentId == groupId }
         var groups = 0
