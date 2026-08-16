@@ -140,7 +140,7 @@ class AddTaskActivity : AppCompatActivity() {
 
     // ── Activity-scoped mutable state ─────────────────────────────────────────
     internal var selectedTaskType  = "DEFAULT"
-    internal var selectedCategory  = "General"
+    internal var selectedCategory  = "None"
     internal var existingTaskId:   String? = null
     internal var existingTask:     Task?   = null
     /** Groups from the ViewModel for the parent spinner; first entry = "None (root)" */

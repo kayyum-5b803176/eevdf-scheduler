@@ -276,7 +276,8 @@ class TaskAdapter(
             holder.btnGroupToggle.setOnLongClickListener { onGroupToggleDeep(task); true }
         } else {
             // Leaf task row
-            holder.tvCategory.text  = "H: ${item.hiddenNodeCount} | ${task.category}"
+            holder.tvCategory.text  = if (task.category == "None") "H: ${item.hiddenNodeCount}"
+                                      else "H: ${item.hiddenNodeCount} | ${task.category}"
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"

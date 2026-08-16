@@ -55,7 +55,7 @@ internal fun AddTaskActivity.setupCategoryInput() {
     // Pre-fill with the default (or whatever populateCategoryPrioritySection set before
     // this call — in practice setupCategoryInput is called before loadExistingTask so
     // this writes the default "General"; the edit path overwrites it afterward).
-    etCategoryInput.setText(selectedCategory, false)
+    etCategoryInput.setText(if (selectedCategory == "None") "" else selectedCategory, false)
 
     // Keep selectedCategory in sync so AddTaskSaveHandler reads the correct value.
     etCategoryInput.addTextChangedListener(object : TextWatcher {
@@ -63,7 +63,7 @@ internal fun AddTaskActivity.setupCategoryInput() {
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         override fun afterTextChanged(s: Editable?) {
             val typed = s?.toString()?.trim() ?: ""
-            selectedCategory = typed.ifEmpty { "General" }
+            selectedCategory = if (typed.isBlank()) "None" else typed
         }
     })
 
@@ -126,7 +126,10 @@ internal fun AddTaskActivity.updatePriorityInfo(@Suppress("UNUSED_PARAMETER") pr
  */
 internal fun AddTaskActivity.populateCategoryPrioritySection(task: Task) {
     selectedCategory = task.category
-    etCategoryInput.setText(task.category, false)
+    // Show a blank field when the stored category is "None" so the user sees
+    // an empty input rather than the literal word "None". Clearing the field
+    // while editing also writes "None" back via afterTextChanged.
+    etCategoryInput.setText(if (task.category == "None") "" else task.category, false)
     // Priority slider is set in populateBasicFields; only display refresh needed here
     // because autoCalcWeight may have just been set by populatePinnedShareSection.
     updatePriorityDisplay()

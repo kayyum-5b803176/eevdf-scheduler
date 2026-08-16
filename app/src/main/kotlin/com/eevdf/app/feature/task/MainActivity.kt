@@ -836,7 +836,8 @@ class MainActivity : AppCompatActivity() {
                 // Content only — card VISIBILITY is owned solely by the
                 // timerCardAction observer below (single source of truth).
                 tvCurrentTaskName.text = task.name
-                tvTimerPriority.text = "Priority ${task.priority} · ${task.category}"
+                tvTimerPriority.text = if (task.category == "None") "Priority ${task.priority}"
+                                       else "Priority ${task.priority} · ${task.category}"
                 tvTimerDisplay.text = task.remainingDisplay
                 activeAdapter.setRunningTask(task.id)
                 scheduleAdapter.setRunningTask(task.id)

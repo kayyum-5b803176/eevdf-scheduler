@@ -12,7 +12,7 @@ data class Task(
     val description: String = "",
     val priority: Int,
     val timeSliceSeconds: Long,
-    val category: String = "General",
+    val category: String = "None",
     val color: Int = 0,
 
     // cgroup hierarchy
