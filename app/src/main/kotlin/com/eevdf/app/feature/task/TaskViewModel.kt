@@ -1008,7 +1008,7 @@ class TaskViewModel @Inject constructor(
      * ancestor group IDs.  These groups are excluded from the global toggle so
      * the interrupt task's visibility is never accidentally changed.
      */
-    private fun collectInterruptAncestorIds(): Set<String> {
+    internal fun collectInterruptAncestorIds(): Set<String> {
         val allTasks = activeTasks.value ?: return emptySet()
         val result   = mutableSetOf<String>()
         allTasks.filter { it.isInterrupt }.forEach { interruptTask ->

@@ -235,9 +235,15 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
 
         val allTasks = flatItems.map { it.task }
 
+        // Groups that are ancestors of any interrupt task — excluded from depth
+        // resolution so the interrupt group is never counted as a rotation candidate
+        // and the algorithm never descends into it.
+        val interruptAncestorIds = vm.collectInterruptAncestorIds()
+
         // Find the shallowest depth with 2+ rotation candidates, descending
         // automatically through single expanded-group levels.
-        val effectiveParentId = resolveEffectiveParentId(flatItems)
+        val effectiveParentId = resolveEffectiveParentId(flatItems, interruptAncestorIds)
+
 
         // Entries at the effective level in flat-list (display) order.
         //
@@ -372,36 +378,49 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
      * (i.e. are expanded) — then delegates to [resolveEffectiveParentIdAt].
      * Building the set once here keeps the per-level check O(1) throughout the
      * recursive descent instead of O(n) per candidate.
+     *
+     * [interruptAncestorIds] is the set of group IDs that are ancestors of any
+     * interrupt task (computed by [TaskViewModel.collectInterruptAncestorIds]).
+     * These groups are invisible to the descent algorithm on both tabs, matching
+     * the same exclusion applied by the expand/collapse toggle-all operations.
      */
-    private fun resolveEffectiveParentId(flatItems: List<TaskDisplayItem>): String? {
+    private fun resolveEffectiveParentId(
+        flatItems: List<TaskDisplayItem>,
+        interruptAncestorIds: Set<String>,
+    ): String? {
         val expandedGroupIds = flatItems.mapNotNull { it.task.parentId }.toSet()
-        return resolveEffectiveParentIdAt(flatItems, null, expandedGroupIds)
+        return resolveEffectiveParentIdAt(flatItems, null, expandedGroupIds, interruptAncestorIds)
     }
 
     /**
      * Recursive depth resolver.  At each level it counts visible rotation
      * candidates — leaf tasks plus expanded groups (those whose id is in
-     * [expandedGroupIds]).  Collapsed groups are excluded because their children
-     * are absent from [flatItems] and no representative leaf can be found inside.
+     * [expandedGroupIds]).  Collapsed groups and interrupt-ancestor groups are
+     * excluded: the former have no visible children, the latter must never be
+     * treated as rotation slots on either tab.
      *
      *   ≥ 2 candidates → stop, rotate at this level ([parentId]).
-     *   = 1 candidate that is an expanded group → descend one level into it.
+     *   = 1 candidate that is an expanded non-interrupt group → descend.
      *   anything else (0 candidates, or 1 leaf) → stop at this level.
      */
     private fun resolveEffectiveParentIdAt(
         flatItems: List<TaskDisplayItem>,
         parentId: String?,
         expandedGroupIds: Set<String>,
+        interruptAncestorIds: Set<String>,
     ): String? {
         val candidates = flatItems.filter { item ->
             item.task.parentId == parentId &&
             !item.task.isCompleted &&
             !item.task.isInterrupt &&
+            item.task.id !in interruptAncestorIds &&
             (!item.task.isGroup || item.task.id in expandedGroupIds)
         }
         if (candidates.size >= 2) return parentId
         if (candidates.size == 1 && candidates[0].task.isGroup) {
-            return resolveEffectiveParentIdAt(flatItems, candidates[0].task.id, expandedGroupIds)
+            return resolveEffectiveParentIdAt(
+                flatItems, candidates[0].task.id, expandedGroupIds, interruptAncestorIds
+            )
         }
         return parentId
     }
