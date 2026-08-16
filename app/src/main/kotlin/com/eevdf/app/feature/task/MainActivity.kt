@@ -638,6 +638,7 @@ class MainActivity : AppCompatActivity() {
                     else -> completedAdapter
                 }
                 updateEmptyView()
+                updateScheduleRankBadge()
             }
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             override fun onTabReselected(tab: TabLayout.Tab) {}
@@ -806,6 +807,7 @@ class MainActivity : AppCompatActivity() {
             activeAdapter.submitList(items)
             activeAdapter.setRunningTask(viewModel.currentTask.value?.id)
             updateEmptyView()
+            updateScheduleRankBadge()
         }
 
         // Schedule tab — flat group-aware list
@@ -1065,10 +1067,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateScheduleRankBadge() {
         val runningId = viewModel.currentTask.value?.id
+        // Read rank from the list that matches the active tab — Queue tab uses
+        // its own name-sorted order, Schedule tab uses EEVDF order. Completed
+        // tab has no meaningful rank so the badge is hidden.
+        val list = when (currentTab) {
+            0    -> viewModel.flatActiveTasks.value
+            1    -> viewModel.flatScheduleOrder.value
+            else -> null
+        }
         val number = if (runningId != null) {
-            viewModel.flatScheduleOrder.value
-                ?.find { it.task.id == runningId }
-                ?.queueNumber
+            list?.find { it.task.id == runningId }?.queueNumber
         } else null
         if (!number.isNullOrEmpty()) {
             tvScheduleRank.text       = "#$number"
