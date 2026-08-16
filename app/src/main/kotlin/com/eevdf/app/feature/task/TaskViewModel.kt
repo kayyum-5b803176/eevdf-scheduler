@@ -152,6 +152,7 @@ class TaskViewModel @Inject constructor(
 
     internal val settings    = TaskSettingsDelegate(prefs)
     internal val groupExpand = TaskGroupExpandDelegate(prefs, this)
+    internal val lastRun     = QueueLastRunDelegate(prefs)
     internal val interrupt   = TaskInterruptDelegate(this)
     internal val callSwitch  = TaskCallSwitchDelegate(this)
     internal val notice      = TaskNoticeStateMachine(this)
@@ -506,6 +507,9 @@ class TaskViewModel @Inject constructor(
         // Update _currentTask with the Running state so tick observer copies carry
         // the correct startTimeEpoch (needed for live progressPercent calculation).
         _currentTask.value = updated
+        // Record which task ran inside each ancestor group so the Queue tab's
+        // global-rotate Next can return to the most recently used task per group.
+        lastRun.update(task, activeTasks.value ?: emptyList())
         viewModelScope.launch {
             repository.update(updated)
             triggerSyncExport()          // notify other users: timer started

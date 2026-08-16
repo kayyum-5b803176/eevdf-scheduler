@@ -240,19 +240,35 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         val effectiveParentId = resolveEffectiveParentId(flatItems)
 
         // Entries at the effective level in flat-list (display) order.
-        // mapNotNull drops collapsed groups — firstLeafOf returns null for them
-        // because their children are absent from allTasks.
+        //
+        // Leaf resolution per tab:
+        //   Queue tab groups    → vm.lastRun.getLastRunLeaf: returns the task most
+        //                         recently run inside that group, or null if no history
+        //                         exists or the stored task was deleted / completed.
+        //   Schedule tab groups → firstLeafOf with DL → RT → EEVDF tier sort.
+        //   Leaf tasks (either) → themselves; no memory needed.
+        //
+        // mapNotNull drops any group whose leaf resolves to null — collapsed groups
+        // on the Schedule tab, or groups with no last-run history on the Queue tab.
         val representatives = flatItems
             .filter { it.task.parentId == effectiveParentId &&
                       !it.task.isCompleted &&
                       !it.task.isInterrupt }
             .mapNotNull { item ->
                 val candidate = item.task
-                val leaf = if (!candidate.isGroup) candidate
-                           else firstLeafOf(allTasks, candidate.id, scheduleSort = !onQueueTab)
+                val leaf = when {
+                    !candidate.isGroup -> candidate
+                    onQueueTab         -> vm.lastRun.getLastRunLeaf(candidate.id, allTasks)
+                    else               -> firstLeafOf(allTasks, candidate.id, scheduleSort = true)
+                }
                 if (leaf == null || leaf.isInterrupt) null else Pair(candidate.id, leaf)
             }
-        if (representatives.isEmpty()) return
+        if (representatives.isEmpty()) {
+            // Queue tab: all groups lack last-run history (or every stored task was
+            // deleted / completed). Guide the user to run a task manually first.
+            if (onQueueTab) vm._toastMessage.value = "no last run exist"
+            return
+        }
 
         // ancestorUnder finds which representative slot the current task belongs
         // to at effectiveParentId — a strict generalisation of the former
