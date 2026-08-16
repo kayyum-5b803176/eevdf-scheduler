@@ -171,8 +171,10 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 val quotaExceeded  = parentQuotaExceeded || task.isQuotaExceeded
                 val quotaWarning   = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
                 val number = if (parentNumber.isEmpty()) "${index + 1}" else "$parentNumber.${index + 1}"
+                val (descGroups, descTasks) = if (task.isGroup) countDescendants(task.id, tasks) else Pair(0, 0)
                 result.add(TaskDisplayItem(task, depth,
-                    childCount             = dc.size,
+                    childGroupCount        = descGroups,
+                    childTaskCount         = descTasks,
                     childTotalRuntime      = dc.sumOf { it.totalRunTime },
                     cpuShare               = shares[task.id] ?: 0.0,
                     effectiveQuotaExceeded = quotaExceeded,
@@ -267,8 +269,10 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 val isRtGroupHoisted = task.isGroup && RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
+                val (descGroups, descTasks) = if (task.isGroup) countDescendants(task.id, tasks) else Pair(0, 0)
                 result.add(TaskDisplayItem(task, depth,
-                    childCount             = dc.size,
+                    childGroupCount        = descGroups,
+                    childTaskCount         = descTasks,
                     childTotalRuntime      = dc.sumOf { it.totalRunTime },
                     cpuShare               = shares[task.id] ?: 0.0,
                     effectiveQuotaExceeded = quotaExceeded,
@@ -285,5 +289,27 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
         }
         addLevel(null, 0, "", false, false, IntArray(1))
         return result
+    }
+
+    /**
+     * Recursively counts all descendant groups and leaf tasks under [groupId]
+     * at any depth within [allTasks] (active-only; completed/deleted are absent).
+     * Returns Pair(descendantGroupCount, descendantTaskCount).
+     */
+    private fun countDescendants(groupId: String, allTasks: List<Task>): Pair<Int, Int> {
+        val children = allTasks.filter { it.parentId == groupId }
+        var groups = 0
+        var leaves = 0
+        for (child in children) {
+            if (child.isGroup) {
+                groups++
+                val (g, l) = countDescendants(child.id, allTasks)
+                groups += g
+                leaves += l
+            } else {
+                leaves++
+            }
+        }
+        return Pair(groups, leaves)
     }
 }

@@ -259,7 +259,7 @@ class TaskAdapter(
         // ── Group vs leaf rendering ────────────────────────────────────────────
         if (task.isGroup) {
             // Group header row
-            holder.tvCategory.text  = "Group · ${item.childCount} task${if (item.childCount != 1) "s" else ""}"
+            holder.tvCategory.text  = "Group: ${item.childGroupCount}  ·  Task: ${item.childTaskCount}"
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = "VRT: ${fmtFloat(task.vruntime)}"
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"

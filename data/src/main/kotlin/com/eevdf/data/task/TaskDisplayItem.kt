@@ -4,12 +4,15 @@ package com.eevdf.data.task
  * Wraps a Task for flat-list rendering in the RecyclerView.
  * The ViewModel flattens the task tree into this list, respecting group
  * expand/collapse state. The adapter uses [depth] for indentation and
- * [childCount]/[childTotalRuntime] to render group summary rows.
+ * [childGroupCount]/[childTaskCount]/[childTotalRuntime] to render group summary rows.
  */
 data class TaskDisplayItem(
     val task: Task,
     val depth: Int,
-    val childCount: Int = 0,          // only meaningful when task.isGroup == true
+    /** Total number of descendant groups at any depth — only meaningful when task.isGroup == true. */
+    val childGroupCount: Int = 0,
+    /** Total number of descendant leaf tasks at any depth — only meaningful when task.isGroup == true. */
+    val childTaskCount: Int = 0,
     val childTotalRuntime: Long = 0L, // sum of all direct children's totalRunTime
     val cpuShare: Double = 0.0,       // real-time CPU share % from EEVDFScheduler.computeShares()
     /**
