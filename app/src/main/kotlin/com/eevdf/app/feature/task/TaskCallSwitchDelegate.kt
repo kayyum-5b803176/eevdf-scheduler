@@ -68,15 +68,21 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
      * pauseTimer() MUST run BEFORE we capture [savedTaskBeforeCall].
      * See the original kdoc for the full reproducer and explanation.
      */
-    fun handleCallStarted(callTaskId: String) {
+    fun handleCallStarted(slot: String) {
         if (callInProgress) return   // guard: ignore nested / duplicate events
 
-        val callTask = vm.activeTasks.value
-            ?.firstOrNull { it.id == callTaskId && !it.isCompleted }
+        // Resolve the interrupt task from its slot at the moment the call arrives.
+        // Using the slot (not a stored task ID) means changing which task occupies
+        // INT-A or INT-B in the task list takes effect immediately — no re-config.
+        val callTask = (if (slot == "B") vm.interruptTaskB.value else vm.interruptTask.value)
             ?: run {
-                vm._toastMessage.value = "Call task not found — check Auto Switch settings"
+                vm._toastMessage.value = "INT-$slot not assigned — add an interrupt task in the task list"
                 return
             }
+        if (callTask.isCompleted) {
+            vm._toastMessage.value = "INT-$slot task is completed — assign a new one"
+            return
+        }
 
         callInProgress = true
 
@@ -93,7 +99,7 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
             // Capture whatever was on-screen before as the thing to return to.
             // If the current card IS already the call task, there was no prior task.
             val onScreen = vm._currentTask.value
-            savedTaskBeforeCall = if (onScreen?.id == callTaskId) null else onScreen
+            savedTaskBeforeCall = if (onScreen?.id == callTask.id) null else onScreen
 
             // Sync LiveData to show call task card with correct remaining time.
             vm._currentTask.value  = callTask

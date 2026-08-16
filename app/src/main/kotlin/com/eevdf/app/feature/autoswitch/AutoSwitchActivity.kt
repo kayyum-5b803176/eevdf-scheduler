@@ -44,8 +44,7 @@ class AutoSwitchActivity : AppCompatActivity() {
     // ── Call detection views ──────────────────────────────────────────────────
     private lateinit var switchCallDetection:  SwitchMaterial
     private lateinit var layoutCallTaskPicker: View
-    private lateinit var actvCallTask:         AutoCompleteTextView
-    private lateinit var tvCallTaskHint:       TextView
+    private lateinit var actvCallSlot:        AutoCompleteTextView
     private lateinit var tvPermissionStatus:   TextView
 
     // ── Quick Switch views ───────────────────────────────────────────────────
@@ -62,8 +61,6 @@ class AutoSwitchActivity : AppCompatActivity() {
     private lateinit var rbDraggable:           RadioButton
     private lateinit var btnConfigureApps:      MaterialButton
     private lateinit var tvConfiguredApps:      TextView
-
-    private var taskList: List<Task> = emptyList()
 
     // ── Inner helper ──────────────────────────────────────────────────────────
     private data class AppInfo(val packageName: String, val label: String)
@@ -107,7 +104,7 @@ class AutoSwitchActivity : AppCompatActivity() {
         bindCallViews()
         bindQuickSwitchViews()
         bindBubbleViews()
-        setupTaskPicker()
+        setupSlotPicker()
     }
 
     override fun onResume() {
@@ -127,15 +124,13 @@ class AutoSwitchActivity : AppCompatActivity() {
     private fun bindCallViews() {
         switchCallDetection  = findViewById(R.id.switchCallDetection)
         layoutCallTaskPicker = findViewById(R.id.layoutCallTaskPicker)
-        actvCallTask         = findViewById(R.id.actvCallTask)
-        tvCallTaskHint       = findViewById(R.id.tvCallTaskHint)
+        actvCallSlot         = findViewById(R.id.actvCallSlot)
         tvPermissionStatus   = findViewById(R.id.tvPermissionStatus)
 
         val enabled = AutoSwitchPrefs.isCallDetectionEnabled(this)
         switchCallDetection.isChecked = enabled
         applyCallToggleUi(enabled)
         refreshPermissionBadge()
-        AutoSwitchPrefs.getCallTaskName(this)?.let { actvCallTask.setText(it) }
 
         switchCallDetection.setOnCheckedChangeListener { _, checked ->
             if (checked) {
@@ -156,23 +151,24 @@ class AutoSwitchActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupTaskPicker() {
-        repository.activeTasks.observe(this) { tasks ->
-            taskList = tasks.filter { !it.isGroup && !it.isCompleted && !it.isInterrupt }
-            actvCallTask.setAdapter(ArrayAdapter(
-                this, android.R.layout.simple_dropdown_item_1line, taskList.map { it.name }
-            ))
-        }
-        actvCallTask.setOnItemClickListener { _, _, position, _ ->
-            val name = (actvCallTask.adapter?.getItem(position) as? String) ?: return@setOnItemClickListener
-            val task = taskList.firstOrNull { it.name == name } ?: return@setOnItemClickListener
-            AutoSwitchPrefs.setCallTask(this, task.id, task.name)
-            tvCallTaskHint.text       = "Assigned: \"${task.name}\""
-            tvCallTaskHint.visibility = View.VISIBLE
-        }
-        AutoSwitchPrefs.getCallTaskName(this)?.let {
-            tvCallTaskHint.text       = "Assigned: \"$it\""
-            tvCallTaskHint.visibility = View.VISIBLE
+    private fun setupSlotPicker() {
+        val options = listOf("INT-A", "INT-B")
+
+        // Attach the dropdown adapter — inputType="none" + focusable="false" in the
+        // layout makes this a pure ExposedDropdownMenu with no keyboard involvement.
+        actvCallSlot.setAdapter(
+            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, options)
+        )
+
+        // Restore saved selection.
+        val savedSlot = AutoSwitchPrefs.getCallSlot(this)
+        actvCallSlot.setText(if (savedSlot == "B") "INT-B" else "INT-A", false)
+
+
+        actvCallSlot.setOnItemClickListener { _, _, position, _ ->
+            val slot  = if (position == 1) "B" else "A"
+            val label = options[position]
+            AutoSwitchPrefs.setCallSlot(this, slot)
         }
     }
 

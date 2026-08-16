@@ -240,12 +240,16 @@ class MainActivity : AppCompatActivity() {
         // or returning from another app).
         val action = viewModel.timerCardAction.value
         val running = action is TimerCardAction.Pause || action is TimerCardAction.Cancel
-        val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
+        val callSlot = AutoSwitchPrefs.getCallSlot(this)
+        val callTask = when (callSlot) {
+            "B"  -> viewModel.interruptTaskB.value
+            else -> viewModel.interruptTask.value
+        }
         BubbleEventBus.timerRunning    = running
         BubbleEventBus.anyTimerRunning = running
         BubbleEventBus.callTaskRunning = running &&
-            callTaskId != null &&
-            viewModel.currentTask.value?.id == callTaskId
+            callSlot != null && callTask != null &&
+            viewModel.currentTask.value?.id == callTask.id
     }
 
     override fun onStop() {
@@ -784,7 +788,7 @@ class MainActivity : AppCompatActivity() {
         // ── Auto Switch — Call Detection ──────────────────────────────────────
         CallEvents.event.observe(this) { type ->
             if (type == null) return@observe
-            val callTaskId = AutoSwitchPrefs.getCallTaskId(this) ?: return@observe
+            val slot = AutoSwitchPrefs.getCallSlot(this) ?: return@observe
             when (type) {
                 CallEvents.Type.CALL_STARTED -> {
                     // CallSwitchService has already written the DB switch and
@@ -792,7 +796,7 @@ class MainActivity : AppCompatActivity() {
                     // to keep the ViewModel in-memory state (savedTaskBeforeCall,
                     // wasTimerRunning) in sync so CALL_ENDED can restore correctly
                     // if the Activity is alive for the whole call.
-                    viewModel.handleCallStarted(callTaskId)
+                    viewModel.handleCallStarted(slot)
                 }
                 CallEvents.Type.CALL_ENDED -> viewModel.handleCallEnded()
             }
@@ -890,12 +894,16 @@ class MainActivity : AppCompatActivity() {
 
             // Keep the hover bubble dot in sync via the in-process volatile bus.
             val isRunning = action is TimerCardAction.Pause || action is TimerCardAction.Cancel
-            val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
+            val callSlot2 = AutoSwitchPrefs.getCallSlot(this)
+            val callTask2 = when (callSlot2) {
+                "B"  -> viewModel.interruptTaskB.value
+                else -> viewModel.interruptTask.value
+            }
             BubbleEventBus.timerRunning    = isRunning
             BubbleEventBus.anyTimerRunning = isRunning
             BubbleEventBus.callTaskRunning = isRunning &&
-                callTaskId != null &&
-                viewModel.currentTask.value?.id == callTaskId
+                callSlot2 != null && callTask2 != null &&
+                viewModel.currentTask.value?.id == callTask2.id
         }
     }
 

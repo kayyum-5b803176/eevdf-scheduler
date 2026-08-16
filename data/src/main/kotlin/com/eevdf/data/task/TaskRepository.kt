@@ -126,6 +126,19 @@ class TaskRepository @Inject constructor(
     suspend fun getActiveTasksSync(): List<Task> = withContext(Dispatchers.IO) { dao.getActiveTasksSync() }
 
     /**
+     * Returns the active interrupt task occupying [slot] ("A" or "B"), or null
+     * if no task is currently assigned to that slot. Used by [CallSwitchService]
+     * to resolve the call target from a slot label rather than a stored task ID,
+     * so re-assigning the interrupt task in the UI needs no settings re-sync.
+     */
+    suspend fun getInterruptTaskBySlot(slot: String): Task? =
+        withContext(Dispatchers.IO) {
+            dao.getActiveTasksSync().firstOrNull {
+                it.isInterrupt && it.interruptSlot == slot && !it.isCompleted
+            }
+        }
+
+    /**
      * cgroup-aware vruntime update.
      * Updates the leaf task, then propagates elapsed time upward through all
      * ancestor groups — exactly like Linux cgroups crediting the task's CPU

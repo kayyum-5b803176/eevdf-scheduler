@@ -101,8 +101,9 @@ class CallSwitchService : Service() {
         private const val NOTIF_ID   = 9_003
 
         // Prefs keys for state we need to persist across the call
-        private const val KEY_SAVED_TASK_ID   = "cs_saved_task_id"
-        private const val KEY_WAS_RUNNING      = "cs_was_running"
+        private const val KEY_SAVED_TASK_ID      = "cs_saved_task_id"
+        private const val KEY_WAS_RUNNING         = "cs_was_running"
+        private const val KEY_CALL_TASK_ID_ACTIVE = "cs_call_task_id_active"
 
         fun intentStarted(ctx: Context) =
             Intent(ctx, CallSwitchService::class.java).apply { action = ACTION_CALL_STARTED }
@@ -139,8 +140,8 @@ class CallSwitchService : Service() {
     // ── Call started ──────────────────────────────────────────────────────────
 
     private fun handleCallStarted(startId: Int) {
-        val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
-        if (callTaskId == null) { stopSelf(startId); return }
+        val slot = AutoSwitchPrefs.getCallSlot(this)
+        if (slot == null) { stopSelf(startId); return }
 
         scope.launch {
             val repo = repository   // Hilt-injected singleton
@@ -151,6 +152,14 @@ class CallSwitchService : Service() {
             val running = repo.getRunningTask()
             val savedTaskId: String?
             val wasRunning: Boolean
+
+            // Slot resolved below after the pre-call pause snapshot.
+            val callTask = repo.getInterruptTaskBySlot(slot)
+            if (callTask == null || callTask.isCompleted) {
+                stopSelf(startId)
+                return@launch
+            }
+            val callTaskId = callTask.id
 
             if (running != null && running.id != callTaskId) {
                 // Snapshot elapsed time at the moment the call arrived.
@@ -184,15 +193,9 @@ class CallSwitchService : Service() {
             }
 
             // Persist so CALL_ENDED can restore even if the process is killed
-            saveSwitchState(savedTaskId, wasRunning)
+            saveSwitchState(savedTaskId, wasRunning, callTaskId)
 
             // ── 2. Start call task timer ──────────────────────────────────────
-            val callTask = repo.getTaskById(callTaskId)
-            if (callTask == null || callTask.isCompleted) {
-                stopSelf(startId)
-                return@launch
-            }
-
             // Only switch if call task is not already running
             if (callTask.isRunning) {
                 // Already running (user started it manually before call) — just show bubble
@@ -237,18 +240,21 @@ class CallSwitchService : Service() {
     // ── Call ended ────────────────────────────────────────────────────────────
 
     private fun handleCallEnded(startId: Int) {
-        val callTaskId = AutoSwitchPrefs.getCallTaskId(this)
-
         scope.launch {
             val repo = repository   // Hilt-injected singleton
 
             val nowMs = System.currentTimeMillis()
 
+            // Resolve the call task from the persisted active-call task ID
+            // (written at CALL_STARTED time), not from prefs slot, so we always
+            // pause the exact task that was started even if the slot changed mid-call.
+            val callTaskIdActive = loadCallTaskIdActive()
+
             // ── 1. Pause call task ────────────────────────────────────────────
-            if (callTaskId != null) {
+            if (callTaskIdActive != null) {
                 val callTask = repo.getRunningTask()
-                    ?.takeIf { it.id == callTaskId }
-                    ?: repo.getTaskById(callTaskId)
+                    ?.takeIf { it.id == callTaskIdActive }
+                    ?: repo.getTaskById(callTaskIdActive)
                 if (callTask != null && callTask.isRunning) {
                     val startEpoch = callTask.startTimeEpoch
                     val paused     = callTask.withTimerState(TaskTimerState.pause(callTask.timerState, nowMs))
@@ -318,10 +324,11 @@ class CallSwitchService : Service() {
      * Uses a dedicated SharedPreferences file separate from AutoSwitchPrefs
      * so they don't collide on key names.
      */
-    private fun saveSwitchState(savedTaskId: String?, wasRunning: Boolean) {
+    private fun saveSwitchState(savedTaskId: String?, wasRunning: Boolean, activeCallTaskId: String) {
         getSharedPreferences("call_switch_state", Context.MODE_PRIVATE).edit()
             .putString(KEY_SAVED_TASK_ID, savedTaskId)
             .putBoolean(KEY_WAS_RUNNING, wasRunning)
+            .putString(KEY_CALL_TASK_ID_ACTIVE, activeCallTaskId)
             .apply()
     }
 
@@ -333,10 +340,15 @@ class CallSwitchService : Service() {
         )
     }
 
+    private fun loadCallTaskIdActive(): String? =
+        getSharedPreferences("call_switch_state", Context.MODE_PRIVATE)
+            .getString(KEY_CALL_TASK_ID_ACTIVE, null)
+
     private fun clearSwitchState() {
         getSharedPreferences("call_switch_state", Context.MODE_PRIVATE).edit()
             .remove(KEY_SAVED_TASK_ID)
             .remove(KEY_WAS_RUNNING)
+            .remove(KEY_CALL_TASK_ID_ACTIVE)
             .apply()
     }
 

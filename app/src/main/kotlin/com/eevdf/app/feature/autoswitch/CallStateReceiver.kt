@@ -62,8 +62,8 @@ class CallStateReceiver : BroadcastReceiver() {
 
         // Feature guard — do nothing if call detection is disabled
         if (!AutoSwitchPrefs.isCallDetectionEnabled(context)) return
-        // Guard — do nothing if no task has been assigned for call detection
-        if (AutoSwitchPrefs.getCallTaskId(context) == null) return
+        // Guard — do nothing if no interrupt slot has been assigned for call detection
+        if (AutoSwitchPrefs.getCallSlot(context) == null) return
 
         val newState  = intent.getStringExtra(TelephonyManager.EXTRA_STATE) ?: return
         val prevState = AutoSwitchPrefs.getLastCallState(context)

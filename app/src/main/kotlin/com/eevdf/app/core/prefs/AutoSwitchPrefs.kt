@@ -59,6 +59,27 @@ object AutoSwitchPrefs {
         prefs(ctx).edit().putString(KEY_LAST_CALL_STATE, state).apply()
     }
 
+    // ── Call slot ─────────────────────────────────────────────────────────────
+    //
+    // Replaces the old KEY_CALL_TASK_ID / KEY_CALL_TASK_NAME approach.
+    // Instead of storing a specific task ID (which becomes stale when INT-A's
+    // task changes), we store the SLOT ("A" or "B").  At call time the service
+    // looks up whichever interrupt task currently occupies that slot, so
+    // re-assigning INT-A in the task list flows through automatically.
+
+    private const val KEY_CALL_SLOT = "call_slot"
+
+    fun getCallSlot(ctx: Context): String? =
+        prefs(ctx).getString(KEY_CALL_SLOT, null)
+
+    fun setCallSlot(ctx: Context, slot: String) {
+        prefs(ctx).edit().putString(KEY_CALL_SLOT, slot).apply()
+    }
+
+    fun clearCallSlot(ctx: Context) {
+        prefs(ctx).edit().remove(KEY_CALL_SLOT).apply()
+    }
+
     // ── Quick Switch ──────────────────────────────────────────────────────────
 
     private const val KEY_QUICK_SWITCH = "quick_switch_enabled"
