@@ -153,12 +153,14 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 .filter { !it.isGroup }
                 .sortedWith(TaskSortHelper.taskNameComparator)
                 .mapIndexed { index, it ->
+                    val (descGroups, descTasks) = countDescendants(it.id, tasks)
                     TaskDisplayItem(it, 0,
+                        childGroupCount        = descGroups,
+                        childTaskCount         = descTasks,
                         cpuShare               = shares[it.id] ?: 0.0,
                         effectiveQuotaExceeded = it.isQuotaExceeded,
                         effectiveQuotaWarning  = it.isQuotaWarning,
-                        queueNumber            = "${index + 1}",
-                        hiddenNodeCount        = countHiddenNodes(it.id, tasks))
+                        queueNumber            = "${index + 1}")
                 }
         }
         val result = mutableListOf<TaskDisplayItem>()
@@ -172,7 +174,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 val quotaExceeded  = parentQuotaExceeded || task.isQuotaExceeded
                 val quotaWarning   = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
                 val number = if (parentNumber.isEmpty()) "${index + 1}" else "$parentNumber.${index + 1}"
-                val (descGroups, descTasks) = if (task.isGroup) countDescendants(task.id, tasks) else Pair(0, 0)
+                val (descGroups, descTasks) = countDescendants(task.id, tasks)
                 result.add(TaskDisplayItem(task, depth,
                     childGroupCount        = descGroups,
                     childTaskCount         = descTasks,
@@ -181,7 +183,6 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     effectiveQuotaExceeded = quotaExceeded,
                     effectiveQuotaWarning  = quotaWarning,
                     queueNumber            = number,
-                    hiddenNodeCount        = if (!task.isGroup) countHiddenNodes(task.id, tasks) else 0,
                     isExpanded             = if (task.isGroup) (vm.groupExpand.queueExpandState[task.id] ?: true) else true))
                 if (task.isGroup && (vm.groupExpand.queueExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning)
@@ -220,14 +221,16 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
             val ordered     = dlSorted + rtSorted + eevdfSorted
 
             return ordered.mapIndexed { index, it ->
+                val (descGroups, descTasks) = countDescendants(it.id, tasks)
                 TaskDisplayItem(it, 0,
+                    childGroupCount        = descGroups,
+                    childTaskCount         = descTasks,
                     cpuShare               = shares[it.id] ?: 0.0,
                     effectiveQuotaExceeded = it.isQuotaExceeded,
                     effectiveQuotaWarning  = it.isQuotaWarning,
                     queueNumber            = "${index + 1}",
                     isDlActive             = it.isDlBudgetActive,
-                    isRtActive             = RtScheduler.isRtWindowActive(it, nowMs),
-                    hiddenNodeCount        = countHiddenNodes(it.id, tasks))
+                    isRtActive             = RtScheduler.isRtWindowActive(it, nowMs))
             }
         }
         val result = mutableListOf<TaskDisplayItem>()
@@ -272,7 +275,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 val isRtGroupHoisted = task.isGroup && RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
-                val (descGroups, descTasks) = if (task.isGroup) countDescendants(task.id, tasks) else Pair(0, 0)
+                val (descGroups, descTasks) = countDescendants(task.id, tasks)
                 result.add(TaskDisplayItem(task, depth,
                     childGroupCount        = descGroups,
                     childTaskCount         = descTasks,
@@ -285,7 +288,6 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     isDlGroupHoisted       = isDlGroupHoisted,
                     isRtActive             = isRtActive,
                     isRtGroupHoisted       = isRtGroupHoisted,
-                    hiddenNodeCount        = if (!task.isGroup) countHiddenNodes(task.id, tasks) else 0,
                     isExpanded             = if (task.isGroup) (vm.groupExpand.scheduleExpandState[task.id] ?: true) else true))
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
@@ -300,35 +302,22 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
      * at any depth within [allTasks] (active-only; completed/deleted are absent).
      * Returns Pair(descendantGroupCount, descendantTaskCount).
      */
-    /**
-     * Counts all descendant leaf tasks (isGroup=false) under [taskId] at any depth.
-     * Recurses into every child regardless of isGroup — groups in the subtree are
-     * traversed but not counted; only isGroup=false nodes contribute to the total.
-     * These are the nodes hidden from the UI when a task is not shown as a group.
-     */
-    private fun countHiddenNodes(taskId: String, allTasks: List<Task>): Int {
+    private fun countDescendants(taskId: String, allTasks: List<Task>): Pair<Int, Int> {
         val children = allTasks.filter { it.parentId == taskId }
-        if (children.isEmpty()) return 0
-        var count = 0
-        for (child in children) {
-            if (!child.isGroup) count++
-            count += countHiddenNodes(child.id, allTasks)
-        }
-        return count
-    }
-
-    private fun countDescendants(groupId: String, allTasks: List<Task>): Pair<Int, Int> {
-        val children = allTasks.filter { it.parentId == groupId }
         var groups = 0
         var leaves = 0
         for (child in children) {
             if (child.isGroup) {
                 groups++
+                // Recurse into real groups — their subtrees belong to this count.
                 val (g, l) = countDescendants(child.id, allTasks)
                 groups += g
                 leaves += l
             } else {
                 leaves++
+                // Stop here. A formerly-group task (isGroup=false with children)
+                // counts as one leaf from the parent's perspective. Its own G/T
+                // is shown on its own card via countDescendants called at its level.
             }
         }
         return Pair(groups, leaves)

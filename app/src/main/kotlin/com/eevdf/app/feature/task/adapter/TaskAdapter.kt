@@ -259,7 +259,7 @@ class TaskAdapter(
         // ── Group vs leaf rendering ────────────────────────────────────────────
         if (task.isGroup) {
             // Group header row
-            holder.tvCategory.text  = "Group: ${item.childGroupCount}  ·  Task: ${item.childTaskCount}"
+            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = "VRT: ${fmtFloat(task.vruntime)}"
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
@@ -276,8 +276,7 @@ class TaskAdapter(
             holder.btnGroupToggle.setOnLongClickListener { onGroupToggleDeep(task); true }
         } else {
             // Leaf task row
-            holder.tvCategory.text  = if (task.category == "None") "H: ${item.hiddenNodeCount}"
-                                      else "H: ${item.hiddenNodeCount} | ${task.category}"
+            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
@@ -448,6 +447,25 @@ class TaskAdapter(
             }
             else -> super.onBindViewHolder(holder, position, payloads)
         }
+    }
+
+    // ── Category line builder ────────────────────────────────────────────────
+
+    /**
+     * Builds the category row string shared by both group and leaf task cards.
+     * Zero-value counts are omitted. Category "None" is omitted.
+     * Segments joined with " | "; returns "" when all suppress (tvCategory blank).
+     *
+     * G=2, T=5, General  →  "G: 2 | T: 5 | General"
+     * G=0, T=3, General  →  "T: 3 | General"
+     * G=0, T=0, None     →  ""
+     */
+    private fun buildCategoryLine(groupCount: Int, taskCount: Int, category: String): String {
+        val parts = mutableListOf<String>()
+        if (groupCount > 0)     parts.add("G: $groupCount")
+        if (taskCount  > 0)     parts.add("T: $taskCount")
+        if (category != "None") parts.add(category)
+        return parts.joinToString(" | ")
     }
 
     // ── Payload constants ─────────────────────────────────────────────────────
