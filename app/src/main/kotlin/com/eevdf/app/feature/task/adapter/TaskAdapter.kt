@@ -237,7 +237,8 @@ class TaskAdapter(
         // ── Depth indentation ─────────────────────────────────────────────────
         val density = holder.itemView.context.resources.displayMetrics.density
         val params  = holder.itemView.layoutParams as RecyclerView.LayoutParams
-        params.marginStart = (item.depth * 20 * density).toInt()
+        val basePx  = (10 * density).toInt()
+        params.marginStart = basePx + (item.depth * 10 * density).toInt()
         holder.itemView.layoutParams = params
 
         // ── UI Customization: card height scale ───────────────────────────────
