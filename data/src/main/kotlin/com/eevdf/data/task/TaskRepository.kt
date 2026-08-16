@@ -158,11 +158,15 @@ class TaskRepository @Inject constructor(
         applyLoadAccounting(task, session)
         dao.update(task)
 
-        // Propagate up the ancestor chain — credit time but do NOT increment runCount
+        // Propagate up the ancestor chain — credit runtime and increment runCount
+        // so each ancestor group accumulates one run unit per child completion.
+        // +1 per run (not a bulk copy of the child's existing count) means
+        // deleting or completing a child never resets or corrupts the group total.
         var parentId = task.parentId
         while (parentId != null) {
             val parent = dao.getTaskById(parentId) ?: break
             parent.totalRunTime += secondsRan
+            parent.runCount     += 1
             if (parent.weight > 0) {
                 parent.vruntime += secondsRan.toDouble() / parent.weight
             }
