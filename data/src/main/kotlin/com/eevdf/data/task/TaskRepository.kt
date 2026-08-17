@@ -184,6 +184,7 @@ class TaskRepository @Inject constructor(
                 parent.vruntime += secondsRan.toDouble() / parent.weight
             }
             applyQuotaAccounting(parent, secondsRan)
+            applyDlAccounting(parent, secondsRan)   // credit child runtime against group DL budget
             dao.update(parent)
             parentId = parent.parentId
         }
@@ -317,20 +318,22 @@ class TaskRepository @Inject constructor(
 
         // ── cgroup-aware SCHED_DEADLINE promotion ─────────────────────────────
         // Identify groups (or leaves) at this level that are DL-urgent.
-        // A group is DL-urgent if any descendant has isDlBudgetActive == true.
+        // A group is DL-urgent if the group itself has an active DL budget, OR
+        // if any descendant has isDlBudgetActive == true.
         // A leaf is DL-urgent if it is a dl_sched_class task with budget remaining.
         //
         // Among DL-urgent entries, pick by EDF urgency: the entry whose most
-        // imminent descendant deadline fires soonest (smallest dlPeriodRemaining).
+        // imminent deadline fires soonest (smallest dlPeriodRemaining).
         // This matches Linux SCHED_DEADLINE which always picks the entity with the
         // earliest absolute deadline among eligible deadline tasks/groups.
         fun minDlUrgency(task: Task): Long =
             if (!task.isGroup) task.dlPeriodRemainingSeconds
+            else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds   // group's own DL
             else all.filter { it.parentId == task.id && !it.isCompleted }
                     .minOfOrNull { minDlUrgency(it) } ?: Long.MAX_VALUE
 
         val dlUrgent = level.filter { entry ->
-            if (entry.isGroup) EEVDFScheduler.hasActiveDlDescendant(entry, all)
+            if (entry.isGroup) entry.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(entry, all)
             else entry.isDlBudgetActive
         }.sortedBy { minDlUrgency(it) }
 
@@ -349,18 +352,28 @@ class TaskRepository @Inject constructor(
 
         // ── RT window promotion (between DL and EEVDF) ────────────────────────
         // After DL candidates are exhausted, check for RT-window-active entries.
+        // A group is RT-urgent if the group itself has an active RT window, OR
+        // if any descendant has an active RT window.
         // Among RT tasks: highest rtPriority wins; FIFO = never rotate, RR = round-robin.
         val rtUrgent = level.filter { entry ->
-            if (entry.isGroup) RtScheduler.hasActiveRtDescendant(entry, all)
+            if (entry.isGroup) RtScheduler.isRtWindowActive(entry) || RtScheduler.hasActiveRtDescendant(entry, all)
             else RtScheduler.isRtWindowActive(entry)
         }
 
         if (rtUrgent.isNotEmpty()) {
-            // Collect all RT-active leaves across the urgent entries for RR selection
+            // Collect all RT-active leaves across the urgent entries for RR selection.
+            // When the group itself holds the RT config (no RT-configured children),
+            // promote all eligible leaf children — they run via EEVDF within the group's window.
             val rtLeaves = rtUrgent.flatMap { entry ->
                 if (!entry.isGroup) listOf(entry)
-                else all.filter { it.parentId == entry.id && !it.isCompleted && !it.isRunning &&
-                                  RtScheduler.isRtWindowActive(it) }
+                else {
+                    val rtChildren = all.filter { it.parentId == entry.id && !it.isCompleted &&
+                                                  !it.isRunning && RtScheduler.isRtWindowActive(it) }
+                    if (rtChildren.isEmpty() && RtScheduler.isRtWindowActive(entry)) {
+                        all.filter { it.parentId == entry.id && !it.isCompleted &&
+                                     !it.isRunning && !it.isGroup }
+                    } else rtChildren
+                }
             }.filter { it.id !in visited }
 
             if (rtLeaves.isNotEmpty()) {

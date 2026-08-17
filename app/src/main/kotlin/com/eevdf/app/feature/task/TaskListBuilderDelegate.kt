@@ -65,7 +65,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
     private fun rescheduleDlResort(tasks: List<Task>) {
         dlResortHandler.removeCallbacks(dlResortRunnable)
         val soonestMs = tasks
-            .filter { it.isDlConfigured && !it.isCompleted && !it.isGroup }
+            .filter { it.isDlConfigured && !it.isCompleted }
             .mapNotNull { task ->
                 val remaining = task.dlPeriodRemainingSeconds
                 if (remaining > 0L) remaining * 1_000L else null
@@ -244,26 +244,27 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                      counter: IntArray) {
             val children = tasks.filter { it.parentId == parentId }
 
-            // DL partition: same as before
+            // DL partition: group is DL-urgent if it has its own active budget OR a descendant does
             val (dlChildren, nonDlChildren) = children.partition { child ->
-                if (child.isGroup) EEVDFScheduler.hasActiveDlDescendant(child, tasks)
+                if (child.isGroup) child.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(child, tasks)
                 else child.isDlBudgetActive
             }
 
-            // RT partition: from the non-DL children
+            // RT partition: group is RT-urgent if it has its own active window OR a descendant does
             val (rtChildren, restChildren) = nonDlChildren.partition { child ->
-                if (child.isGroup) RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
+                if (child.isGroup) RtScheduler.isRtWindowActive(child, nowMs) || RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
                 else RtScheduler.isRtWindowActive(child, nowMs)
             }
 
             fun dlUrgency(task: Task): Long =
                 if (!task.isGroup) task.dlPeriodRemainingSeconds
+                else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds   // group's own DL
                 else tasks.filter { it.parentId == task.id && !it.isCompleted }
                          .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
 
             val sorted =
                 dlChildren.sortedBy  { dlUrgency(it) } +
-                rtChildren.sortedByDescending { if (it.isGroup) 0 else it.rtPriority } +
+                rtChildren.sortedByDescending { it.rtPriority } +
                 restChildren.sortedBy { it.virtualDeadline }
 
             sorted.forEach { task ->
@@ -271,7 +272,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                 val quotaExceeded    = parentQuotaExceeded || task.isQuotaExceeded
                 val quotaWarning     = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
                 val isDlGroupHoisted = task.isGroup && EEVDFScheduler.hasActiveDlDescendant(task, tasks)
-                val isRtActive       = !task.isGroup && RtScheduler.isRtWindowActive(task, nowMs)
+                val isRtActive       = RtScheduler.isRtWindowActive(task, nowMs)
                 val isRtGroupHoisted = task.isGroup && RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"

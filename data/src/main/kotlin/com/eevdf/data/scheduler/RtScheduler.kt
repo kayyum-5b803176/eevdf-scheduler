@@ -170,7 +170,7 @@ object RtScheduler {
      * tasks.  Returns Long.MAX_VALUE when no change is pending.
      */
     fun nextResortMs(tasks: List<Task>, nowMs: Long = System.currentTimeMillis()): Long {
-        val rtTasks = tasks.filter { it.isRtConfigured && !it.isCompleted && !it.isGroup }
+        val rtTasks = tasks.filter { it.isRtConfigured && !it.isCompleted }
         if (rtTasks.isEmpty()) return Long.MAX_VALUE
         return rtTasks.minOf { task ->
             if (isRtWindowActive(task, nowMs)) {

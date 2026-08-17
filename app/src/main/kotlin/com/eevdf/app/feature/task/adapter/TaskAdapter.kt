@@ -327,7 +327,7 @@ class TaskAdapter(
         holder.viewRunning.visibility = if (isRunning) View.VISIBLE else View.INVISIBLE
 
         // ── DL budget pill (no emojis, amber / grey) ───────────────────────────
-        if (task.isDlConfigured && !task.isGroup) {
+        if (task.isDlConfigured) {
             holder.tvDlStatus.visibility = View.VISIBLE
             val dlActive = task.isDlBudgetActive
             holder.tvDlStatus.text = if (dlActive) {
@@ -343,7 +343,7 @@ class TaskAdapter(
         }
 
         // ── RT window pill (green = active, grey = pending / inactive) ─────────
-        if (task.isRtConfigured && !task.isGroup) {
+        if (task.isRtConfigured) {
             holder.tvRtStatus.visibility = View.VISIBLE
             val rtWindowActive = RtScheduler.isRtWindowActive(task)
             if (rtWindowActive) {

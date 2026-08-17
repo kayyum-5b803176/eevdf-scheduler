@@ -141,7 +141,7 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
     }
 
     // ── DL badge live refresh ──────────────────────────────────────────────
-    if (task.isDlConfigured && !task.isGroup) {
+    if (task.isDlConfigured) {
         holder.tvDlStatus.visibility = View.VISIBLE
         holder.tvDlStatus.text = if (isDlActive) {
             formatDlDuration(task.dlRuntimeRemainingSeconds)
@@ -159,7 +159,7 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
 
     // ── RT badge live refresh ──────────────────────────────────────────────
     val isRtActive = RtScheduler.isRtWindowActive(task)
-    if (task.isRtConfigured && !task.isGroup) {
+    if (task.isRtConfigured) {
         holder.tvRtStatus.visibility = View.VISIBLE
         if (isRtActive) {
             val secsLeft = RtScheduler.nextDeactivationMs(task) / 1_000L
