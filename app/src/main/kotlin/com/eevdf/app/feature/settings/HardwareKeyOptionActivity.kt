@@ -2,7 +2,7 @@ package com.eevdf.app.feature.settings
 
 import android.os.Bundle
 import android.view.MenuItem
-import android.widget.RadioButton
+import com.google.android.material.radiobutton.MaterialRadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -57,7 +57,7 @@ class HardwareKeyOptionActivity : AppCompatActivity() {
         val current = HardwareKeyPrefs.getAction(this, keyId)
 
         HardwareKeyPrefs.selectableActionsFor(keyId).forEachIndexed { index, action ->
-            val rb = RadioButton(this).apply {
+            val rb = MaterialRadioButton(this).apply {
                 id = index + 1                       // 1-based, never View.NO_ID
                 text = HardwareKeyPrefs.actionLabel(action)
                 textSize = 16f
@@ -78,7 +78,7 @@ class HardwareKeyOptionActivity : AppCompatActivity() {
         }
 
         radioGroup.setOnCheckedChangeListener { group, checkedId ->
-            val rb = group.findViewById<RadioButton>(checkedId) ?: return@setOnCheckedChangeListener
+            val rb = group.findViewById<MaterialRadioButton>(checkedId) ?: return@setOnCheckedChangeListener
             val action = rb.tag as? String ?: return@setOnCheckedChangeListener
             HardwareKeyPrefs.setAction(this, keyId, action)
             // Rebuild so disabled hints stay accurate after an exclusivity steal.

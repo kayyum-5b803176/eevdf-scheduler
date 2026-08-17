@@ -13,7 +13,7 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
-import android.widget.RadioButton
+import com.google.android.material.radiobutton.MaterialRadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,8 +58,8 @@ class AutoSwitchActivity : AppCompatActivity() {
     private lateinit var tvUsageStatsPermStatus: TextView
     private lateinit var layoutBubbleOptions:   View
     private lateinit var rgBubblePosition:      RadioGroup
-    private lateinit var rbFixed:               RadioButton
-    private lateinit var rbDraggable:           RadioButton
+    private lateinit var rbFixed:               MaterialRadioButton
+    private lateinit var rbDraggable:           MaterialRadioButton
     private lateinit var btnConfigureApps:      MaterialButton
     private lateinit var tvConfiguredApps:      TextView
 
@@ -225,8 +225,8 @@ class AutoSwitchActivity : AppCompatActivity() {
         tvUsageStatsPermStatus = findViewById(R.id.tvUsageStatsPermStatus)
         layoutBubbleOptions    = findViewById(R.id.layoutBubbleOptions)
         rgBubblePosition       = findViewById(R.id.rgBubblePosition)
-        rbFixed                = findViewById(R.id.rbFixed)
-        rbDraggable            = findViewById(R.id.rbDraggable)
+        rbFixed                = findViewById<MaterialRadioButton>(R.id.rbFixed)
+        rbDraggable            = findViewById<MaterialRadioButton>(R.id.rbDraggable)
         btnConfigureApps       = findViewById(R.id.btnConfigureApps)
         tvConfiguredApps       = findViewById(R.id.tvConfiguredApps)
 
