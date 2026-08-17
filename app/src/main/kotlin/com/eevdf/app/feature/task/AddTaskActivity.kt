@@ -68,8 +68,7 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var groupTypeSection:    LinearLayout
     internal lateinit var switchIsGroup:       SwitchMaterial
     // Parent group picker — replaces the plain Spinner
-    internal lateinit var btnParentGroupPicker: LinearLayout
-    internal lateinit var tvParentGroupLabel:   TextView
+    internal lateinit var actvParentGroup:      AutoCompleteTextView
     /** Currently selected parent group id; null = root level ("None"). */
     internal var selectedParentId: String? = null
 
@@ -216,8 +215,7 @@ class AddTaskActivity : AppCompatActivity() {
         groupSection        = findViewById(R.id.groupSection)
         groupTypeSection    = findViewById(R.id.groupTypeSection)
         switchIsGroup       = findViewById(R.id.switchIsGroup)
-        btnParentGroupPicker = findViewById(R.id.btnParentGroupPicker)
-        tvParentGroupLabel  = findViewById(R.id.tvParentGroupLabel)
+        actvParentGroup     = findViewById(R.id.actvParentGroup)
 
         actvTaskType       = findViewById(R.id.actvTaskType)
         layoutNoticeSection   = findViewById(R.id.layoutNotifDelay)

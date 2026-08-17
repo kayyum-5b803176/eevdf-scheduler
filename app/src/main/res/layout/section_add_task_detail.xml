@@ -79,51 +79,26 @@
                 android:background="#E0E0E0"
                 android:layout_marginBottom="12dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Parent Group"
-                android:textSize="12sp"
-                android:textColor="#616161"
-                android:layout_marginBottom="6dp" />
-
-            <!--
-              Picker trigger — tapping opens GroupPickerDialog.
-              Styled to look like a filled outlined spinner so it is visually
-              consistent with the rest of the form.
-            -->
-            <LinearLayout
-                android:id="@+id/btnParentGroupPicker"
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilParentGroup"
+                style="@style/App.TextInput.Dropdown"
                 android:layout_width="match_parent"
-                android:layout_height="@dimen/app_size_bubble"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="14dp"
-                android:paddingEnd="10dp"
-                android:background="@drawable/bg_group_picker_button"
-                android:clickable="true"
-                android:focusable="true">
+                android:layout_height="wrap_content"
+                android:hint="Parent Group">
 
-                <TextView
-                    android:id="@+id/tvParentGroupLabel"
-                    android:layout_width="0dp"
+                <AutoCompleteTextView
+                    android:id="@+id/actvParentGroup"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:text="None (root level)"
-                    android:textSize="15sp"
-                    android:textColor="#212121"
+                    android:inputType="none"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:cursorVisible="false"
                     android:ellipsize="end"
                     android:maxLines="1" />
 
-                <ImageView
-                    android:layout_width="@dimen/app_icon_sm"
-                    android:layout_height="@dimen/app_icon_sm"
-                    android:src="@drawable/ic_chevron_down_modern"
-                    android:tint="#757575"
-                    android:alpha="0.87"
-                    android:contentDescription="Open group picker" />
-
-            </LinearLayout>
+            </com.google.android.material.textfield.TextInputLayout>
 
         </LinearLayout>
 

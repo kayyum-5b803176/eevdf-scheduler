@@ -46,18 +46,18 @@ internal fun AddTaskActivity.setupGroupSection() {
         // groupsList was still empty at that point, resolve it now.
         selectedParentId?.let { pid ->
             val match = filteredSorted.firstOrNull { it.id == pid }
-            if (match != null) tvParentGroupLabel.text = match.name
+            if (match != null) actvParentGroup.setText(match.name, false)
         }
     }
 
     // Tapping the picker button opens GroupPickerDialog as a sheet-style dialog.
-    btnParentGroupPicker.setOnClickListener {
+    actvParentGroup.setOnClickListener {
         val dialog = GroupPickerDialog().apply {
             allGroups     = groupsList.filterNotNull()
             currentGroupId = selectedParentId
             onGroupSelected = { chosen ->
                 selectedParentId        = chosen?.id
-                tvParentGroupLabel.text = chosen?.name ?: "None (root level)"
+                actvParentGroup.setText(chosen?.name ?: "None (root level)", false)
             }
         }
         dialog.show(supportFragmentManager, "group_picker")
@@ -84,6 +84,6 @@ internal fun AddTaskActivity.populateGroupSection(task: Task) {
         // correct display name immediately); fall back to a lookup once the
         // activeGroups observer fires and rebuilds groupsList.
         val match = groupsList.filterNotNull().firstOrNull { it.id == pid }
-        tvParentGroupLabel.text = match?.name ?: tvParentGroupLabel.text
+        actvParentGroup.setText(match?.name ?: actvParentGroup.text.toString(), false)
     }
 }
