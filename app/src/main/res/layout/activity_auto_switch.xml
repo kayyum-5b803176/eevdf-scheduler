@@ -123,25 +123,23 @@
                             android:fontFamily="sans-serif-medium"
                             android:layout_marginBottom="6dp" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Search by name or tap to browse all tasks"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginBottom="10dp" />
-
-                        <AutoCompleteTextView
-                            android:id="@+id/actvCallSlot"
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilCallSlot"
+                            style="@style/App.TextInput.Dropdown"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="Search task…"
-                            android:inputType="text"
-                            android:completionThreshold="1"
-                            android:padding="12dp"
-                            android:textSize="14sp"
-                            android:background="@drawable/bg_edit_text"
-                            android:imeOptions="actionDone" />
+                            android:hint="Interrupt slot">
+
+                            <AutoCompleteTextView
+                                android:id="@+id/actvCallSlot"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="none"
+                                android:focusable="false"
+                                android:focusableInTouchMode="false"
+                                android:cursorVisible="false" />
+
+                        </com.google.android.material.textfield.TextInputLayout>
 
 
                     </LinearLayout>
