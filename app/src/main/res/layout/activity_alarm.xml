@@ -60,7 +60,7 @@
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnAlarmActivityStop"
         android:layout_width="240dp"
-        android:layout_height="64dp"
+        android:layout_height="@dimen/app_size_alarm"
         android:text="Stop"
         android:textColor="#B71C1C"
         android:textSize="18sp"

@@ -13,20 +13,20 @@
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="52dp"
-    android:layout_height="52dp">
+    android:layout_width="@dimen/app_size_bubble"
+    android:layout_height="@dimen/app_size_bubble">
 
     <!-- Dark semi-transparent circle background -->
     <View
-        android:layout_width="52dp"
-        android:layout_height="52dp"
+        android:layout_width="@dimen/app_size_bubble"
+        android:layout_height="@dimen/app_size_bubble"
         android:background="@drawable/bubble_background" />
 
     <!-- Timer-state dot — tinted at runtime by BubbleOverlayService -->
     <View
         android:id="@+id/bubbleDot"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
+        android:layout_width="@dimen/app_icon"
+        android:layout_height="@dimen/app_icon"
         android:layout_gravity="center"
         android:background="@drawable/ic_sync_dot" />
 

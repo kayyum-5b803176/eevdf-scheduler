@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ── Design Token: Interactive element heights ───────────────────────── -->
+
+    <!-- Standard tappable row: list items, menu rows, tab rows (Material min) -->
+    <dimen name="app_size_row">48dp</dimen>
+
+    <!-- Text input / dialog header (Material TextInputLayout standard) -->
+    <dimen name="app_size_input">56dp</dimen>
+
+    <!-- Floating overlay bubble container -->
+    <dimen name="app_size_bubble">52dp</dimen>
+
+    <!-- Alarm / prominent full-width action area -->
+    <dimen name="app_size_alarm">64dp</dimen>
+
+    <!-- Calendar navigation row / secondary compact row -->
+    <dimen name="app_size_calendar_row">40dp</dimen>
+
+    <!-- ── Design Token: Square icon-button sizes ───────────────────────────── -->
+
+    <!-- Task card action buttons (undo, delete, run etc.) -->
+    <dimen name="app_btn_icon">36dp</dimen>
+
+    <!-- Calendar day cell (width and height) -->
+    <dimen name="app_day_cell">36dp</dimen>
+
+    <!-- ── Design Token: Icon sizes ─────────────────────────────────────────── -->
+
+    <!-- Standard icon size (Material icon grid) -->
+    <dimen name="app_icon">24dp</dimen>
+
+    <!-- Small indicator / badge icon -->
+    <dimen name="app_icon_sm">20dp</dimen>
+
+    <!-- ── Design Token: Structural dimensions ──────────────────────────────── -->
+
+    <!-- Separator / divider line height -->
+    <dimen name="app_divider">1dp</dimen>
+
+    <!-- Thin notice / alert bar -->
+    <dimen name="app_bar_notice">6dp</dimen>
+
+    <!-- Thin progress / track bar -->
+    <dimen name="app_bar_track">4dp</dimen>
+</resources>

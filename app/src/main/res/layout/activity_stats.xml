@@ -25,7 +25,7 @@
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/statsTabLayout"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="@dimen/app_size_row"
             android:background="@color/colorPrimary"
             app:tabTextColor="#BBDEFB"
             app:tabSelectedTextColor="@android:color/white"

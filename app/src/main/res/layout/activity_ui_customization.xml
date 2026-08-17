@@ -151,7 +151,7 @@
 
                     <View
                         android:layout_width="match_parent"
-                        android:layout_height="1dp"
+                        android:layout_height="@dimen/app_divider"
                         android:background="#EEEEEE"
                         android:layout_marginTop="16dp" />
 
@@ -362,7 +362,7 @@
                     <!-- Divider -->
                     <View
                         android:layout_width="match_parent"
-                        android:layout_height="1dp"
+                        android:layout_height="@dimen/app_divider"
                         android:layout_marginTop="14dp"
                         android:layout_marginBottom="10dp"
                         android:background="@color/divider" />
@@ -385,7 +385,7 @@
                     <!-- Divider -->
                     <View
                         android:layout_width="match_parent"
-                        android:layout_height="1dp"
+                        android:layout_height="@dimen/app_divider"
                         android:layout_marginTop="14dp"
                         android:layout_marginBottom="10dp"
                         android:background="@color/divider" />

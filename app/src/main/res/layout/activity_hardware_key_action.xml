@@ -79,7 +79,7 @@
 
                     <View
                         android:layout_width="match_parent"
-                        android:layout_height="1dp"
+                        android:layout_height="@dimen/app_divider"
                         android:background="#EEEEEE" />
 
                     <!-- Volume Down -->
@@ -114,7 +114,7 @@
 
                     <View
                         android:layout_width="match_parent"
-                        android:layout_height="1dp"
+                        android:layout_height="@dimen/app_divider"
                         android:background="#EEEEEE" />
 
                     <!-- Power -->

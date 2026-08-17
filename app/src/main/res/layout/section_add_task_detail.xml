@@ -75,7 +75,7 @@
 
             <View
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
+                android:layout_height="@dimen/app_divider"
                 android:background="#E0E0E0"
                 android:layout_marginBottom="12dp" />
 
@@ -95,7 +95,7 @@
             <LinearLayout
                 android:id="@+id/btnParentGroupPicker"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="@dimen/app_size_bubble"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="14dp"
@@ -116,8 +116,8 @@
                     android:maxLines="1" />
 
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="@dimen/app_icon_sm"
+                    android:layout_height="@dimen/app_icon_sm"
                     android:src="@drawable/ic_chevron_down_modern"
                     android:tint="#757575"
                     android:alpha="0.87"

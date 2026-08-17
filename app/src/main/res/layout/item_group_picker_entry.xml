@@ -2,7 +2,7 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="48dp"
+    android:layout_height="@dimen/app_size_row"
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:paddingStart="16dp"
@@ -22,8 +22,8 @@
     <!-- Checkmark shown when this item is the current selection -->
     <ImageView
         android:id="@+id/ivPickerCheck"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
+        android:layout_width="@dimen/app_icon_sm"
+        android:layout_height="@dimen/app_icon_sm"
         android:src="@drawable/ic_check_modern"
         android:tint="@color/colorPrimary"
         android:visibility="invisible"

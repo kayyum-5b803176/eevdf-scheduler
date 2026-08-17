@@ -10,7 +10,7 @@
     <!-- Title row -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="@dimen/app_size_input"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="16dp"
@@ -31,7 +31,7 @@
         <ImageButton
             android:id="@+id/btnPickerClose"
             android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_height="@dimen/app_size_calendar_row"
             android:padding="8dp"
             android:src="@drawable/ic_close_modern"
             android:tint="#616161"

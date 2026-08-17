@@ -9,7 +9,7 @@
     <!-- ── Month Navigation (ultra-compact) ─────────────────────────── -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="@dimen/app_size_calendar_row"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="4dp"
@@ -17,8 +17,8 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPrevMonth"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="@dimen/app_day_cell"
+            android:layout_height="@dimen/app_day_cell"
             android:text="‹"
             android:textSize="18sp"
             android:padding="0dp"
@@ -37,8 +37,8 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnNextMonth"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="@dimen/app_day_cell"
+            android:layout_height="@dimen/app_day_cell"
             android:text="›"
             android:textSize="18sp"
             android:padding="0dp"

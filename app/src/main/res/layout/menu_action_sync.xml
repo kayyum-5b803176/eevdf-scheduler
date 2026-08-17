@@ -14,8 +14,8 @@
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="48dp"
-    android:layout_height="48dp"
+    android:layout_width="@dimen/app_size_row"
+    android:layout_height="@dimen/app_size_row"
     android:gravity="center"
     android:clickable="true"
     android:focusable="true"
@@ -24,8 +24,8 @@
     <!-- Sync icon -->
     <ImageView
         android:id="@+id/ivSyncIcon"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="@dimen/app_icon"
+        android:layout_height="@dimen/app_icon"
         android:layout_gravity="center"
         android:src="@drawable/ic_sync"
         android:tint="@android:color/white"

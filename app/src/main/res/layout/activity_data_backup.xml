@@ -46,8 +46,8 @@
                         android:gravity="center_vertical"
                         android:layout_marginBottom="8dp">
                         <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
+                            android:layout_width="@dimen/app_icon"
+                            android:layout_height="@dimen/app_icon"
                             android:src="@android:drawable/ic_menu_save"
                             android:contentDescription="Export icon"
                             android:layout_marginEnd="12dp"
@@ -103,8 +103,8 @@
                         android:gravity="center_vertical"
                         android:layout_marginBottom="8dp">
                         <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
+                            android:layout_width="@dimen/app_icon"
+                            android:layout_height="@dimen/app_icon"
                             android:src="@android:drawable/ic_menu_upload"
                             android:contentDescription="Import icon"
                             android:layout_marginEnd="12dp"
