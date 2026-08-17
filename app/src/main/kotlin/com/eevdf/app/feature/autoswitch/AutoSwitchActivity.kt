@@ -29,6 +29,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import dagger.hilt.android.AndroidEntryPoint
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import javax.inject.Inject
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 @AndroidEntryPoint
 class AutoSwitchActivity : AppCompatActivity() {
@@ -349,7 +350,7 @@ class AutoSwitchActivity : AppCompatActivity() {
         val checkedArr  = apps.map { it.packageName in currentSet }.toBooleanArray()
         val mutableCheck = checkedArr.copyOf()
 
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Show bubble on these apps")
             .setMultiChoiceItems(
                 apps.map { it.label }.toTypedArray(), mutableCheck
@@ -386,7 +387,7 @@ class AutoSwitchActivity : AppCompatActivity() {
             if (!overlayOk) appendLine("• Overlay permission (draw over other apps)")
             if (!usageOk)   appendLine("• Usage access (detect foreground app)")
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Permissions required for Hover Bubble")
             .setMessage("The following permissions are needed:\n\n$missing\nTap the red badges above to grant each one.")
             .setPositiveButton("OK", null)
@@ -394,7 +395,7 @@ class AutoSwitchActivity : AppCompatActivity() {
     }
 
     private fun showPhonePermRationale() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Phone Permission Required")
             .setMessage("Call Detection needs to read your phone call state to automatically " +
                         "pause and resume tasks.\n\nNo call content or phone numbers are accessed.")
@@ -406,7 +407,7 @@ class AutoSwitchActivity : AppCompatActivity() {
     }
 
     private fun showDeniedDialog(title: String, msg: String) {
-        AlertDialog.Builder(this).setTitle(title).setMessage(msg)
+        MaterialAlertDialogBuilder(this).setTitle(title).setMessage(msg)
             .setPositiveButton("OK", null).show()
     }
 

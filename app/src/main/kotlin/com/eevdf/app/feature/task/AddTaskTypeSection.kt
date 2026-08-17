@@ -1,7 +1,6 @@
 package com.eevdf.app.feature.task
 
 import android.view.View
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import com.eevdf.data.task.Task
 import com.google.android.material.textfield.TextInputEditText
@@ -29,18 +28,14 @@ internal val noticeResumeTypeLabels = listOf("Middle", "Initial")
 internal val noticeResumeTypeValues = listOf("MIDDLE", "INITIAL")
 
 internal fun AddTaskActivity.setupTaskTypeSection() {
-    val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, taskTypeLabels)
-    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-    spinnerTaskType.adapter = adapter
-    spinnerTaskType.setSelection(taskTypeValues.indexOf(selectedTaskType).coerceAtLeast(0))
+    val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, taskTypeLabels)
+    actvTaskType.setAdapter(adapter)
+    actvTaskType.setText(taskTypeLabels[taskTypeValues.indexOf(selectedTaskType).coerceAtLeast(0)], false)
 
-    spinnerTaskType.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-        override fun onItemSelected(parent: AdapterView<*>, view: View?, pos: Int, id: Long) {
-            selectedTaskType = taskTypeValues.getOrElse(pos) { "DEFAULT" }
-            layoutNoticeSection.visibility =
-                if (selectedTaskType == "NOTIFICATION") View.VISIBLE else View.GONE
-        }
-        override fun onNothingSelected(parent: AdapterView<*>) {}
+    actvTaskType.setOnItemClickListener { _, _, pos, _ ->
+        selectedTaskType = taskTypeValues.getOrElse(pos) { "DEFAULT" }
+        layoutNoticeSection.visibility =
+            if (selectedTaskType == "NOTIFICATION") View.VISIBLE else View.GONE
     }
 
     fun watchDelay(et: TextInputEditText, preview: TextView) {
@@ -55,9 +50,8 @@ internal fun AddTaskActivity.setupTaskTypeSection() {
     watchDelay(etNotifDelay, tvNotifDelayPreview)
     watchDelay(etNoticeRest, tvNoticeRestPreview)
 
-    val resumeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, noticeResumeTypeLabels)
-    resumeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-    spinnerNoticeResumeType.adapter = resumeAdapter
+    val resumeAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, noticeResumeTypeLabels)
+    actvNoticeResumeType.setAdapter(resumeAdapter)
 }
 
 /**
@@ -86,7 +80,7 @@ internal fun formatDelaySecs(secs: Long): String = when {
 /** Restores task type spinner and notice fields from [task]. */
 internal fun AddTaskActivity.populateTaskTypeSection(task: Task) {
     val typeIdx = taskTypeValues.indexOf(task.taskType).coerceAtLeast(0)
-    spinnerTaskType.setSelection(typeIdx)
+    actvTaskType.setText(taskTypeLabels[typeIdx], false)
     selectedTaskType = task.taskType
 
     if (task.taskType != "NOTIFICATION") return
@@ -98,5 +92,5 @@ internal fun AddTaskActivity.populateTaskTypeSection(task: Task) {
     etNoticeRest.setText(if (rm == 0L) "" else "%02d-%02d".format(rm / 60, rm % 60))
     etNoticeRepeat.setText(if (task.notificationRepeatCount == 0) "" else task.notificationRepeatCount.toString())
     val resumeIdx = noticeResumeTypeValues.indexOf(task.notificationResumeType).coerceAtLeast(0)
-    spinnerNoticeResumeType.setSelection(resumeIdx)
+    actvNoticeResumeType.setText(noticeResumeTypeLabels[resumeIdx], false)
 }

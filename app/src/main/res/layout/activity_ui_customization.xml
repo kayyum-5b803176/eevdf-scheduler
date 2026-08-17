@@ -37,7 +37,7 @@
                 android:fontFamily="sans-serif-medium"
                 android:paddingBottom="12dp" />
 
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -69,7 +69,7 @@
                         android:layout_marginTop="4dp" />
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ UNIT FORMAT ══════════════════════════════════════════════ -->
             <TextView
@@ -82,7 +82,7 @@
                 android:fontFamily="sans-serif-medium"
                 android:paddingBottom="12dp" />
 
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -114,10 +114,10 @@
                         android:layout_marginTop="4dp" />
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ OVERLAY INTENT ═══════════════════════════════════════════ -->
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -220,7 +220,7 @@
                     </LinearLayout>
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ CARD HEIGHT ══════════════════════════════════════════════ -->
             <TextView
@@ -233,7 +233,7 @@
                 android:fontFamily="sans-serif-medium"
                 android:paddingBottom="12dp" />
 
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -314,7 +314,7 @@
                     </LinearLayout>
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ WINDOW CALIBRATE ═════════════════════════════════════════ -->
             <TextView
@@ -327,7 +327,7 @@
                 android:fontFamily="sans-serif-medium"
                 android:paddingBottom="12dp" />
 
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -408,7 +408,7 @@
                         android:orientation="horizontal">
 
                         <!-- FLOAT profile card -->
-                        <androidx.cardview.widget.CardView
+                        <com.google.android.material.card.MaterialCardView
                             android:id="@+id/cardCalFloat"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -441,10 +441,10 @@
                                     android:layout_marginTop="2dp"
                                     android:fontFamily="monospace" />
                             </LinearLayout>
-                        </androidx.cardview.widget.CardView>
+                        </com.google.android.material.card.MaterialCardView>
 
                         <!-- NORMAL profile card -->
-                        <androidx.cardview.widget.CardView
+                        <com.google.android.material.card.MaterialCardView
                             android:id="@+id/cardCalNormal"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -478,10 +478,10 @@
                                     android:layout_marginTop="2dp"
                                     android:fontFamily="monospace" />
                             </LinearLayout>
-                        </androidx.cardview.widget.CardView>
+                        </com.google.android.material.card.MaterialCardView>
 
                         <!-- MINI profile card -->
-                        <androidx.cardview.widget.CardView
+                        <com.google.android.material.card.MaterialCardView
                             android:id="@+id/cardCalMini"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -514,7 +514,7 @@
                                     android:layout_marginTop="2dp"
                                     android:fontFamily="monospace" />
                             </LinearLayout>
-                        </androidx.cardview.widget.CardView>
+                        </com.google.android.material.card.MaterialCardView>
 
                     </LinearLayout>
 
@@ -528,7 +528,7 @@
                         android:layout_marginTop="8dp" />
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
     </ScrollView>

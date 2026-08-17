@@ -6,7 +6,7 @@
   contribution while running, used by the Linux-style load-average calculation
   shown as "load: X.XX" in the stats bar.
 -->
-<androidx.cardview.widget.CardView
+<com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -56,4 +56,4 @@
         </com.google.android.material.textfield.TextInputLayout>
 
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

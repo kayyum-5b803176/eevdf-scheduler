@@ -12,6 +12,7 @@ import com.eevdf.app.feature.task.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import android.widget.AutoCompleteTextView
 import com.google.android.material.slider.Slider
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
@@ -79,14 +80,14 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var tvPinnedShareWarning:      TextView
 
     // ── Task type / notice section ────────────────────────────────────────────
-    internal lateinit var spinnerTaskType:       Spinner
+    internal lateinit var actvTaskType: AutoCompleteTextView
     internal lateinit var layoutNoticeSection:   LinearLayout
     internal lateinit var etNotifDelay:          TextInputEditText
     internal lateinit var tvNotifDelayPreview:   TextView
     internal lateinit var etNoticeRest:          TextInputEditText
     internal lateinit var tvNoticeRestPreview:   TextView
     internal lateinit var etNoticeRepeat:        TextInputEditText
-    internal lateinit var spinnerNoticeResumeType: Spinner
+    internal lateinit var actvNoticeResumeType: AutoCompleteTextView
 
     // ── Quota limit section ───────────────────────────────────────────────────
     internal lateinit var switchQuotaEnabled: SwitchMaterial
@@ -100,7 +101,7 @@ class AddTaskActivity : AppCompatActivity() {
     // ── Scheduler class section ───────────────────────────────────────────────
     internal lateinit var switchSchedulerEnabled: SwitchMaterial
     internal lateinit var layoutSchedulerFields:  LinearLayout
-    internal lateinit var spinnerSchedulerClass:  Spinner
+    internal lateinit var actvSchedulerClass: AutoCompleteTextView
     internal lateinit var tvSchedulerClassDesc:   TextView
     internal lateinit var tvSchedulerWarning:     TextView
     internal lateinit var layoutDlFields:         LinearLayout
@@ -123,14 +124,14 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var layoutRtFields:          LinearLayout
     internal lateinit var sliderRtPriority:        Slider
     internal lateinit var tvRtPriorityValue:       TextView
-    internal lateinit var spinnerRtPolicy:         Spinner
-    internal lateinit var cbRtSun:                 CheckBox
-    internal lateinit var cbRtMon:                 CheckBox
-    internal lateinit var cbRtTue:                 CheckBox
-    internal lateinit var cbRtWed:                 CheckBox
-    internal lateinit var cbRtThu:                 CheckBox
-    internal lateinit var cbRtFri:                 CheckBox
-    internal lateinit var cbRtSat:                 CheckBox
+    internal lateinit var actvRtPolicy: AutoCompleteTextView
+    internal lateinit var cbRtSun:                 MaterialCheckBox
+    internal lateinit var cbRtMon:                 MaterialCheckBox
+    internal lateinit var cbRtTue:                 MaterialCheckBox
+    internal lateinit var cbRtWed:                 MaterialCheckBox
+    internal lateinit var cbRtThu:                 MaterialCheckBox
+    internal lateinit var cbRtFri:                 MaterialCheckBox
+    internal lateinit var cbRtSat:                 MaterialCheckBox
     internal lateinit var etRtHour:                TextInputEditText
     internal lateinit var etRtMinute:              TextInputEditText
     internal lateinit var etRtSecond:              TextInputEditText
@@ -218,14 +219,14 @@ class AddTaskActivity : AppCompatActivity() {
         btnParentGroupPicker = findViewById(R.id.btnParentGroupPicker)
         tvParentGroupLabel  = findViewById(R.id.tvParentGroupLabel)
 
-        spinnerTaskType       = findViewById(R.id.spinnerTaskType)
+        actvTaskType       = findViewById(R.id.actvTaskType)
         layoutNoticeSection   = findViewById(R.id.layoutNotifDelay)
         etNotifDelay          = findViewById(R.id.etNotifDelay)
         tvNotifDelayPreview   = findViewById(R.id.tvNotifDelayPreview)
         etNoticeRest          = findViewById(R.id.etNoticeRest)
         tvNoticeRestPreview   = findViewById(R.id.tvNoticeRestPreview)
         etNoticeRepeat        = findViewById(R.id.etNoticeRepeat)
-        spinnerNoticeResumeType = findViewById(R.id.spinnerNoticeResumeType)
+        actvNoticeResumeType = findViewById(R.id.actvNoticeResumeType)
 
         etPinnedShare         = findViewById(R.id.etPinnedShare)
         tvPinnedShareWarning  = findViewById(R.id.tvPinnedShareWarning)
@@ -242,7 +243,7 @@ class AddTaskActivity : AppCompatActivity() {
 
         switchSchedulerEnabled = findViewById(R.id.switchSchedulerEnabled)
         layoutSchedulerFields  = findViewById(R.id.layoutSchedulerFields)
-        spinnerSchedulerClass  = findViewById(R.id.spinnerSchedulerClass)
+        actvSchedulerClass  = findViewById(R.id.actvSchedulerClass)
         tvSchedulerClassDesc   = findViewById(R.id.tvSchedulerClassDesc)
         tvSchedulerWarning     = findViewById(R.id.tvSchedulerWarning)
         layoutDlFields         = findViewById(R.id.layoutDlFields)
@@ -259,7 +260,7 @@ class AddTaskActivity : AppCompatActivity() {
         layoutRtFields          = findViewById(R.id.layoutRtFields)
         sliderRtPriority        = findViewById(R.id.sliderRtPriority)
         tvRtPriorityValue       = findViewById(R.id.tvRtPriorityValue)
-        spinnerRtPolicy         = findViewById(R.id.spinnerRtPolicy)
+        actvRtPolicy         = findViewById(R.id.actvRtPolicy)
         cbRtSun                 = findViewById(R.id.cbRtSun)
         cbRtMon                 = findViewById(R.id.cbRtMon)
         cbRtTue                 = findViewById(R.id.cbRtTue)

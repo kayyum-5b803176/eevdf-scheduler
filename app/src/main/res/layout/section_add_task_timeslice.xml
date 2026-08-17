@@ -3,7 +3,7 @@
   Time Slice card — three numeric fields for hours, minutes, seconds.
   All three are required; saveTask() validates total > 0.
 -->
-<androidx.cardview.widget.CardView
+<com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -99,4 +99,4 @@
                 android:layout_marginStart="8dp" />
         </LinearLayout>
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

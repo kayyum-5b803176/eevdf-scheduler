@@ -62,7 +62,7 @@
             android:paddingBottom="12dp">
 
             <!-- ── Calendar Grid ──────────────────────────────────── -->
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
@@ -87,7 +87,7 @@
                         android:orientation="vertical" />
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- ── Hint ───────────────────────────────────────────── -->
             <TextView
@@ -101,7 +101,7 @@
                 android:layout_marginBottom="6dp" />
 
             <!-- ── Day Detail Panel ───────────────────────────────── -->
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardDayDetail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -160,7 +160,7 @@
                         android:padding="8dp" />
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

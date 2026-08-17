@@ -36,7 +36,7 @@
                 android:letterSpacing="0.08" />
 
             <!-- Call Detection card -->
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -126,27 +126,22 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Select interrupt slot to activate on call"
+                            android:text="Search by name or tap to browse all tasks"
                             android:textSize="12sp"
                             android:textColor="@color/textSecondary"
                             android:layout_marginBottom="10dp" />
 
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:id="@+id/tilCallSlot"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                        <AutoCompleteTextView
+                            android:id="@+id/actvCallSlot"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-
-                            <AutoCompleteTextView
-                                android:id="@+id/actvCallSlot"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="none"
-                                android:focusable="false"
-                                android:focusableInTouchMode="false"
-                                android:cursorVisible="false" />
-
-                        </com.google.android.material.textfield.TextInputLayout>
+                            android:layout_height="wrap_content"
+                            android:hint="Search task…"
+                            android:inputType="text"
+                            android:completionThreshold="1"
+                            android:padding="12dp"
+                            android:textSize="14sp"
+                            android:background="@drawable/bg_edit_text"
+                            android:imeOptions="actionDone" />
 
 
                     </LinearLayout>
@@ -195,7 +190,7 @@
                     </LinearLayout>
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
 
             <!-- ── QUICK SWITCH section ───────────────────────────────────────── -->
@@ -211,7 +206,7 @@
                 android:letterSpacing="0.08" />
 
             <!-- Quick Switch card -->
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -309,7 +304,7 @@
                     </LinearLayout>
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- Hover Bubble section — only shown when Quick Switch is ON -->
             <LinearLayout
@@ -330,7 +325,7 @@
                 android:letterSpacing="0.08" />
 
             <!-- Hover Bubble card -->
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -434,7 +429,7 @@
                             android:orientation="horizontal"
                             android:layout_marginBottom="16dp">
 
-                            <RadioButton
+                            <com.google.android.material.radiobutton.MaterialRadioButton
                                 android:id="@+id/rbFixed"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
@@ -442,7 +437,7 @@
                                 android:textSize="14sp"
                                 android:layout_marginEnd="24dp" />
 
-                            <RadioButton
+                            <com.google.android.material.radiobutton.MaterialRadioButton
                                 android:id="@+id/rbDraggable"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
@@ -539,7 +534,7 @@
                     </LinearLayout>
 
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout><!-- end layoutQuickSwitchOptions -->
 

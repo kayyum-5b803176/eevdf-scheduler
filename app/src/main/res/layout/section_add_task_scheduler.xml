@@ -10,7 +10,7 @@
   AddTaskSchedulerSection.kt shows the relevant one when the spinner selection
   changes to dl_sched_class or rt_sched_class.
 -->
-<androidx.cardview.widget.CardView
+<com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -84,12 +84,21 @@
                 android:textColor="#616161"
                 android:layout_marginBottom="4dp" />
 
-            <Spinner
-                android:id="@+id/spinnerSchedulerClass"
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/App.TextInput.Dropdown"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/abc_spinner_mtrl_am_alpha"
-                android:padding="8dp" />
+                android:layout_height="wrap_content">
+
+                <AutoCompleteTextView
+                    android:id="@+id/actvSchedulerClass"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:cursorVisible="false" />
+
+            </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Class description — updated by spinner listener -->
             <TextView
@@ -124,4 +133,4 @@
 
         </LinearLayout>
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

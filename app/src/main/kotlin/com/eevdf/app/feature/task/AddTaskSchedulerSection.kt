@@ -2,16 +2,15 @@ package com.eevdf.app.feature.task
 
 import android.view.View
 import android.widget.ArrayAdapter
-import android.widget.AdapterView
 import android.widget.Button
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import com.eevdf.data.task.Task
 import com.eevdf.data.scheduler.RtScheduler
 import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * Scheduler class section for [AddTaskActivity].
@@ -66,11 +65,10 @@ internal fun formatRtSyncTimestamp(epochMs: Long): String = RT_SYNC_FMT.format(D
 // ─────────────────────────────────────────────────────────────────────────────
 
 internal fun AddTaskActivity.setupSchedulerClassSection() {
-    val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, schedulerClassLabels)
-    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-    spinnerSchedulerClass.adapter = adapter
+    val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, schedulerClassLabels)
+    actvSchedulerClass.setAdapter(adapter)
     // Default to fair_sched_class (index 3)
-    spinnerSchedulerClass.setSelection(schedulerClassValues.indexOf("fair_sched_class"))
+    actvSchedulerClass.setText(schedulerClassLabels[schedulerClassValues.indexOf("fair_sched_class")], false)
 
     switchSchedulerEnabled.setOnCheckedChangeListener { _, checked ->
         layoutSchedulerFields.visibility = if (checked) View.VISIBLE else View.GONE
@@ -83,17 +81,14 @@ internal fun AddTaskActivity.setupSchedulerClassSection() {
         }
     }
 
-    spinnerSchedulerClass.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-        override fun onItemSelected(parent: AdapterView<*>, view: View?, pos: Int, id: Long) {
-            val cls = schedulerClassValues.getOrElse(pos) { "fair_sched_class" }
-            tvSchedulerClassDesc.text     = schedulerClassDescriptions.getOrElse(pos) { "" }
-            layoutDlFields.visibility     = if (cls == "dl_sched_class")   View.VISIBLE else View.GONE
-            layoutRtFields.visibility     = if (cls == "rt_sched_class")   View.VISIBLE else View.GONE
-            tvSchedulerWarning.visibility = if (cls == "stop_sched_class") View.VISIBLE else View.GONE
-            if (cls != "dl_sched_class") tvDlError.visibility = View.GONE
-            if (cls != "rt_sched_class") tvRtError.visibility = View.GONE
-        }
-        override fun onNothingSelected(parent: AdapterView<*>) {}
+    actvSchedulerClass.setOnItemClickListener { _, _, pos, _ ->
+        val cls = schedulerClassValues.getOrElse(pos) { "fair_sched_class" }
+        tvSchedulerClassDesc.text     = schedulerClassDescriptions.getOrElse(pos) { "" }
+        layoutDlFields.visibility     = if (cls == "dl_sched_class")   View.VISIBLE else View.GONE
+        layoutRtFields.visibility     = if (cls == "rt_sched_class")   View.VISIBLE else View.GONE
+        tvSchedulerWarning.visibility = if (cls == "stop_sched_class") View.VISIBLE else View.GONE
+        if (cls != "dl_sched_class") tvDlError.visibility = View.GONE
+        if (cls != "rt_sched_class") tvRtError.visibility = View.GONE
     }
 
     // Live previews for DL fields — reuse the quota duration parser/formatter
@@ -123,7 +118,7 @@ internal fun AddTaskActivity.setupSchedulerClassSection() {
     btnDlRtSync.setOnClickListener {
         if (pendingDlPeriodStartEpoch != 0L) {
             // Warn: overwriting an already-set epoch resets the period clock
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                 .setTitle("Reset period start?")
                 .setMessage(
                     "A period start is already set:\n" +
@@ -153,12 +148,11 @@ internal fun AddTaskActivity.setupSchedulerClassSection() {
     }
 
     val rtPolicyAdapter = ArrayAdapter(
-        this, android.R.layout.simple_spinner_item,
+        this, android.R.layout.simple_dropdown_item_1line,
         listOf("RR — Round Robin", "FIFO — First In First Out")
     )
-    rtPolicyAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-    spinnerRtPolicy.adapter = rtPolicyAdapter
-    spinnerRtPolicy.setSelection(0)   // default RR
+    actvRtPolicy.setAdapter(rtPolicyAdapter)
+    actvRtPolicy.setText("RR — Round Robin", false)   // default RR
 
     etRtSliceTimeout.addTextChangedListener(object : android.text.TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
@@ -186,7 +180,7 @@ internal fun AddTaskActivity.populateSchedulerSection(task: Task) {
     layoutSchedulerFields.visibility    = View.VISIBLE
 
     val schedIdx = schedulerClassValues.indexOf(task.schedulerClass).coerceAtLeast(0)
-    spinnerSchedulerClass.setSelection(schedIdx)
+    actvSchedulerClass.setText(schedulerClassLabels.getOrElse(schedIdx) { "" }, false)
     tvSchedulerClassDesc.text   = schedulerClassDescriptions.getOrElse(schedIdx) { "" }
     tvSchedulerWarning.visibility =
         if (task.schedulerClass == "stop_sched_class") View.VISIBLE else View.GONE
@@ -210,7 +204,7 @@ internal fun AddTaskActivity.populateSchedulerSection(task: Task) {
         sliderRtPriority.value     = task.rtPriority.toFloat()
         tvRtPriorityValue.text     = task.rtPriority.toString()
         val policyIdx = if (task.rtPolicy == "FIFO") 1 else 0   // 0=RR 1=FIFO
-        spinnerRtPolicy.setSelection(policyIdx)
+        actvRtPolicy.setText(if (policyIdx == 1) "FIFO — First In First Out" else "RR — Round Robin", false)
         cbRtSun.isChecked = (task.rtActiveDays and RtScheduler.DAY_SUN) != 0
         cbRtMon.isChecked = (task.rtActiveDays and RtScheduler.DAY_MON) != 0
         cbRtTue.isChecked = (task.rtActiveDays and RtScheduler.DAY_TUE) != 0

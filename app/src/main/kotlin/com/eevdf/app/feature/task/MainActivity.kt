@@ -46,6 +46,7 @@ import com.eevdf.app.core.notification.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import com.eevdf.app.core.nav.AppRoutes
 import com.eevdf.app.core.control.AlarmActions
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -1116,7 +1117,7 @@ class MainActivity : AppCompatActivity() {
             "Delete group \"${task.name}\" and all its tasks?"
         else
             "Delete \"${task.name}\"?"
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Delete")
             .setMessage(msg)
             .setPositiveButton("Delete") { _, _ -> viewModel.deleteTask(task) }

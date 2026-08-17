@@ -6,7 +6,7 @@
   tvPriorityInfo   — updated by AddTaskCategoryPrioritySection.updatePriorityDisplay();
                      shows override text when pinned share is active.
 -->
-<androidx.cardview.widget.CardView
+<com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -93,4 +93,4 @@
             android:padding="10dp" />
 
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

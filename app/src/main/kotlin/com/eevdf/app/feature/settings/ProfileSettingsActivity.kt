@@ -9,7 +9,7 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
-import android.widget.Spinner
+import android.widget.AutoCompleteTextView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -44,7 +44,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
     private lateinit var tvFadeInLabel:        TextView
 
     // ── Vibration widgets ─────────────────────────────────────────────────────
-    private lateinit var spinnerVibPattern:    Spinner
+    private lateinit var spinnerVibPattern:    AutoCompleteTextView
     private lateinit var btnPreviewVib:        MaterialButton
     private lateinit var sliderVibTimeout:     Slider
     private lateinit var tvVibTimeoutLabel:    TextView
@@ -119,7 +119,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
         tvVolumeLabel       = findViewById(R.id.tvProfileVolumeLabel)
         sliderFadeIn        = findViewById(R.id.sliderProfileFadeIn)
         tvFadeInLabel       = findViewById(R.id.tvProfileFadeInLabel)
-        spinnerVibPattern   = findViewById(R.id.spinnerProfileVibPattern)
+        spinnerVibPattern   = findViewById(R.id.actvProfileVibPattern)
         btnPreviewVib       = findViewById(R.id.btnProfilePreviewVib)
         sliderVibTimeout    = findViewById(R.id.sliderProfileVibTimeout)
         tvVibTimeoutLabel   = findViewById(R.id.tvProfileVibTimeoutLabel)
@@ -152,9 +152,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
     // ── Setup ──────────────────────────────────────────────────────────────────
     private fun setupVibSpinner() {
         val labels = VibrationManager.PATTERNS.map { it.name }
-        spinnerVibPattern.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, labels).also {
-            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        }
+        spinnerVibPattern.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, labels))
     }
 
     private fun setupListeners() {
@@ -175,11 +173,8 @@ class ProfileSettingsActivity : AppCompatActivity() {
             prefs.edit().putInt(soundFadeInKeyFor(currentProfileIdx), v.toInt()).apply()
             tvFadeInLabel.text = if (v.toInt() == 0) "Off" else formatTimeout(v.toInt())
         }
-        spinnerVibPattern.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: android.widget.AdapterView<*>, v: View?, pos: Int, id: Long) {
-                prefs.edit().putInt(vibPatternKeyFor(currentProfileIdx), pos).apply()
-            }
-            override fun onNothingSelected(p: android.widget.AdapterView<*>) {}
+        spinnerVibPattern.setOnItemClickListener { _, _, pos, _ ->
+            prefs.edit().putInt(vibPatternKeyFor(currentProfileIdx), pos).apply()
         }
         btnPreviewVib.setOnClickListener {
             VibrationManager.preview(this, prefs.getInt(vibPatternKeyFor(currentProfileIdx), VibrationManager.DEFAULT_PATTERN))
@@ -217,7 +212,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
         tvFadeInLabel.text       = if (fade == 0) "Off" else formatTimeout(fade)
 
         val patId = prefs.getInt(vibPatternKeyFor(idx), VibrationManager.DEFAULT_PATTERN)
-        spinnerVibPattern.setSelection(patId.coerceIn(0, VibrationManager.PATTERNS.size - 1))
+        spinnerVibPattern.setText(VibrationManager.PATTERNS[patId.coerceIn(0, VibrationManager.PATTERNS.size - 1)].name, false)
         sliderVibTimeout.value   = prefs.getInt(vibTimeoutKeyFor(idx), VibrationManager.DEFAULT_TIMEOUT_SEC).toFloat().coerceIn(0f, 900f)
         tvVibTimeoutLabel.text   = formatTimeout(sliderVibTimeout.value.toInt())
 

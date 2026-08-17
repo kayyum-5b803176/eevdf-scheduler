@@ -13,7 +13,7 @@
         android:padding="12dp">
 
         <!-- ── Time Window Selector ───────────────────────────────────── -->
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="10dp"
@@ -70,7 +70,7 @@
                     android:textColor="@color/colorPrimary"
                     android:layout_marginTop="4dp" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Overview Tiles ─────────────────────────────────────────── -->
         <LinearLayout
@@ -78,7 +78,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginBottom="10dp">
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -93,8 +93,8 @@
                         android:layout_height="wrap_content" android:text="--" android:textSize="18sp"
                         android:textStyle="bold" android:textColor="@color/colorPrimary" android:layout_marginTop="2dp" />
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
-            <androidx.cardview.widget.CardView
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -109,14 +109,14 @@
                         android:layout_height="wrap_content" android:text="--" android:textSize="18sp"
                         android:textStyle="bold" android:textColor="#1B5E20" android:layout_marginTop="2dp" />
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginBottom="10dp">
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -131,8 +131,8 @@
                         android:layout_height="wrap_content" android:text="--" android:textSize="18sp"
                         android:textStyle="bold" android:textColor="#E65100" android:layout_marginTop="2dp" />
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
-            <androidx.cardview.widget.CardView
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -147,11 +147,11 @@
                         android:layout_height="wrap_content" android:text="--" android:textSize="18sp"
                         android:textStyle="bold" android:textColor="#4A148C" android:layout_marginTop="2dp" />
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
         <!-- ── Time Distribution ─────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -161,10 +161,10 @@
                 <LinearLayout android:id="@+id/llDistribution" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Most / Least Frequent ─────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -174,8 +174,8 @@
                 <LinearLayout android:id="@+id/llMostFrequent" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -185,10 +185,10 @@
                 <LinearLayout android:id="@+id/llLeastFrequent" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Longest Untouched ─────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -198,10 +198,10 @@
                 <LinearLayout android:id="@+id/llUntouched" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Quota Violators ───────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -211,10 +211,10 @@
                 <LinearLayout android:id="@+id/llQuotaViolators" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Task Switching ────────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -224,10 +224,10 @@
                 <LinearLayout android:id="@+id/llSwitching" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Window Activity ───────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -237,10 +237,10 @@
                 <LinearLayout android:id="@+id/llWindowActivity" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Peak Day ──────────────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -250,10 +250,10 @@
                 <LinearLayout android:id="@+id/llPeakDay" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Weekday Heatmap ───────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -263,10 +263,10 @@
                 <LinearLayout android:id="@+id/llWeekday" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ── Streaks ───────────────────────────────────────────────── -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="10dp" app:cardCornerRadius="12dp" app:cardElevation="3dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="14dp">
@@ -276,7 +276,7 @@
                 <LinearLayout android:id="@+id/llStreak" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <View android:layout_width="match_parent" android:layout_height="16dp" />
     </LinearLayout>

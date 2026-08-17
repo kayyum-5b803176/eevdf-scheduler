@@ -54,7 +54,7 @@ internal fun AddTaskActivity.saveTask() {
     val notifRepeat    = if (selectedTaskType == "NOTIFICATION")
         (etNoticeRepeat.text.toString().toIntOrNull() ?: 0).coerceIn(0, 12) else 0
     val notifResumeType = if (selectedTaskType == "NOTIFICATION")
-        noticeResumeTypeValues.getOrElse(spinnerNoticeResumeType.selectedItemPosition) { "MIDDLE" }
+        noticeResumeTypeValues.getOrElse(noticeResumeTypeLabels.indexOf(actvNoticeResumeType.text.toString())) { "MIDDLE" }
     else "MIDDLE"
 
     // ── Pinned share ──────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ internal fun AddTaskActivity.saveTask() {
     // ── Scheduler class ───────────────────────────────────────────────────────
     val schedulerEnabled = switchSchedulerEnabled.isChecked
     val schedulerClass: String = if (schedulerEnabled)
-        schedulerClassValues.getOrElse(spinnerSchedulerClass.selectedItemPosition) { "fair_sched_class" }
+        schedulerClassValues.getOrElse(schedulerClassLabels.indexOf(actvSchedulerClass.text.toString())) { "fair_sched_class" }
     else "fair_sched_class"
 
     var dlRuntimeSeconds  = 0L
@@ -181,7 +181,7 @@ internal fun AddTaskActivity.saveTask() {
 
     if (schedulerClass == "rt_sched_class") {
         rtPriority = sliderRtPriority.value.toInt()
-        rtPolicy   = if (spinnerRtPolicy.selectedItemPosition == 1) "FIFO" else "RR"
+        rtPolicy   = if (actvRtPolicy.text.toString().startsWith("FIFO")) "FIFO" else "RR"
 
         if (cbRtSun.isChecked) rtActiveDays = rtActiveDays or RtScheduler.DAY_SUN
         if (cbRtMon.isChecked) rtActiveDays = rtActiveDays or RtScheduler.DAY_MON

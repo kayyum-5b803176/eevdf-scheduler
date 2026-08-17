@@ -5,6 +5,27 @@
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:windowBackground">@color/screenBackground</item>
+
+        <!-- ── Design Token: global Material overrides ─────────────────────── -->
+
+        <!-- All TextInputLayout fields (inputs + ExposedDropdownMenu) -->
+        <item name="textInputStyle">@style/App.TextInput</item>
+
+        <!-- All MaterialAlertDialog -->
+        <item name="materialAlertDialogTheme">@style/App.Dialog</item>
+
+        <!-- All MaterialCardView -->
+        <item name="materialCardViewStyle">@style/App.Card</item>
+
+        <!-- All CheckBox (auto-applies to MaterialCheckBox) -->
+        <item name="checkboxStyle">@style/App.CheckBox</item>
+
+        <!-- All RadioButton (auto-applies to MaterialRadioButton) -->
+        <item name="radioButtonStyle">@style/App.RadioButton</item>
+
+        <!-- Shape appearance tokens -->
+        <item name="shapeAppearanceSmallComponent">@style/App.Shape.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/App.Shape.Medium</item>
     </style>
 
     <style name="AppTheme.NoActionBar">
@@ -15,5 +36,61 @@
     <!-- Used by GroupPickerDialog — a min-width Material dialog theme,
          declared locally so it resolves via this app's generated R.style. -->
     <style name="AppTheme.GroupPickerDialog" parent="Theme.MaterialComponents.Light.Dialog.MinWidth" />
+
+    <!-- ── Design Token: Shape ─────────────────────────────────────────────── -->
+
+    <style name="App.Shape.Small" parent="ShapeAppearance.MaterialComponents.SmallComponent">
+        <item name="cornerSize">8dp</item>
+    </style>
+
+    <style name="App.Shape.Medium" parent="ShapeAppearance.MaterialComponents.MediumComponent">
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <!-- ── Design Token: TextInputLayout ───────────────────────────────────── -->
+
+    <style name="App.TextInput" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/divider</item>
+        <item name="boxCornerRadiusTopStart">8dp</item>
+        <item name="boxCornerRadiusTopEnd">8dp</item>
+        <item name="boxCornerRadiusBottomStart">8dp</item>
+        <item name="boxCornerRadiusBottomEnd">8dp</item>
+    </style>
+
+    <style name="App.TextInput.Dropdown" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+        <item name="boxStrokeColor">@color/divider</item>
+        <item name="boxCornerRadiusTopStart">8dp</item>
+        <item name="boxCornerRadiusTopEnd">8dp</item>
+        <item name="boxCornerRadiusBottomStart">8dp</item>
+        <item name="boxCornerRadiusBottomEnd">8dp</item>
+    </style>
+
+    <!-- ── Design Token: MaterialCardView ──────────────────────────────────── -->
+
+    <style name="App.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">4dp</item>
+        <item name="cardBackgroundColor">@color/cardBackground</item>
+    </style>
+
+    <!-- ── Design Token: MaterialAlertDialog ────────────────────────────────── -->
+
+    <style name="App.Dialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="shapeAppearanceOverlay">@style/App.Shape.Medium</item>
+    </style>
+
+    <!-- ── Design Token: CheckBox ──────────────────────────────────────────── -->
+
+    <style name="App.CheckBox" parent="Widget.MaterialComponents.CompoundButton.CheckBox">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/textPrimary</item>
+    </style>
+
+    <!-- ── Design Token: RadioButton ───────────────────────────────────────── -->
+
+    <style name="App.RadioButton" parent="Widget.MaterialComponents.CompoundButton.RadioButton">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/textPrimary</item>
+    </style>
 
 </resources>

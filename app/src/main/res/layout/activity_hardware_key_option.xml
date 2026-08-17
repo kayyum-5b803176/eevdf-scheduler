@@ -34,7 +34,7 @@
                 android:textSize="13sp"
                 android:textColor="#757575" />
 
-            <androidx.cardview.widget.CardView
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:cardCornerRadius="12dp"
@@ -48,7 +48,7 @@
                     android:orientation="vertical"
                     android:padding="16dp" />
 
-            </androidx.cardview.widget.CardView>
+            </com.google.android.material.card.MaterialCardView>
 
             <TextView
                 android:id="@+id/tvHwKeyOptionNote"

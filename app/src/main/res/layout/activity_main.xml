@@ -109,14 +109,11 @@
              same paddings/margins/text sizes), so their measured heights match
              and switching blocks does not resize the card or move the list.
              ════════════════════════════════════════════════════════════════ -->
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardTimer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="12dp"
+            android:layout_margin="12dp"
             android:visibility="gone"
             app:cardCornerRadius="16dp"
             app:cardElevation="8dp"
@@ -317,7 +314,7 @@
                 </LinearLayout>
 
             </FrameLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
         <!-- Empty state -->
         <LinearLayout
             android:id="@+id/emptyView"
@@ -351,9 +348,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:paddingBottom="80dp"
-            android:clipToPadding="false"
-            android:scrollbars="vertical"
-            android:scrollbarStyle="outsideOverlay" />
+            android:clipToPadding="false" />
 
     </LinearLayout>
 
