@@ -68,7 +68,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Save a complete copy of the database to a .db file"
-                                android:textSize="13sp"
+                                android:textSize="12sp"
                                 android:textColor="@color/textSecondary"
                                 android:layout_marginTop="2dp" />
                         </LinearLayout>
@@ -125,7 +125,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Restore from a .db backup file — replaces all current data"
-                                android:textSize="13sp"
+                                android:textSize="12sp"
                                 android:textColor="@color/textSecondary"
                                 android:layout_marginTop="2dp" />
                         </LinearLayout>
@@ -144,7 +144,7 @@
                             android:layout_weight="1"
                             android:text="This will permanently replace all existing tasks — app will restart"
                             android:textSize="12sp"
-                            android:textColor="#E65100" />
+                            android:textColor="@color/quotaTextExceeded" />
                     </LinearLayout>
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnImport"
