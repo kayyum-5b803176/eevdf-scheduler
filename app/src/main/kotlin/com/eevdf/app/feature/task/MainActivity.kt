@@ -679,7 +679,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             is TimerCardAction.Expired -> {
-                cardTimer.setCardBackgroundColor(android.graphics.Color.parseColor("#B71C1C"))
+                cardTimer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.expiredCardBackground))
                 cardTimer.visibility = View.VISIBLE
                 layoutTimerContent.visibility = View.GONE
                 layoutAlarmContent.visibility = View.VISIBLE
@@ -691,7 +691,7 @@ class MainActivity : AppCompatActivity() {
 
             else -> {
                 // Start / Pause / Cancel / Unavailable.
-                cardTimer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.colorPrimary))
+                cardTimer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.timerCardBackground))
                 cardTimer.visibility = if (isCardManuallyHidden) View.GONE else View.VISIBLE
                 layoutAlarmContent.visibility = View.GONE
                 layoutTimerContent.visibility = View.VISIBLE

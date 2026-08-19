@@ -67,4 +67,11 @@
     <color name="syncDotError">#F44336</color>
     <color name="syncDotSyncing">#FF9800</color>
     <color name="syncDotDisabled">#9E9E9E</color>
+
+    <!-- ── Timer / alarm card surfaces and buttons ────────────────────────── -->
+    <color name="timerCardBackground">#1565C0</color>
+    <color name="expiredCardBackground">#C62828</color>
+    <color name="intButtonBackground">#FFFFFF</color>
+    <color name="stopButtonBackground">#FFFFFF</color>
+    <color name="stopButtonText">#B71C1C</color>
 </resources>

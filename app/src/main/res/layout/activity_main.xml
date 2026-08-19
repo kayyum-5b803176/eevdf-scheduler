@@ -224,7 +224,7 @@
                                 android:textColor="@color/colorPrimary"
                                 android:textStyle="bold"
                                 android:layout_marginStart="8dp"
-                                app:backgroundTint="@android:color/white" />
+                                app:backgroundTint="@color/intButtonBackground" />
                         </LinearLayout>
 
                         <View
@@ -308,10 +308,10 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Stop"
-                            android:textColor="#B71C1C"
+                            android:textColor="@color/stopButtonText"
                             android:textSize="15sp"
                             android:textStyle="bold"
-                            app:backgroundTint="@android:color/white"
+                            app:backgroundTint="@color/stopButtonBackground"
                             app:cornerRadius="8dp" />
                     </LinearLayout>
                 </LinearLayout>
@@ -333,7 +333,7 @@
                 android:text="No tasks yet"
                 android:textSize="20sp"
                 android:textStyle="bold"
-                android:textColor="#757575"
+                android:textColor="@color/textSecondary"
                 android:layout_marginTop="16dp" />
 
             <TextView

@@ -41,4 +41,16 @@
     <color name="rankDl">#90CAF9</color>
     <color name="rankRt">#A5D6A7</color>
 
+    <!-- ── Timer / alarm card surfaces and buttons ────────────────────────── -->
+    <!-- timerCardBackground: deep dark blue — replaces bright colorPrimary -->
+    <color name="timerCardBackground">#0D2137</color>
+    <!-- expiredCardBackground: dark crimson — still clearly an alert in dark mode -->
+    <color name="expiredCardBackground">#7F0000</color>
+    <!-- INT-A button: dark navy surface instead of blinding white -->
+    <color name="intButtonBackground">#1E2A3A</color>
+    <!-- STOP button: very dark red surface instead of white -->
+    <color name="stopButtonBackground">#3A0000</color>
+    <!-- STOP button text: soft red readable on dark surface -->
+    <color name="stopButtonText">#EF9A9A</color>
+
 </resources>
