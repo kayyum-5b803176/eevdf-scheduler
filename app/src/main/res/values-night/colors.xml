@@ -7,8 +7,17 @@
 <resources>
 
     <!-- ── Structure ─────────────────────────────────────────────────────── -->
-    <color name="colorPrimary">#90CAF9</color>
-    <color name="colorPrimaryDark">#64B5F6</color>
+    <!-- colorPrimary: medium blue — readable as accent text on dark backgrounds
+         AND used by interactive widgets (buttons, switches, links).
+         NOT the toolbar background — that uses headerBackground below. -->
+    <color name="colorPrimary">#64B5F6</color>
+    <color name="colorPrimaryDark">#121212</color>
+
+    <!-- Toolbar / AppBar and stats bar: near-black navy so the header area
+         doesn't blind the user with bright blue in dark mode. -->
+    <color name="headerBackground">#1A1A2E</color>
+    <color name="statsBarBackground">#0F0F1A</color>
+
     <color name="cardBackground">#1E1E1E</color>
     <color name="screenBackground">#121212</color>
     <color name="textPrimary">#EEEEEE</color>

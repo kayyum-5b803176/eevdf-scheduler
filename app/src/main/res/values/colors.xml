@@ -4,6 +4,11 @@
     <color name="colorPrimaryDark">#0D47A1</color>
     <color name="colorAccent">#FF6D00</color>
 
+    <!-- Toolbar / AppBar / stats bar surfaces (separate from colorPrimary so
+         dark mode can make them near-black without affecting accent text) -->
+    <color name="headerBackground">#1565C0</color>
+    <color name="statsBarBackground">#0D47A1</color>
+
     <!-- Priority rainbow: 1 (lowest) → 7 (highest) -->
     <color name="priority1">#9C27B0</color><!-- Purple  -->
     <color name="priority2">#3F51B5</color><!-- Indigo  -->
