@@ -2,6 +2,7 @@ package com.eevdf.app.core.prefs
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.appcompat.app.AppCompatDelegate
 import kotlin.math.abs
 
 /**
@@ -15,6 +16,7 @@ object UiCustomizationPrefs {
     private const val KEY_AUTO_ADJUST_ENABLED  = "auto_adjust_enabled"
     private const val KEY_SIMPLE_MODE_ENABLED  = "simple_mode_enabled"
     private const val KEY_UNIT_FORMAT_ENABLED  = "unit_format_enabled"
+    private const val KEY_DARK_MODE            = "dark_mode"   // "light" | "dark" | "system"
 
     // ── Overlay Intent suppression ────────────────────────────────────────────
     private const val KEY_OVERLAY_INTENT_ENABLED   = "overlay_intent_enabled"
@@ -44,6 +46,30 @@ object UiCustomizationPrefs {
 
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // ── Dark mode ("light" / "dark" / "system") ───────────────────────────────
+
+    fun getDarkMode(ctx: Context): String =
+        prefs(ctx).getString(KEY_DARK_MODE, "system") ?: "system"
+
+    fun setDarkMode(ctx: Context, mode: String) {
+        prefs(ctx).edit().putString(KEY_DARK_MODE, mode).apply()
+    }
+
+    /**
+     * Reads the saved dark-mode preference and applies it via [AppCompatDelegate].
+     * Call this from [Application.onCreate] so the mode is set before any
+     * Activity is drawn, and from [UiCustomizationActivity] whenever the user
+     * changes it.
+     */
+    fun applyDarkMode(ctx: Context) {
+        val nightMode = when (getDarkMode(ctx)) {
+            "light"  -> AppCompatDelegate.MODE_NIGHT_NO
+            "dark"   -> AppCompatDelegate.MODE_NIGHT_YES
+            else     -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        AppCompatDelegate.setDefaultNightMode(nightMode)
+    }
 
     // ── Card height scale (1 = smallest … 5 = default full size) ─────────────
 

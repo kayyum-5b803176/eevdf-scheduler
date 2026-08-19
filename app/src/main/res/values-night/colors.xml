@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Night-mode color overrides.
+  Only colors that need to differ in dark mode are listed here.
+  Everything else falls back to values/colors.xml.
+-->
+<resources>
+
+    <!-- ── Structure ─────────────────────────────────────────────────────── -->
+    <color name="colorPrimary">#90CAF9</color>
+    <color name="colorPrimaryDark">#64B5F6</color>
+    <color name="cardBackground">#1E1E1E</color>
+    <color name="screenBackground">#121212</color>
+    <color name="textPrimary">#EEEEEE</color>
+    <color name="textSecondary">#9E9E9E</color>
+    <color name="divider">#424242</color>
+
+    <!-- ── Task card state backgrounds (muted deep tones) ────────────────── -->
+    <color name="cardStateRunning">#0D2137</color>
+    <color name="cardStateDl">#3B0A0C</color>
+    <color name="cardStateRt">#0A2E0C</color>
+    <color name="cardStateQuotaExceeded">#2E2900</color>
+    <color name="cardStateQuotaWarning">#261F00</color>
+    <color name="cardStateGroup">#2A2A2A</color>
+
+    <!-- ── Quota text (lightened for legibility on dark backgrounds) ──────── -->
+    <color name="quotaTextExceeded">#FF8A65</color>
+    <color name="quotaTextWarning">#FFB74D</color>
+    <color name="quotaTextNormal">#9E9E9E</color>
+
+    <!-- ── Rank indicator text (lightened for dark backgrounds) ──────────── -->
+    <color name="rankDl">#90CAF9</color>
+    <color name="rankRt">#A5D6A7</color>
+
+</resources>

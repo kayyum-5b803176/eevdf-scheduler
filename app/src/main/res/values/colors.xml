@@ -22,6 +22,41 @@
     <color name="textPrimary">#212121</color>
     <color name="textSecondary">#757575</color>
     <color name="divider">#BDBDBD</color>
+
+    <!-- ── Task card state backgrounds ───────────────────────────────────── -->
+    <color name="cardStateRunning">#E3F2FD</color>
+    <color name="cardStateDl">#FFEBEE</color>
+    <color name="cardStateRt">#E8F5E9</color>
+    <color name="cardStateQuotaExceeded">#FFFDE7</color>
+    <color name="cardStateQuotaWarning">#FFF8E1</color>
+    <color name="cardStateGroup">#F5F5F5</color>
+
+    <!-- ── Quota display ──────────────────────────────────────────────────── -->
+    <color name="quotaTextExceeded">#E65100</color>
+    <color name="quotaTextWarning">#F57C00</color>
+    <color name="quotaTextNormal">#757575</color>
+    <color name="quotaBarExceeded">#E53935</color>
+    <color name="quotaBarWarning">#FFA000</color>
+    <color name="quotaBarNormal">#66BB6A</color>
+
+    <!-- ── Scheduler class banner labels ──────────────────────────────────── -->
+    <color name="bannerDl">#D32F2F</color>
+    <color name="bannerRt">#E64A19</color>
+    <color name="bannerStop">#B71C1C</color>
+    <color name="bannerIdle">#757575</color>
+
+    <!-- ── DL / RT pill badges ────────────────────────────────────────────── -->
+    <color name="pillDlActive">#E65100</color>
+    <color name="pillRtActive">#1B5E20</color>
+    <color name="pillInactive">#78909C</color>
+
+    <!-- ── Rank indicator text ────────────────────────────────────────────── -->
+    <color name="rankDl">#1565C0</color>
+    <color name="rankRt">#1B5E20</color>
+
+    <!-- ── Pin icon ───────────────────────────────────────────────────────── -->
+    <color name="pinActive">#FF9800</color>
+    <color name="pinInactive">#BDBDBD</color>
     <!-- Multi-user sync status dot colors -->
     <color name="syncDotOK">#4CAF50</color>
     <color name="syncDotError">#F44336</color>

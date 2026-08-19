@@ -5,13 +5,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/white">
+    android:background="@color/screenBackground">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/settingsToolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@android:color/white"
+        android:background="@color/screenBackground"
         android:elevation="4dp"
         app:titleTextColor="@color/textPrimary" />
 

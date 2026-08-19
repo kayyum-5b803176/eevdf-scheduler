@@ -5,13 +5,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/white">
+    android:background="@color/screenBackground">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/buttonActionToolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@android:color/white"
+        android:background="@color/screenBackground"
         android:elevation="4dp"
         app:titleTextColor="@color/textPrimary" />
 
@@ -34,7 +34,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/cardBackground">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -98,7 +98,7 @@
                 android:focusable="true"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white"
+                app:cardBackgroundColor="@color/cardBackground"
                 app:cardUseCompatPadding="false">
 
                 <LinearLayout

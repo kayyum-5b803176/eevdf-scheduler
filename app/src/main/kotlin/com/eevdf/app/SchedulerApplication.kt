@@ -2,6 +2,7 @@ package com.eevdf.app
 
 import android.app.Application
 import com.eevdf.app.core.LogcatCrashReporter
+import com.eevdf.app.core.prefs.UiCustomizationPrefs
 import com.eevdf.shared.CrashIsolation
 import dagger.hilt.android.HiltAndroidApp
 
@@ -22,8 +23,8 @@ class SchedulerApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Install the sink for feature-level contained failures before any
-        // feature can produce one. See com.eevdf.shared.safeFeature.
+        // Apply before any Activity is drawn.
+        UiCustomizationPrefs.applyDarkMode(this)
         CrashIsolation.install(LogcatCrashReporter)
     }
 }

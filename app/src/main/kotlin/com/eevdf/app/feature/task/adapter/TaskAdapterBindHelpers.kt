@@ -51,10 +51,10 @@ internal fun bindPriorityLabel(tv: TextView, task: Task, pColor: Int) {
         else               -> null
     }
     val bannerColor = when (task.schedulerClass) {
-        "dl_sched_class"   -> Color.parseColor("#D32F2F")
-        "rt_sched_class"   -> Color.parseColor("#E64A19")
-        "stop_sched_class" -> Color.parseColor("#B71C1C")
-        "idle_sched_class" -> Color.parseColor("#757575")
+        "dl_sched_class"   -> androidx.core.content.ContextCompat.getColor(tv.context, R.color.bannerDl)
+        "rt_sched_class"   -> androidx.core.content.ContextCompat.getColor(tv.context, R.color.bannerRt)
+        "stop_sched_class" -> androidx.core.content.ContextCompat.getColor(tv.context, R.color.bannerStop)
+        "idle_sched_class" -> androidx.core.content.ContextCompat.getColor(tv.context, R.color.bannerIdle)
         else               -> pColor
     }
 
@@ -69,12 +69,13 @@ internal fun bindPriorityLabel(tv: TextView, task: Task, pColor: Int) {
     tv.setTextColor(pColor)
 }
 
-internal fun applyPillColor(tv: TextView, context: android.content.Context, hexColor: String) {
+internal fun applyPillColor(tv: TextView, context: android.content.Context, @androidx.annotation.ColorRes colorRes: Int) {
+    val color = androidx.core.content.ContextCompat.getColor(context, colorRes)
     val bg = tv.background?.mutate()
         ?: androidx.core.content.ContextCompat
             .getDrawable(context, R.drawable.bg_dl_badge)
             ?.mutate()
-    (bg as? android.graphics.drawable.GradientDrawable)?.setColor(Color.parseColor(hexColor))
+    (bg as? android.graphics.drawable.GradientDrawable)?.setColor(color)
     tv.background = bg
 }
 
@@ -117,19 +118,27 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
             else             -> "+${formatQuota(task.quotaRemainingSeconds)}"
         }
         holder.tvQuotaRemaining.setTextColor(
-            when {
-                ownQuotaExceeded -> Color.parseColor("#E65100")
-                ownQuotaWarning  -> Color.parseColor("#F57C00")
-                else             -> Color.parseColor("#757575")
-            }
+            androidx.core.content.ContextCompat.getColor(
+                holder.itemView.context,
+                when {
+                    ownQuotaExceeded -> R.color.quotaTextExceeded
+                    ownQuotaWarning  -> R.color.quotaTextWarning
+                    else             -> R.color.quotaTextNormal
+                }
+            )
         )
         holder.progressQuota.progress = task.quotaProgressPercent
         holder.progressQuota.progressTintList =
-            android.content.res.ColorStateList.valueOf(Color.parseColor(when {
-                ownQuotaExceeded -> "#E53935"
-                ownQuotaWarning  -> "#FFA000"
-                else             -> "#66BB6A"
-            }))
+            android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(
+                    holder.itemView.context,
+                    when {
+                        ownQuotaExceeded -> R.color.quotaBarExceeded
+                        ownQuotaWarning  -> R.color.quotaBarWarning
+                        else             -> R.color.quotaBarNormal
+                    }
+                )
+            )
         setQuotaBarTopMargin(
             holder,
             bothBarsVisible = holder.progressBar.visibility == View.VISIBLE
@@ -151,7 +160,7 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
         }
         applyPillColor(
             holder.tvDlStatus, holder.itemView.context,
-            if (isDlActive) "#E65100" else "#78909C"
+            if (isDlActive) R.color.pillDlActive else R.color.pillInactive
         )
     } else {
         holder.tvDlStatus.visibility = View.GONE
@@ -164,12 +173,12 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
         if (isRtActive) {
             val secsLeft = RtScheduler.nextDeactivationMs(task) / 1_000L
             holder.tvRtStatus.text = "RT · ${formatDlDuration(secsLeft)}"
-            applyPillColor(holder.tvRtStatus, holder.itemView.context, "#1B5E20")
+            applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillRtActive)
         } else {
             val secsUntil = RtScheduler.nextActivationMs(task) / 1_000L
             holder.tvRtStatus.text = if (secsUntil < Long.MAX_VALUE / 1_000L)
                 "RT in ${formatDlDuration(secsUntil)}" else "RT · off"
-            applyPillColor(holder.tvRtStatus, holder.itemView.context, "#78909C")
+            applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillInactive)
         }
     } else {
         holder.tvRtStatus.visibility = View.GONE
@@ -184,13 +193,15 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
         isRtActive -> 7f
         else       -> 4f
     }
-    holder.card.setCardBackgroundColor(Color.parseColor(when {
-        isRunning         -> "#E3F2FD"
-        isDlActive        -> "#FFEBEE"
-        isRtActive        -> "#E8F5E9"
-        cardQuotaExceeded -> "#FFFDE7"
-        cardQuotaWarning  -> "#FFF8E1"
-        task.isGroup      -> "#F5F5F5"
-        else              -> "#FFFFFF"
-    }))
+    holder.card.setCardBackgroundColor(
+        androidx.core.content.ContextCompat.getColor(holder.itemView.context, when {
+            isRunning         -> R.color.cardStateRunning
+            isDlActive        -> R.color.cardStateDl
+            isRtActive        -> R.color.cardStateRt
+            cardQuotaExceeded -> R.color.cardStateQuotaExceeded
+            cardQuotaWarning  -> R.color.cardStateQuotaWarning
+            task.isGroup      -> R.color.cardStateGroup
+            else              -> R.color.cardBackground
+        })
+    )
 }

@@ -9,11 +9,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.cardview.widget.CardView
 import com.eevdf.app.R
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.eevdf.app.core.prefs.UiCustomizationPrefs
 
 class UiCustomizationActivity : AppCompatActivity() {
+
+    private lateinit var darkModeToggleGroup: MaterialButtonToggleGroup
 
     private lateinit var sliderCardHeight:   Slider
     private lateinit var tvCardHeightValue:  TextView
@@ -50,6 +53,25 @@ class UiCustomizationActivity : AppCompatActivity() {
         switchAutoAdjust  = findViewById(R.id.switchAutoAdjust)
         switchSimpleMode  = findViewById(R.id.switchSimpleMode)
         switchUnitFormat  = findViewById(R.id.switchUnitFormat)
+
+        darkModeToggleGroup = findViewById(R.id.darkModeToggleGroup)
+
+        // ── Dark mode toggle ──────────────────────────────────────────────
+        darkModeToggleGroup.check(when (UiCustomizationPrefs.getDarkMode(this)) {
+            "light" -> R.id.btnDarkModeLight
+            "dark"  -> R.id.btnDarkModeDark
+            else    -> R.id.btnDarkModeSystem
+        })
+        darkModeToggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            val mode = when (checkedId) {
+                R.id.btnDarkModeLight  -> "light"
+                R.id.btnDarkModeDark   -> "dark"
+                else                   -> "system"
+            }
+            UiCustomizationPrefs.setDarkMode(this, mode)
+            UiCustomizationPrefs.applyDarkMode(this)
+        }
 
         switchOverlayIntent  = findViewById(R.id.switchOverlayIntent)
         switchOverlayIntentLockOnly = findViewById(R.id.switchOverlayIntentLockOnly)

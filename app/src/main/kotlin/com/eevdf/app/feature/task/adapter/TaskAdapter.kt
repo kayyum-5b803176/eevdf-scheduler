@@ -252,8 +252,8 @@ class TaskAdapter(
         val pinned = task.pinnedShare != null
         holder.tvCpuShare.text = "RS: ${"%.1f".format(item.cpuShare)}"
         holder.tvCpuShare.setTextColor(
-            if (pinned) Color.parseColor("#FF9800")
-            else        Color.parseColor("#BDBDBD")
+            if (pinned) androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.pinActive)
+            else        androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.pinInactive)
         )
 
         // ── Group vs leaf rendering ────────────────────────────────────────────
@@ -318,7 +318,10 @@ class TaskAdapter(
         if ((item.isDlActive || isRtActive) && !task.isGroup && item.queueNumber == "1") {
             holder.tvRank.visibility = View.VISIBLE
             holder.tvRank.text = "#1"
-            holder.tvRank.setTextColor(Color.parseColor(if (item.isDlActive) "#1565C0" else "#1B5E20"))
+            holder.tvRank.setTextColor(androidx.core.content.ContextCompat.getColor(
+                holder.itemView.context,
+                if (item.isDlActive) R.color.rankDl else R.color.rankRt
+            ))
         } else {
             holder.tvRank.visibility = View.GONE
         }
@@ -337,7 +340,7 @@ class TaskAdapter(
                 if (periodRem > 0) formatDlDuration(periodRem) else "done"
             }
             applyPillColor(holder.tvDlStatus, holder.itemView.context,
-                if (dlActive) "#E65100" else "#78909C")
+                if (dlActive) R.color.pillDlActive else R.color.pillInactive)
         } else {
             holder.tvDlStatus.visibility = View.GONE
         }
@@ -349,12 +352,12 @@ class TaskAdapter(
             if (rtWindowActive) {
                 val secsLeft = RtScheduler.nextDeactivationMs(task) / 1_000L
                 holder.tvRtStatus.text = "RT · ${formatDlDuration(secsLeft)}"
-                applyPillColor(holder.tvRtStatus, holder.itemView.context, "#1B5E20")
+                applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillRtActive)
             } else {
                 val secsUntil = RtScheduler.nextActivationMs(task) / 1_000L
                 holder.tvRtStatus.text = if (secsUntil < Long.MAX_VALUE / 1_000L)
                     "RT in ${formatDlDuration(secsUntil)}" else "RT · off"
-                applyPillColor(holder.tvRtStatus, holder.itemView.context, "#78909C")
+                applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillInactive)
             }
         } else {
             holder.tvRtStatus.visibility = View.GONE
@@ -371,22 +374,28 @@ class TaskAdapter(
                 else          -> "+${formatQuota(remaining)}"
             }
             holder.tvQuotaRemaining.setTextColor(
-                when {
-                    quotaExceeded -> Color.parseColor("#E65100")
-                    quotaWarning  -> Color.parseColor("#F57C00")
-                    else          -> Color.parseColor("#757575")
-                }
+                androidx.core.content.ContextCompat.getColor(
+                    holder.itemView.context,
+                    when {
+                        quotaExceeded -> R.color.quotaTextExceeded
+                        quotaWarning  -> R.color.quotaTextWarning
+                        else          -> R.color.quotaTextNormal
+                    }
+                )
             )
             // Quota progress bar
             holder.progressQuota.visibility = View.VISIBLE
             holder.progressQuota.progress   = task.quotaProgressPercent
-            val quotaBarTint = when {
-                quotaExceeded -> "#E53935"
-                quotaWarning  -> "#FFA000"
-                else          -> "#66BB6A"
-            }
+            val quotaBarColor = androidx.core.content.ContextCompat.getColor(
+                holder.itemView.context,
+                when {
+                    quotaExceeded -> R.color.quotaBarExceeded
+                    quotaWarning  -> R.color.quotaBarWarning
+                    else          -> R.color.quotaBarNormal
+                }
+            )
             holder.progressQuota.progressTintList =
-                android.content.res.ColorStateList.valueOf(Color.parseColor(quotaBarTint))
+                android.content.res.ColorStateList.valueOf(quotaBarColor)
             // Tighten gap when both bars are showing; restore normal spacing when alone
             setQuotaBarTopMargin(holder, bothBarsVisible = holder.progressBar.visibility == View.VISIBLE || holder.progressNotice.visibility == View.VISIBLE)
         } else {
@@ -409,16 +418,17 @@ class TaskAdapter(
             isRtActive -> 7f
             else       -> 4f
         }
+        val ctx = holder.itemView.context
         holder.card.setCardBackgroundColor(
-            when {
-                isRunning        -> Color.parseColor("#E3F2FD")  // light-blue  (selected/running)
-                isDlActive       -> Color.parseColor("#FFEBEE")  // light-red   (DL deadline priority)
-                isRtActive       -> Color.parseColor("#E8F5E9")  // light-green (RT window active)
-                quotaExceeded    -> Color.parseColor("#FFFDE7")  // light-yellow (quota exceeded)
-                quotaWarning     -> Color.parseColor("#FFF8E1")  // light-amber  (quota warning)
-                task.isGroup     -> Color.parseColor("#F5F5F5")
-                else             -> Color.WHITE
-            }
+            androidx.core.content.ContextCompat.getColor(ctx, when {
+                isRunning        -> R.color.cardStateRunning
+                isDlActive       -> R.color.cardStateDl
+                isRtActive       -> R.color.cardStateRt
+                quotaExceeded    -> R.color.cardStateQuotaExceeded
+                quotaWarning     -> R.color.cardStateQuotaWarning
+                task.isGroup     -> R.color.cardStateGroup
+                else             -> R.color.cardBackground
+            })
         )
 
         // In simple mode a card tap expands/collapses it; forward to caller too.
