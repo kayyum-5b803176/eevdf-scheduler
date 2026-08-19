@@ -230,7 +230,7 @@
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
-                        android:background="#EEEEEE"
+                        android:background="@color/infoBoxBackground"
                         android:layout_marginTop="16dp" />
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
@@ -293,7 +293,7 @@
                             android:layout_marginStart="12dp"
                             android:text="\u203A"
                             android:textSize="24sp"
-                            android:textColor="#BDBDBD" />
+                            android:textColor="@color/divider" />
 
                     </LinearLayout>
 
@@ -452,9 +452,9 @@
                         android:layout_height="wrap_content"
                         android:text="reading…"
                         android:textSize="10sp"
-                        android:textColor="#E65100"
+                        android:textColor="@color/quotaTextExceeded"
                         android:fontFamily="monospace"
-                        android:background="#FFF3E0"
+                        android:background="@color/infoBoxBackground"
                         android:paddingStart="8dp"
                         android:paddingEnd="8dp"
                         android:paddingTop="5dp"

@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:background="@color/screenBackground">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -15,7 +15,7 @@
             android:id="@+id/autoSwitchToolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="@color/colorPrimary"
+            android:background="@color/headerBackground"
             app:titleTextColor="@android:color/white" />
 
         <LinearLayout
@@ -102,7 +102,7 @@
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
-                        android:background="#E0E0E0"
+                        android:background="@color/divider"
                         android:layout_marginTop="16dp"
                         android:layout_marginBottom="16dp" />
 
@@ -149,7 +149,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:background="#F5F5F5"
+                        android:background="@color/infoBoxBackground"
                         android:padding="12dp">
 
                         <TextView
@@ -262,7 +262,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:background="#F5F5F5"
+                        android:background="@color/infoBoxBackground"
                         android:padding="12dp"
                         android:layout_marginTop="16dp">
 
@@ -398,7 +398,7 @@
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
-                        android:background="#E0E0E0"
+                        android:background="@color/divider"
                         android:layout_marginTop="16dp"
                         android:layout_marginBottom="16dp" />
 
@@ -485,7 +485,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:background="#F5F5F5"
+                        android:background="@color/infoBoxBackground"
                         android:padding="12dp">
 
                         <TextView

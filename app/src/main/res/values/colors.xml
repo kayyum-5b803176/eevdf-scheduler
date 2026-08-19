@@ -74,4 +74,7 @@
     <color name="intButtonBackground">#FFFFFF</color>
     <color name="stopButtonBackground">#FFFFFF</color>
     <color name="stopButtonText">#B71C1C</color>
+
+    <!-- ── Info / hint boxes (section detail areas inside cards) ─────────── -->
+    <color name="infoBoxBackground">#F5F5F5</color>
 </resources>

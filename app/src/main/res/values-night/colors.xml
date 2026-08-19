@@ -53,4 +53,9 @@
     <!-- STOP button text: soft red readable on dark surface -->
     <color name="stopButtonText">#EF9A9A</color>
 
+    <!-- ── Info / hint boxes ─────────────────────────────────────────────── -->
+    <!-- Slightly lighter than cardBackground (#1E1E1E) so hint areas remain
+         visually distinct from the surrounding card surface in dark mode. -->
+    <color name="infoBoxBackground">#2A2A2A</color>
+
 </resources>
