@@ -208,6 +208,10 @@ data class Task(
     // The stats bar shows the SUM of every task's current loadAverage.
 
     val loadFactor: Double = 1.00,
+    // true  = value is inherited from the nearest ancestor that has an explicit
+    //         loadFactor; the repository propagates parent changes automatically.
+    // false = value was manually assigned by the user and is not auto-updated.
+    val loadFactorInherited: Boolean = false,
     var loadAverage: Double = 0.0,
     var loadLastUpdateEpoch: Long = 0L
 ) {

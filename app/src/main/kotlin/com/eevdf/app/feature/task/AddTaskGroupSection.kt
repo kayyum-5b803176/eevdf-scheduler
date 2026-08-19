@@ -56,8 +56,27 @@ internal fun AddTaskActivity.setupGroupSection() {
             allGroups     = groupsList.filterNotNull()
             currentGroupId = selectedParentId
             onGroupSelected = { chosen ->
-                selectedParentId        = chosen?.id
+                selectedParentId = chosen?.id
                 actvParentGroup.setText(chosen?.name ?: "None (root level)", false)
+
+                when {
+                    // Parent picked while field is already in auto mode → sync to new parent
+                    chosen != null && isLoadFactorInherited ->
+                        applyParentLoadFactor(chosen.loadFactor)
+
+                    // Parent deselected while in auto mode → reset to default and clear auto
+                    chosen == null && isLoadFactorInherited -> {
+                        isLoadFactorInherited = false
+                        suppressLoadFactorWatcher = true
+                        etLoadFactor.setText("1.00")
+                        suppressLoadFactorWatcher = false
+                        tvLoadFactorAutoLabel.visibility = android.view.View.GONE
+                    }
+
+                    // New task picking a parent for the first time → inherit automatically
+                    chosen != null && existingTaskId == null ->
+                        applyParentLoadFactor(chosen.loadFactor)
+                }
             }
         }
         dialog.show(supportFragmentManager, "group_picker")

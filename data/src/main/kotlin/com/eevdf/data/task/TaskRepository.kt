@@ -50,7 +50,28 @@ class TaskRepository @Inject constructor(
         existing.forEach { dao.update(it) }
     }
 
-    suspend fun update(task: Task) = withContext(Dispatchers.IO) { dao.update(task) }
+    suspend fun update(task: Task) = withContext(Dispatchers.IO) {
+        dao.update(task)
+        propagateInheritedLoadFactor(task.id, task.loadFactor)
+    }
+
+    /**
+     * Walks the task tree rooted at [parentId] and updates every descendant that
+     * has [Task.loadFactorInherited] == true with the new [loadFactor] value.
+     *
+     * Stops recursing into a branch only when a child has manually overridden its
+     * own load factor (loadFactorInherited == false), preserving that child's
+     * explicit choice while still propagating to its siblings.
+     */
+    private suspend fun propagateInheritedLoadFactor(parentId: String, loadFactor: Double) {
+        val children = dao.getChildrenOf(parentId)
+        for (child in children) {
+            if (child.loadFactorInherited) {
+                dao.update(child.copy(loadFactor = loadFactor))
+                propagateInheritedLoadFactor(child.id, loadFactor)
+            }
+        }
+    }
 
     /** Batch-persists a list of tasks whose [Task.internalWeight] was re-synced. */
     suspend fun updateBatch(tasks: List<Task>) = withContext(Dispatchers.IO) {

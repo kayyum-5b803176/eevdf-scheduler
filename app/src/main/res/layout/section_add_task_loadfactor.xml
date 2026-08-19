@@ -21,13 +21,32 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Load Factor"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="@color/colorPrimary" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvLoadFactorTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Load Factor"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/colorPrimary" />
+
+            <TextView
+                android:id="@+id/tvLoadFactorAutoLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="(auto)"
+                android:visibility="gone"
+                android:textSize="12sp"
+                android:textColor="@color/textSecondary" />
+
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"

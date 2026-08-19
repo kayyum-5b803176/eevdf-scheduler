@@ -41,8 +41,9 @@ internal fun AddTaskActivity.saveTask() {
     val priority    = sliderPriority.value.toInt()
     val description = etDescription.text.toString().trim()
     // Load factor: float, default 1.00 when blank/invalid; clamp to a sane range.
-    val loadFactor  = (etLoadFactor.text.toString().trim().toDoubleOrNull() ?: 1.00)
+    val loadFactor         = (etLoadFactor.text.toString().trim().toDoubleOrNull() ?: 1.00)
         .coerceIn(0.0, 1000.0)
+    val loadFactorInherited = isLoadFactorInherited
     val isGroup     = if (groupsEnabled) switchIsGroup.isChecked else false
     val parentId: String? = if (groupsEnabled) selectedParentId else null
 
@@ -219,12 +220,13 @@ internal fun AddTaskActivity.saveTask() {
     // ── Assemble and persist ──────────────────────────────────────────────────
     if (existingTask != null) {
         val updated = existingTask!!.copy(
-            name             = name,
-            description      = description,
-            priority         = priority,
-            loadFactor       = loadFactor,
-            timeSliceSeconds = totalSeconds,
-            category         = selectedCategory,
+            name                = name,
+            description         = description,
+            priority            = priority,
+            loadFactor          = loadFactor,
+            loadFactorInherited = loadFactorInherited,
+            timeSliceSeconds    = totalSeconds,
+            category            = selectedCategory,
             isGroup          = isGroup,
             parentId         = parentId,
             taskType         = selectedTaskType,
@@ -260,15 +262,16 @@ internal fun AddTaskActivity.saveTask() {
         viewModel.updateTask(updated)
     } else {
         val task = Task(
-            name             = name,
-            description      = description,
-            priority         = priority,
-            loadFactor       = loadFactor,
-            timeSliceSeconds = totalSeconds,
-            remainingSeconds = totalSeconds,
-            category         = selectedCategory,
-            isGroup          = isGroup,
-            parentId         = parentId,
+            name                = name,
+            description         = description,
+            priority            = priority,
+            loadFactor          = loadFactor,
+            loadFactorInherited = loadFactorInherited,
+            timeSliceSeconds    = totalSeconds,
+            remainingSeconds    = totalSeconds,
+            category            = selectedCategory,
+            isGroup             = isGroup,
+            parentId            = parentId,
             taskType         = selectedTaskType,
             notificationDelaySeconds = notifDelaySecs,
             notificationRestSeconds  = notifRestSecs,

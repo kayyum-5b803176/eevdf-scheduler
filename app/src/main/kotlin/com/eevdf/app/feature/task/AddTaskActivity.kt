@@ -46,7 +46,13 @@ class AddTaskActivity : AppCompatActivity() {
     // ── Basic task fields ─────────────────────────────────────────────────────
     internal lateinit var etName:           TextInputEditText
     internal lateinit var etDescription:    TextInputEditText
-    internal lateinit var etLoadFactor:     TextInputEditText
+    internal lateinit var etLoadFactor:      TextInputEditText
+    internal lateinit var tvLoadFactorTitle: TextView
+    internal lateinit var tvLoadFactorAutoLabel: TextView
+    /** true = field value is auto-inherited from parent; false = manually set. */
+    internal var isLoadFactorInherited: Boolean = false
+    /** Blocks the TextWatcher from clearing [isLoadFactorInherited] during programmatic setText calls. */
+    internal var suppressLoadFactorWatcher: Boolean = false
     internal lateinit var sliderPriority:   Slider
     internal lateinit var tvPriorityLabel:  TextView
     internal lateinit var etHours:          TextInputEditText
@@ -168,6 +174,7 @@ class AddTaskActivity : AppCompatActivity() {
         existingTaskId = intent.getStringExtra("task_id")
 
         setupViews()
+        setupLoadFactorField()
         setupCategoryInput()
         setupPrioritySlider()
         setupGroupSection()
@@ -196,7 +203,9 @@ class AddTaskActivity : AppCompatActivity() {
     private fun setupViews() {
         etName            = findViewById(R.id.etTaskName)
         etDescription     = findViewById(R.id.etDescription)
-        etLoadFactor      = findViewById(R.id.etLoadFactor)
+        etLoadFactor         = findViewById(R.id.etLoadFactor)
+        tvLoadFactorTitle    = findViewById(R.id.tvLoadFactorTitle)
+        tvLoadFactorAutoLabel = findViewById(R.id.tvLoadFactorAutoLabel)
         sliderPriority    = findViewById(R.id.sliderPriority)
         tvPriorityLabel   = findViewById(R.id.tvPriorityLabel)
         etHours           = findViewById(R.id.etHours)
@@ -311,7 +320,7 @@ class AddTaskActivity : AppCompatActivity() {
     private fun populateBasicFields(task: Task) {
         etName.setText(task.name)
         etDescription.setText(task.description)
-        etLoadFactor.setText("%.2f".format(task.loadFactor))
+        populateLoadFactorSection(task)
         sliderPriority.value = task.priority.coerceIn(1, 7).toFloat()
         val totalSec = task.timeSliceSeconds
         etHours.setText((totalSec / 3600).toString())

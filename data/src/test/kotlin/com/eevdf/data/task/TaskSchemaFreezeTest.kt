@@ -65,7 +65,7 @@ class TaskSchemaFreezeTest {
             "rtPriority", "rtPolicy", "rtActiveDays", "rtActivationHour", "rtActivationMinute",
             "rtActivationSecond", "rtSliceTimeoutSeconds",
             // load tracking
-            "loadFactor", "loadAverage", "loadLastUpdateEpoch",
+            "loadFactor", "loadFactorInherited", "loadAverage", "loadLastUpdateEpoch",
         )
     }
 

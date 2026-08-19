@@ -81,7 +81,8 @@ object TaskFieldClassification {
         "quotaUsedSeconds" to SyncFieldKind.OPERATIONAL,
         "dlPeriodStartEpoch" to SyncFieldKind.OPERATIONAL,
         "dlRuntimeUsedSeconds" to SyncFieldKind.OPERATIONAL,
-        "loadFactor" to SyncFieldKind.OPERATIONAL,
+        "loadFactor"          to SyncFieldKind.OPERATIONAL,
+        "loadFactorInherited" to SyncFieldKind.OPERATIONAL,
         "loadAverage" to SyncFieldKind.OPERATIONAL,
         "loadLastUpdateEpoch" to SyncFieldKind.OPERATIONAL,
     )
