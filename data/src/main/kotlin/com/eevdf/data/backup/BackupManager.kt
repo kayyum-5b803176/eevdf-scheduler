@@ -62,6 +62,7 @@ object BackupManager {
         put("description", t.description)
         put("priority", t.priority)
         put("timeSliceSeconds", t.timeSliceSeconds)
+        put("timeSliceInherited", t.timeSliceInherited)
         put("category", t.category)
         put("color", t.color)
         put("parentId", t.parentId ?: JSONObject.NULL)
@@ -125,7 +126,8 @@ object BackupManager {
         name = j.getString("name"),
         description = j.optString("description", ""),
         priority = j.getInt("priority"),
-        timeSliceSeconds = j.getLong("timeSliceSeconds"),
+        timeSliceSeconds    = j.getLong("timeSliceSeconds"),
+        timeSliceInherited  = j.optBoolean("timeSliceInherited", false),
         category = j.optString("category", "General"),
         color = j.optInt("color", 0),
         parentId = if (j.isNull("parentId")) null else j.optString("parentId"),

@@ -18,14 +18,33 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Time Slice"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="@color/colorPrimary"
-            android:layout_marginBottom="12dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/tvTimeSliceTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Time Slice"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/colorPrimary" />
+
+            <TextView
+                android:id="@+id/tvTimeSliceAutoLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="(auto)"
+                android:visibility="gone"
+                android:textSize="12sp"
+                android:textColor="@color/textSecondary" />
+
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

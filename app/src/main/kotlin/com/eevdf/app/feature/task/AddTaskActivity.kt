@@ -55,9 +55,14 @@ class AddTaskActivity : AppCompatActivity() {
     internal var suppressLoadFactorWatcher: Boolean = false
     internal lateinit var sliderPriority:   Slider
     internal lateinit var tvPriorityLabel:  TextView
-    internal lateinit var etHours:          TextInputEditText
-    internal lateinit var etMinutes:        TextInputEditText
-    internal lateinit var etSeconds:        TextInputEditText
+    internal lateinit var etHours:               TextInputEditText
+    internal lateinit var etMinutes:             TextInputEditText
+    internal lateinit var etSeconds:             TextInputEditText
+    internal lateinit var tvTimeSliceAutoLabel:  TextView
+    /** true = fields are auto-inherited from parent; false = manually set. */
+    internal var isTimeSliceInherited:    Boolean = false
+    /** Blocks watchers from clearing [isTimeSliceInherited] during programmatic setText calls. */
+    internal var suppressTimeSliceWatcher: Boolean = false
     internal lateinit var etCategoryInput:  AutoCompleteTextView
     internal lateinit var btnSave:          MaterialButton
     internal lateinit var btnCancel:        MaterialButton
@@ -175,6 +180,7 @@ class AddTaskActivity : AppCompatActivity() {
 
         setupViews()
         setupLoadFactorField()
+        setupTimeSliceField()
         setupCategoryInput()
         setupPrioritySlider()
         setupGroupSection()
@@ -208,9 +214,10 @@ class AddTaskActivity : AppCompatActivity() {
         tvLoadFactorAutoLabel = findViewById(R.id.tvLoadFactorAutoLabel)
         sliderPriority    = findViewById(R.id.sliderPriority)
         tvPriorityLabel   = findViewById(R.id.tvPriorityLabel)
-        etHours           = findViewById(R.id.etHours)
-        etMinutes         = findViewById(R.id.etMinutes)
-        etSeconds         = findViewById(R.id.etSeconds)
+        etHours              = findViewById(R.id.etHours)
+        etMinutes            = findViewById(R.id.etMinutes)
+        etSeconds            = findViewById(R.id.etSeconds)
+        tvTimeSliceAutoLabel = findViewById(R.id.tvTimeSliceAutoLabel)
         etCategoryInput   = findViewById(R.id.etCategoryInput)
         btnSave           = findViewById(R.id.btnSave)
         btnCancel         = findViewById(R.id.btnCancel)
@@ -322,10 +329,7 @@ class AddTaskActivity : AppCompatActivity() {
         etDescription.setText(task.description)
         populateLoadFactorSection(task)
         sliderPriority.value = task.priority.coerceIn(1, 7).toFloat()
-        val totalSec = task.timeSliceSeconds
-        etHours.setText((totalSec / 3600).toString())
-        etMinutes.setText(((totalSec % 3600) / 60).toString())
-        etSeconds.setText((totalSec % 60).toString())
+        populateTimeSliceSection(task)
     }
 
     override fun onSupportNavigateUp(): Boolean { finish(); return true }

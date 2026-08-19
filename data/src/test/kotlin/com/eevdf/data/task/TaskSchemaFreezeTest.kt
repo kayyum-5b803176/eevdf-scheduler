@@ -43,7 +43,7 @@ class TaskSchemaFreezeTest {
          */
         val FROZEN_FIELDS = setOf(
             // identity / structure
-            "id", "name", "description", "priority", "timeSliceSeconds", "category", "color",
+            "id", "name", "description", "priority", "timeSliceSeconds", "timeSliceInherited", "category", "color",
             "parentId", "isGroup", "isGroupExpanded", "createdAt",
             // EEVDF scheduler state
             "vruntime", "eligibleTime", "virtualDeadline", "lag", "internalWeight", "pinnedShare",

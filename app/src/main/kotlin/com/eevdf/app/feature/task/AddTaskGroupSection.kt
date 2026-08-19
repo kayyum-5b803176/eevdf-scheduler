@@ -60,22 +60,32 @@ internal fun AddTaskActivity.setupGroupSection() {
                 actvParentGroup.setText(chosen?.name ?: "None (root level)", false)
 
                 when {
-                    // Parent picked while field is already in auto mode → sync to new parent
-                    chosen != null && isLoadFactorInherited ->
-                        applyParentLoadFactor(chosen.loadFactor)
-
-                    // Parent deselected while in auto mode → reset to default and clear auto
-                    chosen == null && isLoadFactorInherited -> {
-                        isLoadFactorInherited = false
-                        suppressLoadFactorWatcher = true
-                        etLoadFactor.setText("1.00")
-                        suppressLoadFactorWatcher = false
-                        tvLoadFactorAutoLabel.visibility = android.view.View.GONE
+                    // Parent picked while fields are already in auto mode → sync to new parent
+                    chosen != null && (isLoadFactorInherited || isTimeSliceInherited) -> {
+                        if (isLoadFactorInherited) applyParentLoadFactor(chosen.loadFactor)
+                        if (isTimeSliceInherited)  applyParentTimeSlice(chosen.timeSliceSeconds)
                     }
 
-                    // New task picking a parent for the first time → inherit automatically
-                    chosen != null && existingTaskId == null ->
+                    // Parent deselected while in auto mode → clear auto flags, keep current values
+                    chosen == null && (isLoadFactorInherited || isTimeSliceInherited) -> {
+                        if (isLoadFactorInherited) {
+                            isLoadFactorInherited = false
+                            suppressLoadFactorWatcher = true
+                            etLoadFactor.setText("1.00")
+                            suppressLoadFactorWatcher = false
+                            tvLoadFactorAutoLabel.visibility = android.view.View.GONE
+                        }
+                        if (isTimeSliceInherited) {
+                            isTimeSliceInherited = false
+                            tvTimeSliceAutoLabel.visibility = android.view.View.GONE
+                        }
+                    }
+
+                    // New task picking a parent for the first time → inherit both automatically
+                    chosen != null && existingTaskId == null -> {
                         applyParentLoadFactor(chosen.loadFactor)
+                        applyParentTimeSlice(chosen.timeSliceSeconds)
+                    }
                 }
             }
         }

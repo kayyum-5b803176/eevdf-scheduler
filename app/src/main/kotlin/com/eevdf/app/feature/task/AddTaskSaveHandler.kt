@@ -32,7 +32,8 @@ internal fun AddTaskActivity.saveTask() {
     val h = etHours.text.toString().toLongOrNull() ?: 0L
     val m = etMinutes.text.toString().toLongOrNull() ?: 0L
     val s = etSeconds.text.toString().toLongOrNull() ?: 0L
-    val totalSeconds = h * 3600 + m * 60 + s
+    val totalSeconds        = h * 3600 + m * 60 + s
+    val timeSliceInherited  = isTimeSliceInherited
     if (totalSeconds <= 0) {
         Toast.makeText(this, "Please set a time slice > 0", Toast.LENGTH_SHORT).show()
         return
@@ -226,6 +227,7 @@ internal fun AddTaskActivity.saveTask() {
             loadFactor          = loadFactor,
             loadFactorInherited = loadFactorInherited,
             timeSliceSeconds    = totalSeconds,
+            timeSliceInherited  = timeSliceInherited,
             category            = selectedCategory,
             isGroup          = isGroup,
             parentId         = parentId,
@@ -268,6 +270,7 @@ internal fun AddTaskActivity.saveTask() {
             loadFactor          = loadFactor,
             loadFactorInherited = loadFactorInherited,
             timeSliceSeconds    = totalSeconds,
+            timeSliceInherited  = timeSliceInherited,
             remainingSeconds    = totalSeconds,
             category            = selectedCategory,
             isGroup             = isGroup,

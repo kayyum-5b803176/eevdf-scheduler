@@ -12,6 +12,10 @@ data class Task(
     val description: String = "",
     val priority: Int,
     val timeSliceSeconds: Long,
+    // true  = value is inherited from the nearest ancestor; repository propagates
+    //         parent changes automatically until the user manually overrides it.
+    // false = value was manually assigned by the user.
+    val timeSliceInherited: Boolean = false,
     val category: String = "None",
     val color: Int = 0,
 

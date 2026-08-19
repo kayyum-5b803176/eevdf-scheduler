@@ -53,6 +53,31 @@ class TaskRepository @Inject constructor(
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
         dao.update(task)
         propagateInheritedLoadFactor(task.id, task.loadFactor)
+        propagateInheritedTimeSlice(task.id, task.timeSliceSeconds)
+    }
+
+    /**
+     * Walks the task tree rooted at [parentId] and updates every descendant that
+     * has [Task.timeSliceInherited] == true with the new [timeSliceSeconds] value.
+     *
+     * [remainingSeconds] is only synced when the child's timer is fully intact
+     * (remainingSeconds == timeSliceSeconds) — a partially-consumed timer is left
+     * alone so an in-progress session is not disrupted.
+     */
+    private suspend fun propagateInheritedTimeSlice(parentId: String, timeSliceSeconds: Long) {
+        val children = dao.getChildrenOf(parentId)
+        for (child in children) {
+            if (child.timeSliceInherited) {
+                val syncedRemaining =
+                    if (child.remainingSeconds == child.timeSliceSeconds) timeSliceSeconds
+                    else child.remainingSeconds
+                dao.update(child.copy(
+                    timeSliceSeconds = timeSliceSeconds,
+                    remainingSeconds = syncedRemaining
+                ))
+                propagateInheritedTimeSlice(child.id, timeSliceSeconds)
+            }
+        }
     }
 
     /**
