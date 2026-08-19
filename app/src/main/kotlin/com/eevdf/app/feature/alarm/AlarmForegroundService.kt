@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import com.eevdf.app.R
 import com.eevdf.app.core.media.SoundManager
 import com.eevdf.app.core.prefs.UiCustomizationPrefs
 import com.eevdf.app.core.media.VibrationManager
@@ -322,7 +323,7 @@ class AlarmForegroundService : Service() {
     private fun buildDelayNotification(taskName: String, delaySecs: Long): Notification {
         val delayEndEpoch = System.currentTimeMillis() + delaySecs * 1000L
         val builder = NotificationCompat.Builder(this, CHANNEL_DELAY)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Starting soon — $taskName")
             .setContentText("Timer begins in")
             .setOngoing(true)
@@ -340,8 +341,8 @@ class AlarmForegroundService : Service() {
     private fun buildTimerNotification(taskName: String, remainingSecs: Long): Notification {
         val triggerEpoch = System.currentTimeMillis() + remainingSecs * 1000L
         val builder = NotificationCompat.Builder(this, CHANNEL_TIMER)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("⏱ $taskName")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(taskName)
             .setContentText("Time remaining")
             .setOngoing(true)
             .setSilent(true)
@@ -369,7 +370,7 @@ class AlarmForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val builder = NotificationCompat.Builder(this, CHANNEL_ALARM)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Timer expired")
             .setContentText(taskName)
             .setOngoing(true)
