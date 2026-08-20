@@ -1,22 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Load Factor card — human effort model with 3 NASA-TLX-derived sliders.
+  Load Factor card — human effort model, three NASA-TLX sliders.
 
-  switchLoadFactorEnabled — toggle; OFF = inherited from parent (or default 50),
-                            ON  = shows the three sliders + combined preview.
+  ── Layout structure ─────────────────────────────────────────────────────────
+  Row 1 (always visible): "Load Factor" title/subtitle + toggle switch
+  Row 2 (always visible): "(auto)" badge (left) | spacer | "Combined Load: X / 100" (right)
+  Row 3 (only when ON):   divider + three material sliders (Cognitive, Physical, Emotional)
 
-  tvLoadFactorAutoLabel   — "(auto)" badge shown when switch is OFF, communicating
-                            that the value is inherited.  Hidden when switch is ON.
+  Combined Load is always visible so the user can see the inherited or live
+  value without enabling the toggle.  The (auto) badge sits left of the
+  combined load value and disappears when the toggle is enabled manually.
 
-  layoutLoadFactorSliders — container shown/hidden by the switch.
-    sliderCognitive / tvCognitiveValue — NASA-TLX Mental Demand (1–7).
-    sliderPhysical  / tvPhysicalValue  — NASA-TLX Physical Demand (1–7).
-    sliderEmotional / tvEmotionalValue — NASA-TLX Frustration / Emotional weight (1–7).
-    tvLoadFactorCombined               — live "Combined Load: X / 100" preview.
+  ── When disabled (inherited) ────────────────────────────────────────────────
+    | Load Factor                      [switch] |
+    | (auto)          Combined Load: 50 / 100   |
 
-  Combined formula (matches TaskLoadFactor.compute):
-    loadFactor = ((cognitive + physical + emotional − 3) / 18) × 100
-    1,1,1 →  0    4,4,4 → 50 (default)    7,7,7 → 100
+  ── When enabled (manual) ────────────────────────────────────────────────────
+    | Load Factor                      [switch] |
+    |                 Combined Load: 67 / 100   |
+    | ─────────────────────────────────────────  |
+    | Cognitive                              6   |
+    | [══════════════○══════════]               |
+    | Physical                               5   |
+    | [═══════════════════○═════]               |
+    | Emotional                              4   |
+    | [═══════════════○═════════]               |
 -->
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -33,7 +41,7 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Header row: title + subtitle on the left, toggle on the right -->
+        <!-- ── Row 1: title + switch ──────────────────────────────────────── -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -46,33 +54,14 @@
                 android:layout_weight="1"
                 android:orientation="vertical">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <TextView
+                    android:id="@+id/tvLoadFactorTitle"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:id="@+id/tvLoadFactorTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Load Factor"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/colorPrimary" />
-
-                    <!-- (auto) badge: visible when switch is OFF -->
-                    <TextView
-                        android:id="@+id/tvLoadFactorAutoLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:text="(auto)"
-                        android:textSize="12sp"
-                        android:textColor="@color/textSecondary"
-                        android:visibility="visible" />
-
-                </LinearLayout>
+                    android:text="Load Factor"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/colorPrimary" />
 
                 <TextView
                     android:layout_width="match_parent"
@@ -91,13 +80,51 @@
 
         </LinearLayout>
 
-        <!-- Sliders: shown when toggle is ON -->
+        <!-- ── Row 2: (auto) badge + combined load — always visible ──────── -->
+        <!--
+             Left:   tvLoadFactorAutoLabel  — visible when inherited, GONE when manual
+             Middle: spacer (weight=1)
+             Right:  tvLoadFactorCombined   — always visible, updates live
+        -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/tvLoadFactorAutoLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="(auto)"
+                android:textSize="12sp"
+                android:textColor="@color/textSecondary"
+                android:visibility="visible" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tvLoadFactorCombined"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Combined Load: 50 / 100"
+                android:textSize="13sp"
+                android:textColor="@color/colorPrimary"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- ── Row 3: sliders — shown only when toggle is ON ─────────────── -->
         <LinearLayout
             android:id="@+id/layoutLoadFactorSliders"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:visibility="gone">
 
             <View
@@ -106,8 +133,7 @@
                 android:background="#E0E0E0"
                 android:layout_marginBottom="14dp" />
 
-            <!-- ── Cognitive ───────────────────────────────────────────── -->
-
+            <!-- ── Cognitive ─────────────────────────────────────────────── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -162,8 +188,7 @@
                 android:value="4"
                 app:labelBehavior="gone" />
 
-            <!-- ── Physical ────────────────────────────────────────────── -->
-
+            <!-- ── Physical ──────────────────────────────────────────────── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -218,8 +243,7 @@
                 android:value="4"
                 app:labelBehavior="gone" />
 
-            <!-- ── Emotional ───────────────────────────────────────────── -->
-
+            <!-- ── Emotional ──────────────────────────────────────────────── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -267,30 +291,12 @@
                 android:id="@+id/sliderEmotional"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="4dp"
                 android:valueFrom="1"
                 android:valueTo="7"
                 android:stepSize="1"
                 android:value="4"
                 app:labelBehavior="gone" />
-
-            <!-- ── Combined preview ────────────────────────────────────── -->
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/app_divider"
-                android:background="#E0E0E0"
-                android:layout_marginBottom="10dp" />
-
-            <TextView
-                android:id="@+id/tvLoadFactorCombined"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Combined Load: 50 / 100"
-                android:textSize="13sp"
-                android:textColor="@color/colorPrimary"
-                android:textStyle="bold"
-                android:gravity="end" />
 
         </LinearLayout>
 
