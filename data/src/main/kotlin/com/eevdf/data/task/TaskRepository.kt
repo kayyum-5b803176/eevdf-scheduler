@@ -332,11 +332,15 @@ class TaskRepository @Inject constructor(
      * across all three dimensions as an approximation.
      */
     private fun applyLoadAccounting(task: Task, session: RunSession, loadFactorEntry: TaskLoadFactor?) {
-        // Derive per-dimension running targets (1–7 scale, matching slider range)
-        val approxPerDim = (task.loadFactor / 100.0) * 7.0
-        val tC = loadFactorEntry?.cognitive?.toDouble() ?: approxPerDim
-        val tP = loadFactorEntry?.physical?.toDouble()  ?: approxPerDim
-        val tE = loadFactorEntry?.emotional?.toDouble() ?: approxPerDim
+        // Per-dimension targets: slider [1,7] → 0–100 via TaskLoadFactor.dimensionPercent.
+        // Each EWMA stream operates entirely in the 0–100 range — same scale as
+        // task.loadFactor — so all three can be averaged directly for combinedLoad.
+        // Fallback: task.loadFactor used equally across all three dimensions when
+        // no TaskLoadFactor entry exists (unconfigured task).
+        val approxPerDim = task.loadFactor   // 0–100, equal distribution fallback
+        val tC = loadFactorEntry?.cognitive?.let { TaskLoadFactor.dimensionPercent(it) } ?: approxPerDim
+        val tP = loadFactorEntry?.physical?.let  { TaskLoadFactor.dimensionPercent(it) } ?: approxPerDim
+        val tE = loadFactorEntry?.emotional?.let { TaskLoadFactor.dimensionPercent(it) } ?: approxPerDim
 
         // Step 1: idle decay up to the moment the run began (targets = 0)
         val atStart = com.eevdf.data.scheduler.LoadAverage.advanced(

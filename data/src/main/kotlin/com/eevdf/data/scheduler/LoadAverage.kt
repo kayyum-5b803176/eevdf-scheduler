@@ -112,8 +112,24 @@ object LoadAverage {
      *                    while 50 means "configured at mid-intensity right now";
      *                    these are distinct and the difference is correct)
      */
+    /**
+     * Combines three independent 0–100 EWMA streams into one 0–100 output.
+     *
+     * Each dimension ([avgC], [avgP], [avgE]) is already on the 0–100 scale
+     * — the same scale as [Task.loadFactor].  Simple average: no domain
+     * conversion, no offset, no denominator mismatch.
+     *
+     *   (  0,  0,  0) →   0   fully recovered
+     *   ( 50, 50, 50) →  50   sustained mid-intensity
+     *   (100,100,100) → 100   maximum sustained load
+     *
+     * The Emotional stream stays elevated longest (τ=60 h) so after a
+     * high-emotional session the combined output correctly decays slower
+     * than after a purely cognitive one — this asymmetry is already encoded
+     * in the τ constants, not in the combination formula.
+     */
     fun combinedLoad(avgC: Double, avgP: Double, avgE: Double): Double =
-        ((avgC + avgP + avgE) / 21.0 * 100.0).coerceIn(0.0, 100.0)
+        ((avgC + avgP + avgE) / 3.0).coerceIn(0.0, 100.0)
 
     // ── Persistence path (session end) ───────────────────────────────────────
 
@@ -121,13 +137,16 @@ object LoadAverage {
      * Returns a copy of [task] with all three per-dimension EWMAs advanced to
      * [nowEpoch], using explicit per-dimension [target*] values.
      *
-     * Called by [TaskRepository.applyLoadAccounting] with the task's actual
-     * slider values from the [TaskLoadFactor] side table:
-     *   isRunning = false → targets should all be 0.0  (idle/end step)
-     *   isRunning = true  → targets are the slider integers (1.0–7.0)
+     * Called by [TaskRepository.applyLoadAccounting] with per-dimension
+     * percentage targets from [TaskLoadFactor.dimensionPercent]:
+     *   isRunning = false → targets are 0.0            (idle decay toward zero)
+     *   isRunning = true  → targets are in [0,100]     (slider mapped to %)
+     *
+     * All stored EWMA values ([Task.loadAvgCognitive] etc.) are in [0,100].
+     * No raw slider scale (0–7) is used anywhere in this path.
      *
      * First-ever call (all timestamps == 0) seeds the anchors without applying
-     * a spurious initial jump, matching [LoadAverage]'s previous seed behaviour.
+     * a spurious initial jump.
      */
     fun advanced(
         task: Task,
@@ -192,8 +211,13 @@ object LoadAverage {
      * When idle all targets are 0 and each dimension decays toward 0 at its own τ.
      */
     fun currentValue(task: Task, nowEpoch: Long, isRunning: Boolean): Double {
-        // Approximate per-dimension running target from the stored composite
-        val approx = if (isRunning) (task.loadFactor / 100.0) * 7.0 else 0.0
+        // Per-dimension running target is task.loadFactor (0–100) used as an
+        // equal approximation across all three dimensions.  At symmetric sliders
+        // this is exact; at asymmetric sliders it is the best approximation
+        // available without reading the TaskLoadFactor side table.
+        // (Exact targets are only available in the persistence path via
+        //  TaskLoadFactor.dimensionPercent, which feeds advanced().)
+        val approx = if (isRunning) task.loadFactor else 0.0
 
         fun dim(avg: Double, lastUpdate: Long, tau: Double): Double {
             if (lastUpdate == 0L) return approx   // not yet seeded

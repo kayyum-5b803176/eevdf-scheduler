@@ -49,12 +49,33 @@ data class TaskLoadFactor(
 ) {
     companion object {
         /**
-         * Computes the 0–100 combined load value from slider inputs.
-         * Extracted here so the formula has one canonical location across
-         * both the form (preview) and the save handler.
+         * Maps one slider value [1,7] to an independent 0–100 EWMA target.
+         *
+         * Each dimension runs as a separate 0–100 stream — the same scale as
+         * the original single-EWMA loadFactor.  This means:
+         *   • slider 1 → 0    (minimum configurable = zero contribution)
+         *   • slider 4 → 50   (mid-intensity)
+         *   • slider 7 → 100  (maximum)
+         *
+         * The three streams are then averaged for the combined output, so
+         * [compute] equals the mean of the three [dimensionPercent] values.
+         * This keeps the EWMA arithmetic in the same 0–100 domain throughout —
+         * no raw [0,7] values, no domain-conversion formula.
+         */
+        fun dimensionPercent(sliderValue: Int): Double =
+            (sliderValue - 1).toDouble() / 6.0 * 100.0
+
+        /**
+         * Combined load (0–100) from three slider inputs.
+         * Equals the mean of the three [dimensionPercent] values, making it
+         * identical to what the stats bar will show at EWMA steady state.
+         *
+         *   compute(1,1,1) =   0   (minimum, zero load)
+         *   compute(4,4,4) =  50   (default mid-intensity)
+         *   compute(7,7,7) = 100   (maximum)
          */
         fun compute(cognitive: Int, physical: Int, emotional: Int): Double =
-            ((cognitive + physical + emotional - 3).toDouble() / 18.0) * 100.0
+            (dimensionPercent(cognitive) + dimensionPercent(physical) + dimensionPercent(emotional)) / 3.0
 
         /** Midpoint defaults used when no entry exists for a task. */
         const val DEFAULT_COGNITIVE = 4

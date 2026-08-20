@@ -241,11 +241,18 @@ object LoadEwmaReconstructor {
         return value * exp(-dtSecs / tau)
     }
 
+    /**
+     * Converts stored EWMA anchor values to a [LoadSample].
+     *
+     * Anchor values are stored in the 0–100 scale (same as [Task.loadFactor])
+     * so no domain conversion is needed — each dimension is already a
+     * percentage and [LoadAverage.combinedLoad] is a simple average of the three.
+     */
     private fun toSample(epochMs: Long, c: Double, p: Double, e: Double) = LoadSample(
         epochMs   = epochMs,
-        cognitive = ((c / 7.0) * 100.0).toFloat().coerceIn(0f, 100f),
-        physical  = ((p / 7.0) * 100.0).toFloat().coerceIn(0f, 100f),
-        emotional = ((e / 7.0) * 100.0).toFloat().coerceIn(0f, 100f),
+        cognitive = c.toFloat().coerceIn(0f, 100f),
+        physical  = p.toFloat().coerceIn(0f, 100f),
+        emotional = e.toFloat().coerceIn(0f, 100f),
         combined  = LoadAverage.combinedLoad(c, p, e).toFloat().coerceIn(0f, 100f),
     )
 }
