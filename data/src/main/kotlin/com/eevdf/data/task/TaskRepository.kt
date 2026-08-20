@@ -248,7 +248,8 @@ class TaskRepository @Inject constructor(
         EEVDFScheduler.updateVruntime(task, secondsRan)
         applyQuotaAccounting(task, secondsRan)
         applyDlAccounting(task, secondsRan)
-        applyLoadAccounting(task, session)
+        val loadFactorEntry = loadFactorDao.get(task.id)
+        applyLoadAccounting(task, session, loadFactorEntry)
         dao.update(task)
 
         // Propagate up the ancestor chain — credit runtime and increment runCount
@@ -310,17 +311,45 @@ class TaskRepository @Inject constructor(
      * task (var fields); the caller persists it.  Foreground ticking later decays
      * it further while the task sits idle.
      */
-    private fun applyLoadAccounting(task: Task, session: RunSession) {
-        // Step 1: idle decay up to the moment the run began.
+    /**
+     * Advances all three per-dimension EWMAs (Cognitive/Physical/Emotional) for
+     * the completed session and updates [Task.loadAverage] with the combined result.
+     *
+     * Two-step integration — same as before, now with explicit per-dimension targets:
+     *   Step 1: idle decay from last-persisted → session start (targets all 0).
+     *   Step 2: running integration from session start → end (targets = slider values).
+     *
+     * Slider values come from [loadFactorEntry].  When the entry is null (task was
+     * never configured) the combined [Task.loadFactor] (0–100) is distributed evenly
+     * across all three dimensions as an approximation.
+     */
+    private fun applyLoadAccounting(task: Task, session: RunSession, loadFactorEntry: TaskLoadFactor?) {
+        // Derive per-dimension running targets (1–7 scale, matching slider range)
+        val approxPerDim = (task.loadFactor / 100.0) * 7.0
+        val tC = loadFactorEntry?.cognitive?.toDouble() ?: approxPerDim
+        val tP = loadFactorEntry?.physical?.toDouble()  ?: approxPerDim
+        val tE = loadFactorEntry?.emotional?.toDouble() ?: approxPerDim
+
+        // Step 1: idle decay up to the moment the run began (targets = 0)
         val atStart = com.eevdf.data.scheduler.LoadAverage.advanced(
-            task, session.startEpochMs, isRunning = false
+            task, session.startEpochMs, isRunning = false,
+            targetCognitive = 0.0, targetPhysical = 0.0, targetEmotional = 0.0,
         )
-        // Step 2: running integration across the real run window.
+        // Step 2: running integration across the real run window
         val atEnd = com.eevdf.data.scheduler.LoadAverage.advanced(
-            atStart, session.endEpochMs, isRunning = true
+            atStart, session.endEpochMs, isRunning = true,
+            targetCognitive = tC, targetPhysical = tP, targetEmotional = tE,
         )
-        task.loadAverage         = atEnd.loadAverage
-        task.loadLastUpdateEpoch = atEnd.loadLastUpdateEpoch
+
+        // Write all six per-dimension fields + combined output back onto the task
+        task.loadAvgCognitive         = atEnd.loadAvgCognitive
+        task.loadLastUpdateCognitive  = atEnd.loadLastUpdateCognitive
+        task.loadAvgPhysical          = atEnd.loadAvgPhysical
+        task.loadLastUpdatePhysical   = atEnd.loadLastUpdatePhysical
+        task.loadAvgEmotional         = atEnd.loadAvgEmotional
+        task.loadLastUpdateEmotional  = atEnd.loadLastUpdateEmotional
+        task.loadAverage              = atEnd.loadAverage
+        task.loadLastUpdateEpoch      = atEnd.loadLastUpdateEpoch
     }
 
     /**

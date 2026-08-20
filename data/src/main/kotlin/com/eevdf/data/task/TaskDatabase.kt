@@ -22,7 +22,7 @@ import com.eevdf.data.task.Task
         InterruptReturnEntry::class,
         TaskLoadFactor::class,          // ← new side table
     ],
-    version  = 24,                      // ← bumped from 23
+    version  = 25,                      // ← bumped from 24
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -392,6 +392,30 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 24 → 25 — Per-dimension EWMA state in the tasks table.
+         *
+         * Three NASA-TLX-derived dimensions each carry their own EWMA with a
+         * physiologically-calibrated decay constant (see LoadAverage.kt):
+         *   Cognitive  τ =  6 h — recovers within a working day
+         *   Physical   τ = 18 h — recovers with overnight sleep
+         *   Emotional  τ = 60 h — lingers across 2–3 days
+         *
+         * All six columns default to 0.  Existing tasks rebuild per-dimension
+         * history from their next run; the combined loadAverage column continues
+         * to serve as the single stats-bar output during the rebuild window.
+         */
+        private val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN loadAvgCognitive       REAL    NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN loadLastUpdateCognitive INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN loadAvgPhysical        REAL    NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN loadLastUpdatePhysical  INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN loadAvgEmotional       REAL    NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN loadLastUpdateEmotional INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -405,7 +429,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
                         MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
-                        MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,   // ← added
+                        MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                     )
                     .build()
                 INSTANCE = instance

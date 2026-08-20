@@ -4,90 +4,192 @@ import com.eevdf.data.task.Task
 import kotlin.math.exp
 
 /**
- * Per-task load average — a direct adaptation of the Linux kernel system load
- * average to this app's task model.
+ * Per-task load average — three separate EWMAs, one per NASA-TLX dimension.
  *
- * ── How Linux does it ───────────────────────────────────────────────────────
- * Linux samples the run-queue every ~5 s and feeds an exponentially-weighted
- * moving average (EWMA):
+ * ── Why three instead of one ────────────────────────────────────────────────
+ * The original single EWMA used a 24-hour window for everything, which was
+ * correct when load factor was an undifferentiated float.  With the three-slider
+ * model (Cognitive, Physical, Emotional) each dimension has a distinct
+ * physiological recovery half-life that a single τ cannot represent:
  *
- *     load = load · e^(−Δt/T) + n · (1 − e^(−Δt/T))
+ *   Cognitive   τ =  6 h — deep-focus and analytical load recovers within a day
+ *   Physical    τ = 18 h — muscular fatigue resolves with overnight sleep
+ *   Emotional   τ = 60 h — stress and emotional weight lingers 2–3 days
  *
- * where `n` is the instantaneous number of runnable tasks and `T` is the time
- * constant (60 s / 300 s / 900 s for the 1 / 5 / 15-minute figures).
+ * Running three independent EWMAs preserves this asymmetry so a high-emotional
+ * task in the morning correctly suppresses afternoon capacity even after the
+ * cognitive and physical components have recovered.
  *
- * ── How we adapt it ─────────────────────────────────────────────────────────
- * • The "instantaneous load" a task contributes while it is RUNNING is its
- *   [Task.loadFactor] (default 1.00 ⇒ behaves like one ordinary runnable task).
- *   While the task is idle its instantaneous load is 0.
- * • We use a single 24-hour smoothing window ([LOAD_WINDOW_SECONDS]) — the
- *   internal value requested for this feature — instead of 1/5/15-minute ones.
- * • Δt is REAL elapsed wall-time since the task's load was last advanced, so the
- *   value can be computed lazily on demand (no background sampler): each call to
- *   [advanced] integrates the whole gap in one step using the closed-form EWMA.
+ * ── Output ──────────────────────────────────────────────────────────────────
+ * [combinedLoad] maps the three EWMA values to a single 0–100 number using the
+ * same formula as TaskLoadFactor.compute — so the stats bar and the slider
+ * display share one canonical scale.
  *
- * The math is continuous and identical whether we advance once per minute or
- * once per hour, so foreground-only 1-minute ticking produces the same curve a
- * 5-second sampler would, just with coarser visible steps.
+ * [Task.loadAverage] is kept as the combined output; [Task.loadAvgCognitive],
+ * [Task.loadAvgPhysical], [Task.loadAvgEmotional] are the intermediate state.
+ * [Task.loadLastUpdateEpoch] remains the single anchor for the combined value;
+ * three additional per-dimension anchors track individual decay timing.
+ *
+ * ── Running vs. idle targets ─────────────────────────────────────────────────
+ * While running:  each EWMA decays toward its slider value (1–7).
+ * While idle:     each EWMA decays toward 0 (full recovery).
+ *
+ * ── Calling convention ───────────────────────────────────────────────────────
+ * [advanced] is called by [TaskRepository.applyLoadAccounting] on session end
+ * with the task's actual slider targets.
+ *
+ * [currentValue] and [systemLoad] are called by the UI/ViewModel for live
+ * display.  Since the side table is not available in that path, the running
+ * target is approximated from [Task.loadFactor] (the stored composite 0–100
+ * value) by distributing it evenly across the three dimensions.  This produces
+ * identical peak values and correct decay behaviour for display purposes.
  */
 object LoadAverage {
 
-    /** Smoothing window (time constant T), in seconds. 24 h, per the feature spec. */
-    const val LOAD_WINDOW_SECONDS: Double = 86_400.0
+    // ── Decay time constants ─────────────────────────────────────────────────
+
+    /** Cognitive τ:  6 h in seconds. */
+    const val TAU_COGNITIVE: Double = 6.0  * 3_600.0
+
+    /** Physical τ:  18 h in seconds. */
+    const val TAU_PHYSICAL: Double  = 18.0 * 3_600.0
+
+    /** Emotional τ: 60 h in seconds. */
+    const val TAU_EMOTIONAL: Double = 60.0 * 3_600.0
 
     /**
-     * Returns a copy of [task] with its [Task.loadAverage] advanced to [nowEpoch].
-     *
-     * @param isRunning whether the task is currently running RIGHT NOW. While
-     *        running the target value is [Task.loadFactor]; while idle it is 0.
-     *
-     * Decays the existing average toward the target over the real elapsed time:
-     *     decay  = e^(−Δt/T)
-     *     load'  = load·decay + target·(1 − decay)
-     *
-     * First-ever call (loadLastUpdateEpoch == 0) seeds the timestamp without
-     * applying a giant initial jump.
+     * Legacy constant kept for call sites that reference it directly.
+     * The three per-dimension τ values above are now authoritative.
      */
-    fun advanced(task: Task, nowEpoch: Long, isRunning: Boolean): Task {
-        val target = if (isRunning) task.loadFactor else 0.0
+    @Suppress("unused")
+    const val LOAD_WINDOW_SECONDS: Double = 86_400.0
 
-        if (task.loadLastUpdateEpoch == 0L) {
-            // Seed: start from the target if running, else current (0-ish) value.
-            return task.copy(
-                loadAverage = if (isRunning) task.loadFactor else task.loadAverage,
-                loadLastUpdateEpoch = nowEpoch
-            )
+    // ── Core EWMA step ───────────────────────────────────────────────────────
+
+    /**
+     * Advance one EWMA value by [dtSeconds] toward [target] with time constant [tau].
+     *
+     *   value' = target + (value − target) · e^(−Δt / τ)
+     *
+     * Equivalent to:  value' = value · e^(−Δt/τ) + target · (1 − e^(−Δt/τ))
+     */
+    private fun step(value: Double, target: Double, dtSeconds: Double, tau: Double): Double {
+        if (dtSeconds <= 0.0) return value
+        val decay = exp(-dtSeconds / tau)
+        return value * decay + target * (1.0 - decay)
+    }
+
+    // ── Combined display formula ─────────────────────────────────────────────
+
+    /**
+     * Maps three per-dimension EWMA values to the unified 0–100 load output.
+     *
+     * Uses the same linear formula as TaskLoadFactor.compute so that the
+     * peak displayed value when a task is running matches what the sliders show.
+     * Clamped to 0 below the floor (i.e. when all EWMAs have decayed close to 0).
+     *
+     *   combined = max(0, ((C + P + E − 3) / 18) × 100)
+     */
+    fun combinedLoad(avgC: Double, avgP: Double, avgE: Double): Double =
+        ((avgC + avgP + avgE - 3.0) / 18.0 * 100.0).coerceAtLeast(0.0)
+
+    // ── Persistence path (session end) ───────────────────────────────────────
+
+    /**
+     * Returns a copy of [task] with all three per-dimension EWMAs advanced to
+     * [nowEpoch], using explicit per-dimension [target*] values.
+     *
+     * Called by [TaskRepository.applyLoadAccounting] with the task's actual
+     * slider values from the [TaskLoadFactor] side table:
+     *   isRunning = false → targets should all be 0.0  (idle/end step)
+     *   isRunning = true  → targets are the slider integers (1.0–7.0)
+     *
+     * First-ever call (all timestamps == 0) seeds the anchors without applying
+     * a spurious initial jump, matching [LoadAverage]'s previous seed behaviour.
+     */
+    fun advanced(
+        task: Task,
+        nowEpoch: Long,
+        isRunning: Boolean,
+        targetCognitive: Double = 0.0,
+        targetPhysical:  Double = 0.0,
+        targetEmotional: Double = 0.0,
+    ): Task {
+        val tC = if (isRunning) targetCognitive else 0.0
+        val tP = if (isRunning) targetPhysical  else 0.0
+        val tE = if (isRunning) targetEmotional else 0.0
+
+        val firstEver = task.loadLastUpdateCognitive == 0L &&
+                        task.loadLastUpdatePhysical  == 0L &&
+                        task.loadLastUpdateEmotional == 0L
+
+        val newC: Double
+        val newP: Double
+        val newE: Double
+
+        if (firstEver) {
+            // Seed: start each dimension at its target (or current value if idle)
+            newC = if (isRunning) tC else task.loadAvgCognitive
+            newP = if (isRunning) tP else task.loadAvgPhysical
+            newE = if (isRunning) tE else task.loadAvgEmotional
+        } else {
+            val dtC = if (task.loadLastUpdateCognitive == 0L) 0.0
+                      else (nowEpoch - task.loadLastUpdateCognitive) / 1_000.0
+            val dtP = if (task.loadLastUpdatePhysical  == 0L) 0.0
+                      else (nowEpoch - task.loadLastUpdatePhysical)  / 1_000.0
+            val dtE = if (task.loadLastUpdateEmotional == 0L) 0.0
+                      else (nowEpoch - task.loadLastUpdateEmotional) / 1_000.0
+
+            newC = step(task.loadAvgCognitive, tC, dtC, TAU_COGNITIVE)
+            newP = step(task.loadAvgPhysical,  tP, dtP, TAU_PHYSICAL)
+            newE = step(task.loadAvgEmotional, tE, dtE, TAU_EMOTIONAL)
         }
 
-        val dtSeconds = (nowEpoch - task.loadLastUpdateEpoch) / 1_000.0
-        if (dtSeconds <= 0.0) return task   // clock skew / no time passed
-
-        val decay   = exp(-dtSeconds / LOAD_WINDOW_SECONDS)
-        val updated = task.loadAverage * decay + target * (1.0 - decay)
-
         return task.copy(
-            loadAverage = updated,
-            loadLastUpdateEpoch = nowEpoch
+            loadAvgCognitive         = newC,
+            loadLastUpdateCognitive  = nowEpoch,
+            loadAvgPhysical          = newP,
+            loadLastUpdatePhysical   = nowEpoch,
+            loadAvgEmotional         = newE,
+            loadLastUpdateEmotional  = nowEpoch,
+            loadAverage              = combinedLoad(newC, newP, newE),
+            loadLastUpdateEpoch      = nowEpoch,
         )
     }
 
+    // ── Display path (no side table access) ──────────────────────────────────
+
     /**
-     * Read-only current load average for display WITHOUT mutating/persisting —
-     * integrates the gap since the last persisted update so the stats bar can
-     * show a live value between ticks.
+     * Read-only current combined load for display — does NOT mutate or persist.
+     *
+     * When [isRunning] the running-target per dimension is approximated from
+     * [Task.loadFactor] (the stored composite 0–100 value) by distributing it
+     * evenly: approx = (loadFactor / 100) × 7.  This produces the correct peak
+     * and decay for display without requiring access to the side table.
+     *
+     * When idle all targets are 0 and each dimension decays toward 0 at its own τ.
      */
     fun currentValue(task: Task, nowEpoch: Long, isRunning: Boolean): Double {
-        if (task.loadLastUpdateEpoch == 0L) {
-            return if (isRunning) task.loadFactor else task.loadAverage
+        // Approximate per-dimension running target from the stored composite
+        val approx = if (isRunning) (task.loadFactor / 100.0) * 7.0 else 0.0
+
+        fun dim(avg: Double, lastUpdate: Long, tau: Double): Double {
+            if (lastUpdate == 0L) return approx   // not yet seeded
+            val dt = (nowEpoch - lastUpdate) / 1_000.0
+            return step(avg, approx, dt, tau)
         }
-        val dtSeconds = (nowEpoch - task.loadLastUpdateEpoch) / 1_000.0
-        if (dtSeconds <= 0.0) return task.loadAverage
-        val target = if (isRunning) task.loadFactor else 0.0
-        val decay  = exp(-dtSeconds / LOAD_WINDOW_SECONDS)
-        return task.loadAverage * decay + target * (1.0 - decay)
+
+        val avgC = dim(task.loadAvgCognitive, task.loadLastUpdateCognitive, TAU_COGNITIVE)
+        val avgP = dim(task.loadAvgPhysical,  task.loadLastUpdatePhysical,  TAU_PHYSICAL)
+        val avgE = dim(task.loadAvgEmotional, task.loadLastUpdateEmotional, TAU_EMOTIONAL)
+
+        return combinedLoad(avgC, avgP, avgE)
     }
 
-    /** System load = sum of every task's current load average. */
+    /**
+     * System load = sum of every task's current combined load average.
+     * Signature unchanged from the previous single-EWMA version.
+     */
     fun systemLoad(tasks: List<Task>, nowEpoch: Long, runningId: String?): Double =
         tasks.sumOf { currentValue(it, nowEpoch, isRunning = it.id == runningId) }
 }

@@ -217,7 +217,30 @@ data class Task(
     // false = value was manually assigned by the user and is not auto-updated.
     val loadFactorInherited: Boolean = false,
     var loadAverage: Double = 0.0,
-    var loadLastUpdateEpoch: Long = 0L
+    var loadLastUpdateEpoch: Long = 0L,
+
+    // ── Per-dimension EWMA state (three separate decay windows) ───────────────
+    //
+    // Each slider dimension (Cognitive, Physical, Emotional) has its own EWMA
+    // that decays at a physiologically-calibrated rate:
+    //   Cognitive  τ =  6 h  — recovers within a working day
+    //   Physical   τ = 18 h  — recovers with overnight sleep
+    //   Emotional  τ = 60 h  — lingers across 2–3 days
+    //
+    // loadAverage (above) is kept as the combined weighted-sum output (0–100)
+    // that the stats bar displays.  The three per-dimension values are the
+    // intermediate state from which that sum is computed.
+    //
+    // All six fields default to 0 (no history).  Existing tasks that were
+    // persisted before this schema version naturally start from 0 on their
+    // next run; the combined loadAverage will rebuild correctly from that point.
+
+    var loadAvgCognitive: Double = 0.0,
+    var loadLastUpdateCognitive: Long = 0L,
+    var loadAvgPhysical: Double = 0.0,
+    var loadLastUpdatePhysical: Long = 0L,
+    var loadAvgEmotional: Double = 0.0,
+    var loadLastUpdateEmotional: Long = 0L
 ) {
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()
