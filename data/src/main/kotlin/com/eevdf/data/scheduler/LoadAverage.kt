@@ -90,8 +90,30 @@ object LoadAverage {
      *
      *   combined = max(0, ((C + P + E − 3) / 18) × 100)
      */
+    /**
+     * Maps three per-dimension EWMA values (0–7 range each) to the unified
+     * 0–100 load output.
+     *
+     * ── Why this formula differs from TaskLoadFactor.compute ─────────────────
+     * [TaskLoadFactor.compute] uses `((C+P+E-3)/18)×100` with a −3 offset
+     * because sliders have a minimum of 1 — the minimum sum is 3.
+     *
+     * EWMA values live in the [0,7] range, not [1,7].  They start at 0 and
+     * decay back toward 0 when idle.  Subtracting 3 from a freshly-started
+     * EWMA (where each dimension is ≪1.0 after a short session) produces a
+     * large negative number that clamps to zero — the bug that caused the
+     * stats bar to show 0.00 after any session shorter than several hours.
+     *
+     * The correct denominator for the [0,7] range is 21 (= 7 × 3 dimensions):
+     *   [0,0,0] → 0    (fully recovered, no history)
+     *   [7,7,7] → 100  (maximum sustained load)
+     *   [4,4,4] → 57   (default sliders after sustained running — intentionally
+     *                    above 50 because 57 means "sustained mid-intensity"
+     *                    while 50 means "configured at mid-intensity right now";
+     *                    these are distinct and the difference is correct)
+     */
     fun combinedLoad(avgC: Double, avgP: Double, avgE: Double): Double =
-        ((avgC + avgP + avgE - 3.0) / 18.0 * 100.0).coerceAtLeast(0.0)
+        ((avgC + avgP + avgE) / 21.0 * 100.0).coerceIn(0.0, 100.0)
 
     // ── Persistence path (session end) ───────────────────────────────────────
 
