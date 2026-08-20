@@ -17,6 +17,22 @@ interface RunLogDao {
     @Query("SELECT * FROM run_log ORDER BY startEpoch DESC LIMIT 1")
     suspend fun getLatestEntry(): RunLogEntry?
 
+    /**
+     * Most recent run_log entry whose session ended at or before [epochMs].
+     * Used by [LoadEwmaReconstructor] to seed the initial EWMA state for the
+     * window start when a session ended just before the analysis window opens.
+     */
+    @Query("SELECT * FROM run_log WHERE (startEpoch + durationSecs * 1000) <= :epochMs ORDER BY startEpoch DESC LIMIT 1")
+    suspend fun getLastEntryBefore(epochMs: Long): RunLogEntry?
+
+    /**
+     * Most recent run_daily row whose day ended at or before [epochMs].
+     * Used by [LoadEwmaReconstructor] to seed state for windows that extend
+     * beyond the 30-day run_log retention window.
+     */
+    @Query("SELECT * FROM run_daily WHERE (dayEpoch + 86400000) <= :epochMs ORDER BY dayEpoch DESC LIMIT 1")
+    suspend fun getLastDailyBefore(epochMs: Long): RunDailySummary?
+
     /** All entries older than [cutoffEpoch] ms, used for compaction. */
     @Query("SELECT * FROM run_log WHERE startEpoch < :cutoffEpoch ORDER BY startEpoch ASC")
     suspend fun getEntriesOlderThan(cutoffEpoch: Long): List<RunLogEntry>

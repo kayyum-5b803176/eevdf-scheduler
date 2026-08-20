@@ -48,7 +48,21 @@ data class RunLogEntry(
      * by weekday without repeated Calendar calls.
      * 1 = Sunday … 7 = Saturday  (java.util.Calendar.DAY_OF_WEEK convention).
      */
-    val weekDay: Int = 0
+    val weekDay: Int = 0,
+
+    /**
+     * EWMA snapshot at the moment this session ended — the person-load state
+     * immediately after the task stopped running.  Stored in the 0–7 raw scale
+     * (matching the slider range) so [LoadAverage.combinedLoad] can be applied
+     * directly without any rescaling.
+     *
+     * Defaults to 0.0 for entries recorded before v4.13.0 (no snapshot available);
+     * the reconstructor treats such entries as zero-state anchors, which causes a
+     * graceful rebuild from the next recorded session onward.
+     */
+    val loadSnapshotCognitive: Double = 0.0,
+    val loadSnapshotPhysical:  Double = 0.0,
+    val loadSnapshotEmotional: Double = 0.0,
 ) {
     companion object {
         /** Gaps longer than this are NOT counted as context switches. */

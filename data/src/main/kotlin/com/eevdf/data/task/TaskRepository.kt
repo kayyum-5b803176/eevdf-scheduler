@@ -238,19 +238,27 @@ class TaskRepository @Inject constructor(
     suspend fun updateVruntimeAfterRun(task: Task, session: RunSession) = withContext(Dispatchers.IO) {
         val secondsRan = session.wallClockSeconds
 
-        // Record this session in the RunLog with the REAL start epoch.
-        // Old code: startEpoch = System.currentTimeMillis() - secondsRan * 1_000L  (approximation)
-        // New code: startEpoch = session.startEpochMs                              (exact)
-        if (secondsRan > 0 && !task.isGroup) {
-            runLog.recordRun(task.id, session.startEpochMs, secondsRan)
-        }
-
         EEVDFScheduler.updateVruntime(task, secondsRan)
         applyQuotaAccounting(task, secondsRan)
         applyDlAccounting(task, secondsRan)
+
+        // applyLoadAccounting runs BEFORE recordRun so the EWMA snapshot fields
+        // on task are populated and can be passed directly to the run log entry.
         val loadFactorEntry = loadFactorDao.get(task.id)
         applyLoadAccounting(task, session, loadFactorEntry)
         dao.update(task)
+
+        // Record AFTER accounting so the log entry carries the correct EWMA snapshot.
+        if (secondsRan > 0 && !task.isGroup) {
+            runLog.recordRun(
+                taskId            = task.id,
+                startEpoch        = session.startEpochMs,
+                durationSecs      = secondsRan,
+                snapshotCognitive = task.loadAvgCognitive,
+                snapshotPhysical  = task.loadAvgPhysical,
+                snapshotEmotional = task.loadAvgEmotional,
+            )
+        }
 
         // Propagate up the ancestor chain — credit runtime and increment runCount
         // so each ancestor group accumulates one run unit per child completion.

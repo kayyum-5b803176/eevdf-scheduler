@@ -30,6 +30,9 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.data.scheduler.LoadAverage
+import com.eevdf.data.scheduler.LoadEwmaReconstructor
+import com.github.mikephil.charting.components.LimitLine
 
 @AndroidEntryPoint
 class StatsChartsFragment : Fragment() {
@@ -41,6 +44,9 @@ class StatsChartsFragment : Fragment() {
     private lateinit var etWindowRange:      TextInputEditText
     private lateinit var btnApplyWindow:     MaterialButton
     private lateinit var tvPeriodLabel:      TextView
+
+    private lateinit var lineChartLoadAvg:   LineChart          // ← load average chart
+    private lateinit var tvLoadAvgEmpty:     TextView
 
     private lateinit var barChartDaily:      BarChart
     private lateinit var tvBarDailyEmpty:    TextView
@@ -71,6 +77,12 @@ class StatsChartsFragment : Fragment() {
         val COLOR_INT_B = Color.parseColor("#1565C0")   // deep blue
         val COLOR_CALL  = Color.parseColor("#2E7D32")   // dark green
         val COLORS      = intArrayOf(COLOR_INT_A, COLOR_INT_B, COLOR_CALL)
+
+        // ── Load average chart colours ────────────────────────────────────────
+        val COLOR_COGNITIVE = Color.parseColor("#1565C0")   // deep blue  — mental focus
+        val COLOR_PHYSICAL  = Color.parseColor("#F57F17")   // amber      — physical energy
+        val COLOR_EMOTIONAL = Color.parseColor("#B71C1C")   // deep red   — stress / stakes
+        val COLOR_COMBINED  = Color.parseColor("#37474F")   // blue-grey  — composite (bold)
     }
 
     // ── Fragment lifecycle ────────────────────────────────────────────────────
@@ -100,6 +112,8 @@ class StatsChartsFragment : Fragment() {
         etWindowRange     = v.findViewById(R.id.etChartsWindowRange)
         btnApplyWindow    = v.findViewById(R.id.btnChartsApplyWindow)
         tvPeriodLabel     = v.findViewById(R.id.tvChartsPeriodLabel)
+        lineChartLoadAvg  = v.findViewById(R.id.lineChartLoadAvg)
+        tvLoadAvgEmpty    = v.findViewById(R.id.tvLoadAvgEmpty)
         barChartDaily     = v.findViewById(R.id.barChartDaily)
         tvBarDailyEmpty   = v.findViewById(R.id.tvBarDailyEmpty)
         lineChartTrend    = v.findViewById(R.id.lineChartTrend)
@@ -163,6 +177,33 @@ class StatsChartsFragment : Fragment() {
             renderRunCountChart(targetTasks, effectiveDaily, categoryMap)
             renderRadarChart(effectiveWeekday)
             renderScatterChart(tLog, categoryMap, fromMs)
+
+            // ── Load average chart — independent of interrupt/call task filter ──
+            // Fetch: recent run_log entries + daily summaries for older history
+            // + one seed anchor before the window to prime the initial state.
+            val loadLogEntries  = withContext(Dispatchers.IO) {
+                runLogDao.getEntriesInRange(fromMs, nowMs)
+            }
+            val loadDailyEntries = withContext(Dispatchers.IO) {
+                runLogDao.getDailyInRange(fromMs)
+            }
+            val seedEntry = withContext(Dispatchers.IO) {
+                runLogDao.getLastEntryBefore(fromMs)
+            }
+            val seedDaily = withContext(Dispatchers.IO) {
+                runLogDao.getLastDailyBefore(fromMs)
+            }
+            val loadSamples = withContext(Dispatchers.IO) {
+                LoadEwmaReconstructor.reconstruct(
+                    logEntries    = loadLogEntries,
+                    dailyEntries  = loadDailyEntries,
+                    seedEntry     = seedEntry,
+                    seedDaily     = seedDaily,
+                    windowStartMs = fromMs,
+                    nowMs         = nowMs,
+                )
+            }
+            renderLoadAverageChart(loadSamples, fromMs, nowMs)
         }
     }
 
@@ -557,6 +598,92 @@ class StatsChartsFragment : Fragment() {
             }
             animateXY(600, 600)
             invalidate()
+        }
+    }
+
+
+    // ── Load Average Chart — 4-line EWMA time series ─────────────────────────
+
+    private fun renderLoadAverageChart(
+        samples:       List<LoadEwmaReconstructor.LoadSample>,
+        windowStartMs: Long,
+        nowMs:         Long,
+    ) {
+        if (samples.isEmpty() || samples.all { it.combined == 0f }) {
+            lineChartLoadAvg.visibility = View.GONE
+            tvLoadAvgEmpty.visibility   = View.VISIBLE
+            return
+        }
+        lineChartLoadAvg.visibility = View.VISIBLE
+        tvLoadAvgEmpty.visibility   = View.GONE
+
+        val toX: (Long) -> Float = { ms -> (ms - windowStartMs) / 3_600_000f }
+
+        fun makeSet(label: String, color: Int, width: Float, filled: Boolean,
+                    sel: (LoadEwmaReconstructor.LoadSample) -> Float): LineDataSet =
+            LineDataSet(samples.map { Entry(toX(it.epochMs), sel(it)) }, label).apply {
+                this.color     = color
+                lineWidth      = width
+                setDrawCircles(false); setDrawValues(false)
+                mode           = LineDataSet.Mode.CUBIC_BEZIER; cubicIntensity = 0.12f
+                if (filled) { fillColor = color; fillAlpha = 25; setDrawFilled(true) }
+                else setDrawFilled(false)
+            }
+
+        val dsCognitive = makeSet("Cognitive", COLOR_COGNITIVE, 1.5f, false) { it.cognitive }
+        val dsPhysical  = makeSet("Physical",  COLOR_PHYSICAL,  1.5f, false) { it.physical  }
+        val dsEmotional = makeSet("Emotional", COLOR_EMOTIONAL, 1.5f, false) { it.emotional }
+        val dsCombined  = makeSet("Combined",  COLOR_COMBINED,  3.0f, true ) { it.combined  }
+
+        val windowHours = (nowMs - windowStartMs) / 3_600_000f
+        val dateFmt = if (windowHours <= 72f)
+            java.text.SimpleDateFormat("d/M HH:mm", java.util.Locale.getDefault())
+        else
+            java.text.SimpleDateFormat("d/M",       java.util.Locale.getDefault())
+
+        val midLine = LimitLine(50f, "").apply {
+            lineColor = android.graphics.Color.parseColor("#BDBDBD")
+            lineWidth = 0.75f
+            enableDashedLine(10f, 6f, 0f)
+        }
+
+        lineChartLoadAvg.apply {
+            data = LineData(dsCognitive, dsPhysical, dsEmotional, dsCombined)
+            xAxis.apply {
+                position           = XAxis.XAxisPosition.BOTTOM
+                setDrawGridLines(true)
+                gridColor          = android.graphics.Color.parseColor("#F5F5F5")
+                textSize           = 8f
+                labelRotationAngle = -45f
+                granularity        = 1f
+                setLabelCount(7, true)
+                valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(value: Float): String {
+                        val ms = windowStartMs + (value * 3_600_000f).toLong()
+                        return dateFmt.format(java.util.Date(ms))
+                    }
+                }
+            }
+            axisLeft.apply {
+                axisMinimum = 0f; axisMaximum = 100f
+                setLabelCount(5, true); granularity = 25f
+                removeAllLimitLines(); addLimitLine(midLine)
+                valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(v: Float) = v.toInt().toString()
+                }
+            }
+            axisRight.isEnabled   = false
+            description.isEnabled = false
+            legend.apply {
+                isEnabled           = true; textSize = 10f
+                orientation         = Legend.LegendOrientation.HORIZONTAL
+                verticalAlignment   = Legend.LegendVerticalAlignment.BOTTOM
+                horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
+                setDrawInside(false)
+            }
+            setTouchEnabled(true); isDragEnabled = true
+            setScaleEnabled(true); setPinchZoom(true)
+            animateX(700); invalidate()
         }
     }
 

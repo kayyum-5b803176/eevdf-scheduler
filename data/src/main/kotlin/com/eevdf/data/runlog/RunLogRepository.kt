@@ -52,18 +52,37 @@ class RunLogRepository @Inject constructor(
      * @param startEpoch  Epoch ms when the session started.
      * @param durationSecs How long it lasted.
      */
-    suspend fun recordRun(taskId: String, startEpoch: Long, durationSecs: Long) =
-        withContext(Dispatchers.IO) {
+    /**
+     * Records one completed timer session and triggers throttled compaction.
+     *
+     * @param snapshotCognitive  EWMA cognitive value (0–7) immediately after session end.
+     * @param snapshotPhysical   EWMA physical value  (0–7) immediately after session end.
+     * @param snapshotEmotional  EWMA emotional value (0–7) immediately after session end.
+     *
+     * Snapshots must be passed AFTER [LoadAverage.advanced] has run so they
+     * reflect the state at session end, not at session start.
+     */
+    suspend fun recordRun(
+        taskId:             String,
+        startEpoch:         Long,
+        durationSecs:       Long,
+        snapshotCognitive:  Double = 0.0,
+        snapshotPhysical:   Double = 0.0,
+        snapshotEmotional:  Double = 0.0,
+    ) = withContext(Dispatchers.IO) {
             val prevEntry  = dao.getLatestEntry()
             val prevTaskId = resolvePrevTask(prevEntry, startEpoch)
             val weekDay    = weekDayOf(startEpoch)
 
             dao.insertLog(RunLogEntry(
-                taskId       = taskId,
-                startEpoch   = startEpoch,
-                durationSecs = durationSecs,
-                prevTaskId   = prevTaskId,
-                weekDay      = weekDay
+                taskId                = taskId,
+                startEpoch            = startEpoch,
+                durationSecs          = durationSecs,
+                prevTaskId            = prevTaskId,
+                weekDay               = weekDay,
+                loadSnapshotCognitive = snapshotCognitive,
+                loadSnapshotPhysical  = snapshotPhysical,
+                loadSnapshotEmotional = snapshotEmotional,
             ))
 
             // Enforce hard cap — keep newest rows
@@ -103,30 +122,54 @@ class RunLogRepository @Inject constructor(
 
         // Group by (taskId, dayEpoch)
         data class Key(val taskId: String, val dayEpoch: Long)
-        data class Acc(var totalSecs: Long, var runCount: Int, var switchInCount: Int, val weekDay: Int)
+        data class Acc(
+            var totalSecs:     Long,
+            var runCount:      Int,
+            var switchInCount: Int,
+            val weekDay:       Int,
+            // Track the latest session's end time so we keep only the last snapshot
+            var lastEndEpoch:  Long   = 0L,
+            var lastSnapC:     Double = 0.0,
+            var lastSnapP:     Double = 0.0,
+            var lastSnapE:     Double = 0.0,
+        )
 
         val groups = mutableMapOf<Key, Acc>()
         for (e in entries) {
-            val day = startOfDayEpoch(e.startEpoch)
-            val key = Key(e.taskId, day)
-            val acc = groups.getOrPut(key) { Acc(0L, 0, 0, weekDayOf(e.startEpoch)) }
+            val day    = startOfDayEpoch(e.startEpoch)
+            val key    = Key(e.taskId, day)
+            val acc    = groups.getOrPut(key) { Acc(0L, 0, 0, weekDayOf(e.startEpoch)) }
+            val endEpoch = e.startEpoch + e.durationSecs * 1_000L
             acc.totalSecs += e.durationSecs
             acc.runCount  += 1
-            // Count as a switch-in if a *different* task was running just before
             if (e.prevTaskId != null && e.prevTaskId != e.taskId) acc.switchInCount += 1
+            // Keep the snapshot from the LATEST session of the day
+            if (endEpoch >= acc.lastEndEpoch) {
+                acc.lastEndEpoch = endEpoch
+                acc.lastSnapC    = e.loadSnapshotCognitive
+                acc.lastSnapP    = e.loadSnapshotPhysical
+                acc.lastSnapE    = e.loadSnapshotEmotional
+            }
         }
 
         for ((key, acc) in groups) {
-            // Merge into existing row if present (REPLACE strategy handles upsert)
             val existing = dao.getDailyForTask(key.taskId)
                 .firstOrNull { it.dayEpoch == key.dayEpoch }
+            // Carry the snapshot forward: prefer acc values when non-zero (they
+            // come from new entries and are more recent than any existing row).
+            val snapC = if (acc.lastSnapC > 0.0) acc.lastSnapC else existing?.loadSnapshotCognitive ?: 0.0
+            val snapP = if (acc.lastSnapP > 0.0) acc.lastSnapP else existing?.loadSnapshotPhysical  ?: 0.0
+            val snapE = if (acc.lastSnapE > 0.0) acc.lastSnapE else existing?.loadSnapshotEmotional ?: 0.0
             val merged = RunDailySummary(
-                taskId       = key.taskId,
-                dayEpoch     = key.dayEpoch,
-                totalSecs    = (existing?.totalSecs ?: 0L) + acc.totalSecs,
-                runCount     = (existing?.runCount  ?: 0)  + acc.runCount,
-                switchInCount= (existing?.switchInCount ?: 0) + acc.switchInCount,
-                weekDay      = acc.weekDay
+                taskId                = key.taskId,
+                dayEpoch              = key.dayEpoch,
+                totalSecs             = (existing?.totalSecs     ?: 0L) + acc.totalSecs,
+                runCount              = (existing?.runCount       ?: 0)  + acc.runCount,
+                switchInCount         = (existing?.switchInCount  ?: 0)  + acc.switchInCount,
+                weekDay               = acc.weekDay,
+                loadSnapshotCognitive = snapC,
+                loadSnapshotPhysical  = snapP,
+                loadSnapshotEmotional = snapE,
             )
             dao.upsertDaily(merged)
         }

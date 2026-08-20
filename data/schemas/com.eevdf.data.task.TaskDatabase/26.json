@@ -1,0 +1,706 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 26,
+    "identityHash": "fef5157619b082ad3a90a8a68626736c",
+    "entities": [
+      {
+        "tableName": "tasks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `priority` INTEGER NOT NULL, `timeSliceSeconds` INTEGER NOT NULL, `timeSliceInherited` INTEGER NOT NULL, `category` TEXT NOT NULL, `color` INTEGER NOT NULL, `parentId` TEXT, `isGroup` INTEGER NOT NULL, `isGroupExpanded` INTEGER NOT NULL, `vruntime` REAL NOT NULL, `eligibleTime` REAL NOT NULL, `virtualDeadline` REAL NOT NULL, `lag` REAL NOT NULL, `remainingSeconds` INTEGER NOT NULL, `isRunning` INTEGER NOT NULL, `isCompleted` INTEGER NOT NULL, `totalRunTime` INTEGER NOT NULL, `runCount` INTEGER NOT NULL, `isInterrupt` INTEGER NOT NULL, `interruptSlot` TEXT NOT NULL, `taskType` TEXT NOT NULL, `notificationDelaySeconds` INTEGER NOT NULL, `notificationRestSeconds` INTEGER NOT NULL, `notificationRepeatCount` INTEGER NOT NULL, `notificationResumeType` TEXT NOT NULL, `accumulatedMs` INTEGER NOT NULL, `startTimeEpoch` INTEGER NOT NULL, `pinnedShare` REAL, `internalWeight` REAL, `createdAt` INTEGER NOT NULL, `quotaSeconds` INTEGER NOT NULL, `quotaPeriodSeconds` INTEGER NOT NULL, `quotaPeriodStartEpoch` INTEGER NOT NULL, `quotaUsedSeconds` INTEGER NOT NULL, `schedulerClass` TEXT NOT NULL, `dlRuntimeSeconds` INTEGER NOT NULL, `dlDeadlineSeconds` INTEGER NOT NULL, `dlPeriodSeconds` INTEGER NOT NULL, `dlPeriodStartEpoch` INTEGER NOT NULL, `dlRuntimeUsedSeconds` INTEGER NOT NULL, `rtPriority` INTEGER NOT NULL, `rtPolicy` TEXT NOT NULL, `rtActiveDays` INTEGER NOT NULL, `rtActivationHour` INTEGER NOT NULL, `rtActivationMinute` INTEGER NOT NULL, `rtActivationSecond` INTEGER NOT NULL, `rtSliceTimeoutSeconds` INTEGER NOT NULL, `loadFactor` REAL NOT NULL, `loadFactorInherited` INTEGER NOT NULL, `loadAverage` REAL NOT NULL, `loadLastUpdateEpoch` INTEGER NOT NULL, `loadAvgCognitive` REAL NOT NULL, `loadLastUpdateCognitive` INTEGER NOT NULL, `loadAvgPhysical` REAL NOT NULL, `loadLastUpdatePhysical` INTEGER NOT NULL, `loadAvgEmotional` REAL NOT NULL, `loadLastUpdateEmotional` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeSliceSeconds",
+            "columnName": "timeSliceSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeSliceInherited",
+            "columnName": "timeSliceInherited",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "color",
+            "columnName": "color",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentId",
+            "columnName": "parentId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isGroup",
+            "columnName": "isGroup",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isGroupExpanded",
+            "columnName": "isGroupExpanded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vruntime",
+            "columnName": "vruntime",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eligibleTime",
+            "columnName": "eligibleTime",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "virtualDeadline",
+            "columnName": "virtualDeadline",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lag",
+            "columnName": "lag",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remainingSeconds",
+            "columnName": "remainingSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isRunning",
+            "columnName": "isRunning",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCompleted",
+            "columnName": "isCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalRunTime",
+            "columnName": "totalRunTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runCount",
+            "columnName": "runCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isInterrupt",
+            "columnName": "isInterrupt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "interruptSlot",
+            "columnName": "interruptSlot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskType",
+            "columnName": "taskType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationDelaySeconds",
+            "columnName": "notificationDelaySeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationRestSeconds",
+            "columnName": "notificationRestSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationRepeatCount",
+            "columnName": "notificationRepeatCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationResumeType",
+            "columnName": "notificationResumeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accumulatedMs",
+            "columnName": "accumulatedMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeEpoch",
+            "columnName": "startTimeEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pinnedShare",
+            "columnName": "pinnedShare",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "internalWeight",
+            "columnName": "internalWeight",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quotaSeconds",
+            "columnName": "quotaSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quotaPeriodSeconds",
+            "columnName": "quotaPeriodSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quotaPeriodStartEpoch",
+            "columnName": "quotaPeriodStartEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quotaUsedSeconds",
+            "columnName": "quotaUsedSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schedulerClass",
+            "columnName": "schedulerClass",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dlRuntimeSeconds",
+            "columnName": "dlRuntimeSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dlDeadlineSeconds",
+            "columnName": "dlDeadlineSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dlPeriodSeconds",
+            "columnName": "dlPeriodSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dlPeriodStartEpoch",
+            "columnName": "dlPeriodStartEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dlRuntimeUsedSeconds",
+            "columnName": "dlRuntimeUsedSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rtPriority",
+            "columnName": "rtPriority",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rtPolicy",
+            "columnName": "rtPolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rtActiveDays",
+            "columnName": "rtActiveDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rtActivationHour",
+            "columnName": "rtActivationHour",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rtActivationMinute",
+            "columnName": "rtActivationMinute",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rtActivationSecond",
+            "columnName": "rtActivationSecond",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rtSliceTimeoutSeconds",
+            "columnName": "rtSliceTimeoutSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadFactor",
+            "columnName": "loadFactor",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadFactorInherited",
+            "columnName": "loadFactorInherited",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadAverage",
+            "columnName": "loadAverage",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadLastUpdateEpoch",
+            "columnName": "loadLastUpdateEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadAvgCognitive",
+            "columnName": "loadAvgCognitive",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadLastUpdateCognitive",
+            "columnName": "loadLastUpdateCognitive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadAvgPhysical",
+            "columnName": "loadAvgPhysical",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadLastUpdatePhysical",
+            "columnName": "loadLastUpdatePhysical",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadAvgEmotional",
+            "columnName": "loadAvgEmotional",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadLastUpdateEmotional",
+            "columnName": "loadLastUpdateEmotional",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "run_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `taskId` TEXT NOT NULL, `startEpoch` INTEGER NOT NULL, `durationSecs` INTEGER NOT NULL, `prevTaskId` TEXT, `weekDay` INTEGER NOT NULL, `loadSnapshotCognitive` REAL NOT NULL, `loadSnapshotPhysical` REAL NOT NULL, `loadSnapshotEmotional` REAL NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startEpoch",
+            "columnName": "startEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationSecs",
+            "columnName": "durationSecs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "prevTaskId",
+            "columnName": "prevTaskId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "weekDay",
+            "columnName": "weekDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadSnapshotCognitive",
+            "columnName": "loadSnapshotCognitive",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadSnapshotPhysical",
+            "columnName": "loadSnapshotPhysical",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadSnapshotEmotional",
+            "columnName": "loadSnapshotEmotional",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_run_log_taskId",
+            "unique": false,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_run_log_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          },
+          {
+            "name": "index_run_log_startEpoch",
+            "unique": false,
+            "columnNames": [
+              "startEpoch"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_run_log_startEpoch` ON `${TABLE_NAME}` (`startEpoch`)"
+          },
+          {
+            "name": "index_run_log_prevTaskId",
+            "unique": false,
+            "columnNames": [
+              "prevTaskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_run_log_prevTaskId` ON `${TABLE_NAME}` (`prevTaskId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "run_daily",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`taskId` TEXT NOT NULL, `dayEpoch` INTEGER NOT NULL, `totalSecs` INTEGER NOT NULL, `runCount` INTEGER NOT NULL, `switchInCount` INTEGER NOT NULL, `weekDay` INTEGER NOT NULL, `loadSnapshotCognitive` REAL NOT NULL, `loadSnapshotPhysical` REAL NOT NULL, `loadSnapshotEmotional` REAL NOT NULL, PRIMARY KEY(`taskId`, `dayEpoch`))",
+        "fields": [
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayEpoch",
+            "columnName": "dayEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalSecs",
+            "columnName": "totalSecs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runCount",
+            "columnName": "runCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "switchInCount",
+            "columnName": "switchInCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weekDay",
+            "columnName": "weekDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadSnapshotCognitive",
+            "columnName": "loadSnapshotCognitive",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadSnapshotPhysical",
+            "columnName": "loadSnapshotPhysical",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loadSnapshotEmotional",
+            "columnName": "loadSnapshotEmotional",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "taskId",
+            "dayEpoch"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_run_daily_dayEpoch",
+            "unique": false,
+            "columnNames": [
+              "dayEpoch"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_run_daily_dayEpoch` ON `${TABLE_NAME}` (`dayEpoch`)"
+          },
+          {
+            "name": "index_run_daily_taskId",
+            "unique": false,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_run_daily_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "run_monthly",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`taskId` TEXT NOT NULL, `monthEpoch` INTEGER NOT NULL, `totalSecs` INTEGER NOT NULL, `runCount` INTEGER NOT NULL, PRIMARY KEY(`taskId`, `monthEpoch`))",
+        "fields": [
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "monthEpoch",
+            "columnName": "monthEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalSecs",
+            "columnName": "totalSecs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runCount",
+            "columnName": "runCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "taskId",
+            "monthEpoch"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_run_monthly_monthEpoch",
+            "unique": false,
+            "columnNames": [
+              "monthEpoch"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_run_monthly_monthEpoch` ON `${TABLE_NAME}` (`monthEpoch`)"
+          },
+          {
+            "name": "index_run_monthly_taskId",
+            "unique": false,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_run_monthly_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "interrupt_return",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`cellKey` TEXT NOT NULL, `tab` TEXT NOT NULL, `slot` TEXT NOT NULL, `taskId` TEXT NOT NULL, PRIMARY KEY(`cellKey`))",
+        "fields": [
+          {
+            "fieldPath": "cellKey",
+            "columnName": "cellKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tab",
+            "columnName": "tab",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slot",
+            "columnName": "slot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "cellKey"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "task_load_factor",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`taskId` TEXT NOT NULL, `cognitive` INTEGER NOT NULL, `physical` INTEGER NOT NULL, `emotional` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, PRIMARY KEY(`taskId`))",
+        "fields": [
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cognitive",
+            "columnName": "cognitive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physical",
+            "columnName": "physical",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "emotional",
+            "columnName": "emotional",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "taskId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fef5157619b082ad3a90a8a68626736c')"
+    ]
+  }
+}

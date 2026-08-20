@@ -43,7 +43,19 @@ data class RunDailySummary(
      * Day-of-week (1=Sun … 7=Sat).  Redundant with dayEpoch but avoids repeated
      * Calendar lookups in StatsActivity grouping queries.
      */
-    val weekDay: Int = 0
+    val weekDay: Int = 0,
+
+    /**
+     * EWMA snapshot from the last session that completed on this day.
+     * Written by [RunLogRepository.compactLogToDaily] when run_log entries are
+     * compacted into this row.  Serves as the reconstruction anchor for history
+     * beyond the 30-day run_log retention window.
+     *
+     * 0.0 for rows written before v4.13.0 — treated as zero-state anchor.
+     */
+    val loadSnapshotCognitive: Double = 0.0,
+    val loadSnapshotPhysical:  Double = 0.0,
+    val loadSnapshotEmotional: Double = 0.0,
 ) {
     companion object {
         const val MAX_ROWS  = 500_000L

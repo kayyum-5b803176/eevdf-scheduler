@@ -22,7 +22,7 @@ import com.eevdf.data.task.Task
         InterruptReturnEntry::class,
         TaskLoadFactor::class,          // ← new side table
     ],
-    version  = 25,                      // ← bumped from 24
+    version  = 26,                      // ← bumped from 25
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -416,6 +416,38 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 25 → 26 — EWMA snapshot columns for Option B history reconstruction.
+         *
+         * Adds three REAL columns to both [run_log] and [run_daily]:
+         *   loadSnapshotCognitive, loadSnapshotPhysical, loadSnapshotEmotional
+         *
+         * [run_log] snapshots are written at session end by [RunLogRepository.recordRun]
+         * and cover the recent 30-day detail window.
+         *
+         * [run_daily] snapshots are written during compaction by
+         * [RunLogRepository.compactLogToDaily] and carry the last session's EWMA
+         * state for each calendar day — enabling reconstruction beyond 30 days
+         * without replaying raw session data or needing current slider values.
+         *
+         * All columns default to 0.0.  Existing rows rebuild their snapshot history
+         * from the next recorded session onward; the reconstructor handles 0-valued
+         * anchors by treating them as zero-state (fully recovered), which is correct
+         * for history predating this schema version.
+         */
+        private val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // run_log: snapshot at each session end
+                db.execSQL("ALTER TABLE run_log ADD COLUMN loadSnapshotCognitive REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE run_log ADD COLUMN loadSnapshotPhysical  REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE run_log ADD COLUMN loadSnapshotEmotional REAL NOT NULL DEFAULT 0.0")
+                // run_daily: last-snapshot-of-day anchor for beyond-30-day reconstruction
+                db.execSQL("ALTER TABLE run_daily ADD COLUMN loadSnapshotCognitive REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE run_daily ADD COLUMN loadSnapshotPhysical  REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE run_daily ADD COLUMN loadSnapshotEmotional REAL NOT NULL DEFAULT 0.0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -430,6 +462,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
+                        MIGRATION_25_26,
                     )
                     .build()
                 INSTANCE = instance
