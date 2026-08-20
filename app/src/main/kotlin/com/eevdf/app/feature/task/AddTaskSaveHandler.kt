@@ -3,24 +3,21 @@ package com.eevdf.app.feature.task
 import android.view.View
 import android.widget.Toast
 import com.eevdf.data.task.Task
+import com.eevdf.data.task.TaskLoadFactor
 import com.eevdf.data.scheduler.EEVDFScheduler
 import com.eevdf.data.scheduler.RtScheduler
+import java.util.UUID
 
 /**
  * Save handler for [AddTaskActivity].
  *
- * Separated so validation rule changes (e.g. new required field, changed
- * constraint on quota vs period) or new fields added to the Task model don't
- * require touching the core activity file or any section setup file.
- *
- * [saveTask] reads form state from all section fields, validates, and either
- * returns early with an inline error or persists via the ViewModel and finishes.
- *
- * Depends on package-level helpers from sibling section files:
- *   • [parseDelayInput] / [formatDelaySecs]    — AddTaskTypeSection.kt
- *   • [parseQuotaInput] / [formatQuotaDuration] — AddTaskQuotaSection.kt
- *   • [schedulerClassValues]                   — AddTaskSchedulerSection.kt
- *   • [noticeResumeTypeValues]                 — AddTaskTypeSection.kt
+ * Changes from the previous version:
+ *   • Load factor is now computed from the three NASA-TLX sliders rather than
+ *     read from [etLoadFactor] (which has been removed).
+ *   • A [TaskLoadFactor] side table entry is persisted via [TaskViewModel.saveLoadFactor]
+ *     after the [Task] row is written.
+ *   • The task ID is pre-generated for new tasks so both writes reference the
+ *     same ID; existing tasks continue to use their stored ID.
  */
 
 internal fun AddTaskActivity.saveTask() {
@@ -32,8 +29,8 @@ internal fun AddTaskActivity.saveTask() {
     val h = etHours.text.toString().toLongOrNull() ?: 0L
     val m = etMinutes.text.toString().toLongOrNull() ?: 0L
     val s = etSeconds.text.toString().toLongOrNull() ?: 0L
-    val totalSeconds        = h * 3600 + m * 60 + s
-    val timeSliceInherited  = isTimeSliceInherited
+    val totalSeconds       = h * 3600 + m * 60 + s
+    val timeSliceInherited = isTimeSliceInherited
     if (totalSeconds <= 0) {
         Toast.makeText(this, "Please set a time slice > 0", Toast.LENGTH_SHORT).show()
         return
@@ -41,11 +38,31 @@ internal fun AddTaskActivity.saveTask() {
 
     val priority    = sliderPriority.value.toInt()
     val description = etDescription.text.toString().trim()
-    // Load factor: float, default 1.00 when blank/invalid; clamp to a sane range.
-    val loadFactor         = (etLoadFactor.text.toString().trim().toDoubleOrNull() ?: 1.00)
-        .coerceIn(0.0, 1000.0)
-    val loadFactorInherited = isLoadFactorInherited
-    val isGroup     = if (groupsEnabled) switchIsGroup.isChecked else false
+
+    // ── Load Factor — 3-slider human effort model (0–100) ─────────────────────
+    //
+    // Pre-generate the task ID here so the [TaskLoadFactor] side table entry
+    // can reference it before the Task row is inserted.  Existing tasks reuse
+    // their stored ID unchanged.
+    val taskId = existingTask?.id ?: UUID.randomUUID().toString()
+
+    val isLoadFactorEnabled = switchLoadFactorEnabled.isChecked
+    val lfCognitive         = sliderCognitive.value.toInt()
+    val lfPhysical          = sliderPhysical.value.toInt()
+    val lfEmotional         = sliderEmotional.value.toInt()
+
+    // When enabled: compute fresh from sliders.
+    // When disabled (inherited): carry the propagated value that is already stored
+    // in Task.loadFactor (for new tasks that have never had a parent, fall back to
+    // the midpoint 50.0 so the EWMA starts at a neutral position).
+    val loadFactor: Double = if (isLoadFactorEnabled)
+        TaskLoadFactor.compute(lfCognitive, lfPhysical, lfEmotional)
+    else
+        existingTask?.loadFactor ?: TaskLoadFactor.DEFAULT_LOAD
+
+    val loadFactorInherited = !isLoadFactorEnabled
+
+    val isGroup  = if (groupsEnabled) switchIsGroup.isChecked else false
     val parentId: String? = if (groupsEnabled) selectedParentId else null
 
     // ── Task type / notice ────────────────────────────────────────────────────
@@ -60,7 +77,6 @@ internal fun AddTaskActivity.saveTask() {
     else "MIDDLE"
 
     // ── Pinned share ──────────────────────────────────────────────────────────
-    // null if field empty (auto-float), else validated 0.01–99.99
     val pinnedShareRaw = etPinnedShare.text.toString().toDoubleOrNull()
     val pinnedShare: Double? = if (pinnedShareRaw != null) {
         val clamped = pinnedShareRaw.coerceIn(0.01, 99.99)
@@ -75,12 +91,9 @@ internal fun AddTaskActivity.saveTask() {
             tvPinnedShareWarning.visibility = View.VISIBLE
             return
         }
-        // Round to 2dp so DB and display are always consistent
         "%.2f".format(clamped).toDouble()
     } else null
 
-    // internalWeight is set only when pinnedShare is active; cleared otherwise so
-    // the task falls back to the slider-based integer priority for weight calculation.
     val internalWeight: Double? = if (pinnedShare != null) autoCalcWeight else null
 
     // ── Quota limit ───────────────────────────────────────────────────────────
@@ -153,22 +166,9 @@ internal fun AddTaskActivity.saveTask() {
         tvDlError.visibility = View.GONE
         dlRuntimeSeconds  = rawRuntime
         dlDeadlineSeconds = rawDeadline
-        // Period defaults to deadline when left empty (mirrors Linux SCHED_DEADLINE behaviour)
         dlPeriodSeconds   = if (rawPeriod > 0L) rawPeriod else rawDeadline
     }
 
-    // ── DL period start epoch (RT Sync) ───────────────────────────────────────
-    // pendingDlPeriodStartEpoch is 0L when the user never tapped RT Sync.
-    // For new tasks 0L is the right default — TaskRepository opens the first
-    // period on first run.  For edits, populateSchedulerSection restored the
-    // existing value into pendingDlPeriodStartEpoch, so if the user did not
-    // tap RT Sync again the original period clock is carried through unchanged.
-    //
-    // dlRuntimeUsedSeconds: whenever RT Sync stamps a NEW epoch, the old runtime
-    // counter must be zeroed — otherwise the scheduler sees "budget exhausted"
-    // against the fresh period start and withholds DL priority until a full
-    // period elapses.  If RT Sync was not used (epoch == 0L) the existing
-    // counter is preserved so normal in-period accounting is not disturbed.
     val dlPeriodStartEpoch    = pendingDlPeriodStartEpoch
     val dlRuntimeUsedReset    = dlPeriodStartEpoch != 0L
 
@@ -214,11 +214,10 @@ internal fun AddTaskActivity.saveTask() {
         tvRtError.visibility = View.GONE
         rtSliceTimeoutSeconds = rawTimeout
 
-        // Clear RR state whenever RT config changes so stale index is not reused
         RtScheduler.clearRrState(prefs)
     }
 
-    // ── Assemble and persist ──────────────────────────────────────────────────
+    // ── Assemble and persist — Task ───────────────────────────────────────────
     if (existingTask != null) {
         val updated = existingTask!!.copy(
             name                = name,
@@ -229,32 +228,31 @@ internal fun AddTaskActivity.saveTask() {
             timeSliceSeconds    = totalSeconds,
             timeSliceInherited  = timeSliceInherited,
             category            = selectedCategory,
-            isGroup          = isGroup,
-            parentId         = parentId,
-            taskType         = selectedTaskType,
+            isGroup             = isGroup,
+            parentId            = parentId,
+            taskType            = selectedTaskType,
             notificationDelaySeconds = notifDelaySecs,
             notificationRestSeconds  = notifRestSecs,
             notificationRepeatCount  = notifRepeat,
             notificationResumeType   = notifResumeType,
-            pinnedShare      = pinnedShare,
-            internalWeight   = internalWeight,
-            quotaSeconds       = quotaSeconds,
-            quotaPeriodSeconds = quotaPeriodSeconds,
-            schedulerClass     = schedulerClass,
-            dlRuntimeSeconds   = dlRuntimeSeconds,
-            dlDeadlineSeconds  = dlDeadlineSeconds,
-            dlPeriodSeconds    = dlPeriodSeconds,
-            dlPeriodStartEpoch    = dlPeriodStartEpoch,
-            dlRuntimeUsedSeconds  = if (dlRuntimeUsedReset) 0L else existingTask!!.dlRuntimeUsedSeconds,
-            rtPriority            = rtPriority,
-            rtPolicy              = rtPolicy,
-            rtActiveDays          = rtActiveDays,
-            rtActivationHour      = rtActivationHour,
-            rtActivationMinute    = rtActivationMinute,
-            rtActivationSecond    = rtActivationSecond,
-            rtSliceTimeoutSeconds = rtSliceTimeoutSeconds
+            pinnedShare         = pinnedShare,
+            internalWeight      = internalWeight,
+            quotaSeconds        = quotaSeconds,
+            quotaPeriodSeconds  = quotaPeriodSeconds,
+            schedulerClass      = schedulerClass,
+            dlRuntimeSeconds    = dlRuntimeSeconds,
+            dlDeadlineSeconds   = dlDeadlineSeconds,
+            dlPeriodSeconds     = dlPeriodSeconds,
+            dlPeriodStartEpoch  = dlPeriodStartEpoch,
+            dlRuntimeUsedSeconds = if (dlRuntimeUsedReset) 0L else existingTask!!.dlRuntimeUsedSeconds,
+            rtPriority          = rtPriority,
+            rtPolicy            = rtPolicy,
+            rtActiveDays        = rtActiveDays,
+            rtActivationHour    = rtActivationHour,
+            rtActivationMinute  = rtActivationMinute,
+            rtActivationSecond  = rtActivationSecond,
+            rtSliceTimeoutSeconds = rtSliceTimeoutSeconds,
         )
-        // Handle interrupt assignment
         when {
             switchIsInterrupt.isChecked  -> viewModel.assignInterruptTask(updated)
             switchIsInterruptB.isChecked -> viewModel.assignInterruptTaskB(updated)
@@ -264,6 +262,7 @@ internal fun AddTaskActivity.saveTask() {
         viewModel.updateTask(updated)
     } else {
         val task = Task(
+            id                  = taskId,              // pre-generated above
             name                = name,
             description         = description,
             priority            = priority,
@@ -275,29 +274,27 @@ internal fun AddTaskActivity.saveTask() {
             category            = selectedCategory,
             isGroup             = isGroup,
             parentId            = parentId,
-            taskType         = selectedTaskType,
+            taskType            = selectedTaskType,
             notificationDelaySeconds = notifDelaySecs,
             notificationRestSeconds  = notifRestSecs,
             notificationRepeatCount  = notifRepeat,
             notificationResumeType   = notifResumeType,
-            pinnedShare      = pinnedShare,
-            internalWeight   = internalWeight,
-            quotaSeconds       = quotaSeconds,
-            quotaPeriodSeconds = quotaPeriodSeconds,
-            schedulerClass     = schedulerClass,
-            dlRuntimeSeconds   = dlRuntimeSeconds,
-            dlDeadlineSeconds  = dlDeadlineSeconds,
-            dlPeriodSeconds    = dlPeriodSeconds,
-            dlPeriodStartEpoch    = dlPeriodStartEpoch,
-            // dlRuntimeUsedSeconds: new tasks always start with 0 (Task default),
-            // no explicit reset needed — included here for clarity.
-            rtPriority            = rtPriority,
-            rtPolicy              = rtPolicy,
-            rtActiveDays          = rtActiveDays,
-            rtActivationHour      = rtActivationHour,
-            rtActivationMinute    = rtActivationMinute,
-            rtActivationSecond    = rtActivationSecond,
-            rtSliceTimeoutSeconds = rtSliceTimeoutSeconds
+            pinnedShare         = pinnedShare,
+            internalWeight      = internalWeight,
+            quotaSeconds        = quotaSeconds,
+            quotaPeriodSeconds  = quotaPeriodSeconds,
+            schedulerClass      = schedulerClass,
+            dlRuntimeSeconds    = dlRuntimeSeconds,
+            dlDeadlineSeconds   = dlDeadlineSeconds,
+            dlPeriodSeconds     = dlPeriodSeconds,
+            dlPeriodStartEpoch  = dlPeriodStartEpoch,
+            rtPriority          = rtPriority,
+            rtPolicy            = rtPolicy,
+            rtActiveDays        = rtActiveDays,
+            rtActivationHour    = rtActivationHour,
+            rtActivationMinute  = rtActivationMinute,
+            rtActivationSecond  = rtActivationSecond,
+            rtSliceTimeoutSeconds = rtSliceTimeoutSeconds,
         )
         viewModel.addTask(task)
         when {
@@ -305,5 +302,23 @@ internal fun AddTaskActivity.saveTask() {
             switchIsInterruptB.isChecked -> viewModel.assignInterruptTaskB(task)
         }
     }
+
+    // ── Persist load factor side table ────────────────────────────────────────
+    //
+    // The entry is always written (REPLACE semantics in the DAO) so that:
+    //   • When enabled = true  → slider values + computed load factor are stored.
+    //   • When enabled = false → inherited slider snapshot is stored, giving the
+    //     edit form a pre-filled starting point if the user later enables the toggle.
+    //     The actual load factor double is propagated by the repository instead.
+    viewModel.saveLoadFactor(
+        TaskLoadFactor(
+            taskId    = taskId,
+            cognitive = lfCognitive,
+            physical  = lfPhysical,
+            emotional = lfEmotional,
+            enabled   = isLoadFactorEnabled,
+        )
+    )
+
     finish()
 }

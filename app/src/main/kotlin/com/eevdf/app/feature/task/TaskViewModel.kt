@@ -7,6 +7,7 @@ import androidx.lifecycle.*
 import com.eevdf.data.task.TaskDatabase
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.data.task.Task
+import com.eevdf.data.task.TaskLoadFactor
 import com.eevdf.app.di.AppPreferences
 import com.eevdf.app.feature.task.notice.NoticePhase
 import com.eevdf.data.runlog.RunSession
@@ -425,6 +426,23 @@ class TaskViewModel @Inject constructor(
 
     /** Direct DB lookup used by AddTaskActivity to reliably load a task for editing. */
     suspend fun getTaskById(id: String): Task? = repository.getTaskById(id)
+
+    /**
+     * Fetches the [TaskLoadFactor] side table entry for [taskId].
+     * Returns null when the task has never had its load factor configured
+     * (form treats missing row as disabled / midpoint defaults 4,4,4 → 50).
+     */
+    suspend fun getLoadFactor(taskId: String): TaskLoadFactor? =
+        repository.getLoadFactor(taskId)
+
+    /**
+     * Persists a [TaskLoadFactor] side table entry (insert or replace).
+     * Called from [AddTaskSaveHandler] after the Task row has been written
+     * so the side table always references a valid taskId.
+     */
+    fun saveLoadFactor(entry: TaskLoadFactor) = viewModelScope.launch {
+        repository.saveLoadFactor(entry)
+    }
 
     // =========================================================================
     // Timer lifecycle

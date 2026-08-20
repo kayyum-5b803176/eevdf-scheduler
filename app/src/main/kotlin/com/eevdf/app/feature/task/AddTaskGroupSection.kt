@@ -7,19 +7,13 @@ import com.eevdf.app.core.prefs.RecentGroupPrefs
 /**
  * Parent group picker section for [AddTaskActivity].
  *
- * Replaces the old plain [android.widget.Spinner] with [GroupPickerDialog],
- * which provides:
- *   • Pattern-match search (contains, case-insensitive — same as category field)
- *   • "Recent" section showing the last [RecentGroupPrefs.MAX] selected groups
- *   • "All Groups" full sorted list
- *
- * Selected state is held in [AddTaskActivity.selectedParentId] (null = root).
- * [AddTaskSaveHandler] reads that field directly instead of calling
- * spinnerParent.selectedItemPosition.
- *
- * Domain:
- *   • [AddTaskActivity.setupGroupSection]    — observes activeGroups, wires picker
- *   • [AddTaskActivity.populateGroupSection] — restores selection from existing task
+ * Changes from the previous version:
+ *   • [applyParentLoadFactor] now accepts a [Task] instead of a raw Double so
+ *     the load factor section can async-fetch the parent's [TaskLoadFactor] side
+ *     table entry and mirror the full slider state, not just the computed value.
+ *   • Parent-deselect resets load factor via [resetLoadFactorToDefault] instead
+ *     of writing to the now-removed [etLoadFactor] field.
+ *   • [suppressLoadFactorWatcher] and [etLoadFactor] references removed throughout.
  */
 
 internal fun AddTaskActivity.setupGroupSection() {
@@ -31,59 +25,48 @@ internal fun AddTaskActivity.setupGroupSection() {
     groupSection.visibility     = View.VISIBLE
     groupTypeSection.visibility = View.VISIBLE
 
-    // Observe available groups and rebuild the list shown in the picker dialog.
     viewModel.activeGroups.observe(this) { groups ->
         groupsList.clear()
-        groupsList.add(null)  // index 0 = no parent (kept for save-handler compat)
+        groupsList.add(null)
 
         val filteredSorted = groups
             .filter { it.id != existingTaskId }
             .sortedWith(TaskSortHelper.taskNameComparator)
         groupsList.addAll(filteredSorted)
 
-        // If a parent was already restored (selectedParentId set by
-        // populateGroupSection) but the label couldn't be resolved yet because
-        // groupsList was still empty at that point, resolve it now.
         selectedParentId?.let { pid ->
             val match = filteredSorted.firstOrNull { it.id == pid }
             if (match != null) actvParentGroup.setText(match.name, false)
         }
     }
 
-    // Tapping the picker button opens GroupPickerDialog as a sheet-style dialog.
     actvParentGroup.setOnClickListener {
         val dialog = GroupPickerDialog().apply {
-            allGroups     = groupsList.filterNotNull()
+            allGroups      = groupsList.filterNotNull()
             currentGroupId = selectedParentId
             onGroupSelected = { chosen ->
                 selectedParentId = chosen?.id
                 actvParentGroup.setText(chosen?.name ?: "None (root level)", false)
 
                 when {
-                    // Parent picked while fields are already in auto mode → sync to new parent
+                    // Parent picked while already in auto mode → sync to new parent
                     chosen != null && (isLoadFactorInherited || isTimeSliceInherited) -> {
-                        if (isLoadFactorInherited) applyParentLoadFactor(chosen.loadFactor)
+                        if (isLoadFactorInherited) applyParentLoadFactor(chosen)   // ← Task, not Double
                         if (isTimeSliceInherited)  applyParentTimeSlice(chosen.timeSliceSeconds)
                     }
 
-                    // Parent deselected while in auto mode → clear auto flags, keep current values
+                    // Parent deselected while in auto mode → reset to defaults
                     chosen == null && (isLoadFactorInherited || isTimeSliceInherited) -> {
-                        if (isLoadFactorInherited) {
-                            isLoadFactorInherited = false
-                            suppressLoadFactorWatcher = true
-                            etLoadFactor.setText("1.00")
-                            suppressLoadFactorWatcher = false
-                            tvLoadFactorAutoLabel.visibility = android.view.View.GONE
-                        }
+                        if (isLoadFactorInherited) resetLoadFactorToDefault()      // ← new helper
                         if (isTimeSliceInherited) {
                             isTimeSliceInherited = false
-                            tvTimeSliceAutoLabel.visibility = android.view.View.GONE
+                            tvTimeSliceAutoLabel.visibility = View.GONE
                         }
                     }
 
-                    // New task picking a parent for the first time → inherit both automatically
+                    // New task picking a parent for the first time → inherit both
                     chosen != null && existingTaskId == null -> {
-                        applyParentLoadFactor(chosen.loadFactor)
+                        applyParentLoadFactor(chosen)                              // ← Task, not Double
                         applyParentTimeSlice(chosen.timeSliceSeconds)
                     }
                 }
@@ -93,15 +76,6 @@ internal fun AddTaskActivity.setupGroupSection() {
     }
 }
 
-/**
- * Restores the isGroup switch and parent selection from [task].
- *
- * Called from [AddTaskActivity.populateFields] after [task] has been loaded
- * asynchronously. Sets [AddTaskActivity.selectedParentId] directly so the
- * picker reflects the correct selection regardless of whether the
- * activeGroups LiveData observer (registered earlier in setupGroupSection)
- * has already fired by this point.
- */
 internal fun AddTaskActivity.populateGroupSection(task: Task) {
     if (groupsEnabled) {
         switchIsGroup.isChecked = task.isGroup
@@ -109,9 +83,6 @@ internal fun AddTaskActivity.populateGroupSection(task: Task) {
     val pid = task.parentId
     if (pid != null) {
         selectedParentId = pid
-        // Prefer the name from groupsList if already populated (gives the
-        // correct display name immediately); fall back to a lookup once the
-        // activeGroups observer fires and rebuilds groupsList.
         val match = groupsList.filterNotNull().firstOrNull { it.id == pid }
         actvParentGroup.setText(match?.name ?: actvParentGroup.text.toString(), false)
     }

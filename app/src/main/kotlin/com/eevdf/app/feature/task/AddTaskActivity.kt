@@ -46,13 +46,19 @@ class AddTaskActivity : AppCompatActivity() {
     // ── Basic task fields ─────────────────────────────────────────────────────
     internal lateinit var etName:           TextInputEditText
     internal lateinit var etDescription:    TextInputEditText
-    internal lateinit var etLoadFactor:      TextInputEditText
-    internal lateinit var tvLoadFactorTitle: TextView
-    internal lateinit var tvLoadFactorAutoLabel: TextView
-    /** true = field value is auto-inherited from parent; false = manually set. */
+    internal lateinit var tvLoadFactorTitle:       TextView
+    internal lateinit var tvLoadFactorAutoLabel:   TextView
+    internal lateinit var switchLoadFactorEnabled: com.google.android.material.switchmaterial.SwitchMaterial
+    internal lateinit var layoutLoadFactorSliders: LinearLayout
+    internal lateinit var sliderCognitive:         Slider
+    internal lateinit var sliderPhysical:          Slider
+    internal lateinit var sliderEmotional:         Slider
+    internal lateinit var tvCognitiveValue:        TextView
+    internal lateinit var tvPhysicalValue:         TextView
+    internal lateinit var tvEmotionalValue:        TextView
+    internal lateinit var tvLoadFactorCombined:    TextView
+    /** true = load factor is auto-inherited from parent; false = manually configured. */
     internal var isLoadFactorInherited: Boolean = false
-    /** Blocks the TextWatcher from clearing [isLoadFactorInherited] during programmatic setText calls. */
-    internal var suppressLoadFactorWatcher: Boolean = false
     internal lateinit var sliderPriority:   Slider
     internal lateinit var tvPriorityLabel:  TextView
     internal lateinit var etHours:               TextInputEditText
@@ -179,7 +185,7 @@ class AddTaskActivity : AppCompatActivity() {
         existingTaskId = intent.getStringExtra("task_id")
 
         setupViews()
-        setupLoadFactorField()
+        setupLoadFactorSection()
         setupTimeSliceField()
         setupCategoryInput()
         setupPrioritySlider()
@@ -209,9 +215,17 @@ class AddTaskActivity : AppCompatActivity() {
     private fun setupViews() {
         etName            = findViewById(R.id.etTaskName)
         etDescription     = findViewById(R.id.etDescription)
-        etLoadFactor         = findViewById(R.id.etLoadFactor)
-        tvLoadFactorTitle    = findViewById(R.id.tvLoadFactorTitle)
-        tvLoadFactorAutoLabel = findViewById(R.id.tvLoadFactorAutoLabel)
+        tvLoadFactorTitle       = findViewById(R.id.tvLoadFactorTitle)
+        tvLoadFactorAutoLabel   = findViewById(R.id.tvLoadFactorAutoLabel)
+        switchLoadFactorEnabled = findViewById(R.id.switchLoadFactorEnabled)
+        layoutLoadFactorSliders = findViewById(R.id.layoutLoadFactorSliders)
+        sliderCognitive         = findViewById(R.id.sliderCognitive)
+        sliderPhysical          = findViewById(R.id.sliderPhysical)
+        sliderEmotional         = findViewById(R.id.sliderEmotional)
+        tvCognitiveValue        = findViewById(R.id.tvCognitiveValue)
+        tvPhysicalValue         = findViewById(R.id.tvPhysicalValue)
+        tvEmotionalValue        = findViewById(R.id.tvEmotionalValue)
+        tvLoadFactorCombined    = findViewById(R.id.tvLoadFactorCombined)
         sliderPriority    = findViewById(R.id.sliderPriority)
         tvPriorityLabel   = findViewById(R.id.tvPriorityLabel)
         etHours              = findViewById(R.id.etHours)
@@ -327,7 +341,7 @@ class AddTaskActivity : AppCompatActivity() {
     private fun populateBasicFields(task: Task) {
         etName.setText(task.name)
         etDescription.setText(task.description)
-        populateLoadFactorSection(task)
+        populateLoadFactorSection(task)   // async-fetches TaskLoadFactor side table internally
         sliderPriority.value = task.priority.coerceIn(1, 7).toFloat()
         populateTimeSliceSection(task)
     }

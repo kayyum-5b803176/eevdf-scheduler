@@ -1,5 +1,6 @@
 package com.eevdf.data.task
 import com.eevdf.data.runlog.RunLogRepository
+import com.eevdf.data.task.TaskLoadFactor
 
 import androidx.lifecycle.LiveData
 import com.eevdf.data.runlog.RunSession
@@ -16,6 +17,7 @@ class TaskRepository @Inject constructor(
     private val dao: TaskDao,
     private val runLog: RunLogRepository,
     private val interruptReturnDao: InterruptReturnDao,
+    private val loadFactorDao: TaskLoadFactorDao,       // ← new
 ) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
@@ -30,6 +32,21 @@ class TaskRepository @Inject constructor(
      * Add / Edit screen always reflect the full set the user has ever typed.
      */
     val distinctCategories: LiveData<List<String>> = dao.getDistinctCategories()
+
+    // ── Load factor side table ────────────────────────────────────────────────
+
+    /** Returns the [TaskLoadFactor] entry for [taskId], or null if not yet configured. */
+    suspend fun getLoadFactor(taskId: String): TaskLoadFactor? = withContext(Dispatchers.IO) {
+        loadFactorDao.get(taskId)
+    }
+
+    /**
+     * Persists a [TaskLoadFactor] entry (insert or replace).
+     * Called from [AddTaskSaveHandler] after the [Task] row is written.
+     */
+    suspend fun saveLoadFactor(entry: TaskLoadFactor) = withContext(Dispatchers.IO) {
+        loadFactorDao.upsert(entry)
+    }
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
         val existing = dao.getActiveTasksSync().toMutableList()
@@ -88,11 +105,25 @@ class TaskRepository @Inject constructor(
      * own load factor (loadFactorInherited == false), preserving that child's
      * explicit choice while still propagating to its siblings.
      */
+    /**
+     * Walks the task tree rooted at [parentId] updating every inheriting descendant.
+     * Also copies the parent's [TaskLoadFactor] slider values into the child's side
+     * table row (enabled = false) so the edit form can pre-fill sliders with the
+     * inherited state if the user later enables the toggle manually.
+     */
     private suspend fun propagateInheritedLoadFactor(parentId: String, loadFactor: Double) {
-        val children = dao.getChildrenOf(parentId)
+        val parentEntry = loadFactorDao.get(parentId)
+        val children    = dao.getChildrenOf(parentId)
         for (child in children) {
             if (child.loadFactorInherited) {
                 dao.update(child.copy(loadFactor = loadFactor))
+                loadFactorDao.upsert(TaskLoadFactor(
+                    taskId    = child.id,
+                    cognitive = parentEntry?.cognitive ?: TaskLoadFactor.DEFAULT_COGNITIVE,
+                    physical  = parentEntry?.physical  ?: TaskLoadFactor.DEFAULT_PHYSICAL,
+                    emotional = parentEntry?.emotional ?: TaskLoadFactor.DEFAULT_EMOTIONAL,
+                    enabled   = false,
+                ))
                 propagateInheritedLoadFactor(child.id, loadFactor)
             }
         }
@@ -109,6 +140,8 @@ class TaskRepository @Inject constructor(
         dao.delete(task)
         // Drop any per-tab/slot return-to that pointed at this task.
         interruptReturnDao.clearByTask(task.id)
+        // Drop the load factor side table row.
+        loadFactorDao.clearByTask(task.id)
     }
 
     private suspend fun deleteDescendants(parentId: String) {
@@ -117,6 +150,7 @@ class TaskRepository @Inject constructor(
             if (child.isGroup) deleteDescendants(child.id)
             dao.delete(child)
             interruptReturnDao.clearByTask(child.id)
+            loadFactorDao.clearByTask(child.id)
         }
     }
 

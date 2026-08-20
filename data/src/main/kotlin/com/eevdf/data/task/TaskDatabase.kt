@@ -14,8 +14,15 @@ import com.eevdf.data.runlog.RunMonthlySummary
 import com.eevdf.data.task.Task
 
 @Database(
-    entities = [Task::class, RunLogEntry::class, RunDailySummary::class, RunMonthlySummary::class, InterruptReturnEntry::class],
-    version  = 23,
+    entities = [
+        Task::class,
+        RunLogEntry::class,
+        RunDailySummary::class,
+        RunMonthlySummary::class,
+        InterruptReturnEntry::class,
+        TaskLoadFactor::class,          // ← new side table
+    ],
+    version  = 24,                      // ← bumped from 23
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -23,6 +30,7 @@ abstract class TaskDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun runLogDao(): RunLogDao
     abstract fun interruptReturnDao(): InterruptReturnDao
+    abstract fun taskLoadFactorDao(): TaskLoadFactorDao   // ← new
 
     companion object {
         @Volatile
@@ -49,8 +57,6 @@ abstract class TaskDatabase : RoomDatabase() {
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN timerDeadlineEpoch INTEGER NOT NULL DEFAULT 0")
-                // Clear any stale isRunning flags left by a previous crash so the
-                // resume logic only fires for tasks that genuinely had an active deadline.
                 db.execSQL("UPDATE tasks SET isRunning = 0 WHERE timerDeadlineEpoch = 0")
             }
         }
@@ -74,7 +80,6 @@ abstract class TaskDatabase : RoomDatabase() {
         /** version 6 → 7: pinned CPU share per task (null = auto-float) */
         private val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // NULL default = auto-float (not pinned)
                 db.execSQL("ALTER TABLE tasks ADD COLUMN pinnedShare INTEGER")
             }
         }
@@ -82,60 +87,21 @@ abstract class TaskDatabase : RoomDatabase() {
         /** version 7 → 8: auto-calculated internal weight derived from pinnedShare (null = use priority) */
         private val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // REAL = SQLite float; NULL = fall back to priority-based weight
                 db.execSQL("ALTER TABLE tasks ADD COLUMN internalWeight REAL")
             }
         }
 
-        /**
-         * version 8 → 9 — replace timerDeadlineEpoch with the two-field epoch model.
-         *
-         * New model:
-         *   accumulatedMs  = total ms consumed across all sessions before the current one
-         *   startTimeEpoch = System.currentTimeMillis() when Start was last pressed (0 = paused)
-         *   liveElapsedMs  = accumulatedMs + (now − startTimeEpoch)   // while Running
-         *   remainingMs    = timeSliceSeconds * 1000 − liveElapsedMs
-         *
-         * Back-fill maths for existing rows:
-         *
-         *   Paused (timerDeadlineEpoch = 0, isRunning = 0):
-         *     accumulatedMs  = (timeSliceSeconds − remainingSeconds) * 1000
-         *     startTimeEpoch = 0
-         *
-         *   Running (timerDeadlineEpoch > 0, isRunning = 1, deadline still in future):
-         *     accumulatedMs  = (timeSliceSeconds − remainingSeconds) * 1000
-         *     startTimeEpoch = timerDeadlineEpoch − remainingSeconds * 1000
-         *
-         *   Running but deadline already passed (deadline ≤ now):
-         *     Treat as expired → remainingSeconds=0, accumulatedMs=sliceMs, isRunning=0
-         *
-         * Note: SQLite cannot DROP columns, so timerDeadlineEpoch remains in the schema
-         * as a permanently ignored legacy column. It will be 0 for all new rows.
-         */
         private val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Add the two new columns
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN accumulatedMs  INTEGER NOT NULL DEFAULT 0"
-                )
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN startTimeEpoch INTEGER NOT NULL DEFAULT 0"
-                )
-
-                // 2. Back-fill accumulatedMs for every row
-                db.execSQL(
-                    "UPDATE tasks SET accumulatedMs = (timeSliceSeconds - remainingSeconds) * 1000"
-                )
-
-                // 3. Back-fill startTimeEpoch for tasks whose deadline is still in the future
+                db.execSQL("ALTER TABLE tasks ADD COLUMN accumulatedMs  INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN startTimeEpoch INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE tasks SET accumulatedMs = (timeSliceSeconds - remainingSeconds) * 1000")
                 db.execSQL("""
                     UPDATE tasks
                        SET startTimeEpoch = timerDeadlineEpoch - remainingSeconds * 1000
                      WHERE isRunning = 1
                        AND timerDeadlineEpoch > (strftime('%s','now') * 1000)
                 """.trimIndent())
-
-                // 4. Tasks running but deadline already passed → expire them cleanly
                 db.execSQL("""
                     UPDATE tasks
                        SET isRunning        = 0,
@@ -147,14 +113,6 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * version 9 → 10 — CPU bandwidth quota (mirrors Linux cgroup cpu.cfs_quota_us).
-         *
-         *   quotaSeconds       — max runtime per period; 0 = unlimited.
-         *   quotaPeriodSeconds — rolling window length; default 86400 (1 day).
-         *   quotaPeriodStartEpoch — epoch ms when current accounting period started; 0 = not started.
-         *   quotaUsedSeconds   — seconds consumed in the current period.
-         */
         private val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds         INTEGER NOT NULL DEFAULT 0")
@@ -164,14 +122,6 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * version 10 → 11 — schema repair / idempotent quota columns.
-         *
-         * A previous debug build may have stamped version 10 onto a database that
-         * is missing some or all of the four quota columns (hash mismatch crash).
-         * This migration adds each column only when it is absent by inspecting
-         * PRAGMA table_info — SQLite has no "ALTER TABLE … ADD COLUMN IF NOT EXISTS".
-         */
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 val existing = mutableSetOf<String>()
@@ -180,7 +130,6 @@ abstract class TaskDatabase : RoomDatabase() {
                     val nameIdx = it.getColumnIndex("name")
                     while (it.moveToNext()) existing.add(it.getString(nameIdx))
                 }
-
                 if ("quotaSeconds" !in existing)
                     db.execSQL("ALTER TABLE tasks ADD COLUMN quotaSeconds          INTEGER NOT NULL DEFAULT 0")
                 if ("quotaPeriodSeconds" !in existing)
@@ -192,14 +141,6 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * version 11 → 12 — RunLog tiered analytics tables.
-         *
-         * Three tables implement a compacting log that stays under 256 MB forever:
-         *   run_log       — per-run detail, 30-day TTL, 100K row hard cap.
-         *   run_daily     — daily aggregates, 365-day TTL, 500K row cap.
-         *   run_monthly   — monthly aggregates, kept forever (~18 MB worst-case).
-         */
         private val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -215,7 +156,6 @@ abstract class TaskDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_taskId     ON run_log(taskId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_startEpoch ON run_log(startEpoch)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_log_prevTaskId ON run_log(prevTaskId)")
-
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS run_daily (
                         taskId       TEXT    NOT NULL,
@@ -229,7 +169,6 @@ abstract class TaskDatabase : RoomDatabase() {
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_daily_dayEpoch ON run_daily(dayEpoch)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_run_daily_taskId   ON run_daily(taskId)")
-
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS run_monthly (
                         taskId      TEXT    NOT NULL,
@@ -244,22 +183,11 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * version 12 → 13 — fix run_log / run_daily / run_monthly schema.
-         *
-         * v12 migration used wrong index names (idx_* instead of index_*) and
-         * added DEFAULT 0 to weekDay/switchInCount which Room does not expect.
-         * Dropping and recreating is safe: analytics tables are at most 30 days
-         * old and will be repopulated from normal usage.
-         */
         private val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Drop old tables (wrong schema from v12)
                 db.execSQL("DROP TABLE IF EXISTS run_log")
                 db.execSQL("DROP TABLE IF EXISTS run_daily")
                 db.execSQL("DROP TABLE IF EXISTS run_monthly")
-
-                // run_log — no DEFAULT on weekDay (matches entity defaultValue='undefined')
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `run_log` (
                         `id`           INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -273,8 +201,6 @@ abstract class TaskDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_taskId`     ON `run_log`(`taskId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_startEpoch` ON `run_log`(`startEpoch`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_log_prevTaskId` ON `run_log`(`prevTaskId`)")
-
-                // run_daily — no DEFAULT on weekDay or switchInCount
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `run_daily` (
                         `taskId`        TEXT    NOT NULL,
@@ -288,8 +214,6 @@ abstract class TaskDatabase : RoomDatabase() {
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_daily_dayEpoch` ON `run_daily`(`dayEpoch`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_run_daily_taskId`   ON `run_daily`(`taskId`)")
-
-                // run_monthly
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `run_monthly` (
                         `taskId`     TEXT    NOT NULL,
@@ -304,33 +228,14 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * version 13 → 14 — INT-A / INT-B dual interrupt slots.
-         * Adds interruptSlot column to tasks; existing interrupt task defaults to "A".
-         */
         private val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN interruptSlot TEXT NOT NULL DEFAULT 'A'"
-                )
+                db.execSQL("ALTER TABLE tasks ADD COLUMN interruptSlot TEXT NOT NULL DEFAULT 'A'")
             }
         }
 
-        /**
-         * version 14 → 15 — pinnedShare promoted from INTEGER to REAL so the UI
-         * can accept fractional values (e.g. 33.33%).
-         *
-         * SQLite cannot change column affinity in-place, so we recreate the table:
-         *   1. Create tasks_new with pinnedShare REAL.
-         *   2. Copy all rows — CAST(pinnedShare AS REAL) converts existing integers.
-         *   3. Drop tasks, rename tasks_new → tasks.
-         *   4. Recreate indices that existed on tasks.
-         *
-         * No data is lost: integer 25 → 25.0.
-         */
         private val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Create new table with pinnedShare REAL (correct column names from Task entity)
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS tasks_new (
                         id TEXT NOT NULL PRIMARY KEY,
@@ -369,7 +274,6 @@ abstract class TaskDatabase : RoomDatabase() {
                         createdAt INTEGER NOT NULL DEFAULT 0
                     )
                 """.trimIndent())
-                // 2. Copy all rows; CAST converts existing integer pinnedShare to REAL
                 db.execSQL("""
                     INSERT INTO tasks_new SELECT
                         id, name, description, timeSliceSeconds, remainingSeconds,
@@ -383,68 +287,27 @@ abstract class TaskDatabase : RoomDatabase() {
                         isInterrupt, interruptSlot, category, createdAt
                     FROM tasks
                 """.trimIndent())
-                // 3. Swap tables
                 db.execSQL("DROP TABLE tasks")
                 db.execSQL("ALTER TABLE tasks_new RENAME TO tasks")
             }
         }
 
-        /**
-         * version 15 → 16 — Scheduler class override + SCHED_DEADLINE parameters.
-         *
-         * New columns:
-         *   schedulerClass    TEXT    "fair_sched_class"  — which Linux sched class to use
-         *   dlRuntimeSeconds  INTEGER 0                   — SCHED_DEADLINE sched_runtime
-         *   dlDeadlineSeconds INTEGER 0                   — SCHED_DEADLINE sched_deadline
-         *   dlPeriodSeconds   INTEGER 0                   — SCHED_DEADLINE sched_period (0 = same as deadline)
-         */
         private val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN schedulerClass TEXT NOT NULL DEFAULT 'fair_sched_class'"
-                )
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN dlRuntimeSeconds INTEGER NOT NULL DEFAULT 0"
-                )
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN dlDeadlineSeconds INTEGER NOT NULL DEFAULT 0"
-                )
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN dlPeriodSeconds INTEGER NOT NULL DEFAULT 0"
-                )
+                db.execSQL("ALTER TABLE tasks ADD COLUMN schedulerClass TEXT NOT NULL DEFAULT 'fair_sched_class'")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN dlRuntimeSeconds INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN dlDeadlineSeconds INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN dlPeriodSeconds INTEGER NOT NULL DEFAULT 0")
             }
         }
 
-        /**
-         * version 16 → 17 — SCHED_DEADLINE period accounting.
-         *
-         * New columns:
-         *   dlPeriodStartEpoch   INTEGER 0  — epoch ms when current DL period opened (0 = not started)
-         *   dlRuntimeUsedSeconds INTEGER 0  — runtime consumed in the current DL period
-         */
         private val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN dlPeriodStartEpoch INTEGER NOT NULL DEFAULT 0"
-                )
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN dlRuntimeUsedSeconds INTEGER NOT NULL DEFAULT 0"
-                )
+                db.execSQL("ALTER TABLE tasks ADD COLUMN dlPeriodStartEpoch INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN dlRuntimeUsedSeconds INTEGER NOT NULL DEFAULT 0")
             }
         }
 
-        /**
-         * version 17 → 18 — SCHED_FIFO / SCHED_RR realtime window scheduling.
-         *
-         * New columns:
-         *   rtPriority            INTEGER  50   — 1–99 Linux sched_priority
-         *   rtPolicy              TEXT    "RR"  — "FIFO" or "RR"
-         *   rtActiveDays          INTEGER   0   — day-of-week bitmask (bit 0=Sun … bit 6=Sat)
-         *   rtActivationHour      INTEGER   0   — wall-clock hour  (0–23)
-         *   rtActivationMinute    INTEGER   0   — wall-clock minute (0–59)
-         *   rtActivationSecond    INTEGER   0   — wall-clock second (0–59)
-         *   rtSliceTimeoutSeconds INTEGER   0   — window duration in seconds (0 = not configured)
-         */
         private val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN rtPriority INTEGER NOT NULL DEFAULT 50")
@@ -457,44 +320,18 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * version 18 → 19 — NOTIFICATION execute resume type.
-         *
-         * New column:
-         *   notificationResumeType  TEXT  "MIDDLE"
-         *     "MIDDLE"  = resume from last saved position (default)
-         *     "INITIAL" = always resume execute from the beginning of the phase
-         */
         private val MIGRATION_18_19 = object : Migration(18, 19) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN notificationResumeType TEXT NOT NULL DEFAULT 'MIDDLE'")
             }
         }
 
-        /** version 19 → 20: add load factor + load average columns */
+        /** version 19 → 20: load factor + load average columns */
         private val MIGRATION_19_20 = object : Migration(19, 20) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN loadFactor REAL NOT NULL DEFAULT 1.0")
                 db.execSQL("ALTER TABLE tasks ADD COLUMN loadAverage REAL NOT NULL DEFAULT 0.0")
                 db.execSQL("ALTER TABLE tasks ADD COLUMN loadLastUpdateEpoch INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        /** version 22 → 23: time slice inheritance flag */
-        private val MIGRATION_22_23 = object : Migration(22, 23) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN timeSliceInherited INTEGER NOT NULL DEFAULT 0"
-                )
-            }
-        }
-
-        /** version 21 → 22: load factor inheritance flag */
-        private val MIGRATION_21_22 = object : Migration(21, 22) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE tasks ADD COLUMN loadFactorInherited INTEGER NOT NULL DEFAULT 0"
-                )
             }
         }
 
@@ -511,6 +348,50 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /** version 21 → 22: load factor inheritance flag */
+        private val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN loadFactorInherited INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** version 22 → 23: time slice inheritance flag */
+        private val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN timeSliceInherited INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /**
+         * version 23 → 24 — Human-effort load factor side table.
+         *
+         * Adds [task_load_factor] to hold the three NASA-TLX-derived slider values
+         * (Cognitive, Physical, Emotional) and an enabled flag per task.
+         *
+         * No columns are added to [tasks]: the computed loadFactor REAL already
+         * exists (added in v19) and continues to carry the result for the EWMA.
+         * The slider inputs live entirely in the new side table so the tasks schema
+         * stays lean and the feature can be toggled independently per task.
+         *
+         * Existing tasks get no row here (missing row = disabled / midpoint default),
+         * which is the correct backward-compatible behaviour: they continue to use
+         * loadFactor = 1.0 (v19 default) until the user opens the edit form and
+         * explicitly enables the new sliders.
+         */
+        private val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `task_load_factor` (
+                        `taskId`    TEXT    NOT NULL PRIMARY KEY,
+                        `cognitive` INTEGER NOT NULL DEFAULT 4,
+                        `physical`  INTEGER NOT NULL DEFAULT 4,
+                        `emotional` INTEGER NOT NULL DEFAULT 4,
+                        `enabled`   INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -518,25 +399,22 @@ abstract class TaskDatabase : RoomDatabase() {
                     TaskDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
+                    .addMigrations(
+                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+                        MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+                        MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+                        MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
+                        MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
+                        MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,   // ← added
+                    )
                     .build()
                 INSTANCE = instance
                 instance
             }
         }
-        /** Returns the on-disk path of the main SQLite database file. */
-        fun getDatabaseFile(context: Context): File =
-            context.getDatabasePath(DB_NAME)
 
-        /**
-         * Flushes the WAL into the main database file so the exported .db is
-         * self-contained, then closes and nulls the singleton so Room does not
-         * hold any file locks during the copy.
-         */
-        /**
-         * Flushes WAL into the main .db file WITHOUT closing Room.
-         * Used by the sync export path — Room stays open and usable.
-         */
+        fun getDatabaseFile(context: Context): File = context.getDatabasePath(DB_NAME)
+
         @Suppress("UNUSED_PARAMETER")
         fun checkpointWal(context: Context) {
             synchronized(this) {
