@@ -148,7 +148,7 @@
                 <com.github.mikephil.charting.charts.RadarChart
                     android:id="@+id/radarChartLoadFactor"
                     android:layout_width="match_parent"
-                    android:layout_height="300dp" />
+                    android:layout_height="220dp" />
                 <TextView
                     android:id="@+id/tvRadarLoadFactorEmpty"
                     android:layout_width="match_parent"

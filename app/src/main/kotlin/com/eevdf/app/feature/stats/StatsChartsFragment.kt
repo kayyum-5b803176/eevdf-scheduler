@@ -591,6 +591,7 @@ class StatsChartsFragment : Fragment() {
             webAlpha              = 100
             description.isEnabled = false
             legend.isEnabled      = false
+            setExtraOffsets(24f, 24f, 24f, 24f)
             animateXY(600, 600)
             invalidate()
         }
@@ -686,18 +687,18 @@ class StatsChartsFragment : Fragment() {
         tvRadarLoadFactorEmpty.visibility = View.GONE
 
         // Average each dimension independently across the window
+        val avgEmotional = samples.map { it.emotional }.average().toFloat()
         val avgCognitive = samples.map { it.cognitive }.average().toFloat()
         val avgPhysical  = samples.map { it.physical  }.average().toFloat()
-        val avgEmotional = samples.map { it.emotional }.average().toFloat()
 
         // Normalize relative to the dominant dimension — shape shows bias, not magnitude
-        val maxVal = maxOf(avgCognitive, avgPhysical, avgEmotional).coerceAtLeast(1f)
+        val maxVal = maxOf(avgEmotional, avgCognitive, avgPhysical).coerceAtLeast(1f)
 
-        val axisLabels = listOf("Cognitive", "Physical", "Emotional")
+        val axisLabels = listOf("Emotional", "Cognitive", "Physical")
         val entries    = listOf(
-            RadarEntry(avgCognitive / maxVal * 100f),
-            RadarEntry(avgPhysical  / maxVal * 100f),
             RadarEntry(avgEmotional / maxVal * 100f),
+            RadarEntry(avgCognitive / maxVal * 100f),
+            RadarEntry(avgPhysical  / maxVal * 100f)
         )
 
         val dataSet = RadarDataSet(entries, "Load Profile").apply {
@@ -725,6 +726,8 @@ class StatsChartsFragment : Fragment() {
             webAlpha          = 120
             description.isEnabled = false
             legend.isEnabled      = false
+            setRotationAngle(0f)
+            setExtraOffsets(24f, 24f, 24f, 24f)
             animateXY(600, 600)
             invalidate()
         }
