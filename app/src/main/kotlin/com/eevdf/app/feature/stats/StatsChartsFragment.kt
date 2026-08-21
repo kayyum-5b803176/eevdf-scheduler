@@ -54,7 +54,7 @@ class StatsChartsFragment : Fragment() {
     private lateinit var lineChartTrend:     LineChart
     private lateinit var tvLineEmpty:        TextView
 
-    private lateinit var barChartRunCount:   HorizontalBarChart
+    private lateinit var barChartRunCount:   BarChart
     private lateinit var tvBarCountEmpty:    TextView
 
     private lateinit var radarChartWeekday:  RadarChart
@@ -174,7 +174,7 @@ class StatsChartsFragment : Fragment() {
 
             renderDailyBarChart(effectiveDaily, categoryMap, fromMs, nowMs)
             renderLineTrendChart(targetTasks, effectiveDaily, categoryMap, fromMs, nowMs)
-            renderRunCountChart(targetTasks, effectiveDaily, categoryMap)
+            renderRunCountChart(effectiveDaily, categoryMap, fromMs, nowMs)
             renderRadarChart(effectiveWeekday)
             renderScatterChart(tLog, categoryMap, fromMs)
 
@@ -273,11 +273,13 @@ class StatsChartsFragment : Fragment() {
         }
 
         // One BarDataSet per active category — each with one BarEntry per day
-        val numCats    = activeCategories.size
-        // Spacing formula: (barWidth + barSpace) * numCats + groupSpace = 1.0
+        val numCats   = activeCategories.size
+        val isGrouped = numCats >= 2   // groupBars() requires ≥ 2 datasets
+
+        // Spacing formula (grouped only): (barWidth + barSpace) * numCats + groupSpace = 1.0
         val groupSpace = 0.08f
         val barSpace   = 0.02f
-        val barWidth   = (1f - groupSpace) / numCats - barSpace   // ≈ 0.29 for 3 cats
+        val barWidth   = if (isGrouped) (1f - groupSpace) / numCats - barSpace else 0.7f
 
         val dataSets = activeCategories.map { cat ->
             val entries = (0 until displayDays).map { i ->
@@ -294,15 +296,15 @@ class StatsChartsFragment : Fragment() {
 
         val barData = BarData(dataSets).apply {
             this.barWidth = barWidth
-            // groupBars repositions each dataset's entries to sit side-by-side
-            groupBars(0f, groupSpace, barSpace)
+            // groupBars throws if called with < 2 datasets
+            if (isGrouped) groupBars(0f, groupSpace, barSpace)
         }
 
         barChartDaily.apply {
             data = barData
             xAxis.apply {
-                // Center label under the whole group for each day
-                setCenterAxisLabels(true)
+                // setCenterAxisLabels only makes sense for grouped bars
+                setCenterAxisLabels(isGrouped)
                 valueFormatter     = IndexAxisValueFormatter(labels)
                 position           = XAxis.XAxisPosition.BOTTOM
                 granularity        = 1f
@@ -328,7 +330,7 @@ class StatsChartsFragment : Fragment() {
                 horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
                 setDrawInside(false)
             }
-            setFitBars(false)   // must be false when using groupBars
+            setFitBars(!isGrouped)   // groupBars manages spacing itself; fitBars for single set
             animateY(600)
             invalidate()
         }
@@ -432,22 +434,45 @@ class StatsChartsFragment : Fragment() {
         }
     }
 
-    // ── 3. Horizontal Bar — Run Frequency ─────────────────────────────────────
+    // ── 3. Bar Chart — Run Frequency (sessions per day) ───────────────────────
 
     private fun renderRunCountChart(
-        targetTasks:   List<Task>,
         effectiveDaily: List<RunDailySummary>,
-        categoryMap:   Map<String, String>
+        categoryMap:    Map<String, String>,
+        fromMs: Long,
+        nowMs:  Long,
     ) {
-        val runsByTask = mutableMapOf<String, Int>()
-        effectiveDaily.forEach { d -> runsByTask[d.taskId] = (runsByTask[d.taskId] ?: 0) + d.runCount }
+        val localTz = TimeZone.getDefault()
+        val dayMs   = 86_400_000L
 
-        val sorted = runsByTask.entries
-            .filter { it.key in categoryMap }
-            .sortedByDescending { it.value }
-            .take(10)
+        fun sod(ms: Long): Long {
+            val c = Calendar.getInstance(localTz); c.timeInMillis = ms
+            c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0)
+            c.set(Calendar.SECOND, 0);      c.set(Calendar.MILLISECOND, 0)
+            return c.timeInMillis
+        }
 
-        if (sorted.isEmpty()) {
+        // Aggregate run count per (day, category)
+        val dayMap = mutableMapOf<Long, MutableMap<String, Int>>()
+        for (d in effectiveDaily) {
+            val cat = categoryMap[d.taskId] ?: continue
+            val key = sod(d.dayEpoch)
+            dayMap.getOrPut(key) { mutableMapOf() }.merge(cat, d.runCount, Int::plus)
+        }
+
+        val displayDays = ((nowMs - fromMs) / dayMs + 1L).toInt().coerceIn(1, 60)
+        val todaySod    = sod(nowMs)
+        val labelFmt    = SimpleDateFormat("d/M", Locale.getDefault())
+
+        // Only include categories that ran at least once in the window
+        val activeCategories = CATEGORIES.filter { cat ->
+            (0 until displayDays).any { i ->
+                val dayEpoch = todaySod - (displayDays - 1 - i) * dayMs
+                (dayMap[dayEpoch]?.get(cat) ?: 0) > 0
+            }
+        }
+
+        if (activeCategories.isEmpty()) {
             barChartRunCount.visibility = View.GONE
             tvBarCountEmpty.visibility  = View.VISIBLE
             return
@@ -455,38 +480,66 @@ class StatsChartsFragment : Fragment() {
         barChartRunCount.visibility = View.VISIBLE
         tvBarCountEmpty.visibility  = View.GONE
 
-        val taskById   = targetTasks.associateBy { it.id }
-        val labels     = sorted.map { (id, _) ->
-            val cat  = categoryMap[id] ?: ""
-            val name = taskById[id]?.name?.take(12) ?: "[del]"
-            "$name ($cat)"
+        val labels = (0 until displayDays).map { i ->
+            labelFmt.format(Date(todaySod - (displayDays - 1 - i) * dayMs))
         }
-        val barEntries = sorted.mapIndexed { i, (_, runs) -> BarEntry(i.toFloat(), runs.toFloat()) }
-        val colors     = sorted.map { (id, _) -> colorFor(categoryMap[id] ?: "") }
 
-        val dataSet = BarDataSet(barEntries, "Runs").apply {
-            this.colors = colors
-            valueTextSize = 10f
-            valueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(v: Float) = "${v.toInt()}"
+        val numCats    = activeCategories.size
+        val isGrouped  = numCats >= 2
+        val groupSpace = 0.08f
+        val barSpace   = 0.02f
+        val barWidth   = if (isGrouped) (1f - groupSpace) / numCats - barSpace else 0.7f
+
+        val dataSets = activeCategories.map { cat ->
+            val entries = (0 until displayDays).map { i ->
+                val dayEpoch = todaySod - (displayDays - 1 - i) * dayMs
+                BarEntry(i.toFloat(), (dayMap[dayEpoch]?.get(cat) ?: 0).toFloat())
             }
+            BarDataSet(entries, cat).apply {
+                color = colorFor(cat)
+                setDrawValues(false)
+            }
+        }
+
+        val barData = BarData(dataSets).apply {
+            this.barWidth = barWidth
+            if (isGrouped) groupBars(0f, groupSpace, barSpace)
         }
 
         barChartRunCount.apply {
-            data = BarData(dataSet).apply { barWidth = 0.7f }
+            data = barData
             xAxis.apply {
-                valueFormatter = IndexAxisValueFormatter(labels)
-                position       = XAxis.XAxisPosition.BOTTOM
-                granularity    = 1f
+                setCenterAxisLabels(isGrouped)
+                valueFormatter     = IndexAxisValueFormatter(labels)
+                position           = XAxis.XAxisPosition.BOTTOM
+                granularity        = 1f
                 setDrawGridLines(false)
-                textSize       = 9f
+                textSize           = 8f
+                labelRotationAngle = -45f
+                axisMinimum        = 0f
+                axisMaximum        = displayDays.toFloat()
+                setLabelCount(minOf(displayDays, 10), true)
             }
-            axisLeft.apply { axisMinimum = 0f; granularity = 1f }
+            axisLeft.apply {
+                axisMinimum              = 0f
+                isAutoScaleMinMaxEnabled = true
+                granularity              = 1f   // integer run counts only
+                valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(v: Float) = v.toInt().toString()
+                }
+            }
             axisRight.isEnabled   = false
             description.isEnabled = false
-            legend.isEnabled      = false
-            setFitBars(true)
-            animateX(600)
+            legend.apply {
+                isEnabled           = true
+                textSize            = 10f
+                orientation         = Legend.LegendOrientation.HORIZONTAL
+                verticalAlignment   = Legend.LegendVerticalAlignment.BOTTOM
+                horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
+                setDrawInside(false)
+            }
+            setFitBars(!isGrouped)
+            animateY(600)
             invalidate()
         }
     }

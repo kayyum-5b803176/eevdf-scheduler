@@ -229,11 +229,11 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Number of sessions started per task"
+                    android:text="Sessions per day by category"
                     android:textSize="12sp"
                     android:textColor="#212121"
                     android:layout_marginBottom="10dp" />
-                <com.github.mikephil.charting.charts.HorizontalBarChart
+                <com.github.mikephil.charting.charts.BarChart
                     android:id="@+id/barChartRunCount"
                     android:layout_width="match_parent"
                     android:layout_height="240dp" />
