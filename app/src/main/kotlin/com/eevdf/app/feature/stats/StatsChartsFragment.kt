@@ -45,8 +45,11 @@ class StatsChartsFragment : Fragment() {
     private lateinit var btnApplyWindow:     MaterialButton
     private lateinit var tvPeriodLabel:      TextView
 
-    private lateinit var lineChartLoadAvg:   LineChart          // ← load average chart
-    private lateinit var tvLoadAvgEmpty:     TextView
+    private lateinit var lineChartLoadAvg:      LineChart          // ← load average chart
+    private lateinit var tvLoadAvgEmpty:        TextView
+
+    private lateinit var radarChartLoadFactor:  RadarChart         // ← load factor spider
+    private lateinit var tvRadarLoadFactorEmpty: TextView
 
     private lateinit var barChartDaily:      BarChart
     private lateinit var tvBarDailyEmpty:    TextView
@@ -112,8 +115,10 @@ class StatsChartsFragment : Fragment() {
         etWindowRange     = v.findViewById(R.id.etChartsWindowRange)
         btnApplyWindow    = v.findViewById(R.id.btnChartsApplyWindow)
         tvPeriodLabel     = v.findViewById(R.id.tvChartsPeriodLabel)
-        lineChartLoadAvg  = v.findViewById(R.id.lineChartLoadAvg)
-        tvLoadAvgEmpty    = v.findViewById(R.id.tvLoadAvgEmpty)
+        lineChartLoadAvg       = v.findViewById(R.id.lineChartLoadAvg)
+        tvLoadAvgEmpty         = v.findViewById(R.id.tvLoadAvgEmpty)
+        radarChartLoadFactor   = v.findViewById(R.id.radarChartLoadFactor)
+        tvRadarLoadFactorEmpty = v.findViewById(R.id.tvRadarLoadFactorEmpty)
         barChartDaily     = v.findViewById(R.id.barChartDaily)
         tvBarDailyEmpty   = v.findViewById(R.id.tvBarDailyEmpty)
         lineChartTrend    = v.findViewById(R.id.lineChartTrend)
@@ -204,6 +209,7 @@ class StatsChartsFragment : Fragment() {
                 )
             }
             renderLoadAverageChart(loadSamples, fromMs, nowMs)
+            renderLoadFactorSpiderChart(loadSamples)
         }
     }
 
@@ -655,6 +661,74 @@ class StatsChartsFragment : Fragment() {
         }
     }
 
+
+    // ── Load Factor Spider Chart — 3-axis radar (Cognitive / Physical / Emotional) ─
+
+    /**
+     * Renders a spider/radar chart showing the average EWMA load for each of the
+     * three individual load dimensions across the current analysis window.
+     *
+     * Combined load is intentionally excluded — this chart is about the shape of
+     * the load (which dimensions dominate) rather than the total magnitude.
+     *
+     * Each axis: 0–100 (same unit as the EWMA load percentage).
+     * Values are the mean of all reconstructed samples in the window.
+     */
+    private fun renderLoadFactorSpiderChart(
+        samples: List<LoadEwmaReconstructor.LoadSample>,
+    ) {
+        if (samples.isEmpty() || samples.all { it.cognitive == 0f && it.physical == 0f && it.emotional == 0f }) {
+            radarChartLoadFactor.visibility   = View.GONE
+            tvRadarLoadFactorEmpty.visibility = View.VISIBLE
+            return
+        }
+        radarChartLoadFactor.visibility   = View.VISIBLE
+        tvRadarLoadFactorEmpty.visibility = View.GONE
+
+        // Average each dimension independently across the window
+        val avgCognitive = samples.map { it.cognitive }.average().toFloat()
+        val avgPhysical  = samples.map { it.physical  }.average().toFloat()
+        val avgEmotional = samples.map { it.emotional }.average().toFloat()
+
+        // Normalize relative to the dominant dimension — shape shows bias, not magnitude
+        val maxVal = maxOf(avgCognitive, avgPhysical, avgEmotional).coerceAtLeast(1f)
+
+        val axisLabels = listOf("Cognitive", "Physical", "Emotional")
+        val entries    = listOf(
+            RadarEntry(avgCognitive / maxVal * 100f),
+            RadarEntry(avgPhysical  / maxVal * 100f),
+            RadarEntry(avgEmotional / maxVal * 100f),
+        )
+
+        val dataSet = RadarDataSet(entries, "Load Profile").apply {
+            color     = COLOR_COMBINED; fillColor = COLOR_COMBINED
+            setDrawFilled(true); fillAlpha = 55; lineWidth = 2.5f
+            setDrawValues(false)
+            isDrawHighlightCircleEnabled = false
+        }
+
+        radarChartLoadFactor.apply {
+            data = RadarData(dataSet)
+            xAxis.apply {
+                valueFormatter = IndexAxisValueFormatter(axisLabels)
+                textSize       = 13f
+                textColor      = Color.parseColor("#424242")
+            }
+            yAxis.apply {
+                axisMinimum = 0f
+                axisMaximum = 100f
+                setLabelCount(5, true)
+                setDrawLabels(false)   // concentric ring values hidden; vertex labels suffice
+            }
+            webLineWidth      = 1.5f; webColor      = Color.parseColor("#E0E0E0")
+            webLineWidthInner = 1f;   webColorInner = Color.parseColor("#E0E0E0")
+            webAlpha          = 120
+            description.isEnabled = false
+            legend.isEnabled      = false
+            animateXY(600, 600)
+            invalidate()
+        }
+    }
 
     // ── Load Average Chart — 4-line EWMA time series ─────────────────────────
 
