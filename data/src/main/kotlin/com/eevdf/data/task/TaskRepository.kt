@@ -98,33 +98,82 @@ class TaskRepository @Inject constructor(
     }
 
     /**
-     * Walks the task tree rooted at [parentId] and updates every descendant that
-     * has [Task.loadFactorInherited] == true with the new [loadFactor] value.
+     * Walks up the ancestor chain from [taskId] to find the nearest
+     * [TaskLoadFactor] entry whose [TaskLoadFactor.enabled] == true (i.e. the task
+     * whose sliders were manually configured by the user).
+     *
+     * Returns null when no such ancestor exists — callers fall back to (4, 4, 4).
+     *
+     * This is the single source of truth for "which slider values should an
+     * auto-inherited task display / store?"  Both the propagation path (repository)
+     * and the UI population path (AddTaskLoadFactorSection) use this logic so they
+     * always agree, regardless of how deeply auto tasks are nested.
+     */
+    private suspend fun findNearestEnabledLoadFactor(taskId: String): TaskLoadFactor? {
+        var currentId: String? = taskId
+        while (currentId != null) {
+            val entry = loadFactorDao.get(currentId)
+            if (entry != null && entry.enabled) return entry
+            // This node is also auto (or has no entry) — walk up to its parent
+            val task = dao.getTaskById(currentId) ?: break
+            currentId = task.parentId
+        }
+        return null   // no manually-configured ancestor in the chain
+    }
+
+    /**
+     * Walks the task tree rooted at [parentId] updating every inheriting descendant.
+     *
+     * ── Slider value resolution ──────────────────────────────────────────────
+     * Rather than copying the direct parent's stored slider values (which may
+     * themselves be auto-inherited and therefore stale), we resolve the canonical
+     * values ONCE by walking up to the nearest ancestor with enabled == true via
+     * [findNearestEnabledLoadFactor].  Those values are then passed unchanged to
+     * every level of the subtree via [propagateWithValues].
+     *
+     * This means:
+     *   • A → B (auto) → C (auto)  with A enabled(2,4,6):  B and C both get (2,4,6) ✓
+     *   • A (auto) → B (auto) with no enabled ancestor:    B gets (4,4,4)           ✓
      *
      * Stops recursing into a branch only when a child has manually overridden its
      * own load factor (loadFactorInherited == false), preserving that child's
      * explicit choice while still propagating to its siblings.
      */
-    /**
-     * Walks the task tree rooted at [parentId] updating every inheriting descendant.
-     * Also copies the parent's [TaskLoadFactor] slider values into the child's side
-     * table row (enabled = false) so the edit form can pre-fill sliders with the
-     * inherited state if the user later enables the toggle manually.
-     */
     private suspend fun propagateInheritedLoadFactor(parentId: String, loadFactor: Double) {
-        val parentEntry = loadFactorDao.get(parentId)
-        val children    = dao.getChildrenOf(parentId)
+        // Resolve the canonical slider values from the nearest manually-configured ancestor.
+        val effectiveEntry = findNearestEnabledLoadFactor(parentId)
+        val effCognitive   = effectiveEntry?.cognitive ?: TaskLoadFactor.DEFAULT_COGNITIVE
+        val effPhysical    = effectiveEntry?.physical  ?: TaskLoadFactor.DEFAULT_PHYSICAL
+        val effEmotional   = effectiveEntry?.emotional ?: TaskLoadFactor.DEFAULT_EMOTIONAL
+        propagateWithValues(parentId, loadFactor, effCognitive, effPhysical, effEmotional)
+    }
+
+    /**
+     * Inner recursive worker for [propagateInheritedLoadFactor].
+     *
+     * Accepts the already-resolved slider values so they are computed only once
+     * at the top of the call, then passed unchanged through every level of the
+     * subtree — no redundant DB reads per level.
+     */
+    private suspend fun propagateWithValues(
+        parentId:  String,
+        loadFactor: Double,
+        cognitive:  Int,
+        physical:   Int,
+        emotional:  Int,
+    ) {
+        val children = dao.getChildrenOf(parentId)
         for (child in children) {
             if (child.loadFactorInherited) {
                 dao.update(child.copy(loadFactor = loadFactor))
                 loadFactorDao.upsert(TaskLoadFactor(
                     taskId    = child.id,
-                    cognitive = parentEntry?.cognitive ?: TaskLoadFactor.DEFAULT_COGNITIVE,
-                    physical  = parentEntry?.physical  ?: TaskLoadFactor.DEFAULT_PHYSICAL,
-                    emotional = parentEntry?.emotional ?: TaskLoadFactor.DEFAULT_EMOTIONAL,
+                    cognitive = cognitive,
+                    physical  = physical,
+                    emotional = emotional,
                     enabled   = false,
                 ))
-                propagateInheritedLoadFactor(child.id, loadFactor)
+                propagateWithValues(child.id, loadFactor, cognitive, physical, emotional)
             }
         }
     }

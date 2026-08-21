@@ -106,14 +106,47 @@ private fun approximateSlider(loadFactor: Double): Int =
 // ── Inheritance ───────────────────────────────────────────────────────────────
 
 /**
+ * Walks up the ancestor chain starting from [startTask] to find the nearest
+ * task whose [TaskLoadFactor] has [TaskLoadFactor.enabled] == true (manually
+ * configured by the user).  Returns that entry's three slider values as a
+ * Triple(cognitive, physical, emotional).
+ *
+ * Fallback rules (in order):
+ *   1. Nearest ancestor with enabled == true  → its slider values (per-dimension)
+ *   2. No such ancestor exists (all auto / no entries) → DEFAULT (4, 4, 4)
+ *
+ * This guarantees the correct per-dimension values propagate down the whole
+ * chain even when intermediate ancestors are also set to auto.
+ */
+private suspend fun AddTaskActivity.resolveEffectiveSliders(
+    startTask: Task,
+): Triple<Int, Int, Int> {
+    var current: Task? = startTask
+    while (current != null) {
+        val entry = viewModel.getLoadFactor(current.id)
+        if (entry != null && entry.enabled) {
+            // Found a manually-configured ancestor — use its exact per-dimension values
+            return Triple(entry.cognitive, entry.physical, entry.emotional)
+        }
+        // This task is also auto (or has no entry) — walk up to its parent
+        val parentId = current.parentId ?: break
+        current = viewModel.getTaskById(parentId)
+    }
+    // No manually-configured ancestor exists — fall back to mid-point defaults
+    return Triple(
+        TaskLoadFactor.DEFAULT_COGNITIVE,
+        TaskLoadFactor.DEFAULT_PHYSICAL,
+        TaskLoadFactor.DEFAULT_EMOTIONAL,
+    )
+}
+
+/**
  * Called by [AddTaskGroupSection] when a parent group is selected.
  *
- * Fetches the parent's [TaskLoadFactor] side table entry and mirrors its
- * slider values into this form so that enabling the toggle shows the parent
- * state as the starting point rather than the mid-point default.
- *
- * When the parent has no side table entry, slider values are approximated
- * from [Task.loadFactor] via [approximateSlider].
+ * Resolves the effective inherited slider values by walking up the ancestor
+ * chain via [resolveEffectiveSliders] — so if the immediate parent is also
+ * set to auto, we look further up until we find a manually-configured ancestor.
+ * If no ancestor is manually configured, sliders default to (4, 4, 4).
  *
  * The toggle is kept OFF — sliders are hidden but pre-filled.  Combined Load
  * in Row 2 updates to reflect the inherited value immediately.
@@ -127,15 +160,8 @@ internal fun AddTaskActivity.applyParentLoadFactor(parentTask: Task) {
     tvLoadFactorAutoLabel.visibility = View.VISIBLE
 
     lifecycleScope.launch {
-        val entry = viewModel.getLoadFactor(parentTask.id)
-        if (entry != null) {
-            // Parent has a configured entry — use its exact slider values
-            applySliderValues(entry.cognitive, entry.physical, entry.emotional)
-        } else {
-            // Parent has no entry — approximate from its stored combined loadFactor
-            val approx = approximateSlider(parentTask.loadFactor)
-            applySliderValues(approx, approx, approx)
-        }
+        val (c, p, e) = resolveEffectiveSliders(parentTask)
+        applySliderValues(c, p, e)
     }
 }
 
@@ -165,9 +191,12 @@ internal fun AddTaskActivity.resetLoadFactorToDefault() {
  *
  * Reads the [TaskLoadFactor] side table entry for the task and restores:
  *   • Toggle position (ON = enabled, OFF = inherited)
- *   • Slider values — from the entry if present, otherwise approximated
- *     from [Task.loadFactor] so enabling the toggle always shows a
- *     meaningful starting point rather than reverting to 4/4/4 defaults.
+ *   • Slider values — resolved differently depending on toggle state:
+ *       ON  → this task's own manually-set slider values (from the entry)
+ *       OFF → walk up the ancestor chain via [resolveEffectiveSliders] to find
+ *             the nearest ancestor with [TaskLoadFactor.enabled] == true and
+ *             use its per-dimension values.  Falls back to (4, 4, 4) when no
+ *             manually-configured ancestor exists.
  *   • (auto) badge visibility
  *   • Combined Load label (always updated, visible in both states)
  *
@@ -179,27 +208,43 @@ internal fun AddTaskActivity.populateLoadFactorSection(task: Task) {
         val entry   = task.id.takeIf { it.isNotEmpty() }?.let { viewModel.getLoadFactor(it) }
         val enabled = entry?.enabled ?: false
 
-        // Resolve slider values in priority order:
-        //   1. Side table entry with real values (most accurate)
-        //   2. Approximation from task.loadFactor when entry is missing
-        //      (handles pre-v4.11.0 tasks and propagation gaps)
-        //   3. Default mid-point (4,4,4) as last resort
-        val (c, p, e) = when {
-            entry != null ->
-                Triple(entry.cognitive, entry.physical, entry.emotional)
-
-            task.loadFactor > 0.0 -> {
-                // No side table entry — approximate equally from stored combined value
-                val approx = approximateSlider(task.loadFactor)
-                Triple(approx, approx, approx)
-            }
-
-            else ->
+        val (c, p, e) = if (enabled) {
+            // Toggle ON: use this task's own manually-set slider values directly.
+            Triple(entry!!.cognitive, entry.physical, entry.emotional)
+        } else {
+            // Toggle OFF (inherited): walk up the ancestor chain to find the nearest
+            // task with enabled == true and use its per-dimension slider values.
+            // This is correct even when intermediate ancestors are also auto —
+            // we always trace back to the actual manually-configured source.
+            val parentId = task.parentId
+            if (parentId != null) {
+                val parentTask = viewModel.getTaskById(parentId)
+                if (parentTask != null) {
+                    resolveEffectiveSliders(parentTask)
+                } else {
+                    // Parent no longer exists in the DB (deleted?) — best-effort fallback:
+                    // use the task's own stored entry values if available, otherwise default.
+                    when {
+                        entry != null -> Triple(entry.cognitive, entry.physical, entry.emotional)
+                        task.loadFactor > 0.0 -> {
+                            val approx = approximateSlider(task.loadFactor)
+                            Triple(approx, approx, approx)
+                        }
+                        else -> Triple(
+                            TaskLoadFactor.DEFAULT_COGNITIVE,
+                            TaskLoadFactor.DEFAULT_PHYSICAL,
+                            TaskLoadFactor.DEFAULT_EMOTIONAL,
+                        )
+                    }
+                }
+            } else {
+                // No parent — task is at root level in auto mode; use mid-point defaults.
                 Triple(
                     TaskLoadFactor.DEFAULT_COGNITIVE,
                     TaskLoadFactor.DEFAULT_PHYSICAL,
                     TaskLoadFactor.DEFAULT_EMOTIONAL,
                 )
+            }
         }
 
         // Apply toggle state (fires listener → sets isLoadFactorInherited and visibility)
