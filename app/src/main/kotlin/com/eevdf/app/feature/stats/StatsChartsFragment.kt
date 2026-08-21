@@ -314,9 +314,9 @@ class StatsChartsFragment : Fragment() {
                 setLabelCount(minOf(displayDays, 10), true)
             }
             axisLeft.apply {
-                axisMinimum    = 0f
-                axisMaximum    = 24f
-                valueFormatter = HourMinuteFormatter()
+                axisMinimum              = 0f
+                isAutoScaleMinMaxEnabled = true   // Y ceiling tracks the tallest bar in view
+                valueFormatter           = HourMinuteFormatter()
             }
             axisRight.isEnabled   = false
             description.isEnabled = false
@@ -413,8 +413,9 @@ class StatsChartsFragment : Fragment() {
                 setLabelCount(minOf(numDays, 7), true)
             }
             axisLeft.apply {
-                axisMinimum    = 0f
-                valueFormatter = HourMinuteFormatter()
+                axisMinimum              = 0f
+                isAutoScaleMinMaxEnabled = true   // Y ceiling tracks the tallest line in view
+                valueFormatter           = HourMinuteFormatter()
             }
             axisRight.isEnabled   = false
             description.isEnabled = false
@@ -665,8 +666,8 @@ class StatsChartsFragment : Fragment() {
                 }
             }
             axisLeft.apply {
-                axisMinimum = 0f; axisMaximum = 100f
-                setLabelCount(5, true); granularity = 25f
+                axisMinimum              = 0f
+                isAutoScaleMinMaxEnabled = true   // Y ceiling tracks actual peak load in view
                 removeAllLimitLines(); addLimitLine(midLine)
                 valueFormatter = object : ValueFormatter() {
                     override fun getFormattedValue(v: Float) = v.toInt().toString()

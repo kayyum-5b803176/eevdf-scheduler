@@ -89,7 +89,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="HUMAN LOAD AVERAGE"
+                    android:text="LOAD AVERAGE"
                     android:textSize="11sp"
                     android:textColor="#9E9E9E"
                     android:letterSpacing="0.12"
@@ -97,7 +97,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Reconstructed EWMA — Cognitive · Physical · Emotional · Combined"
+                    android:text="Total load tracked per day"
                     android:textSize="12sp"
                     android:textColor="#212121"
                     android:layout_marginBottom="10dp" />
