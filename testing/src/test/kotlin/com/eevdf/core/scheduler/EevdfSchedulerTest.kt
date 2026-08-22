@@ -2,6 +2,7 @@ package com.eevdf.core.scheduler
 
 import com.eevdf.core.scheduler.eevdf.EevdfScheduler
 import com.eevdf.core.scheduler.model.SchedTask
+import com.eevdf.testing.InMemoryRrStateStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -213,5 +214,168 @@ class EevdfSchedulerTest {
         val ids = updates.map { it.id }.toSet()
         assertTrue("updated set must contain the leaf b1", "b1" in ids)
         assertTrue("updated set must contain the ancestor group b", "b" in ids)
+    }
+
+    // ── Queue / scheduleOrder characterization tests ──────────────────────────
+    //
+    // These test SchedulerService.scheduleOrder against the five queue-tab issues:
+    //   Q1. Group containers must never appear as queue positions (issue 1).
+    //   Q2. scheduleOrder[0] must equal selectNext (issue 5).
+    //   Q3. Nested groups must be expanded recursively (issue 2).
+    //   Q4. No task appears more than once in the queue (issues 3 & 4).
+
+    private val dummyNow = SchedulerService.Now(
+        epochSeconds = 1_700_000_000L,
+        dayOfWeekIndex = 1,
+        secondOfDay = 36_000L,
+        prevDayOfWeekIndex = 0,
+    )
+
+    private fun schedulerService() = SchedulerService(InMemoryRrStateStore())
+
+    /**
+     * Q1: The queue must contain only runnable leaves. Group entities (task-b)
+     * determine child positioning but must never occupy a queue slot themselves.
+     */
+    @Test fun `Q1 scheduleOrder never contains group containers`() {
+        val svc = schedulerService()
+        val a  = task("a", priority = 4, vruntime = 5.0)
+        val b  = group("b", priority = 4, vruntime = 0.0)
+        val b1 = child("b1", "b")
+        val b2 = child("b2", "b")
+
+        val queue = svc.scheduleOrder(listOf(a, b, b1, b2), dummyNow)
+
+        assertFalse(
+            "no group entity may appear as a queue position",
+            queue.any { it.isGroup },
+        )
+        assertEquals(
+            "queue must contain exactly the three leaf tasks",
+            setOf("a", "b1", "b2"),
+            queue.map { it.id }.toSet(),
+        )
+    }
+
+    /**
+     * Q2: Position 0 of scheduleOrder must be the same task selectNext returns.
+     * This is the queue contract — if they diverge, the UI lies about what runs
+     * next.
+     *
+     * Scenario: task-b (group, behind at root) wins root. Its child b1 is the
+     * first leaf. selectNext must return b1. scheduleOrder[0] must also be b1.
+     */
+    @Test fun `Q2 scheduleOrder position 0 matches selectNext`() {
+        val svc = schedulerService()
+        val a  = task("a", priority = 4, vruntime = 5.0)
+        val b  = group("b", priority = 4, vruntime = 0.0)
+        val b1 = child("b1", "b", vruntime = 0.0)
+        val b2 = child("b2", "b", vruntime = 1.0)
+
+        val all = listOf(a, b, b1, b2)
+        val next = svc.selectNext(all, dummyNow)
+        val queue = svc.scheduleOrder(all, dummyNow)
+
+        assertNotNull(next)
+        assertTrue("queue must not be empty", queue.isNotEmpty())
+        assertEquals(
+            "scheduleOrder[0] must be the same task selectNext returns",
+            next!!.id,
+            queue.first().id,
+        )
+    }
+
+    /**
+     * Q3: Nested groups (group inside a group) must be expanded recursively.
+     * group-b contains group-c, which contains c1 and c2. All four leaves
+     * (b1, c1, c2, task-a) must appear; neither group-b nor group-c may appear.
+     */
+    @Test fun `Q3 nested groups are expanded recursively to arbitrary depth`() {
+        val svc = schedulerService()
+        val a  = task("a", priority = 4, vruntime = 10.0)
+        val b  = group("b", priority = 4, vruntime = 0.0)
+        val b1 = child("b1", "b", vruntime = 0.0)
+        // group-c is a sub-group inside group-b
+        val c  = SchedTask(
+            id = "c", parentId = "b", isGroup = true, isCompleted = false, isRunning = false,
+            priority = 4, timeSliceSeconds = 5L, vruntime = 0.0,
+        )
+        val c1 = child("c1", "c", vruntime = 0.0)
+        val c2 = child("c2", "c", vruntime = 0.0)
+
+        val queue = svc.scheduleOrder(listOf(a, b, b1, c, c1, c2), dummyNow)
+
+        val ids = queue.map { it.id }.toSet()
+        assertFalse("group-b must not appear as a queue position", "b" in ids)
+        assertFalse("group-c must not appear as a queue position", "c" in ids)
+        assertTrue("leaf b1 must appear", "b1" in ids)
+        assertTrue("leaf c1 must appear", "c1" in ids)
+        assertTrue("leaf c2 must appear", "c2" in ids)
+        assertTrue("leaf task-a must appear", "a" in ids)
+        assertEquals("exactly four leaves in the queue", 4, queue.size)
+    }
+
+    /**
+     * Q4: Every task appears exactly once. A DL child inside a fair group must
+     * appear in the DL section and must NOT re-appear in the fair expansion.
+     */
+    @Test fun `Q4 no task appears twice in the queue`() {
+        val svc = schedulerService()
+        val a  = task("a", priority = 4, vruntime = 0.0)
+        val b  = group("b", priority = 4, vruntime = 0.0)
+        val b1 = child("b1", "b")
+        val b2 = child("b2", "b")
+
+        val queue = svc.scheduleOrder(listOf(a, b, b1, b2), dummyNow)
+
+        val ids = queue.map { it.id }
+        assertEquals(
+            "every task id must appear exactly once — no duplicates",
+            ids.size,
+            ids.toSet().size,
+        )
+    }
+
+    /**
+     * Q5: Dormant RT tasks (out-of-window) and expired DL tasks must not appear
+     * in the fair queue. They are neither active for their own class nor eligible
+     * for CFS — they should be absent from scheduleOrder entirely.
+     *
+     * Before the isFair guard, these tasks fell through the excludedIds check
+     * (which only covers *active* DL/RT) and were EEVDF-ordered by vruntime
+     * inside the fair section — a meaningless ordering for non-fair classes.
+     */
+    @Test fun `Q5 dormant RT and expired DL tasks are absent from the queue`() {
+        val svc = schedulerService()
+
+        val fairTask = task("fair", priority = 4, vruntime = 0.0)
+
+        // RT task whose window is Saturday-only (activeDaysMask bit 6).
+        // dummyNow is Monday (dayOfWeekIndex=1), so this task is outside its window.
+        val dormantRt = SchedTask(
+            id = "dormant-rt", parentId = null, isGroup = false,
+            isCompleted = false, isRunning = false,
+            priority = 4, timeSliceSeconds = 60L,
+            schedulerClass = SchedTask.RT,
+            rt = com.eevdf.core.scheduler.model.RtConfig(
+                priority = 50,
+                activeDaysMask = 1 shl 6,   // Saturday only
+                activationHour = 10,
+                activationMinute = 0,
+                activationSecond = 0,
+                sliceTimeoutSeconds = 3_600L,
+            ),
+        )
+
+        val queue = svc.scheduleOrder(listOf(fairTask, dormantRt), dummyNow)
+
+        assertTrue(
+            "fair task must appear in the queue",
+            queue.any { it.id == "fair" },
+        )
+        assertFalse(
+            "dormant RT task must not appear anywhere in the queue",
+            queue.any { it.id == "dormant-rt" },
+        )
     }
 }

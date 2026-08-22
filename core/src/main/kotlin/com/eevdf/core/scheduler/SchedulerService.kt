@@ -69,46 +69,86 @@ class SchedulerService(private val rrState: RrStatePort) {
     }
 
     /**
-     * Full ordered schedule for display: DL first, then RT, then EEVDF order.
+     * Full ordered schedule for display: DL first, then RT, then fair leaves in
+     * depth-first EEVDF order. Mirrors Linux's runqueue view:
      *
-     * For the fair class, root-level entities (including group containers) are
-     * ordered by EEVDF, and each group's children are inserted immediately after
-     * it so the caller gets a coherent hierarchical view in one flat list.
+     *   - Every position in the returned list is a **runnable leaf** — group
+     *     containers never appear. They participate in the EEVDF ordering at
+     *     their own level (so their children inherit the correct position
+     *     relative to peer leaves/groups), but the group entity itself is
+     *     replaced by its recursively-expanded children.
+     *
+     *   - DL and RT leaves are collected from **all depths** first, then
+     *     excluded from the fair walk entirely — so a DL child of a fair group
+     *     appears exactly once in the DL section, never again inside the fair
+     *     expansion. This matches Linux where DL/RT classes sit above CFS
+     *     globally and do not participate in the cgroup fair hierarchy.
+     *
+     *   - The fair walk recurses to arbitrary depth, not just one level —
+     *     nested groups (group inside a group) are expanded correctly.
+     *
+     *   - `scheduleOrder()[0]` is always the same task `selectNext()` returns,
+     *     preserving the queue contract.
      */
     fun scheduleOrder(tasks: List<SchedTask>, now: Now): List<SchedTask> {
-        // DL and RT: flat non-group pool (unchanged behaviour).
-        val flatNonGroup = tasks.filter { !it.isCompleted && !it.isGroup }
+        // 1. Collect ALL runnable leaves (any depth) for DL and RT.
+        //    Group containers are never DL/RT, so !isGroup is correct here.
+        val allLeaves = tasks.filter { !it.isCompleted && !it.isGroup }
 
-        val dl = flatNonGroup.filter { it.isDlConfigured && it.dl!!.isBudgetActiveAt(now.epochSeconds) }
+        val dl = allLeaves.filter { it.isDlConfigured && it.dl!!.isBudgetActiveAt(now.epochSeconds) }
             .sortedBy { it.dl!!.deadlineSeconds }
         val dlIds = dl.mapTo(HashSet()) { it.id }
 
-        val rt = flatNonGroup.filter {
+        val rt = allLeaves.filter {
             it.id !in dlIds &&
                 RtPolicy.isWindowActive(it, now.dayOfWeekIndex, now.secondOfDay, now.prevDayOfWeekIndex)
         }.sortedWith(compareByDescending<SchedTask> { it.rt!!.priority }.thenBy { it.rt!!.activationSecondOfDay })
         val rtIds = rt.mapTo(HashSet()) { it.id }
 
-        // Fair: root-level entities (leaves + group containers) in EEVDF order.
-        val rootFair = tasks.filter {
-            !it.isCompleted && it.parentId == null && it.isFair &&
-                it.id !in dlIds && it.id !in rtIds
-        }
-        val fairRootOrdered = EevdfScheduler.scheduleOrder(rootFair)
+        // 2. Fair: depth-first EEVDF walk from root, yielding only leaves.
+        //    DL/RT tasks excluded so they appear exactly once (above).
+        val excludedIds = dlIds + rtIds
+        val fair = fairLeavesDepthFirst(tasks, parentId = null, excludedIds = excludedIds)
 
-        // Expand each group: append its children in EEVDF order immediately after
-        // the group entity so the display shows the sub-queue inline.
+        return dl + rt + fair
+    }
+
+    /**
+     * Depth-first EEVDF walk mirroring Linux's per-cgroup `cfs_rq` rb-tree
+     * traversal. At each level:
+     *   1. EEVDF-order the siblings (leaves + group entities together).
+     *   2. Walk the ordered list: leaf → emit; group → recurse, emitting
+     *      its children in its place.
+     *
+     * Group entities determine *where* their children sit relative to peer
+     * leaves (a group with low vruntime puts its children ahead of a peer
+     * leaf with high vruntime), but the group itself is never emitted.
+     *
+     * Result: only runnable leaf tasks, in the execution order Linux would
+     * produce by exhaustively walking the cgroup tree.
+     */
+    private fun fairLeavesDepthFirst(
+        allTasks: List<SchedTask>,
+        parentId: String?,
+        excludedIds: Set<String>,
+    ): List<SchedTask> {
+        // isFair: excludes dormant RT and expired-budget DL tasks that are not
+        // in excludedIds (because they were inactive when DL/RT sets were built).
+        // Those classes do not belong in the CFS runqueue under any condition.
+        val levelEntities = allTasks.filter {
+            !it.isCompleted && it.isFair && it.parentId == parentId && it.id !in excludedIds
+        }
+        if (levelEntities.isEmpty()) return emptyList()
+
+        val ordered = EevdfScheduler.scheduleOrder(levelEntities)
+
         return buildList {
-            addAll(dl)
-            addAll(rt)
-            for (entity in fairRootOrdered) {
-                add(entity)
+            for (entity in ordered) {
                 if (entity.isGroup) {
-                    addAll(
-                        EevdfScheduler.scheduleOrder(
-                            tasks.filter { it.parentId == entity.id && !it.isCompleted }
-                        )
-                    )
+                    // Descend: the group's children replace the group in the queue.
+                    addAll(fairLeavesDepthFirst(allTasks, parentId = entity.id, excludedIds = excludedIds))
+                } else {
+                    add(entity)
                 }
             }
         }
