@@ -1,81 +1,78 @@
 package com.eevdf.app.feature.task
 
 import android.view.View
+import android.widget.ArrayAdapter
 import com.eevdf.data.task.Task
 
 /**
- * Interrupt slot A/B section for [AddTaskActivity].
+ * Interrupt slot section for [AddTaskActivity].
  *
- * Separated so changes to interrupt-slot assignment logic (e.g. adding a third
- * slot or changing mutual-exclusion rules) don't touch the core activity file.
+ * Replaced the previous two-switch design (one switch per slot) with a single
+ * "Assign as interrupt" toggle that reveals a slot picker dropdown (INT-A / INT-B)
+ * and a single conflict-owner text when enabled.
  *
  * Domain:
- *   • [AddTaskActivity.setupInterruptSwitch]     — observes interrupt LiveData and wires mutual-exclusion
- *   • [AddTaskActivity.populateInterruptSection] — restores switch state from existing task
+ *   • [AddTaskActivity.setupInterruptSwitch]     — wires toggle, slot picker, and conflict text
+ *   • [AddTaskActivity.populateInterruptSection] — restores state from existing task
  */
 
+private val interruptSlotLabels = listOf("INT-A", "INT-B")
+
 internal fun AddTaskActivity.setupInterruptSwitch() {
-    // ── Bug fix: observe LiveData instead of reading .value once ──────────
-    // Previously used lifecycleScope.launch { viewModel.interruptTask.value }
-    // which races with the ViewModel's own startup coroutine — value is null
-    // on first open but populated after a rotation (ViewModel is retained).
-    // Observing the LiveData means we always get the correct value as soon as
-    // it is posted, whether on first open or after rotation.
+    val slotAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, interruptSlotLabels)
+    actvInterruptSlot.setAdapter(slotAdapter)
+    actvInterruptSlot.setText("INT-A", false)   // default slot
 
-    viewModel.interruptTask.observe(this) { currentA ->
-        val isEditingA = existingTask?.interruptSlot == "A" && existingTask?.isInterrupt == true
-        if (currentA != null && currentA.id != existingTaskId) {
-            tvInterruptOwner.text = "Currently assigned to: \"${currentA.name}\""
-            tvInterruptOwner.visibility  = View.VISIBLE
-            switchIsInterrupt.isEnabled  = false   // must clear INT-A first
-        } else {
-            tvInterruptOwner.visibility  = View.GONE
-            switchIsInterrupt.isEnabled  = true
-        }
-        // When editing the INT-A task itself, show it checked
-        if (isEditingA) {
-            switchIsInterrupt.isChecked  = true
-            switchIsInterrupt.isEnabled  = true
-            tvInterruptOwner.visibility  = View.GONE
-        }
+    // Toggle shows/hides slot picker
+    switchIsInterrupt.setOnCheckedChangeListener { _, checked ->
+        layoutInterruptSlotPicker.visibility = if (checked) View.VISIBLE else View.GONE
+        if (!checked) tvInterruptOwner.visibility = View.GONE
+        refreshInterruptConflict()
     }
 
-    viewModel.interruptTaskB.observe(this) { currentB ->
-        val isEditingB = existingTask?.interruptSlot == "B" && existingTask?.isInterrupt == true
-        if (currentB != null && currentB.id != existingTaskId) {
-            tvInterruptOwnerB.text = "Currently assigned to: \"${currentB.name}\""
-            tvInterruptOwnerB.visibility  = View.VISIBLE
-            switchIsInterruptB.isEnabled  = false  // must clear INT-B first
-        } else {
-            tvInterruptOwnerB.visibility  = View.GONE
-            switchIsInterruptB.isEnabled  = true
-        }
-        if (isEditingB) {
-            switchIsInterruptB.isChecked  = true
-            switchIsInterruptB.isEnabled  = true
-            tvInterruptOwnerB.visibility  = View.GONE
-        }
+    // Slot change refreshes conflict warning
+    actvInterruptSlot.setOnItemClickListener { _, _, _, _ ->
+        refreshInterruptConflict()
     }
 
-    // Mutual-exclusion: can't assign the same task to both slots at once
-    switchIsInterrupt.setOnCheckedChangeListener  { _, checked -> if (checked) switchIsInterruptB.isChecked = false }
-    switchIsInterruptB.setOnCheckedChangeListener { _, checked -> if (checked) switchIsInterrupt.isChecked  = false }
+    // Observe both slots so the conflict text stays current if another screen
+    // assigns a task while this form is open
+    viewModel.interruptTask.observe(this)  { refreshInterruptConflict() }
+    viewModel.interruptTaskB.observe(this) { refreshInterruptConflict() }
 }
 
-/** Restores interrupt switch state from [task]. */
+/**
+ * Checks whether the currently selected interrupt slot is already held by
+ * another task and updates [tvInterruptOwner] accordingly.
+ *
+ * Called on toggle change, slot change, and LiveData updates.
+ */
+private fun AddTaskActivity.refreshInterruptConflict() {
+    if (!switchIsInterrupt.isChecked) {
+        tvInterruptOwner.visibility = View.GONE
+        return
+    }
+
+    val slotIsB      = actvInterruptSlot.text.toString() == "INT-B"
+    val slotKey      = if (slotIsB) "B" else "A"
+    val holder       = if (slotIsB) viewModel.interruptTaskB.value else viewModel.interruptTask.value
+    val editingSlot  = existingTask?.isInterrupt == true && existingTask?.interruptSlot == slotKey
+
+    if (holder != null && holder.id != existingTaskId && !editingSlot) {
+        tvInterruptOwner.text      = "Slot taken by: \"${holder.name}\""
+        tvInterruptOwner.visibility = View.VISIBLE
+    } else {
+        tvInterruptOwner.visibility = View.GONE
+    }
+}
+
+/** Restores interrupt toggle and slot picker from [task]. */
 internal fun AddTaskActivity.populateInterruptSection(task: Task) {
     if (!task.isInterrupt) return
-    if (task.interruptSlot == "B") {
-        switchIsInterruptB.isChecked  = true
-        switchIsInterruptB.isEnabled  = true
-        tvInterruptOwnerB.visibility  = View.GONE
-    } else {
-        switchIsInterrupt.isChecked   = true
-        switchIsInterrupt.isEnabled   = true
-        tvInterruptOwner.visibility   = View.GONE
-    }
+    switchIsInterrupt.isChecked       = true
+    layoutInterruptSlotPicker.visibility = View.VISIBLE
+    actvInterruptSlot.setText(
+        if (task.interruptSlot == "B") "INT-B" else "INT-A",
+        false
+    )
 }
-
-/** Inline helper — kept for binary compatibility; use LiveData observer instead. */
-internal suspend fun AddTaskActivity.repository_getInterrupt(): Task? =
-    viewModel.interruptTask.value

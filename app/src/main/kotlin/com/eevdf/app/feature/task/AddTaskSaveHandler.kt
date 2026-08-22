@@ -77,6 +77,10 @@ internal fun AddTaskActivity.saveTask() {
         resumeTypeLabels.indexOf(actvResumeType.text.toString())
     ) { "MIDDLE" }
 
+    // ── Interrupt slot ────────────────────────────────────────────────────────
+    val interruptEnabled = switchIsInterrupt.isChecked
+    val interruptSlotIsB = interruptEnabled && actvInterruptSlot.text.toString() == "INT-B"
+
     // ── Pinned share ──────────────────────────────────────────────────────────
     val pinnedShareRaw = etPinnedShare.text.toString().toDoubleOrNull()
     val pinnedShare: Double? = if (pinnedShareRaw != null) {
@@ -255,10 +259,10 @@ internal fun AddTaskActivity.saveTask() {
             rtSliceTimeoutSeconds = rtSliceTimeoutSeconds,
         )
         when {
-            switchIsInterrupt.isChecked  -> viewModel.assignInterruptTask(updated)
-            switchIsInterruptB.isChecked -> viewModel.assignInterruptTaskB(updated)
-            updated.isInterrupt && updated.interruptSlot == "B" -> viewModel.clearInterruptTaskB()
-            updated.isInterrupt -> viewModel.clearInterruptTask()
+            interruptEnabled && interruptSlotIsB                        -> viewModel.assignInterruptTaskB(updated)
+            interruptEnabled                                             -> viewModel.assignInterruptTask(updated)
+            updated.isInterrupt && updated.interruptSlot == "B"         -> viewModel.clearInterruptTaskB()
+            updated.isInterrupt                                          -> viewModel.clearInterruptTask()
         }
         viewModel.updateTask(updated)
     } else {
@@ -299,8 +303,8 @@ internal fun AddTaskActivity.saveTask() {
         )
         viewModel.addTask(task)
         when {
-            switchIsInterrupt.isChecked  -> viewModel.assignInterruptTask(task)
-            switchIsInterruptB.isChecked -> viewModel.assignInterruptTaskB(task)
+            interruptEnabled && interruptSlotIsB -> viewModel.assignInterruptTaskB(task)
+            interruptEnabled                      -> viewModel.assignInterruptTask(task)
         }
     }
 

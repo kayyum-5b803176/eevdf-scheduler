@@ -50,6 +50,7 @@
             <include layout="@layout/section_add_task_priority" />
             <include layout="@layout/section_add_task_loadfactor" />
             <include layout="@layout/section_add_task_tasktype" />
+            <include layout="@layout/section_add_task_taskconfig" />
             <include layout="@layout/section_add_task_realtimeshare" />
             <include layout="@layout/section_add_task_quota" />
             <include layout="@layout/section_add_task_scheduler" />

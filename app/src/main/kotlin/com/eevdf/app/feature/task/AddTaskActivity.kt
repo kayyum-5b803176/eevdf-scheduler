@@ -77,8 +77,8 @@ class AddTaskActivity : AppCompatActivity() {
     // ── Interrupt section ─────────────────────────────────────────────────────
     internal lateinit var switchIsInterrupt:  SwitchMaterial
     internal lateinit var tvInterruptOwner:   TextView
-    internal lateinit var switchIsInterruptB: SwitchMaterial
-    internal lateinit var tvInterruptOwnerB:  TextView
+    internal lateinit var layoutInterruptSlotPicker: LinearLayout
+    internal lateinit var actvInterruptSlot:          AutoCompleteTextView
 
     // ── Groups section ────────────────────────────────────────────────────────
     internal lateinit var groupSection:        LinearLayout
@@ -191,7 +191,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupPrioritySlider()
         setupGroupSection()
         setupInterruptSwitch()
-        setupTaskTypeSection()
+        setupTaskConfigSection()
         setupPinnedShare()
         setupRealtimeShare()
         setupQuotaSection()
@@ -239,8 +239,8 @@ class AddTaskActivity : AppCompatActivity() {
 
         switchIsInterrupt  = findViewById(R.id.switchIsInterrupt)
         tvInterruptOwner   = findViewById(R.id.tvInterruptOwner)
-        switchIsInterruptB = findViewById(R.id.switchIsInterruptB)
-        tvInterruptOwnerB  = findViewById(R.id.tvInterruptOwnerB)
+        layoutInterruptSlotPicker = findViewById(R.id.layoutInterruptSlotPicker)
+        actvInterruptSlot         = findViewById(R.id.actvInterruptSlot)
 
         groupSection        = findViewById(R.id.groupSection)
         groupTypeSection    = findViewById(R.id.groupTypeSection)
@@ -330,7 +330,7 @@ class AddTaskActivity : AppCompatActivity() {
         populateBasicFields(task)
         populateCategoryPrioritySection(task)
         populateGroupSection(task)
-        populateTaskTypeSection(task)
+        populateTaskConfigSection(task)
         populateInterruptSection(task)
         populatePinnedShareSection(task)
         populateQuotaSection(task)

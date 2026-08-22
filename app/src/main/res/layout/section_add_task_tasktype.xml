@@ -1,18 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Task Type card — type spinner, group/interrupt toggles, notice delay sub-fields.
+  Task Type card — group/interrupt toggles only.
 
   groupTypeSection    — hidden by default; AddTaskGroupSection.kt shows it when
                         groups mode is enabled in settings.
-  interruptSection    — always visible; INT-A and INT-B are independent of groups.
-  layoutNotifDelay    — hidden by default; AddTaskTypeSection.kt shows it when
-                        spinnerTaskType selection is NOTIFICATION.
+  interruptSection    — single "Assign as interrupt" toggle; when ON reveals a
+                        slot picker dropdown (INT-A / INT-B) and a single
+                        conflict-owner text.  Managed by AddTaskInterruptSection.kt.
 
-  Notice sub-field ownership (AddTaskTypeSection.kt):
-    etNotifDelay / tvNotifDelayPreview    — delay before execute starts
-    etNoticeRest / tvNoticeRestPreview    — wait countdown after execute expires
-    etNoticeRepeat                        — extra execute/wait cycles (0-12)
-    spinnerResumeType                 — Middle or Initial resume position
+  Task profile, resume type, and notice fields live in section_add_task_taskconfig.xml.
 -->
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -61,7 +57,7 @@
 
         </LinearLayout>
 
-        <!-- Interrupt slot options — always visible, independent of groups enable state -->
+        <!-- Interrupt — single toggle reveals INT-A / INT-B slot picker -->
         <LinearLayout
             android:id="@+id/interruptSection"
             android:layout_width="match_parent"
@@ -72,243 +68,52 @@
                 android:id="@+id/switchIsInterrupt"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Assign as INT-A" />
+                android:text="Assign as interrupt" />
 
-            <TextView
-                android:id="@+id/tvInterruptOwner"
+            <!-- Slot picker — hidden until toggle is ON -->
+            <LinearLayout
+                android:id="@+id/layoutInterruptSlotPicker"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="12sp"
-                android:textColor="#F44336"
-                android:layout_marginTop="4dp"
-                android:visibility="gone" />
+                android:orientation="vertical"
+                android:layout_marginTop="12dp"
+                android:visibility="gone">
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switchIsInterruptB"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Assign as INT-B"
-                android:layout_marginTop="8dp" />
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/App.TextInput.Dropdown"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Interrupt slot">
 
-            <TextView
-                android:id="@+id/tvInterruptOwnerB"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="12sp"
-                android:textColor="#F44336"
-                android:layout_marginTop="4dp"
-                android:visibility="gone" />
+                    <AutoCompleteTextView
+                        android:id="@+id/actvInterruptSlot"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="none"
+                        android:focusable="false"
+                        android:focusableInTouchMode="false"
+                        android:cursorVisible="false" />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <TextView
+                    android:id="@+id/tvInterruptOwner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="12sp"
+                    android:textColor="#F44336"
+                    android:layout_marginTop="6dp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_divider"
                 android:background="#E0E0E0"
                 android:layout_marginTop="16dp"
-                android:layout_marginBottom="14dp" />
-
-        </LinearLayout>
-
-        <!-- Task Profile spinner -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Task Profile"
-            android:textSize="12sp"
-            android:textColor="#616161"
-            android:layout_marginBottom="4dp" />
-
-        <com.google.android.material.textfield.TextInputLayout
-                style="@style/App.TextInput.Dropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <AutoCompleteTextView
-                    android:id="@+id/actvTaskType"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:focusable="false"
-                    android:focusableInTouchMode="false"
-                    android:cursorVisible="false" />
-
-            </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Resume type — global setting, always visible for every task type -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/app_divider"
-            android:background="#E0E0E0"
-            android:layout_marginTop="14dp"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Resume type"
-            android:textSize="13sp"
-            android:textColor="#212121"
-            android:fontFamily="sans-serif-medium"
-            android:layout_marginBottom="4dp" />
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Middle: resume from last paused position. Initial: always restart from the beginning."
-            android:textSize="11sp"
-            android:textColor="#9E9E9E"
-            android:layout_marginBottom="6dp" />
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/App.TextInput.Dropdown"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <AutoCompleteTextView
-                android:id="@+id/actvResumeType"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="none"
-                android:focusable="false"
-                android:focusableInTouchMode="false"
-                android:cursorVisible="false" />
-
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Notice-only extra fields — hidden unless NOTIFICATION selected -->
-        <LinearLayout
-            android:id="@+id/layoutNotifDelay"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="14dp"
-            android:visibility="gone">
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/app_divider"
-                android:background="#E0E0E0"
-                android:layout_marginBottom="12dp" />
-
-            <!-- Delay before execute starts -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="4dp">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Delay before timer starts"
-                    android:textSize="13sp"
-                    android:textColor="#212121"
-                    android:fontFamily="sans-serif-medium" />
-                <TextView
-                    android:id="@+id/tvNotifDelayPreview"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0s"
-                    android:textSize="13sp"
-                    android:textColor="@color/colorPrimary"
-                    android:textStyle="bold" />
-            </LinearLayout>
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Countdown before task timer begins (mm-ss, 0-5 min)"
-                android:textSize="11sp"
-                android:textColor="#9E9E9E"
-                android:layout_marginBottom="6dp" />
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Delay mm-ss  (e.g. 01-30)"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_marginBottom="16dp">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etNotifDelay"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:digits="0123456789-"
-                    android:maxLength="5" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Wait countdown after execute expires -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="4dp">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Wait time"
-                    android:textSize="13sp"
-                    android:textColor="#212121"
-                    android:fontFamily="sans-serif-medium" />
-                <TextView
-                    android:id="@+id/tvNoticeRestPreview"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0s"
-                    android:textSize="13sp"
-                    android:textColor="@color/colorPrimary"
-                    android:textStyle="bold" />
-            </LinearLayout>
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Wait countdown after execute expires; 0s = skip (mm-ss, 0-5 min)"
-                android:textSize="11sp"
-                android:textColor="#9E9E9E"
-                android:layout_marginBottom="6dp" />
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Wait mm-ss  (e.g. 00-30)"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_marginBottom="16dp">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etNoticeRest"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:digits="0123456789-"
-                    android:maxLength="5" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Repeat count -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Repeat (extra cycles)"
-                android:textSize="13sp"
-                android:textColor="#212121"
-                android:fontFamily="sans-serif-medium"
-                android:layout_marginBottom="4dp" />
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="After wait, restart execute this many more times (0 = run once, max 12)"
-                android:textSize="11sp"
-                android:textColor="#9E9E9E"
-                android:layout_marginBottom="6dp" />
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Repeat count  (0-12)"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etNoticeRepeat"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:maxLength="2" />
-            </com.google.android.material.textfield.TextInputLayout>
+                android:layout_marginBottom="0dp" />
 
         </LinearLayout>
 
