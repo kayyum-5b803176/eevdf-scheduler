@@ -10,22 +10,22 @@ import android.widget.TextView
  * Task type and notice-delay section for [AddTaskActivity].
  *
  * Separated so changes to task types (e.g. adding a new type), notice delay
- * format, or repeat/resume options don't touch the core activity file.
+ * format, or resume options don't touch the core activity file.
  *
  * Domain:
- *   • [taskTypeLabels] / [taskTypeValues]                  — type dropdown entries
- *   • [noticeResumeTypeLabels] / [noticeResumeTypeValues]  — resume mode entries
- *   • [AddTaskActivity.setupTaskTypeSection]               — spinners + delay TextWatchers
- *   • [parseDelayInput]                                    — mm-ss → seconds (pure)
- *   • [formatDelaySecs]                                    — seconds → readable string (pure)
- *   • [AddTaskActivity.populateTaskTypeSection]            — restores from existing task
+ *   • [taskTypeLabels] / [taskTypeValues]          — type dropdown entries
+ *   • [resumeTypeLabels] / [resumeTypeValues]      — resume mode entries (global, all task types)
+ *   • [AddTaskActivity.setupTaskTypeSection]        — spinners + delay TextWatchers
+ *   • [parseDelayInput]                             — mm-ss → seconds (pure)
+ *   • [formatDelaySecs]                             — seconds → readable string (pure)
+ *   • [AddTaskActivity.populateTaskTypeSection]     — restores from existing task
  */
 
 internal val taskTypeLabels = listOf("Default", "Notice", "Alert", "Custom")
 internal val taskTypeValues = listOf("DEFAULT", "NOTIFICATION", "ALARM", "CUSTOM")
 
-internal val noticeResumeTypeLabels = listOf("Middle", "Initial")
-internal val noticeResumeTypeValues = listOf("MIDDLE", "INITIAL")
+internal val resumeTypeLabels = listOf("Middle", "Initial")
+internal val resumeTypeValues  = listOf("MIDDLE", "INITIAL")
 
 internal fun AddTaskActivity.setupTaskTypeSection() {
     val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, taskTypeLabels)
@@ -50,7 +50,8 @@ internal fun AddTaskActivity.setupTaskTypeSection() {
     watchDelay(etNotifDelay, tvNotifDelayPreview)
     watchDelay(etNoticeRest, tvNoticeRestPreview)
 
-    val resumeAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, noticeResumeTypeLabels)
+    // Resume type is global — wired unconditionally regardless of task type.
+    val resumeAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, resumeTypeLabels)
     actvNoticeResumeType.setAdapter(resumeAdapter)
 }
 
@@ -83,6 +84,11 @@ internal fun AddTaskActivity.populateTaskTypeSection(task: Task) {
     actvTaskType.setText(taskTypeLabels[typeIdx], false)
     selectedTaskType = task.taskType
 
+    // Resume type is global — always restored regardless of task type.
+    val resumeIdx = resumeTypeValues.indexOf(task.resumeType).coerceAtLeast(0)
+    actvNoticeResumeType.setText(resumeTypeLabels[resumeIdx], false)
+
+    // Notice-only fields — only shown and populated for NOTIFICATION tasks.
     if (task.taskType != "NOTIFICATION") return
 
     layoutNoticeSection.visibility = View.VISIBLE
@@ -91,6 +97,4 @@ internal fun AddTaskActivity.populateTaskTypeSection(task: Task) {
     val rm = task.notificationRestSeconds
     etNoticeRest.setText(if (rm == 0L) "" else "%02d-%02d".format(rm / 60, rm % 60))
     etNoticeRepeat.setText(if (task.notificationRepeatCount == 0) "" else task.notificationRepeatCount.toString())
-    val resumeIdx = noticeResumeTypeValues.indexOf(task.notificationResumeType).coerceAtLeast(0)
-    actvNoticeResumeType.setText(noticeResumeTypeLabels[resumeIdx], false)
 }

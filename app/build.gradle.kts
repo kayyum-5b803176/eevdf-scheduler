@@ -31,10 +31,10 @@ android {
     compileSdk = 34
     defaultConfig {
         applicationId = "com.eevdf.scheduler"
-        minSdk = 26
+        minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "4.15.13"
+        versionName = "4.16.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

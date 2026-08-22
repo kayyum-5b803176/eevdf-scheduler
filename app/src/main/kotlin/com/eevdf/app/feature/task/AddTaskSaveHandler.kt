@@ -72,9 +72,10 @@ internal fun AddTaskActivity.saveTask() {
         parseDelayInput(etNoticeRest.text.toString()) else 0L
     val notifRepeat    = if (selectedTaskType == "NOTIFICATION")
         (etNoticeRepeat.text.toString().toIntOrNull() ?: 0).coerceIn(0, 12) else 0
-    val notifResumeType = if (selectedTaskType == "NOTIFICATION")
-        noticeResumeTypeValues.getOrElse(noticeResumeTypeLabels.indexOf(actvNoticeResumeType.text.toString())) { "MIDDLE" }
-    else "MIDDLE"
+    // resumeType is global — read unconditionally for every task type.
+    val resumeType = resumeTypeValues.getOrElse(
+        resumeTypeLabels.indexOf(actvNoticeResumeType.text.toString())
+    ) { "MIDDLE" }
 
     // ── Pinned share ──────────────────────────────────────────────────────────
     val pinnedShareRaw = etPinnedShare.text.toString().toDoubleOrNull()
@@ -234,7 +235,7 @@ internal fun AddTaskActivity.saveTask() {
             notificationDelaySeconds = notifDelaySecs,
             notificationRestSeconds  = notifRestSecs,
             notificationRepeatCount  = notifRepeat,
-            notificationResumeType   = notifResumeType,
+            resumeType               = resumeType,
             pinnedShare         = pinnedShare,
             internalWeight      = internalWeight,
             quotaSeconds        = quotaSeconds,
@@ -278,7 +279,7 @@ internal fun AddTaskActivity.saveTask() {
             notificationDelaySeconds = notifDelaySecs,
             notificationRestSeconds  = notifRestSecs,
             notificationRepeatCount  = notifRepeat,
-            notificationResumeType   = notifResumeType,
+            resumeType               = resumeType,
             pinnedShare         = pinnedShare,
             internalWeight      = internalWeight,
             quotaSeconds        = quotaSeconds,

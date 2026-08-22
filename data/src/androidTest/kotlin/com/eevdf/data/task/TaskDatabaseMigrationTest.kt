@@ -33,7 +33,7 @@ class TaskDatabaseMigrationTest {
 
     private companion object {
         const val TEST_DB = "migration-test.db"
-        const val LATEST = 21          // keep in sync with @Database(version = ...)
+        const val LATEST = 27          // keep in sync with @Database(version = ...)
     }
 
     @get:Rule
@@ -67,6 +67,55 @@ class TaskDatabaseMigrationTest {
                 helper.runMigrationsAndValidate(TEST_DB, target, true).close()
             } catch (e: Throwable) {
                 throw AssertionError("Migration to version $target failed: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Migration 26 → 27: [notificationResumeType] renamed to [resumeType].
+     *
+     * Verifies that a row written at v26 with a known resumeType value is
+     * readable under the new column name after migration, and that the value
+     * is preserved (not reset to the default).
+     */
+    @Test
+    fun migration26to27_resumeTypeColumnRenamePreservesValue() {
+        helper.createDatabase(TEST_DB, 26).use { db ->
+            db.execSQL(
+                "INSERT INTO tasks (id, name, description, priority, timeSliceSeconds, " +
+                    "timeSliceInherited, category, color, isGroup, isGroupExpanded, " +
+                    "vruntime, eligibleTime, virtualDeadline, lag, " +
+                    "remainingSeconds, isRunning, isCompleted, totalRunTime, runCount, " +
+                    "isInterrupt, interruptSlot, taskType, " +
+                    "notificationDelaySeconds, notificationRestSeconds, notificationRepeatCount, " +
+                    "notificationResumeType, " +
+                    "accumulatedMs, startTimeEpoch, createdAt, " +
+                    "quotaSeconds, quotaPeriodSeconds, quotaPeriodStartEpoch, quotaUsedSeconds, " +
+                    "schedulerClass, dlRuntimeSeconds, dlDeadlineSeconds, dlPeriodSeconds, " +
+                    "dlPeriodStartEpoch, dlRuntimeUsedSeconds, " +
+                    "rtPriority, rtPolicy, rtActiveDays, rtActivationHour, rtActivationMinute, " +
+                    "rtActivationSecond, rtSliceTimeoutSeconds, " +
+                    "loadFactor, loadFactorInherited, loadAverage, loadLastUpdateEpoch, " +
+                    "loadAvgCognitive, loadLastUpdateCognitive, loadAvgPhysical, " +
+                    "loadLastUpdatePhysical, loadAvgEmotional, loadLastUpdateEmotional) " +
+                    "VALUES ('rt-test', 'Resume Test', '', 4, 300, 0, 'None', 0, " +
+                    "0, 1, 0.0, 0.0, 0.0, 0.0, 300, 0, 0, 0, 0, " +
+                    "0, 'A', 'DEFAULT', 0, 0, 0, " +
+                    "'INITIAL', " +
+                    "0, 0, 0, 0, 86400, 0, 0, " +
+                    "'fair_sched_class', 0, 0, 0, 0, 0, " +
+                    "50, 'RR', 0, 0, 0, 0, 0, " +
+                    "1.0, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0.0, 0)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 27, true).use { db ->
+            db.query("SELECT resumeType FROM tasks WHERE id = 'rt-test'").use { c ->
+                assertTrue("row lost during 26→27 migration", c.moveToFirst())
+                assertTrue(
+                    "resumeType value not preserved after column rename",
+                    c.getString(0) == "INITIAL"
+                )
             }
         }
     }

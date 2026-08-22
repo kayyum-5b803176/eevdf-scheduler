@@ -49,7 +49,7 @@ object TaskFieldClassification {
         "notificationDelaySeconds" to SyncFieldKind.CONTENT,
         "notificationRestSeconds" to SyncFieldKind.CONTENT,
         "notificationRepeatCount" to SyncFieldKind.CONTENT,
-        "notificationResumeType" to SyncFieldKind.CONTENT,
+        "resumeType" to SyncFieldKind.CONTENT,
         "pinnedShare" to SyncFieldKind.CONTENT,
         "quotaSeconds" to SyncFieldKind.CONTENT,
         "quotaPeriodSeconds" to SyncFieldKind.CONTENT,

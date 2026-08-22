@@ -482,8 +482,7 @@ class TaskViewModel @Inject constructor(
         //
         // Only applies to true resumes (Paused state); fresh starts and
         // pending-wait paths are unaffected.
-        val isInitialResume = task.taskType == "NOTIFICATION" &&
-            task.notificationResumeType == "INITIAL" &&
+        val isInitialResume = task.resumeType == "INITIAL" &&
             task.timerState is TaskTimerState.Paused &&
             !notice.hasPendingWait()
 

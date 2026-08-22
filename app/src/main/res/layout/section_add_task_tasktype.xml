@@ -135,6 +135,45 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- Resume type — global setting, always visible for every task type -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/app_divider"
+            android:background="#E0E0E0"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Resume type"
+            android:textSize="13sp"
+            android:textColor="#212121"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginBottom="4dp" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Middle: resume from last paused position. Initial: always restart from the beginning."
+            android:textSize="11sp"
+            android:textColor="#9E9E9E"
+            android:layout_marginBottom="6dp" />
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/App.TextInput.Dropdown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <AutoCompleteTextView
+                android:id="@+id/actvNoticeResumeType"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:cursorVisible="false" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- Notice-only extra fields — hidden unless NOTIFICATION selected -->
         <LinearLayout
             android:id="@+id/layoutNotifDelay"
@@ -269,39 +308,6 @@
                     android:layout_height="wrap_content"
                     android:inputType="number"
                     android:maxLength="2" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Resume type -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Resume type"
-                android:textSize="13sp"
-                android:textColor="#212121"
-                android:fontFamily="sans-serif-medium"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="4dp" />
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Middle: resume execute from last paused position. Initial: always restart execute from the beginning."
-                android:textSize="11sp"
-                android:textColor="#9E9E9E"
-                android:layout_marginBottom="6dp" />
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/App.TextInput.Dropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <AutoCompleteTextView
-                    android:id="@+id/actvNoticeResumeType"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:focusable="false"
-                    android:focusableInTouchMode="false"
-                    android:cursorVisible="false" />
-
             </com.google.android.material.textfield.TextInputLayout>
 
         </LinearLayout>

@@ -55,7 +55,9 @@ class TaskSchemaFreezeTest {
             "isInterrupt", "interruptSlot",
             // notice / notification task type
             "taskType", "notificationDelaySeconds", "notificationRestSeconds",
-            "notificationRepeatCount", "notificationResumeType",
+            "notificationRepeatCount",
+            // global timer behaviour
+            "resumeType",
             // quota budget
             "quotaSeconds", "quotaPeriodSeconds", "quotaPeriodStartEpoch", "quotaUsedSeconds",
             // deadline budget

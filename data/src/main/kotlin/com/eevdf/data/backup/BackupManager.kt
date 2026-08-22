@@ -89,7 +89,7 @@ object BackupManager {
         put("notificationDelaySeconds", t.notificationDelaySeconds)
         put("notificationRestSeconds", t.notificationRestSeconds)
         put("notificationRepeatCount", t.notificationRepeatCount)
-        put("notificationResumeType", t.notificationResumeType)
+        put("resumeType", t.resumeType)
         // CPU-share pinning
         put("pinnedShare", t.pinnedShare ?: JSONObject.NULL)
         put("internalWeight", t.internalWeight ?: JSONObject.NULL)
@@ -148,7 +148,7 @@ object BackupManager {
         notificationDelaySeconds = j.optLong("notificationDelaySeconds", 0L),
         notificationRestSeconds = j.optLong("notificationRestSeconds", 0L),
         notificationRepeatCount = j.optInt("notificationRepeatCount", 0),
-        notificationResumeType = j.optString("notificationResumeType", "MIDDLE"),
+        resumeType = j.optString("resumeType", j.optString("notificationResumeType", "MIDDLE")),
         accumulatedMs = 0L,
         startTimeEpoch = 0L,
         pinnedShare = if (j.isNull("pinnedShare")) null else j.optDouble("pinnedShare"),

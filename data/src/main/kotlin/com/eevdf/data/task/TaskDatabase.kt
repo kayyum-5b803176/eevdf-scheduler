@@ -22,7 +22,7 @@ import com.eevdf.data.task.Task
         InterruptReturnEntry::class,
         TaskLoadFactor::class,          // ← new side table
     ],
-    version  = 26,                      // ← bumped from 25
+    version  = 27,                      // ← bumped from 26
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -448,6 +448,22 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 26 → 27 — Promote resumeType to a global field.
+         *
+         * Renames [notificationResumeType] → [resumeType] in the tasks table.
+         * The column is no longer tied to the NOTIFICATION task type; it now
+         * controls resume behaviour for every task type.
+         *
+         * RENAME COLUMN requires SQLite ≥ 3.25 (Android API 29+).
+         * minSdk was raised to 31 alongside this migration so the statement is safe.
+         */
+        private val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks RENAME COLUMN notificationResumeType TO resumeType")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -462,7 +478,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
-                        MIGRATION_25_26,
+                        MIGRATION_25_26, MIGRATION_26_27,
                     )
                     .build()
                 INSTANCE = instance
