@@ -36,6 +36,24 @@ data class SchedTask(
     val timeSliceSeconds: Long,
 
     // ── EEVDF state (inputs; refreshed copies returned by the scheduler) ──
+
+    /**
+     * Virtual runtime for this entity **at its own parent's runqueue level**.
+     *
+     * For a leaf task ([isGroup] == false): time this task has run, normalised
+     * by weight.  Directly advanced by [EevdfScheduler.advanceVruntime].
+     *
+     * For a group entity ([isGroup] == true): the group's participation token
+     * in its *parent's* EEVDF contest.  Advanced by
+     * [EevdfScheduler.advanceVruntimeHierarchical] each time any descendant
+     * runs, so the group competes fairly (e.g. against task-a) using its own
+     * [timeSliceSeconds] and [weight] — completely independent of the child
+     * vruntimes, which live one level down inside the group's own runqueue.
+     *
+     * This dual-level semantics mirrors Linux's per-cgroup `cfs_rq` +
+     * group scheduling entity: the same struct field is reused at the
+     * appropriate level without a separate storage field.
+     */
     val vruntime: Double = 0.0,
     val eligibleTime: Double = 0.0,
     val virtualDeadline: Double = 0.0,

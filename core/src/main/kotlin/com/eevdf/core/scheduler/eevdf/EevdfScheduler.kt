@@ -116,4 +116,77 @@ object EevdfScheduler {
         val ineligible = recalced.filter { it.lag < 0 }.sortedBy { it.vruntime }
         return eligible + ineligible
     }
+
+    // ── Hierarchical (cgroup) scheduling ─────────────────────────────────────
+
+    /**
+     * Hierarchical EEVDF pick. Runs EEVDF over the entities at
+     * `parentId = null` (root level); if the winner is a group entity, recurses
+     * into its children's runqueue — and so on until a leaf task is reached.
+     *
+     * This mirrors Linux CFS `pick_next_task_fair`:
+     * ```
+     * while (cfs_rq) { se = pick_eevdf(cfs_rq); cfs_rq = group_cfs_rq(se); }
+     * ```
+     *
+     * Group entities participate at their own level using their own
+     * [SchedTask.vruntime], [SchedTask.weight], and [SchedTask.timeSliceSeconds]
+     * — completely decoupled from their children, whose EEVDF state is scoped to
+     * the children's runqueue one level below.
+     *
+     * The correct flow for two top-level tasks `a` and `b` (group, with children
+     * `b1..b4`):
+     *   - Root: EEVDF picks between `a` and `b` using their own vruntimes.
+     *   - If `b` wins: recurse into `b`'s children; EEVDF picks among `b1..b4`.
+     *   - Leaf result (`b2`, say) is returned.
+     *   - `a`'s vruntime and deadline are never touched by child-level moves.
+     */
+    fun pickNextHierarchical(allTasks: List<SchedTask>): SchedTask? =
+        pickAtLevel(allTasks, parentId = null)
+
+    private fun pickAtLevel(allTasks: List<SchedTask>, parentId: String?): SchedTask? {
+        // Candidates at this level: not completed, not already running, fair-class.
+        val levelFair = allTasks.filter { task ->
+            !task.isCompleted && !task.isRunning && task.isFair && task.parentId == parentId
+        }
+        if (levelFair.isEmpty()) return null
+        val recalced = recalculate(levelFair)
+        val winner = selectNext(recalced) ?: return null
+        // Group entity won: descend into its children's runqueue.
+        return if (winner.isGroup) pickAtLevel(allTasks, parentId = winner.id) ?: winner
+        else winner
+    }
+
+    /**
+     * After [secondsRan] of actual CPU time on [task], return updated copies of
+     * [task] **and every ancestor group** present in [allTasks] with their
+     * vruntimes charged proportionally.  The caller should persist all returned
+     * copies in a single `saveAll`.
+     *
+     * This mirrors Linux `update_curr` propagating through group scheduling
+     * entities: every ancestor's vruntime is charged so the root-level EEVDF
+     * contest (e.g. task-a vs task-b as a group) stays fair independently of
+     * individual child ticks.
+     *
+     * Example: `b1` runs 1 s (weight 4).
+     *   - `b1.vruntime` += 1 / 4 = 0.25  (charged in b's children runqueue)
+     *   - `b.vruntime`  += 1 / weight_b   (charged in root runqueue)
+     * Task-a's vruntime is untouched; the root-level EEVDF will switch back
+     * to `a` only once `b`'s own vruntime catches up — not on every child tick.
+     */
+    fun advanceVruntimeHierarchical(
+        task: SchedTask,
+        secondsRan: Long,
+        allTasks: List<SchedTask>,
+    ): List<SchedTask> {
+        val updates = mutableListOf<SchedTask>()
+        updates += task.copy(vruntime = advanceVruntime(task, secondsRan))
+        var parentId = task.parentId
+        while (parentId != null) {
+            val parent = allTasks.firstOrNull { it.id == parentId } ?: break
+            updates += parent.copy(vruntime = advanceVruntime(parent, secondsRan))
+            parentId = parent.parentId
+        }
+        return updates
+    }
 }
