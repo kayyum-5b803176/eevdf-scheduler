@@ -12,7 +12,7 @@
     etNotifDelay / tvNotifDelayPreview    — delay before execute starts
     etNoticeRest / tvNoticeRestPreview    — wait countdown after execute expires
     etNoticeRepeat                        — extra execute/wait cycles (0-12)
-    spinnerNoticeResumeType               — Middle or Initial resume position
+    spinnerResumeType                 — Middle or Initial resume position
 -->
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -164,7 +164,7 @@
             android:layout_height="wrap_content">
 
             <AutoCompleteTextView
-                android:id="@+id/actvNoticeResumeType"
+                android:id="@+id/actvResumeType"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="none"

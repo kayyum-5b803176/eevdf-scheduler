@@ -74,7 +74,7 @@ internal fun AddTaskActivity.saveTask() {
         (etNoticeRepeat.text.toString().toIntOrNull() ?: 0).coerceIn(0, 12) else 0
     // resumeType is global — read unconditionally for every task type.
     val resumeType = resumeTypeValues.getOrElse(
-        resumeTypeLabels.indexOf(actvNoticeResumeType.text.toString())
+        resumeTypeLabels.indexOf(actvResumeType.text.toString())
     ) { "MIDDLE" }
 
     // ── Pinned share ──────────────────────────────────────────────────────────

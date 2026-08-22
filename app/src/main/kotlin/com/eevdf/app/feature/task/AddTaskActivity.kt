@@ -103,7 +103,7 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var etNoticeRest:          TextInputEditText
     internal lateinit var tvNoticeRestPreview:   TextView
     internal lateinit var etNoticeRepeat:        TextInputEditText
-    internal lateinit var actvNoticeResumeType: AutoCompleteTextView
+    internal lateinit var actvResumeType: AutoCompleteTextView
 
     // ── Quota limit section ───────────────────────────────────────────────────
     internal lateinit var switchQuotaEnabled: SwitchMaterial
@@ -254,7 +254,7 @@ class AddTaskActivity : AppCompatActivity() {
         etNoticeRest          = findViewById(R.id.etNoticeRest)
         tvNoticeRestPreview   = findViewById(R.id.tvNoticeRestPreview)
         etNoticeRepeat        = findViewById(R.id.etNoticeRepeat)
-        actvNoticeResumeType = findViewById(R.id.actvNoticeResumeType)
+        actvResumeType = findViewById(R.id.actvResumeType)
 
         etPinnedShare         = findViewById(R.id.etPinnedShare)
         tvPinnedShareWarning  = findViewById(R.id.tvPinnedShareWarning)

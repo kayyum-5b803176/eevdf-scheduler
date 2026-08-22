@@ -52,7 +52,7 @@ internal fun AddTaskActivity.setupTaskTypeSection() {
 
     // Resume type is global — wired unconditionally regardless of task type.
     val resumeAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, resumeTypeLabels)
-    actvNoticeResumeType.setAdapter(resumeAdapter)
+    actvResumeType.setAdapter(resumeAdapter)
 }
 
 /**
@@ -86,7 +86,7 @@ internal fun AddTaskActivity.populateTaskTypeSection(task: Task) {
 
     // Resume type is global — always restored regardless of task type.
     val resumeIdx = resumeTypeValues.indexOf(task.resumeType).coerceAtLeast(0)
-    actvNoticeResumeType.setText(resumeTypeLabels[resumeIdx], false)
+    actvResumeType.setText(resumeTypeLabels[resumeIdx], false)
 
     // Notice-only fields — only shown and populated for NOTIFICATION tasks.
     if (task.taskType != "NOTIFICATION") return
