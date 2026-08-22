@@ -271,6 +271,10 @@ object RtScheduler {
     fun hasActiveRtDescendant(task: Task, allTasks: List<Task>,
                                _nowMs: Long = System.currentTimeMillis()): Boolean {
         if (!task.isGroup) return isRtWindowActive(task, _nowMs)
+        // A group with its OWN active RT window counts — without this check a
+        // RT-class group with only CFS children returns false, breaking the
+        // upward chain: grandparent groups would never see it as an RT entity.
+        if (isRtWindowActive(task, _nowMs)) return true
         val children = allTasks.filter { it.parentId == task.id && !it.isCompleted }
         return children.any { child ->
             if (child.isGroup) hasActiveRtDescendant(child, allTasks, _nowMs)

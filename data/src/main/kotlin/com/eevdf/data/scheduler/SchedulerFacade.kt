@@ -111,6 +111,10 @@ object EEVDFScheduler {
 
     fun hasActiveDlDescendant(task: Task, allTasks: List<Task>): Boolean {
         if (!task.isGroup) return task.isDlBudgetActive
+        // A group with its OWN active DL budget counts — without this check a
+        // DL-class group with only CFS children returns false, breaking the
+        // upward chain: grandparent groups would never see it as a DL entity.
+        if (task.isDlBudgetActive) return true
         return allTasks.filter { it.parentId == task.id && !it.isCompleted }.any { child ->
             if (child.isGroup) hasActiveDlDescendant(child, allTasks) else child.isDlBudgetActive
         }

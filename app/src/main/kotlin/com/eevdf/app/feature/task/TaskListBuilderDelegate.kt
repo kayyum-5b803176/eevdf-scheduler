@@ -193,33 +193,53 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Schedule tab: tasks sorted by EEVDF virtual deadline, with one exception —
-     * any task whose [Task.isDlBudgetActive] is true (has remaining SCHED_DEADLINE
-     * runtime budget in the current period) is hoisted to the front of the list,
-     * ranked among themselves by EDF urgency (shortest period remaining first).
+     * Schedule tab: tasks sorted within each level by scheduler class then urgency.
      *
-     * Once a DL task exhausts its period budget it falls back into the normal
-     * EEVDF ordering alongside all other tasks.
+     * Two group-promotion scenarios are both supported simultaneously:
+     *
+     *   Scenario A — group has its OWN DL/RT class:
+     *     group-b (DL)            ← promoted at root by its own class
+     *       1.1 b1 (CFS)          ← children sort by EEVDF among themselves
+     *       1.2 b2 (CFS)
+     *
+     *   Scenario B — group is fair class but CONTAINS a DL/RT descendant:
+     *     group-b (CFS, has DL child)  ← promoted at root because of DL descendant
+     *       1.1 b-dl-task (DL)         ← DL child hoisted within the group
+     *       1.2 b-rt-task (RT)         ← RT child second within the group
+     *       1.3 b1 (CFS)               ← fair children by EEVDF
+     *
+     * Ordering rules at every level (root, group, nested group):
+     *   1. DL-bucket: entity itself is DL-active, OR (if group) any descendant is.
+     *      Sorted by EDF urgency — most urgent first.
+     *   2. RT-bucket: entity itself is RT-active, OR (if group) any descendant is.
+     *      Sorted by descending RT priority.
+     *   3. Fair-bucket: fair-class leaves + groups not in buckets 1 or 2.
+     *      Sorted by EEVDF virtual deadline.
+     *   4. Dormant entities (DL budget expired, RT window closed, no active
+     *      descendants) are excluded entirely — not runnable, not shown. A dormant
+     *      group excludes its entire subtree.
+     *
+     * A group's class does not cascade into its children. Children inside a DL
+     * group still sort among themselves by their own classes via recursion.
+     * No entity ever leaves its group for display.
      */
     private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
-        // Captured once so every partition/sort in both flat and grouped paths
-        // uses the same instant — avoids boundary flicker mid-render.
-        val nowMs  = System.currentTimeMillis()
+        // Captured once so all partitions and sorts use the same instant.
+        val nowMs = System.currentTimeMillis()
+
         if (!groupsEnabled) {
-            val leaves = tasks.filter { !it.isGroup }
-
-            // Priority order: DL (rank 1) → RT (rank 2) → EEVDF (rank 3)
-            // DL: budget-active tasks sorted by EDF urgency (shortest period remaining first)
-            // RT: window-active tasks sorted by descending rtPriority (highest first)
-            // EEVDF: remaining tasks sorted by virtual deadline
-            val (dlActive, nonDl)  = leaves.partition { it.isDlBudgetActive }
-            val (rtActive, eevdfRest) = nonDl.partition { RtScheduler.isRtWindowActive(it, nowMs) }
-            val dlSorted    = dlActive.sortedBy { it.dlPeriodRemainingSeconds }
-            val rtSorted    = rtActive.sortedByDescending { it.rtPriority }
-            val eevdfSorted = eevdfRest.sortedBy { it.virtualDeadline }
-            val ordered     = dlSorted + rtSorted + eevdfSorted
-
+            val leaves   = tasks.filter { !it.isGroup }
+            val dlActive = leaves.filter { it.isDlBudgetActive }
+                .sortedBy { it.dlPeriodRemainingSeconds }
+            val dlIds    = dlActive.mapTo(HashSet()) { it.id }
+            val rtActive = leaves.filter { it.id !in dlIds && RtScheduler.isRtWindowActive(it, nowMs) }
+                .sortedByDescending { it.rtPriority }
+            val rtIds    = rtActive.mapTo(HashSet()) { it.id }
+            val fairActive = leaves.filter {
+                it.id !in dlIds && it.id !in rtIds && it.schedulerClass == "fair_sched_class"
+            }.sortedBy { it.virtualDeadline }
+            val ordered  = dlActive + rtActive + fairActive
             return ordered.mapIndexed { index, it ->
                 val (descGroups, descTasks) = countDescendants(it.id, tasks)
                 TaskDisplayItem(it, 0,
@@ -233,63 +253,90 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                     isRtActive             = RtScheduler.isRtWindowActive(it, nowMs))
             }
         }
+
+        // ── Groups-enabled: descendant-aware per-level class partitioning ─────
         val result = mutableListOf<TaskDisplayItem>()
-        // When groups are enabled we build the tree level-by-level.
-        // Priority order at each level: DL-urgent → RT-urgent → EEVDF
-        //   DL-urgent: task/group has active DL budget (propagated from descendants for groups)
-        //   RT-urgent: task/group has an active RT window (propagated from descendants for groups)
-        //   EEVDF: everything else, sorted by virtual deadline
-        fun addLevel(parentId: String?, depth: Int, parentNumber: String,
-                     parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean,
-                     counter: IntArray) {
+
+        // DL urgency for sorting within the DL bucket: for a promoted group,
+        // urgency is the minimum remaining budget across all DL descendants.
+        fun dlUrgency(task: Task): Long =
+            if (!task.isGroup) task.dlPeriodRemainingSeconds
+            else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds
+            else tasks.filter { it.parentId == task.id && !it.isCompleted }
+                      .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+
+        fun addLevel(
+            parentId: String?,
+            depth: Int,
+            parentNumber: String,
+            parentQuotaExceeded: Boolean,
+            parentQuotaWarning: Boolean,
+            counter: IntArray,
+        ) {
             val children = tasks.filter { it.parentId == parentId }
 
-            // DL partition: group is DL-urgent if it has its own active budget OR a descendant does
-            val (dlChildren, nonDlChildren) = children.partition { child ->
-                if (child.isGroup) child.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(child, tasks)
-                else child.isDlBudgetActive
-            }
+            // Bucket 1 — DL: entity is DL-active itself, or (if group) has an
+            // active DL descendant. Scenario A + Scenario B both handled here.
+            val dlActive = children.filter { child ->
+                if (child.isGroup)
+                    child.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(child, tasks)
+                else
+                    child.isDlBudgetActive
+            }.sortedBy { dlUrgency(it) }
+            val dlIds = dlActive.mapTo(HashSet()) { it.id }
 
-            // RT partition: group is RT-urgent if it has its own active window OR a descendant does
-            val (rtChildren, restChildren) = nonDlChildren.partition { child ->
-                if (child.isGroup) RtScheduler.isRtWindowActive(child, nowMs) || RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
-                else RtScheduler.isRtWindowActive(child, nowMs)
-            }
+            // Bucket 2 — RT: entity is RT-active itself, or (if group) has an
+            // active RT descendant.
+            val rtActive = children.filter { child ->
+                child.id !in dlIds && (
+                    if (child.isGroup)
+                        RtScheduler.isRtWindowActive(child, nowMs) ||
+                            RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
+                    else
+                        RtScheduler.isRtWindowActive(child, nowMs)
+                )
+            }.sortedByDescending { it.rtPriority }
+            val rtIds = rtActive.mapTo(HashSet()) { it.id }
 
-            fun dlUrgency(task: Task): Long =
-                if (!task.isGroup) task.dlPeriodRemainingSeconds
-                else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds   // group's own DL
-                else tasks.filter { it.parentId == task.id && !it.isCompleted }
-                         .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+            // Bucket 3 — Fair: fair-class leaves + any group not in buckets 1 or 2.
+            // Groups fall here when they are fair-class with no active DL/RT content.
+            // Dormant non-fair leaves (expired DL, closed RT window, not a group)
+            // are in none of the three buckets and are silently excluded.
+            val fairActive = children.filter { child ->
+                child.id !in dlIds && child.id !in rtIds &&
+                    (child.isGroup || child.schedulerClass == "fair_sched_class")
+            }.sortedBy { it.virtualDeadline }
 
-            val sorted =
-                dlChildren.sortedBy  { dlUrgency(it) } +
-                rtChildren.sortedByDescending { it.rtPriority } +
-                restChildren.sortedBy { it.virtualDeadline }
+            val ordered = dlActive + rtActive + fairActive
 
-            sorted.forEach { task ->
-                val dc               = tasks.filter { it.parentId == task.id }
-                val quotaExceeded    = parentQuotaExceeded || task.isQuotaExceeded
-                val quotaWarning     = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
-                val isDlGroupHoisted = task.isGroup && EEVDFScheduler.hasActiveDlDescendant(task, tasks)
-                val isRtActive       = RtScheduler.isRtWindowActive(task, nowMs)
-                val isRtGroupHoisted = task.isGroup && RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)
+            ordered.forEach { task ->
+                val dc              = tasks.filter { it.parentId == task.id }
+                val quotaExceeded   = parentQuotaExceeded || task.isQuotaExceeded
+                val quotaWarning    = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
+                val isTaskDlActive  = task.isDlBudgetActive
+                val isTaskRtActive  = RtScheduler.isRtWindowActive(task, nowMs)
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 val (descGroups, descTasks) = countDescendants(task.id, tasks)
                 result.add(TaskDisplayItem(task, depth,
-                    childGroupCount        = descGroups,
-                    childTaskCount         = descTasks,
+                    childGroupCount  = descGroups,
+                    childTaskCount   = descTasks,
                     childTotalRuntime      = dc.sumOf { it.totalRunTime },
                     cpuShare               = shares[task.id] ?: 0.0,
                     effectiveQuotaExceeded = quotaExceeded,
                     effectiveQuotaWarning  = quotaWarning,
                     queueNumber            = number,
-                    isDlActive             = task.isDlBudgetActive,
-                    isDlGroupHoisted       = isDlGroupHoisted,
-                    isRtActive             = isRtActive,
-                    isRtGroupHoisted       = isRtGroupHoisted,
+                    isDlActive             = isTaskDlActive,
+                    // isDlGroupHoisted: group promoted by own DL OR a DL descendant.
+                    isDlGroupHoisted       = task.isGroup &&
+                        (isTaskDlActive || EEVDFScheduler.hasActiveDlDescendant(task, tasks)),
+                    isRtActive             = isTaskRtActive,
+                    // isRtGroupHoisted: group promoted by own RT OR an RT descendant.
+                    isRtGroupHoisted       = task.isGroup &&
+                        (isTaskRtActive || RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)),
                     isExpanded             = if (task.isGroup) (vm.groupExpand.scheduleExpandState[task.id] ?: true) else true))
+                // Recurse into children with the same per-level rules applied
+                // independently — the parent group's class does not cascade down.
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
             }
