@@ -17,7 +17,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var tabLayout:          TabLayout
     private lateinit var scrollView:         ScrollView
 
-    private lateinit var tabContentSystem:   LinearLayout
+    private lateinit var tabContentPlatform:   LinearLayout
     private lateinit var tabContentApp:      LinearLayout
     private lateinit var tabContentCore:     LinearLayout
     private lateinit var tabContentData:     LinearLayout
@@ -40,7 +40,7 @@ class SettingsActivity : AppCompatActivity() {
 
         scrollView          = findViewById(R.id.settingsScrollView)
         tabLayout           = findViewById(R.id.settingsTabLayout)
-        tabContentSystem    = findViewById(R.id.tabContentSystem)
+        tabContentPlatform    = findViewById(R.id.tabContentPlatform)
         tabContentApp       = findViewById(R.id.tabContentApp)
         tabContentCore      = findViewById(R.id.tabContentCore)
         tabContentData      = findViewById(R.id.tabContentData)
@@ -52,7 +52,7 @@ class SettingsActivity : AppCompatActivity() {
         rowDataBackup       = findViewById(R.id.rowDataBackup)
         rowMultiUserSync    = findViewById(R.id.rowMultiUserSync)
 
-        tabLayout.addTab(tabLayout.newTab().setText("system"))
+        tabLayout.addTab(tabLayout.newTab().setText("platform"))
         tabLayout.addTab(tabLayout.newTab().setText("app"))
         tabLayout.addTab(tabLayout.newTab().setText("core"))
         tabLayout.addTab(tabLayout.newTab().setText("data"))
@@ -89,7 +89,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun showTab(position: Int) {
-        tabContentSystem.visibility = if (position == 0) View.VISIBLE else View.GONE
+        tabContentPlatform.visibility = if (position == 0) View.VISIBLE else View.GONE
         tabContentApp.visibility    = if (position == 1) View.VISIBLE else View.GONE
         tabContentCore.visibility   = if (position == 2) View.VISIBLE else View.GONE
         tabContentData.visibility   = if (position == 3) View.VISIBLE else View.GONE
