@@ -13,7 +13,9 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="4dp"
-        android:paddingEnd="4dp">
+        android:paddingEnd="4dp"
+        android:layout_marginStart="@dimen/app_card_margin_horizontal"
+        android:layout_marginEnd="@dimen/app_card_margin_horizontal">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPrevMonth"
@@ -120,8 +122,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical">
+                    android:padding="12dp">
 
                     <!-- Date + mode label row -->
                     <LinearLayout
@@ -129,7 +130,9 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="8dp">
+                        android:layout_marginBottom="8dp"
+                        android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                        android:layout_marginEnd="@dimen/app_card_margin_horizontal">
 
                         <TextView
                             android:id="@+id/tvDetailDate"

@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical"
+        android:paddingBottom="@dimen/app_page_padding_vertical"
         android:clipChildren="false"
         android:clipToPadding="false">
 
@@ -42,7 +42,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal">
                     <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -83,19 +85,18 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="10dp">
+            android:layout_marginBottom="10dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal">
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginEnd="5dp"
                 app:cardCornerRadius="12dp"
-                app:cardElevation="3dp"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                app:cardElevation="3dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical">
+                    android:orientation="vertical" android:padding="12dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="TOTAL RUNTIME" android:textSize="9sp" android:textColor="#9E9E9E" android:letterSpacing="0.1" />
                     <TextView android:id="@+id/tvTotalRuntime" android:layout_width="wrap_content"
@@ -107,14 +108,11 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginStart="5dp"
                 app:cardCornerRadius="12dp"
-                app:cardElevation="3dp"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                app:cardElevation="3dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical">
+                    android:orientation="vertical" android:padding="12dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="TOTAL RUNS" android:textSize="9sp" android:textColor="#9E9E9E" android:letterSpacing="0.1" />
                     <TextView android:id="@+id/tvTotalRuns" android:layout_width="wrap_content"
@@ -127,19 +125,18 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="10dp">
+            android:layout_marginBottom="10dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal">
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginEnd="5dp"
                 app:cardCornerRadius="12dp"
-                app:cardElevation="3dp"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                app:cardElevation="3dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical">
+                    android:orientation="vertical" android:padding="12dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="ACTIVE TASKS" android:textSize="9sp" android:textColor="#9E9E9E" android:letterSpacing="0.1" />
                     <TextView android:id="@+id/tvActiveTasks" android:layout_width="wrap_content"
@@ -151,14 +148,11 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginStart="5dp"
                 app:cardCornerRadius="12dp"
-                app:cardElevation="3dp"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                app:cardElevation="3dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical">
+                    android:orientation="vertical" android:padding="12dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="AVG RUN/TASK" android:textSize="9sp" android:textColor="#9E9E9E" android:letterSpacing="0.1" />
                     <TextView android:id="@+id/tvAvgRun" android:layout_width="wrap_content"

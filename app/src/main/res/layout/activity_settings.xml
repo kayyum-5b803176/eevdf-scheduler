@@ -22,7 +22,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/headerBackground"
-            app:titleTextColor="@android:color/white"
+            app:titleTextColor="@color/textOnHeader"
             app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
 
         <com.google.android.material.tabs.TabLayout
@@ -32,8 +32,8 @@
             android:background="@color/headerBackground"
             app:tabMode="fixed"
             app:tabGravity="fill"
-            app:tabSelectedTextColor="@android:color/white"
-            app:tabIndicatorColor="@android:color/white"
+            app:tabSelectedTextColor="@color/textOnHeader"
+            app:tabIndicatorColor="@color/textOnHeader"
             app:tabTextColor="@color/tabTextInactive"
             app:tabTextAppearance="@style/App.Tab.Text" />
 

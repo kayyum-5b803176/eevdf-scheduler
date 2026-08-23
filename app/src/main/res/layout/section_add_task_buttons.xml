@@ -28,7 +28,7 @@
         android:layout_weight="1"
         android:text="Save Task"
         app:backgroundTint="@color/colorPrimary"
-        android:textColor="@android:color/white"
+        android:textColor="@color/textOnHeader"
         android:layout_marginStart="8dp" />
 
 </LinearLayout>

@@ -17,7 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/headerBackground"
-            app:titleTextColor="@android:color/white"
+            app:titleTextColor="@color/textOnHeader"
             app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
 
         <com.google.android.material.tabs.TabLayout
@@ -25,9 +25,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/headerBackground"
-            app:tabIndicatorColor="@android:color/white"
+            app:tabIndicatorColor="@color/textOnHeader"
             app:tabTextColor="#AAFFFFFF"
-            app:tabSelectedTextColor="@android:color/white" />
+            app:tabSelectedTextColor="@color/textOnHeader" />
 
         <!-- Stats bar -->
         <LinearLayout
@@ -70,7 +70,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="#1"
-                android:textColor="@android:color/white"
+                android:textColor="@color/textOnHeader"
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:layout_marginStart="12dp"
@@ -154,7 +154,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Task Name"
-                                android:textColor="@android:color/white"
+                                android:textColor="@color/textOnHeader"
                                 android:textSize="16sp"
                                 android:textStyle="bold"
                                 android:maxLines="1"
@@ -174,7 +174,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="25:00"
-                            android:textColor="@android:color/white"
+                            android:textColor="@color/textOnHeader"
                             android:textSize="40sp"
                             android:textStyle="bold"
                             android:fontFamily="monospace"
@@ -200,11 +200,11 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Next"
-                                android:textColor="@android:color/white"
+                                android:textColor="@color/textOnHeader"
                                 app:backgroundTint="@android:color/transparent"
                                 android:layout_marginEnd="8dp"
                                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                                app:strokeColor="@android:color/white" />
+                                app:strokeColor="@color/textOnHeader" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnStartPause"
@@ -213,7 +213,7 @@
                                 android:layout_weight="1"
                                 android:text="Start"
                                 app:backgroundTint="@color/timerGreen"
-                                android:textColor="@android:color/white"
+                                android:textColor="@color/textOnHeader"
                                 android:layout_marginHorizontal="4dp" />
 
                             <com.google.android.material.button.MaterialButton
@@ -266,7 +266,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Task Name"
-                                android:textColor="@android:color/white"
+                                android:textColor="@color/textOnHeader"
                                 android:textSize="16sp"
                                 android:textStyle="bold"
                                 android:maxLines="1"
@@ -288,7 +288,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0:00"
-                            android:textColor="@android:color/white"
+                            android:textColor="@color/textOnHeader"
                             android:textSize="40sp"
                             android:textStyle="bold"
                             android:fontFamily="monospace"
@@ -371,7 +371,7 @@
         android:layout_marginBottom="88dp"
         android:src="@drawable/outline_autopause_24"
         app:backgroundTint="@color/colorPrimary"
-        app:tint="@android:color/white"
+        app:tint="@color/textOnHeader"
         android:contentDescription="Quick Action"
         android:visibility="gone" />
 
@@ -383,7 +383,7 @@
         android:layout_margin="16dp"
         android:src="@android:drawable/ic_input_add"
         app:backgroundTint="@color/colorAccent"
-        app:tint="@android:color/white"
+        app:tint="@color/textOnHeader"
         android:contentDescription="Add Task" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

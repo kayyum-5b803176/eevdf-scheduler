@@ -17,8 +17,8 @@
             android:id="@+id/statsToolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="@color/colorPrimary"
-            app:titleTextColor="@android:color/white"
+            android:background="@color/headerBackground"
+            app:titleTextColor="@color/textOnHeader"
             app:title="Task Statistics"
             app:navigationIcon="?attr/homeAsUpIndicator"
             app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
@@ -29,8 +29,8 @@
             android:layout_height="@dimen/app_size_row"
             android:background="@color/colorPrimary"
             app:tabTextColor="#BBDEFB"
-            app:tabSelectedTextColor="@android:color/white"
-            app:tabIndicatorColor="@android:color/white"
+            app:tabSelectedTextColor="@color/textOnHeader"
+            app:tabIndicatorColor="@color/textOnHeader"
             app:tabIndicatorHeight="3dp"
             app:tabMode="fixed"
             app:tabGravity="fill" />

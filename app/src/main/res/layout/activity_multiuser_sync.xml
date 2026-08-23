@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/headerBackground">
+    android:background="@color/screenBackground">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/multiUserSyncToolbar"
@@ -13,7 +13,7 @@
         android:layout_height="?attr/actionBarSize"
         android:background="@color/headerBackground"
         android:elevation="4dp"
-        app:titleTextColor="@android:color/white" />
+        app:titleTextColor="@color/textOnHeader" />
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
