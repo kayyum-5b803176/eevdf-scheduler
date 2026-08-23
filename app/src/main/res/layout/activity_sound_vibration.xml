@@ -11,9 +11,9 @@
         android:id="@+id/svToolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@color/screenBackground"
+        android:background="@color/headerBackground"
         android:elevation="4dp"
-        app:titleTextColor="@color/textPrimary" />
+        app:titleTextColor="@android:color/white" />
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
@@ -36,7 +36,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp"
+            android:paddingTop="@dimen/app_page_padding_vertical"
+            android:paddingBottom="@dimen/app_page_padding_vertical"
             android:clipChildren="false"
             android:clipToPadding="false">
 
@@ -50,10 +51,12 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/cardBackground">
+                app:cardBackgroundColor="@color/cardBackground"
+                android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                android:layout_marginBottom="@dimen/app_card_spacing">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -105,10 +108,12 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/cardBackground">
+                app:cardBackgroundColor="@color/cardBackground"
+                android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                android:layout_marginBottom="@dimen/app_card_spacing">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

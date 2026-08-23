@@ -12,38 +12,47 @@
     android:orientation="vertical"
     android:background="@color/screenBackground">
 
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/settingsToolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/screenBackground"
-        android:elevation="4dp"
-        app:titleTextColor="@color/textPrimary" />
-
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/settingsTabLayout"
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:tabMode="fixed"
-        app:tabGravity="fill"
-        app:tabSelectedTextColor="@color/colorPrimary"
-        app:tabIndicatorColor="@color/colorPrimary"
-        app:tabTextColor="@color/textSecondary" />
+        android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/settingsToolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/headerBackground"
+            app:titleTextColor="@android:color/white"
+            app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/settingsTabLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/headerBackground"
+            app:tabMode="fixed"
+            app:tabGravity="fill"
+            app:tabSelectedTextColor="@android:color/white"
+            app:tabIndicatorColor="@android:color/white"
+            app:tabTextColor="@color/tabTextInactive"
+            app:tabTextAppearance="@style/App.Tab.Text" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+
 
     <ScrollView
         android:id="@+id/settingsScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false">
+        android:layout_weight="1">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp"
-            android:clipChildren="false"
-            android:clipToPadding="false">
+            android:paddingTop="@dimen/app_page_padding_vertical"
+            android:paddingBottom="@dimen/app_page_padding_vertical">
 
             <!-- ══ TAB: platform ════════════════════════════════════════ -->
             <LinearLayout
@@ -62,7 +71,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:id="@+id/rowVisual"
                         android:layout_width="match_parent"
@@ -109,7 +120,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:id="@+id/rowSoundVibration"
                         android:layout_width="match_parent"
@@ -166,7 +179,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:id="@+id/rowButtonAction"
                         android:layout_width="match_parent"
@@ -213,7 +228,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -251,7 +268,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:id="@+id/rowAutoSwitch"
                         android:layout_width="match_parent"
@@ -308,7 +327,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -346,7 +367,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -384,7 +407,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -432,7 +457,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:id="@+id/rowDataBackup"
                         android:layout_width="match_parent"
@@ -473,7 +500,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:id="@+id/rowMultiUserSync"
                         android:layout_width="match_parent"
@@ -520,7 +549,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -558,7 +589,9 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
+                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+                    android:layout_marginBottom="@dimen/app_card_spacing">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

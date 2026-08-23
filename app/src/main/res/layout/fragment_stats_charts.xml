@@ -11,7 +11,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="12dp"
+        android:paddingTop="@dimen/app_page_padding_vertical"
+            android:paddingBottom="@dimen/app_page_padding_vertical"
         android:clipChildren="false"
         android:clipToPadding="false">
 
@@ -19,9 +20,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -81,9 +84,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -125,9 +130,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -169,9 +176,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -213,9 +222,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -257,9 +268,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -301,9 +314,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -345,9 +360,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="3dp">
+            app:cardElevation="3dp"
+            android:layout_marginStart="@dimen/app_card_margin_horizontal"
+            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+            android:layout_marginBottom="@dimen/app_card_spacing">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

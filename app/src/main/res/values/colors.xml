@@ -77,4 +77,6 @@
 
     <!-- ── Info / hint boxes (section detail areas inside cards) ─────────── -->
     <color name="infoBoxBackground">#F5F5F5</color>
+    <!-- Tab bar inactive text on dark toolbar -->
+    <color name="tabTextInactive">#99FFFFFF</color>
 </resources>

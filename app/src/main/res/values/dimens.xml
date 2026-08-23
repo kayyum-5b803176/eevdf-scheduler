@@ -43,4 +43,15 @@
 
     <!-- Thin progress / track bar -->
     <dimen name="app_bar_track">4dp</dimen>
+    <!-- ── Design Token: Card layout spacing ──────────────────────────────── -->
+
+    <!-- Page-level inner padding (all sides) -->
+    <dimen name="app_page_padding_vertical">16dp</dimen>
+
+    <!-- Card horizontal inset from page edge -->
+    <dimen name="app_card_margin_horizontal">10dp</dimen>
+
+    <!-- Vertical gap between cards -->
+    <dimen name="app_card_spacing">12dp</dimen>
+
 </resources>
