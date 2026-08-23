@@ -34,13 +34,16 @@
         android:id="@+id/settingsScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:padding="24dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
             <!-- ══ TAB: platform ════════════════════════════════════════ -->
             <LinearLayout
