@@ -50,15 +50,11 @@
                 android:orientation="vertical"
                 android:visibility="visible">
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="visual"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -80,7 +76,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="UI customization"
+                                android:text="display"
                                 android:textSize="16sp"
                                 android:textColor="@color/textPrimary"
                                 android:fontFamily="sans-serif-medium" />
@@ -101,15 +97,11 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="sound and vibration"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -162,15 +154,11 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="button action"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -192,7 +180,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="button action config"
+                                android:text="control"
                                 android:textSize="16sp"
                                 android:textColor="@color/textPrimary"
                                 android:fontFamily="sans-serif-medium" />
@@ -213,15 +201,11 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="event handle service"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -230,34 +214,36 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
                         android:padding="20dp">
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="no settings available yet"
-                            android:textSize="14sp"
-                            android:textColor="@color/textSecondary"
-                            android:fontFamily="sans-serif-medium" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="reserved for event handling configuration"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="4dp" />
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="event handle service"
+                                android:textSize="16sp"
+                                android:textColor="@color/textPrimary"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="no settings available yet"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="auto switch"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -310,15 +296,11 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="system config"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -327,34 +309,36 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
                         android:padding="20dp">
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="no settings available yet"
-                            android:textSize="14sp"
-                            android:textColor="@color/textSecondary"
-                            android:fontFamily="sans-serif-medium" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="reserved — modify level critical"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="4dp" />
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="system config"
+                                android:textSize="16sp"
+                                android:textColor="@color/textPrimary"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="no settings available yet"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="core algorithm"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -363,34 +347,36 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
                         android:padding="20dp">
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="no settings available yet"
-                            android:textSize="14sp"
-                            android:textColor="@color/textSecondary"
-                            android:fontFamily="sans-serif-medium" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="reserved — modify level critical"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="4dp" />
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="core algorithm"
+                                android:textSize="16sp"
+                                android:textColor="@color/textPrimary"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="no settings available yet"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="rules"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -399,22 +385,28 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
                         android:padding="20dp">
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="no settings available yet"
-                            android:textSize="14sp"
-                            android:textColor="@color/textSecondary"
-                            android:fontFamily="sans-serif-medium" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="reserved — modify level critical"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="4dp" />
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="rules"
+                                android:textSize="16sp"
+                                android:textColor="@color/textPrimary"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="no settings available yet"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -428,15 +420,11 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="data and backup"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -458,7 +446,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="backup"
+                                android:text="data and backup"
                                 android:textSize="16sp"
                                 android:textColor="@color/textPrimary"
                                 android:fontFamily="sans-serif-medium" />
@@ -520,15 +508,11 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="logs"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -537,34 +521,36 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
                         android:padding="20dp">
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="no settings available yet"
-                            android:textSize="14sp"
-                            android:textColor="@color/textSecondary"
-                            android:fontFamily="sans-serif-medium" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="reserved for log viewing"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="4dp" />
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="logs"
+                                android:textSize="16sp"
+                                android:textColor="@color/textPrimary"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="no settings available yet"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="about"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.12"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -573,22 +559,28 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
                         android:padding="20dp">
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="no settings available yet"
-                            android:textSize="14sp"
-                            android:textColor="@color/textSecondary"
-                            android:fontFamily="sans-serif-medium" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="reserved for app information"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="4dp" />
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="about"
+                                android:textSize="16sp"
+                                android:textColor="@color/textPrimary"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="no settings available yet"
+                                android:textSize="13sp"
+                                android:textColor="@color/textSecondary"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

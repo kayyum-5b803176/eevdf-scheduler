@@ -38,15 +38,11 @@
             android:padding="24dp">
 
             <!-- ── Task Type Profiles ────────────────────────────────────── -->
-            <TextView
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="TASK TYPE PROFILES"
-                android:textSize="11sp"
-                android:letterSpacing="0.12"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp" />
+                android:layout_height="1dp"
+                android:background="@color/divider"
+                android:layout_marginBottom="12dp" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -97,15 +93,11 @@
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ── Haptic Feedback ───────────────────────────────────────── -->
-            <TextView
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="HAPTIC FEEDBACK"
-                android:textSize="11sp"
-                android:letterSpacing="0.12"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp" />
+                android:layout_height="1dp"
+                android:background="@color/divider"
+                android:layout_marginBottom="12dp" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"

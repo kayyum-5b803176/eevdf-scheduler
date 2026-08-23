@@ -481,15 +481,11 @@
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="16dp" />
 
-            <TextView
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="HOW MULTIUSER SYNC WORKS"
-                android:textSize="11sp"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp"
-                android:letterSpacing="0.12" />
+                android:layout_height="1dp"
+                android:background="@color/divider"
+                android:layout_marginBottom="12dp" />
 
             <TextView
                 android:layout_width="match_parent"

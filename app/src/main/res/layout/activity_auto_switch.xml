@@ -38,15 +38,11 @@
             android:padding="24dp">
 
             <!-- ── TRIGGERS ──────────────────────────────────────────────── -->
-            <TextView
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="TRIGGERS"
-                android:textSize="11sp"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp"
-                android:letterSpacing="0.12" />
+                android:layout_height="1dp"
+                android:background="@color/divider"
+                android:layout_marginBottom="12dp" />
 
             <!-- Call Detection card -->
             <com.google.android.material.card.MaterialCardView
@@ -198,15 +194,11 @@
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ── QUICK SWITCH ──────────────────────────────────────────── -->
-            <TextView
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="QUICK SWITCH"
-                android:textSize="11sp"
-                android:textColor="@color/colorPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp"
-                android:letterSpacing="0.12" />
+                android:layout_height="1dp"
+                android:background="@color/divider"
+                android:layout_marginBottom="12dp" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -314,15 +306,11 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="HOVER BUBBLE"
-                    android:textSize="11sp"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="12dp"
-                    android:letterSpacing="0.12" />
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="12dp" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
