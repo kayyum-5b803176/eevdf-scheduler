@@ -1,131 +1,214 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#1565C0</color>
-    <color name="colorPrimaryDark">#0D47A1</color>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         FUNDAMENTAL ANCHORS
+         Standalone. Not part of any family scale.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <color name="app_white">#FFFFFF</color>
+    <color name="app_black">#000000</color>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         GREY PALETTE  (luminosity axis — light to dark)
+         ──────────────────────────────────────────────────────────────────
+         cl = custom light  #F5F5F5   screen / page background
+         xl = pure white    #FFFFFF   (fixed anchor — same as app_white)
+         lt = light         #E0E0E0   inner card divider
+         nd = normal        #BDBDBD   standard divider / inactive
+         dk = dark          #757575   secondary / body text
+         xd = pure black    #000000   (fixed anchor — same as app_black)
+         cd = custom dark   #212121   primary text
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <color name="app_grey_cl">#F5F5F5</color>
+    <color name="app_grey_xl">#FFFFFF</color>
+    <color name="app_grey_lt">#E0E0E0</color>
+    <color name="app_grey_nd">#BDBDBD</color>
+    <color name="app_grey_dk">#757575</color>
+    <color name="app_grey_xd">#000000</color>
+    <color name="app_grey_cd">#212121</color>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         BLUE PALETTE
+         ──────────────────────────────────────────────────────────────────
+         cl = #E3F2FD   extra light surface (reserved)
+         xl = #BBDEFB   light blue accent
+         lt = #90CAF9   light blue (reserved)
+         nd = #42A5F5   normal blue (reserved)
+         dk = #1565C0   primary blue — toolbar, labels, primary actions
+         xd = #0D47A1   extra dark blue — status bar
+         cd = #4A148C   custom dark — purple stat accent (off-family, closest)
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <color name="app_blue_cl">#E3F2FD</color>
+    <color name="app_blue_xl">#BBDEFB</color>
+    <color name="app_blue_lt">#90CAF9</color>
+    <color name="app_blue_nd">#42A5F5</color>
+    <color name="app_blue_dk">#1565C0</color>
+    <color name="app_blue_xd">#0D47A1</color>
+    <color name="app_blue_cd">#4A148C</color>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         RED PALETTE  (covers error, orange/warning — closest family)
+         ──────────────────────────────────────────────────────────────────
+         cl = #FFF3E0   warning background (orange tint — custom light)
+         xl = #FFCDD2   light red (reserved)
+         lt = #EF9A9A   light red (reserved)
+         nd = #F44336   error / validation red
+         dk = #D32F2F   dark red (reserved)
+         xd = #E65100   deep orange — warning text (custom — off-spectrum)
+         cd = #B71C1C   custom dark red (reserved)
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <color name="app_red_cl">#FFF3E0</color>
+    <color name="app_red_xl">#FFCDD2</color>
+    <color name="app_red_lt">#EF9A9A</color>
+    <color name="app_red_nd">#F44336</color>
+    <color name="app_red_dk">#D32F2F</color>
+    <color name="app_red_xd">#E65100</color>
+    <color name="app_red_cd">#B71C1C</color>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         GREEN PALETTE
+         ──────────────────────────────────────────────────────────────────
+         cl = #F1F8E9   extra light green surface (reserved)
+         xl = #DCEDC8   light green (reserved)
+         lt = #A5D6A7   light green (reserved)
+         nd = #4CAF50   normal green (reserved)
+         dk = #388E3C   dark green (reserved)
+         xd = #2E7D32   extra dark green (reserved)
+         cd = #1B5E20   custom dark — success text
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <color name="app_green_cl">#F1F8E9</color>
+    <color name="app_green_xl">#DCEDC8</color>
+    <color name="app_green_lt">#A5D6A7</color>
+    <color name="app_green_nd">#4CAF50</color>
+    <color name="app_green_dk">#388E3C</color>
+    <color name="app_green_xd">#2E7D32</color>
+    <color name="app_green_cd">#1B5E20</color>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SEMANTIC ALIASES
+         Purpose-named tokens that point to palette values.
+         Change a palette value — all aliases using it update everywhere.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Android theme requirements -->
+    <color name="colorPrimary">@color/app_blue_dk</color>
+    <color name="colorPrimaryDark">@color/app_blue_xd</color>
     <color name="colorAccent">#FF6D00</color>
 
-    <!-- Toolbar / AppBar / stats bar surfaces (separate from colorPrimary so
-         dark mode can make them near-black without affecting accent text) -->
-    <color name="headerBackground">#1565C0</color>
-    <color name="statsBarBackground">#0D47A1</color>
+    <!-- Surfaces -->
+    <color name="screenBackground">@color/app_grey_cl</color>
+    <color name="cardBackground">@color/app_grey_xl</color>
+    <color name="headerBackground">@color/app_blue_dk</color>
+    <color name="statsBarBackground">@color/app_blue_xd</color>
 
-    <!-- Priority rainbow: 1 (lowest) → 7 (highest) -->
-    <color name="priority1">#9C27B0</color><!-- Purple  -->
-    <color name="priority2">#3F51B5</color><!-- Indigo  -->
-    <color name="priority3">#2196F3</color><!-- Blue    -->
-    <color name="priority4">#4CAF50</color><!-- Green   -->
-    <color name="priority5">#FF9800</color><!-- Orange (was orange, now yellow slot) -->
-    <color name="priority6">#F57F17</color><!-- Orange -->
-    <color name="priority7">#F44336</color><!-- Red     -->
+    <!-- Text hierarchy -->
+    <color name="textPrimary">@color/app_grey_cd</color>
+    <color name="textSecondary">@color/app_grey_dk</color>
+    <color name="textOnHeader">@color/app_grey_xl</color>
 
-    <color name="timerGreen">#4CAF50</color>
-    <color name="timerYellow">#FF9800</color>
-    <color name="timerRed">#F44336</color>
+    <!-- Structural -->
+    <color name="divider">@color/app_grey_nd</color>
+    <color name="infoBoxBackground">@color/app_grey_cl</color>
 
-    <color name="cardBackground">#FFFFFF</color>
-    <color name="screenBackground">#F5F5F5</color>
-    <color name="textPrimary">#212121</color>
-    <color name="textSecondary">#757575</color>
-    <color name="divider">#BDBDBD</color>
+    <!-- App-level semantic tokens -->
+    <color name="app_text_title">@color/app_grey_cd</color>
+    <color name="app_text_body">@color/app_grey_dk</color>
+    <color name="app_text_hint">@color/app_grey_dk</color>
+    <color name="app_text_caption">@color/app_grey_dk</color>
+    <color name="app_text_tertiary">@color/app_grey_dk</color>
+    <color name="app_text_label">@color/app_blue_dk</color>
+    <color name="app_chevron">@color/app_grey_dk</color>
+    <color name="app_divider_inner">@color/app_grey_lt</color>
+    <color name="app_surface_subtle">@color/app_grey_cl</color>
+    <color name="app_card_stroke">@color/app_grey_nd</color>
+    <color name="app_color_error">@color/app_red_nd</color>
+    <color name="app_warning_background">@color/app_red_cl</color>
+    <color name="app_warning_text">@color/app_red_xd</color>
+    <color name="app_success_text">@color/app_green_cd</color>
 
-    <!-- ── Task card state backgrounds ───────────────────────────────────── -->
-    <color name="cardStateRunning">#E3F2FD</color>
-    <color name="cardStateDl">#FFEBEE</color>
-    <color name="cardStateRt">#E8F5E9</color>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         TASK CARD STATE BACKGROUNDS
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <color name="cardStateRunning">@color/app_blue_cl</color>
+    <color name="cardStateDl">@color/app_red_xl</color>
+    <color name="cardStateRt">@color/app_green_cl</color>
     <color name="cardStateQuotaExceeded">#FFFDE7</color>
     <color name="cardStateQuotaWarning">#FFF8E1</color>
-    <color name="cardStateGroup">#F5F5F5</color>
+    <color name="cardStateGroup">@color/app_grey_cl</color>
 
-    <!-- ── Quota display ──────────────────────────────────────────────────── -->
-    <color name="quotaTextExceeded">#E65100</color>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         PRIORITY RAINBOW  1 (lowest) → 7 (highest)
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <color name="priority1">#9C27B0</color>
+    <color name="priority2">#3F51B5</color>
+    <color name="priority3">@color/app_blue_nd</color>
+    <color name="priority4">@color/app_green_nd</color>
+    <color name="priority5">#FF9800</color>
+    <color name="priority6">#F57F17</color>
+    <color name="priority7">@color/app_red_nd</color>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         COMPONENT TOKENS  (specific UI elements)
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Timer / alarm -->
+    <color name="timerGreen">@color/app_green_nd</color>
+    <color name="timerYellow">#FF9800</color>
+    <color name="timerRed">@color/app_red_nd</color>
+    <color name="timerCardBackground">@color/app_blue_dk</color>
+    <color name="expiredCardBackground">@color/app_red_dk</color>
+    <color name="intButtonBackground">@color/app_grey_xl</color>
+    <color name="stopButtonBackground">@color/app_grey_xl</color>
+    <color name="stopButtonText">@color/app_red_cd</color>
+
+    <!-- Quota -->
+    <color name="quotaTextExceeded">@color/app_red_xd</color>
     <color name="quotaTextWarning">#F57C00</color>
-    <color name="quotaTextNormal">#757575</color>
+    <color name="quotaTextNormal">@color/app_grey_dk</color>
     <color name="quotaBarExceeded">#E53935</color>
     <color name="quotaBarWarning">#FFA000</color>
     <color name="quotaBarNormal">#66BB6A</color>
 
-    <!-- ── Scheduler class banner labels ──────────────────────────────────── -->
-    <color name="bannerDl">#D32F2F</color>
-    <color name="bannerRt">#E64A19</color>
-    <color name="bannerStop">#B71C1C</color>
-    <color name="bannerIdle">#757575</color>
+    <!-- Scheduler banners -->
+    <color name="bannerDl">@color/app_red_dk</color>
+    <color name="bannerRt">@color/app_red_xd</color>
+    <color name="bannerStop">@color/app_red_cd</color>
+    <color name="bannerIdle">@color/app_grey_dk</color>
 
-    <!-- ── DL / RT pill badges ────────────────────────────────────────────── -->
-    <color name="pillDlActive">#E65100</color>
-    <color name="pillRtActive">#1B5E20</color>
+    <!-- DL / RT pills -->
+    <color name="pillDlActive">@color/app_red_xd</color>
+    <color name="pillRtActive">@color/app_green_cd</color>
     <color name="pillInactive">#78909C</color>
 
-    <!-- ── Rank indicator text ────────────────────────────────────────────── -->
-    <color name="rankDl">#1565C0</color>
-    <color name="rankRt">#1B5E20</color>
+    <!-- Rank indicators -->
+    <color name="rankDl">@color/app_blue_dk</color>
+    <color name="rankRt">@color/app_green_cd</color>
 
-    <!-- ── Pin icon ───────────────────────────────────────────────────────── -->
+    <!-- Pin -->
     <color name="pinActive">#FF9800</color>
-    <color name="pinInactive">#BDBDBD</color>
-    <!-- Multi-user sync status dot colors -->
-    <color name="syncDotOK">#4CAF50</color>
-    <color name="syncDotError">#F44336</color>
+    <color name="pinInactive">@color/app_grey_nd</color>
+
+    <!-- Sync status dots -->
+    <color name="syncDotOK">@color/app_green_nd</color>
+    <color name="syncDotError">@color/app_red_nd</color>
     <color name="syncDotSyncing">#FF9800</color>
-    <color name="syncDotDisabled">#9E9E9E</color>
+    <color name="syncDotDisabled">@color/app_grey_dk</color>
 
-    <!-- ── Timer / alarm card surfaces and buttons ────────────────────────── -->
-    <color name="timerCardBackground">#1565C0</color>
-    <color name="expiredCardBackground">#C62828</color>
-    <color name="intButtonBackground">#FFFFFF</color>
-    <color name="stopButtonBackground">#FFFFFF</color>
-    <color name="stopButtonText">#B71C1C</color>
-
-    <!-- ── Info / hint boxes (section detail areas inside cards) ─────────── -->
-    <color name="infoBoxBackground">#F5F5F5</color>
-    <!-- Text on header/toolbar surface -->
-    <color name="textOnHeader">#FFFFFF</color>
-
-    <!-- Tab bar inactive text on dark toolbar -->
+    <!-- Tab bar -->
     <color name="tabTextInactive">#99FFFFFF</color>
-    <!-- ── Design Token: Semantic text role colors ─────────────────────────── -->
 
-    <!-- Primary text on any card surface (titles, headings) -->
-    <color name="app_text_title">@color/textPrimary</color>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         OPACITY-BASED  (outside palette — alpha-composited)
+         ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Secondary text on any card surface (body, subtitles) -->
-    <color name="app_text_body">@color/textSecondary</color>
-
-    <!-- Smallest text on any card surface (captions, notices) -->
-    <color name="app_text_caption">@color/textSecondary</color>
-
-    <!-- Section divider label text (blue, letter-spaced) -->
-    <color name="app_text_label">@color/colorPrimary</color>
-
-    <!-- Navigation chevron and trailing action indicators -->
-    <color name="app_chevron">@color/textSecondary</color>
-
-    <!-- Ripple / press state overlay on interactive cards and rows -->
-    <!-- 10% of colorPrimary — gives a blue tint on tap consistent with brand -->
+    <!-- Ripple: 10% primary blue on tap -->
     <color name="app_ripple">#1A1565C0</color>
-
-    <!-- Hint / placeholder text inside form inputs -->
-    <color name="app_text_hint">#9E9E9E</color>
-
-    <!-- Tertiary body text (medium gray — between textPrimary and textSecondary) -->
-    <color name="app_text_tertiary">#616161</color>
-
-    <!-- Light divider used inside cards (between sub-sections) -->
-    <color name="app_divider_inner">#E0E0E0</color>
-
-    <!-- Subtle info box / read-only field background -->
-    <color name="app_surface_subtle">#F3F3F3</color>
-
-    <!-- Semantic: error / validation -->
-    <color name="app_color_error">#F44336</color>
-
-    <!-- Semantic: warning surface and text -->
-    <color name="app_warning_background">#FFF3E0</color>
-    <color name="app_warning_text">#E65100</color>
-
-    <!-- Semantic: success text -->
-    <color name="app_success_text">#1B5E20</color>
-
-    <!-- Card stroke boundary (0dp elevation variant) -->
-    <color name="app_card_stroke">@color/divider</color>
 
 </resources>
