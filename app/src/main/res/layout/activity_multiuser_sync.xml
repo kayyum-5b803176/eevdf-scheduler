@@ -78,11 +78,7 @@
             </LinearLayout>
 
             <!-- ── Divider ───────────────────────────────────────────────────── -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/app_divider"
-                android:background="@color/divider"
-                android:layout_marginBottom="@dimen/app_spacing_xl" />
+
 
             <!-- ── Sync status line ──────────────────────────────────────────── -->
             <TextView

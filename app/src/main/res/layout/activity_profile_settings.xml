@@ -39,15 +39,7 @@
             android:clipChildren="false"
             android:clipToPadding="false">
 
-            <!-- ══ SOUND ══════════════════════════════════════════════════ -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="SOUND"
-                android:textSize="@dimen/app_text_size_sm" android:letterSpacing="0.12"
-                android:textColor="@color/app_text_label"
-                android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp" />
+
 
             <!-- Timer sound -->
             <com.google.android.material.card.MaterialCardView
@@ -171,13 +163,12 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ══ VIBRATION ══════════════════════════════════════════════ -->
-            <TextView
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="VIBRATION"
-                android:textSize="@dimen/app_text_size_sm" android:letterSpacing="0.12"
-                android:textColor="@color/app_text_label" android:fontFamily="sans-serif-medium"
-                android:paddingBottom="12dp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider"
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
             <!-- Vibration pattern spinner -->
             <com.google.android.material.card.MaterialCardView
@@ -250,17 +241,11 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="ACTION"
-                    android:textSize="@dimen/app_text_size_sm" android:letterSpacing="0.12"
-                    android:textColor="@color/app_text_label" android:fontFamily="sans-serif-medium"
-                    android:paddingBottom="6dp" />
-                <TextView
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="One-shot sounds played at phase transitions. Volume applied at system level."
-                    android:textSize="@dimen/app_text_size_sm" android:textColor="@color/app_text_body"
-                    android:paddingBottom="12dp" />
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <!-- Execute sound -->
                 <com.google.android.material.card.MaterialCardView
