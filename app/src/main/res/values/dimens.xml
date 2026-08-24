@@ -1,132 +1,102 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- ── Design Token: Interactive element heights ───────────────────────── -->
 
-    <!-- Standard tappable row: list items, menu rows, tab rows (Material min) -->
-    <dimen name="app_size_row">48dp</dimen>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SPACING SCALE
+         Standard (medium) = 8dp  ·  Factor = 4dp
+         ──────────────────────────────────────────────────────────────────
+         cs = custom small  (free — below scale)
+         xs = md − 2f = 8 − 8  =  0dp
+         sm = md − 1f = 8 − 4  =  4dp
+         md =            8dp        ← Android standard gap
+         lg = md + 1f = 8 + 4  = 12dp
+         xl = md + 2f = 8 + 8  = 16dp
+         cl = custom large  (free — above scale)
+         ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Text input / dialog header (Material TextInputLayout standard) -->
-    <dimen name="app_size_input">56dp</dimen>
+    <dimen name="app_spacing_cs">2dp</dimen>   <!-- free custom small      -->
+    <dimen name="app_spacing_xs">0dp</dimen>   <!-- md − 2f  (zero kept)   -->
+    <dimen name="app_spacing_sm">4dp</dimen>   <!-- md − 1f                -->
+    <dimen name="app_spacing_md">8dp</dimen>   <!-- standard               -->
+    <dimen name="app_spacing_lg">12dp</dimen>  <!-- md + 1f                -->
+    <dimen name="app_spacing_xl">16dp</dimen>  <!-- md + 2f                -->
+    <dimen name="app_spacing_cl">24dp</dimen>  <!-- free custom large      -->
 
-    <!-- Floating overlay bubble container -->
-    <dimen name="app_size_bubble">52dp</dimen>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         CARD PADDING SCALE
+         Standard (medium) = 16dp  ·  Factor = 4dp
+         ──────────────────────────────────────────────────────────────────
+         cs = custom small  (free — below scale)
+         xs = md − 2f = 16 − 8  =  8dp
+         sm = md − 1f = 16 − 4  = 12dp
+         md =           16dp        ← Android standard padding
+         lg = md + 1f = 16 + 4  = 20dp
+         xl = md + 2f = 16 + 8  = 24dp
+         cl = custom large  (free — above scale)
+         ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Alarm / prominent full-width action area -->
-    <dimen name="app_size_alarm">64dp</dimen>
+    <dimen name="app_card_padding_cs">4dp</dimen>   <!-- free custom small  -->
+    <dimen name="app_card_padding_xs">8dp</dimen>   <!-- md − 2f            -->
+    <dimen name="app_card_padding_sm">12dp</dimen>  <!-- md − 1f            -->
+    <dimen name="app_card_padding_md">16dp</dimen>  <!-- standard           -->
+    <dimen name="app_card_padding_lg">20dp</dimen>  <!-- md + 1f            -->
+    <dimen name="app_card_padding_xl">24dp</dimen>  <!-- md + 2f            -->
+    <dimen name="app_card_padding_cl">32dp</dimen>  <!-- free custom large  -->
 
-    <!-- Calendar navigation row / secondary compact row -->
-    <dimen name="app_size_calendar_row">40dp</dimen>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         TEXT SIZE SCALE
+         Standard (medium) = 14sp  ·  Factor = 2sp
+         ──────────────────────────────────────────────────────────────────
+         xs = md − 2f = 14 − 4  = 10sp
+         sm = md − 1f = 14 − 2  = 12sp
+         md =           14sp        ← Android standard body text
+         lg = md + 1f = 14 + 2  = 16sp
+         xl = md + 2f = 14 + 4  = 18sp
+         cl = custom large  (free — chevron and special large text)
+         Note: 11sp, 13sp have no slot — round to nearest (sm or md)
+         ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- ── Design Token: Square icon-button sizes ───────────────────────────── -->
+    <dimen name="app_text_size_xs">10sp</dimen>  <!-- md − 2f              -->
+    <dimen name="app_text_size_sm">12sp</dimen>  <!-- md − 1f              -->
+    <dimen name="app_text_size_md">14sp</dimen>  <!-- standard             -->
+    <dimen name="app_text_size_lg">16sp</dimen>  <!-- md + 1f              -->
+    <dimen name="app_text_size_xl">18sp</dimen>  <!-- md + 2f              -->
+    <dimen name="app_text_size_cl">22sp</dimen>  <!-- free custom large    -->
 
-    <!-- Task card action buttons (undo, delete, run etc.) -->
-    <dimen name="app_btn_icon">36dp</dimen>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         CARD SHAPE + ELEVATION
+         ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Calendar day cell (width and height) -->
-    <dimen name="app_day_cell">36dp</dimen>
-
-    <!-- ── Design Token: Icon sizes ─────────────────────────────────────────── -->
-
-    <!-- Standard icon size (Material icon grid) -->
-    <dimen name="app_icon">24dp</dimen>
-
-    <!-- Small indicator / badge icon -->
-    <dimen name="app_icon_sm">20dp</dimen>
-
-    <!-- ── Design Token: Structural dimensions ──────────────────────────────── -->
-
-    <!-- Separator / divider line height -->
-    <dimen name="app_divider">1dp</dimen>
-
-    <!-- Thin notice / alert bar -->
-    <dimen name="app_bar_notice">6dp</dimen>
-
-    <!-- Thin progress / track bar -->
-    <dimen name="app_bar_track">4dp</dimen>
-
-    <!-- ── Design Token: Page layout ────────────────────────────────────────── -->
-
-    <!-- Vertical breathing room at top and bottom of scroll content -->
-    <dimen name="app_page_padding_vertical">16dp</dimen>
-
-    <!-- Card inset from left and right screen edge -->
-    <dimen name="app_card_margin_horizontal">10dp</dimen>
-
-    <!-- ── Design Token: Element spacing scale (complete) ─────────────── -->
-    <!-- xs=2  sm=4  md=8  lg=12  xl=16 -->
-    <!-- 14dp rounds to lg · 6dp rounds to sm · 10dp warning padding rounds to card_padding_small -->
-
-    <!-- Vertical gap above each card — mirrors marginBottom for symmetric float effect -->
-    <dimen name="app_card_margin_top">12dp</dimen>
-
-    <!-- Vertical gap between adjacent cards on the same page -->
-    <dimen name="app_card_spacing">12dp</dimen>
-
-    <!-- ── Design Token: Card template — shape ──────────────────────────────── -->
-
-    <!-- All cards share the same corner radius -->
     <dimen name="app_card_corner_radius">12dp</dimen>
-
-    <!-- Elevated cards (task cards, stat cards) — shadow defines the boundary -->
     <dimen name="app_card_elevation">4dp</dimen>
-
-    <!-- Stroke on cards that sit flush (0dp = no stroke, rely on elevation) -->
     <dimen name="app_card_stroke_width">0dp</dimen>
 
-    <!-- ── Design Token: Card template — internal padding ───────────────────── -->
+    <!-- ══════════════════════════════════════════════════════════════════════
+         LAYOUT — page and card positioning
+         (role-named, not part of the size scale)
+         ══════════════════════════════════════════════════════════════════ -->
 
-    <!--
-        Small   — tightest content; stat metric tiles, reserved placeholders
-        Standard — default settings nav rows, simple toggles, single-action rows
-        Large   — form inputs, sliders, grouped controls (edit task sections)
-        Panel   — content-heavy cards; task cards, distribution lists, calendar
-    -->
-    <dimen name="app_card_padding_small">12dp</dimen>
-    <dimen name="app_card_padding_standard">16dp</dimen>
-    <dimen name="app_card_padding_large">20dp</dimen>
-    <dimen name="app_card_padding_panel">24dp</dimen>
+    <dimen name="app_page_padding_vertical">16dp</dimen>
+    <dimen name="app_card_margin_horizontal">10dp</dimen>
+    <dimen name="app_card_margin_top">12dp</dimen>
+    <dimen name="app_card_spacing">12dp</dimen>
 
-    <!-- ── Design Token: Card template — element spacing (inside card) ─────── -->
+    <!-- ══════════════════════════════════════════════════════════════════════
+         COMPONENT — specific sizes outside the scale
+         ══════════════════════════════════════════════════════════════════ -->
 
-    <!--
-        xs — subtitle sitting directly under a title (tight coupling)
-        sm — between a description line and the next element
-        md — before an action area, before a divider inside a card
-    -->
-    <dimen name="app_element_spacing_xs">2dp</dimen>
-    <dimen name="app_element_spacing_sm">4dp</dimen>
-    <dimen name="app_element_spacing_md">8dp</dimen>
-    <dimen name="app_element_spacing_lg">12dp</dimen>
-    <dimen name="app_element_spacing_xl">16dp</dimen>
-
-    <!-- ── Design Token: Typography — sizes ─────────────────────────────────── -->
-
-    <!--
-        label   — section divider text (11sp, letter-spaced, medium weight)
-        caption — smallest visible text; reserved notices, helper lines (12sp)
-        body    — standard secondary/subtitle text inside cards (13sp)
-        title   — primary row title, card headings (16sp)
-        heading — prominent card-level headings, e.g. "Task Detail" (18sp)
-    -->
-    <dimen name="app_text_size_label">11sp</dimen>
-    <dimen name="app_text_size_caption">12sp</dimen>
-    <dimen name="app_text_size_body">13sp</dimen>
-    <dimen name="app_text_size_title">16sp</dimen>
-    <dimen name="app_text_size_heading">18sp</dimen>
-
-    <!-- ── Design Token: Typography — micro scale ──────────────────────── -->
-
-    <!-- Smallest visible text — priority slider tick labels (10sp) -->
-    <dimen name="app_text_size_micro">10sp</dimen>
-
-    <!-- ── Design Token: Component — specific sizes ─────────────────────── -->
-
-    <!-- Tag / label button width (load factor section) -->
+    <dimen name="app_size_row">48dp</dimen>
+    <dimen name="app_size_input">56dp</dimen>
+    <dimen name="app_size_bubble">52dp</dimen>
+    <dimen name="app_size_alarm">64dp</dimen>
+    <dimen name="app_size_calendar_row">40dp</dimen>
+    <dimen name="app_btn_icon">36dp</dimen>
     <dimen name="app_btn_tag">32dp</dimen>
-
-    <!-- ── Design Token: Typography — chevron ───────────────────────────────── -->
-
-    <!-- Navigation indicator rendered as › text character -->
-    <dimen name="app_chevron_size">22sp</dimen>
+    <dimen name="app_day_cell">36dp</dimen>
+    <dimen name="app_icon">24dp</dimen>
+    <dimen name="app_icon_sm">20dp</dimen>
+    <dimen name="app_divider">1dp</dimen>
+    <dimen name="app_bar_notice">6dp</dimen>
+    <dimen name="app_bar_track">4dp</dimen>
 
 </resources>
