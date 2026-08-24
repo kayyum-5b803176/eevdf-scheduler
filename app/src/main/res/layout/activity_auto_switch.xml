@@ -48,7 +48,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -90,7 +90,7 @@
                             android:id="@+id/switchCallDetection"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp" />
+                            android:layout_marginStart="@dimen/app_spacing_lg" />
 
                     </LinearLayout>
 
@@ -201,7 +201,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -243,7 +243,7 @@
                             android:id="@+id/switchQuickSwitch"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp" />
+                            android:layout_marginStart="@dimen/app_spacing_lg" />
 
                     </LinearLayout>
 
@@ -311,7 +311,7 @@
         style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginBottom="@dimen/app_spacing_cl">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -353,7 +353,7 @@
                                 android:id="@+id/switchBubble"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginStart="12dp" />
+                                android:layout_marginStart="@dimen/app_spacing_lg" />
 
                         </LinearLayout>
 
@@ -409,7 +409,7 @@
                                     android:layout_height="wrap_content"
                                     android:text="Fixed"
                                     android:textSize="@dimen/app_text_size_md"
-                                    android:layout_marginEnd="24dp" />
+                                    android:layout_marginEnd="@dimen/app_spacing_cl" />
 
                                 <com.google.android.material.radiobutton.MaterialRadioButton
                                     android:id="@+id/rbDraggable"

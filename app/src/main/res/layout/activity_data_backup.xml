@@ -62,7 +62,7 @@
                             android:layout_height="@dimen/app_icon"
                             android:src="@android:drawable/ic_menu_save"
                             android:contentDescription="Export icon"
-                            android:layout_marginEnd="12dp"
+                            android:layout_marginEnd="@dimen/app_spacing_lg"
                             app:tint="@color/colorPrimary" />
                         <LinearLayout
                             android:layout_width="0dp"
@@ -100,7 +100,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -117,7 +117,7 @@
                             android:layout_height="@dimen/app_icon"
                             android:src="@android:drawable/ic_menu_upload"
                             android:contentDescription="Import icon"
-                            android:layout_marginEnd="12dp"
+                            android:layout_marginEnd="@dimen/app_spacing_lg"
                             app:tint="@color/app_color_error" />
                         <LinearLayout
                             android:layout_width="0dp"
@@ -145,7 +145,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:background="@drawable/bg_warning_notice"
-                        android:padding="10dp"
+                        android:padding="@dimen/app_card_padding_sm"
                         android:layout_marginBottom="@dimen/app_spacing_md"
                         android:gravity="center_vertical">
                         <TextView
@@ -184,7 +184,7 @@
                 android:textSize="@dimen/app_text_size_md"
                 android:gravity="center"
                 android:textColor="@color/app_text_body"
-                android:paddingBottom="8dp" />
+                android:paddingBottom="@dimen/app_spacing_md" />
 
         </LinearLayout>
     </ScrollView>

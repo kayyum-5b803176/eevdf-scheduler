@@ -7,7 +7,7 @@
     android:orientation="vertical"
     android:gravity="center"
     android:background="@color/app_red_dk"
-    android:padding="32dp">
+    android:padding="@dimen/app_card_padding_cl">
 
     <!-- Alarm icon removed -->
 
@@ -29,7 +29,7 @@
         android:layout_height="wrap_content"
         android:text="Task Name"
         android:textColor="@android:color/white"
-        android:textSize="28sp"
+        android:textSize="@dimen/app_text_size_cl"
         android:fontFamily="sans-serif-medium"
         android:gravity="center"
         android:maxLines="2"
@@ -43,7 +43,7 @@
         android:layout_height="wrap_content"
         android:text="0:00"
         android:textColor="@android:color/white"
-        android:textSize="64sp"
+        android:textSize="@dimen/app_text_size_cl"
         android:fontFamily="monospace"
         android:layout_marginBottom="@dimen/app_spacing_md" />
 
@@ -53,7 +53,7 @@
         android:text="elapsed since expiry"
         android:textColor="@color/app_red_lt"
         android:textSize="@dimen/app_text_size_md"
-        android:layout_marginBottom="48dp" />
+        android:layout_marginBottom="@dimen/app_size_row" />
 
     <!-- Stop button — large, easy to tap when groggy -->
     <com.google.android.material.button.MaterialButton

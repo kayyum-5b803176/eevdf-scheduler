@@ -47,7 +47,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -119,7 +119,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -158,7 +158,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -191,7 +191,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -228,7 +228,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Show intent only on lock screen"
-                        android:textSize="15sp"
+                        android:textSize="@dimen/app_text_size_lg"
                         android:textColor="@color/app_text_title"
                         android:layout_marginTop="@dimen/app_spacing_lg" />
 
@@ -250,8 +250,8 @@
                         android:background="?attr/selectableItemBackground"
                         android:clickable="true"
                         android:focusable="true"
-                        android:paddingTop="16dp"
-                        android:paddingBottom="4dp">
+                        android:paddingTop="@dimen/app_card_padding_md"
+                        android:paddingBottom="@dimen/app_spacing_sm">
 
                         <LinearLayout
                             android:layout_width="0dp"
@@ -263,7 +263,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Configure apps"
-                                android:textSize="15sp"
+                                android:textSize="@dimen/app_text_size_lg"
                                 android:textColor="@color/app_text_title" />
 
                             <TextView
@@ -280,9 +280,9 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
+                            android:layout_marginStart="@dimen/app_spacing_lg"
                             android:text="\u203A"
-                            android:textSize="24sp"
+                            android:textSize="@dimen/app_text_size_cl"
                             android:textColor="@color/divider" />
 
                     </LinearLayout>
@@ -301,7 +301,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -389,7 +389,7 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="@dimen/app_spacing_cl">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -419,7 +419,7 @@
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
-                        android:layout_marginTop="14dp"
+                        android:layout_marginTop="@dimen/app_spacing_lg"
                         android:layout_marginBottom="@dimen/app_spacing_lg"
                         android:background="@color/divider" />
 
@@ -433,16 +433,16 @@
                         android:textColor="@color/quotaTextExceeded"
                         android:fontFamily="monospace"
                         android:background="@color/infoBoxBackground"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:paddingTop="5dp"
-                        android:paddingBottom="5dp" />
+                        android:paddingStart="@dimen/app_spacing_md"
+                        android:paddingEnd="@dimen/app_spacing_md"
+                        android:paddingTop="@dimen/app_spacing_sm"
+                        android:paddingBottom="@dimen/app_spacing_sm" />
 
                     <!-- Divider -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
-                        android:layout_marginTop="14dp"
+                        android:layout_marginTop="@dimen/app_spacing_lg"
                         android:layout_marginBottom="@dimen/app_spacing_lg"
                         android:background="@color/divider" />
 
@@ -470,7 +470,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginEnd="4dp"
+                            android:layout_marginEnd="@dimen/app_spacing_sm"
                             android:clickable="true"
                             android:focusable="true">
                             <LinearLayout
@@ -478,7 +478,7 @@
                                 android:layout_height="wrap_content"
                                 android:orientation="vertical"
                                 android:gravity="center"
-                                android:padding="10dp">
+                                android:padding="@dimen/app_card_padding_sm">
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
@@ -505,8 +505,8 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="4dp"
-                            android:layout_marginEnd="4dp"
+                            android:layout_marginStart="@dimen/app_spacing_sm"
+                            android:layout_marginEnd="@dimen/app_spacing_sm"
                             android:clickable="true"
                             android:focusable="true">
                             <LinearLayout
@@ -514,7 +514,7 @@
                                 android:layout_height="wrap_content"
                                 android:orientation="vertical"
                                 android:gravity="center"
-                                android:padding="10dp">
+                                android:padding="@dimen/app_card_padding_sm">
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
@@ -541,7 +541,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="4dp"
+                            android:layout_marginStart="@dimen/app_spacing_sm"
                             android:clickable="true"
                             android:focusable="true">
                             <LinearLayout
@@ -549,7 +549,7 @@
                                 android:layout_height="wrap_content"
                                 android:orientation="vertical"
                                 android:gravity="center"
-                                android:padding="10dp">
+                                android:padding="@dimen/app_card_padding_sm">
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"

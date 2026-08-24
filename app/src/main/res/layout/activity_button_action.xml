@@ -81,7 +81,7 @@
                             android:id="@+id/switchQuickAction"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp" />
+                            android:layout_marginStart="@dimen/app_spacing_lg" />
 
                     </LinearLayout>
 
@@ -147,9 +147,9 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
+                        android:layout_marginStart="@dimen/app_spacing_lg"
                         android:text="\u203A"
-                        android:textSize="24sp"
+                        android:textSize="@dimen/app_text_size_cl"
                         android:textColor="@color/divider" />
 
                 </LinearLayout>

@@ -88,7 +88,7 @@
                 android:text="Sync disabled"
                 android:textSize="@dimen/app_text_size_md"
                 android:textColor="@color/app_text_body"
-                android:layout_marginBottom="20dp" />
+                android:layout_marginBottom="@dimen/app_spacing_xl" />
 
             <!-- ── Folder row (hidden when sync disabled) ────────────────────── -->
             <LinearLayout
@@ -244,10 +244,10 @@
                                 android:textSize="@dimen/app_text_size_sm"
                                 android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium"
-                                android:paddingStart="8dp"
-                                android:paddingEnd="8dp"
-                                android:paddingTop="2dp"
-                                android:paddingBottom="2dp"
+                                android:paddingStart="@dimen/app_spacing_md"
+                                android:paddingEnd="@dimen/app_spacing_md"
+                                android:paddingTop="@dimen/app_spacing_cs"
+                                android:paddingBottom="@dimen/app_spacing_cs"
                                 android:background="@drawable/badge_bg"
                                 android:backgroundTint="@color/syncDotDisabled" />
                         </LinearLayout>
@@ -370,7 +370,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
-                                android:layout_marginBottom="3dp">
+                                android:layout_marginBottom="@dimen/app_spacing_cs">
 
                                 <TextView
                                     android:layout_width="0dp"
@@ -473,7 +473,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_divider"
                 android:background="@color/divider"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="@dimen/app_spacing_cl"
                 android:layout_marginBottom="@dimen/app_spacing_xl" />
 
             <View

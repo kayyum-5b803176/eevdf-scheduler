@@ -37,8 +37,8 @@
             android:background="@color/statsBarBackground"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="6dp">
+            android:paddingHorizontal="@dimen/app_card_padding_md"
+            android:paddingVertical="@dimen/app_spacing_md">
 
             <!-- Left column: two stats lines -->
             <LinearLayout
@@ -71,9 +71,9 @@
                 android:layout_height="wrap_content"
                 android:text="#1"
                 android:textColor="@android:color/white"
-                android:textSize="15sp"
+                android:textSize="@dimen/app_text_size_lg"
                 android:fontFamily="sans-serif-medium"
-                android:layout_marginStart="12dp"
+                android:layout_marginStart="@dimen/app_spacing_lg"
                 android:visibility="gone" />
 
         </LinearLayout>
@@ -114,8 +114,8 @@
             android:id="@+id/cardTimer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
+            android:layout_marginStart="@dimen/app_spacing_lg"
+            android:layout_marginEnd="@dimen/app_spacing_lg"
             android:layout_marginTop="@dimen/app_spacing_lg"
             android:layout_marginBottom="@dimen/app_spacing_lg"
             android:visibility="gone">
@@ -173,9 +173,9 @@
                             android:layout_height="wrap_content"
                             android:text="25:00"
                             android:textColor="@android:color/white"
-                            android:textSize="40sp"
+                            android:textSize="@dimen/app_text_size_cl"
                             android:fontFamily="monospace"
-                            android:layout_marginStart="16dp" />
+                            android:layout_marginStart="@dimen/app_spacing_xl" />
                     </LinearLayout>
 
                     <!-- Button row + phase underline overlay -->
@@ -211,7 +211,7 @@
                                 android:text="Start"
                                 app:backgroundTint="@color/timerGreen"
                                 android:textColor="@android:color/white"
-                                android:layout_marginHorizontal="4dp" />
+                                android:layout_marginHorizontal="@dimen/app_spacing_sm" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnInt"
@@ -286,9 +286,9 @@
                             android:layout_height="wrap_content"
                             android:text="0:00"
                             android:textColor="@android:color/white"
-                            android:textSize="40sp"
+                            android:textSize="@dimen/app_text_size_cl"
                             android:fontFamily="monospace"
-                            android:layout_marginStart="16dp" />
+                            android:layout_marginStart="@dimen/app_spacing_xl" />
                     </LinearLayout>
 
                     <!-- Stop button row: full width, matches countdown button-row height -->
@@ -305,7 +305,7 @@
                             android:layout_height="wrap_content"
                             android:text="Stop"
                             android:textColor="@color/stopButtonText"
-                            android:textSize="15sp"
+                            android:textSize="@dimen/app_text_size_lg"
                             android:fontFamily="sans-serif-medium"
                             app:backgroundTint="@color/stopButtonBackground"
                             app:cornerRadius="8dp" />
@@ -346,8 +346,8 @@
             android:id="@+id/recyclerView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:paddingBottom="80dp"
-            android:paddingEnd="7dp"
+            android:paddingBottom="@dimen/app_spacing_cl"
+            android:paddingEnd="@dimen/app_spacing_md"
             android:clipToPadding="false"
             android:scrollbars="vertical"
             android:scrollbarStyle="outsideOverlay" />
@@ -363,8 +363,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="88dp"
+        android:layout_marginEnd="@dimen/app_spacing_xl"
+        android:layout_marginBottom="@dimen/app_spacing_cl"
         android:src="@drawable/outline_autopause_24"
         app:backgroundTint="@color/colorPrimary"
         app:tint="@android:color/white"
@@ -376,7 +376,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_margin="@dimen/app_card_padding_md"
         android:src="@android:drawable/ic_input_add"
         app:backgroundTint="@color/colorAccent"
         app:tint="@android:color/white"

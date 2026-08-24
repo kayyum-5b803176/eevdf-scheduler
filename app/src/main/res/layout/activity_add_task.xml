@@ -60,7 +60,7 @@
             <!-- Bottom breathing room so the Save button clears the soft keyboard -->
             <View
                 android:layout_width="match_parent"
-                android:layout_height="32dp" />
+                android:layout_height="@dimen/app_btn_tag" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
