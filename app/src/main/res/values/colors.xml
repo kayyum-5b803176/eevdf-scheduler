@@ -204,6 +204,9 @@
     <!-- Tab bar -->
     <color name="tabTextInactive">#99FFFFFF</color>
 
+    <!-- Stat accent — avg / duration metrics (deep purple — off-family custom) -->
+    <color name="app_stat_accent">#4A148C</color>
+
     <!-- ══════════════════════════════════════════════════════════════════════
          OPACITY-BASED  (outside palette — alpha-composited values)
          ══════════════════════════════════════════════════════════════════ -->
