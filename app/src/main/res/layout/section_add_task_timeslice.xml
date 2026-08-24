@@ -4,28 +4,28 @@
   All three are required; saveTask() validates total > 0.
 -->
 <com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="3dp"
     android:layout_marginStart="@dimen/app_card_margin_horizontal"
     android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+    android:layout_marginTop="@dimen/app_card_margin_top"
     android:layout_marginBottom="@dimen/app_card_spacing">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="@dimen/app_card_padding_md">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="@dimen/app_spacing_lg">
 
             <TextView
                 android:id="@+id/tvTimeSliceTitle"
@@ -33,9 +33,9 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Time Slice"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorPrimary" />
+                android:textSize="@dimen/app_text_size_md"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/app_text_label" />
 
             <TextView
                 android:id="@+id/tvTimeSliceAutoLabel"
@@ -43,8 +43,8 @@
                 android:layout_height="wrap_content"
                 android:text="(auto)"
                 android:visibility="gone"
-                android:textSize="12sp"
-                android:textColor="@color/textSecondary" />
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_body" />
 
         </LinearLayout>
 
@@ -60,7 +60,7 @@
                 android:layout_weight="1"
                 android:hint="HH"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_marginEnd="8dp">
+                android:layout_marginEnd="@dimen/app_spacing_md">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etHours"
                     android:layout_width="match_parent"
@@ -73,8 +73,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="h"
-                android:textSize="16sp"
-                android:layout_marginEnd="8dp" />
+                android:textSize="@dimen/app_text_size_lg"
+                android:layout_marginEnd="@dimen/app_spacing_md" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="0dp"
@@ -82,7 +82,7 @@
                 android:layout_weight="1"
                 android:hint="MM"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_marginEnd="8dp">
+                android:layout_marginEnd="@dimen/app_spacing_md">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etMinutes"
                     android:layout_width="match_parent"
@@ -95,8 +95,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="m"
-                android:textSize="16sp"
-                android:layout_marginEnd="8dp" />
+                android:textSize="@dimen/app_text_size_lg"
+                android:layout_marginEnd="@dimen/app_spacing_md" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="0dp"
@@ -116,8 +116,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="s"
-                android:textSize="16sp"
-                android:layout_marginStart="8dp" />
+                android:textSize="@dimen/app_text_size_lg"
+                android:layout_marginStart="@dimen/app_spacing_md" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

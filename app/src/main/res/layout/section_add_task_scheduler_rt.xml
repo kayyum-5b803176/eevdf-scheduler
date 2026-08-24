@@ -16,7 +16,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:layout_marginTop="12dp"
+    android:layout_marginTop="@dimen/app_spacing_lg"
     android:visibility="gone">
 
     <!-- RT Priority slider -->
@@ -24,15 +24,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="RT Priority (1 = lowest, 99 = highest)"
-        android:textSize="13sp"
-        android:textColor="#616161" />
+        android:textSize="@dimen/app_text_size_md"
+        android:textColor="@color/app_text_tertiary" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginTop="4dp">
+        android:layout_marginTop="@dimen/app_spacing_sm">
 
         <com.google.android.material.slider.Slider
             android:id="@+id/sliderRtPriority"
@@ -49,8 +49,8 @@
             android:layout_width="36dp"
             android:layout_height="wrap_content"
             android:text="50"
-            android:textSize="13sp"
-            android:textStyle="bold"
+            android:textSize="@dimen/app_text_size_md"
+            android:fontFamily="sans-serif-medium"
             android:gravity="end" />
     </LinearLayout>
 
@@ -59,15 +59,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Policy"
-        android:textSize="13sp"
-        android:textColor="#616161"
-        android:layout_marginTop="10dp" />
+        android:textSize="@dimen/app_text_size_md"
+        android:textColor="@color/app_text_tertiary"
+        android:layout_marginTop="@dimen/app_spacing_lg" />
 
     <com.google.android.material.textfield.TextInputLayout
                 style="@style/App.TextInput.Dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp">
+                android:layout_marginTop="@dimen/app_spacing_sm">
 
                 <AutoCompleteTextView
                     android:id="@+id/actvRtPolicy"
@@ -85,15 +85,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Active days"
-        android:textSize="13sp"
-        android:textColor="#616161"
-        android:layout_marginTop="10dp" />
+        android:textSize="@dimen/app_text_size_md"
+        android:textColor="@color/app_text_tertiary"
+        android:layout_marginTop="@dimen/app_spacing_lg" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="4dp">
+        android:layout_marginTop="@dimen/app_spacing_sm">
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbRtSun"
@@ -101,7 +101,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Sun"
-            android:textSize="11sp" />
+            android:textSize="@dimen/app_text_size_sm" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbRtMon"
@@ -109,7 +109,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Mon"
-            android:textSize="11sp" />
+            android:textSize="@dimen/app_text_size_sm" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbRtTue"
@@ -117,7 +117,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Tue"
-            android:textSize="11sp" />
+            android:textSize="@dimen/app_text_size_sm" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbRtWed"
@@ -125,7 +125,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Wed"
-            android:textSize="11sp" />
+            android:textSize="@dimen/app_text_size_sm" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbRtThu"
@@ -133,7 +133,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Thu"
-            android:textSize="11sp" />
+            android:textSize="@dimen/app_text_size_sm" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbRtFri"
@@ -141,7 +141,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Fri"
-            android:textSize="11sp" />
+            android:textSize="@dimen/app_text_size_sm" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbRtSat"
@@ -149,7 +149,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Sat"
-            android:textSize="11sp" />
+            android:textSize="@dimen/app_text_size_sm" />
     </LinearLayout>
 
     <!-- Activation time HH MM SS -->
@@ -157,15 +157,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Activation time (HH  MM  SS)"
-        android:textSize="13sp"
-        android:textColor="#616161"
-        android:layout_marginTop="10dp" />
+        android:textSize="@dimen/app_text_size_md"
+        android:textColor="@color/app_text_tertiary"
+        android:layout_marginTop="@dimen/app_spacing_lg" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="4dp">
+        android:layout_marginTop="@dimen/app_spacing_sm">
 
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="0dp"
@@ -184,7 +184,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="@dimen/app_spacing_md"
             android:hint="MM">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etRtMinute"
@@ -198,7 +198,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="@dimen/app_spacing_md"
             android:hint="SS">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etRtSecond"
@@ -214,14 +214,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Slice timeout (e.g. 30m, 2h, 1d)"
-        android:textSize="13sp"
-        android:textColor="#616161"
-        android:layout_marginTop="10dp" />
+        android:textSize="@dimen/app_text_size_md"
+        android:textColor="@color/app_text_tertiary"
+        android:layout_marginTop="@dimen/app_spacing_lg" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="@dimen/app_spacing_sm"
         android:hint="Duration">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etRtSliceTimeout"
@@ -235,18 +235,18 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text=""
-        android:textSize="12sp"
-        android:textColor="#1B5E20"
-        android:layout_marginTop="2dp" />
+        android:textSize="@dimen/app_text_size_sm"
+        android:textColor="@color/app_success_text"
+        android:layout_marginTop="@dimen/app_spacing_cs" />
 
     <TextView
         android:id="@+id/tvRtError"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text=""
-        android:textSize="12sp"
-        android:textColor="#F44336"
-        android:layout_marginTop="6dp"
+        android:textSize="@dimen/app_text_size_sm"
+        android:textColor="@color/app_color_error"
+        android:layout_marginTop="@dimen/app_spacing_md"
         android:visibility="gone" />
 
 </LinearLayout>

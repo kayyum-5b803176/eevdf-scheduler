@@ -11,30 +11,30 @@
   Task profile, resume type, and notice fields live in section_add_task_taskconfig.xml.
 -->
 <com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="3dp"
     android:layout_marginStart="@dimen/app_card_margin_horizontal"
     android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+    android:layout_marginTop="@dimen/app_card_margin_top"
     android:layout_marginBottom="@dimen/app_card_spacing">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="@dimen/app_card_padding_md">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Task Type"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="@color/colorPrimary"
-            android:layout_marginBottom="12dp" />
+            android:textSize="@dimen/app_text_size_md"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/app_text_label"
+            android:layout_marginBottom="@dimen/app_spacing_lg" />
 
         <!-- Group option — hidden when groups disabled (controlled by AddTaskGroupSection.kt) -->
         <LinearLayout
@@ -53,9 +53,9 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_divider"
-                android:background="#E0E0E0"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="14dp" />
+                android:background="@color/app_divider_inner"
+                android:layout_marginTop="@dimen/app_spacing_xl"
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
         </LinearLayout>
 
@@ -78,7 +78,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/app_spacing_lg"
                 android:visibility="gone">
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -103,9 +103,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text=""
-                    android:textSize="12sp"
-                    android:textColor="#F44336"
-                    android:layout_marginTop="6dp"
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_color_error"
+                    android:layout_marginTop="@dimen/app_spacing_md"
                     android:visibility="gone" />
 
             </LinearLayout>
@@ -113,8 +113,8 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_divider"
-                android:background="#E0E0E0"
-                android:layout_marginTop="16dp"
+                android:background="@color/app_divider_inner"
+                android:layout_marginTop="@dimen/app_spacing_xl"
                 android:layout_marginBottom="0dp" />
 
         </LinearLayout>

@@ -5,30 +5,30 @@
   Wired in AddTaskCategoryPrioritySection.kt :: setupCategoryInput().
 -->
 <com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="3dp"
     android:layout_marginStart="@dimen/app_card_margin_horizontal"
     android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+    android:layout_marginTop="@dimen/app_card_margin_top"
     android:layout_marginBottom="@dimen/app_card_spacing">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="@dimen/app_card_padding_md">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Category"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="@color/colorPrimary"
-            android:layout_marginBottom="12dp" />
+            android:textSize="@dimen/app_text_size_md"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/app_text_label"
+            android:layout_marginBottom="@dimen/app_spacing_lg" />
 
         <!--
           OutlinedBox wraps MaterialAutoCompleteTextView instead of TextInputEditText.

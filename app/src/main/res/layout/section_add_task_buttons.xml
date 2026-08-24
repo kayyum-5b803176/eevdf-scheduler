@@ -16,10 +16,10 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:text="Cancel"
-        android:layout_marginEnd="8dp"
+        android:layout_marginEnd="@dimen/app_spacing_md"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         app:strokeColor="@color/colorPrimary"
-        android:textColor="@color/colorPrimary" />
+        android:textColor="@color/app_text_label" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnSave"
@@ -29,6 +29,6 @@
         android:text="Save Task"
         app:backgroundTint="@color/colorPrimary"
         android:textColor="@color/textOnHeader"
-        android:layout_marginStart="8dp" />
+        android:layout_marginStart="@dimen/app_spacing_md" />
 
 </LinearLayout>

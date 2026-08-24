@@ -27,21 +27,21 @@
     | [═══════════════○═════════]               |
 -->
 <com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="3dp"
     android:layout_marginStart="@dimen/app_card_margin_horizontal"
     android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+    android:layout_marginTop="@dimen/app_card_margin_top"
     android:layout_marginBottom="@dimen/app_card_spacing">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="@dimen/app_card_padding_md">
 
         <!-- ── Row 1: title + switch ──────────────────────────────────────── -->
         <LinearLayout
@@ -61,17 +61,17 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Load Factor"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary" />
+                    android:textSize="@dimen/app_text_size_md"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
+                    android:layout_marginTop="@dimen/app_spacing_cs"
                     android:text="Human effort while this task runs"
-                    android:textSize="11sp"
-                    android:textColor="#9E9E9E" />
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_hint" />
 
             </LinearLayout>
 
@@ -93,15 +93,15 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="@dimen/app_spacing_md">
 
             <TextView
                 android:id="@+id/tvLoadFactorAutoLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="(auto)"
-                android:textSize="12sp"
-                android:textColor="@color/textSecondary"
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_body"
                 android:visibility="visible" />
 
             <View
@@ -114,9 +114,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Combined Load: 50 / 100"
-                android:textSize="13sp"
-                android:textColor="@color/colorPrimary"
-                android:textStyle="bold" />
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_label"
+                android:fontFamily="sans-serif-medium" />
 
         </LinearLayout>
 
@@ -126,14 +126,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="@dimen/app_spacing_lg"
             android:visibility="gone">
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_divider"
-                android:background="#E0E0E0"
-                android:layout_marginBottom="14dp" />
+                android:background="@color/app_divider_inner"
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
             <!-- ── Cognitive ─────────────────────────────────────────────── -->
             <LinearLayout
@@ -141,7 +141,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="2dp">
+                android:layout_marginBottom="@dimen/app_spacing_cs">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -153,17 +153,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Cognitive"
-                        android:textSize="13sp"
-                        android:textColor="#212121"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:textColor="@color/app_text_title"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Mental concentration, analysis, decisions"
-                        android:textSize="11sp"
-                        android:textColor="#9E9E9E"
-                        android:layout_marginTop="1dp" />
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_hint"
+                        android:layout_marginTop="@dimen/app_spacing_xs" />
 
                 </LinearLayout>
 
@@ -172,9 +172,9 @@
                     android:layout_width="32dp"
                     android:layout_height="wrap_content"
                     android:text="4"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
+                    android:textSize="@dimen/app_text_size_lg"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label"
                     android:gravity="end" />
 
             </LinearLayout>
@@ -183,7 +183,7 @@
                 android:id="@+id/sliderCognitive"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="14dp"
+                android:layout_marginBottom="@dimen/app_spacing_lg"
                 android:valueFrom="1"
                 android:valueTo="7"
                 android:stepSize="1"
@@ -196,7 +196,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="2dp">
+                android:layout_marginBottom="@dimen/app_spacing_cs">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -208,17 +208,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Physical"
-                        android:textSize="13sp"
-                        android:textColor="#212121"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:textColor="@color/app_text_title"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Bodily exertion, movement, stamina"
-                        android:textSize="11sp"
-                        android:textColor="#9E9E9E"
-                        android:layout_marginTop="1dp" />
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_hint"
+                        android:layout_marginTop="@dimen/app_spacing_xs" />
 
                 </LinearLayout>
 
@@ -227,9 +227,9 @@
                     android:layout_width="32dp"
                     android:layout_height="wrap_content"
                     android:text="4"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
+                    android:textSize="@dimen/app_text_size_lg"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label"
                     android:gravity="end" />
 
             </LinearLayout>
@@ -238,7 +238,7 @@
                 android:id="@+id/sliderPhysical"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="14dp"
+                android:layout_marginBottom="@dimen/app_spacing_lg"
                 android:valueFrom="1"
                 android:valueTo="7"
                 android:stepSize="1"
@@ -251,7 +251,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="2dp">
+                android:layout_marginBottom="@dimen/app_spacing_cs">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -263,17 +263,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Emotional"
-                        android:textSize="13sp"
-                        android:textColor="#212121"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:textColor="@color/app_text_title"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Stress, stakes, pressure, emotional weight"
-                        android:textSize="11sp"
-                        android:textColor="#9E9E9E"
-                        android:layout_marginTop="1dp" />
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_hint"
+                        android:layout_marginTop="@dimen/app_spacing_xs" />
 
                 </LinearLayout>
 
@@ -282,9 +282,9 @@
                     android:layout_width="32dp"
                     android:layout_height="wrap_content"
                     android:text="4"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
+                    android:textSize="@dimen/app_text_size_lg"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label"
                     android:gravity="end" />
 
             </LinearLayout>
@@ -293,7 +293,7 @@
                 android:id="@+id/sliderEmotional"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="4dp"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
                 android:valueFrom="1"
                 android:valueTo="7"
                 android:stepSize="1"

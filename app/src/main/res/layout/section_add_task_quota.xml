@@ -11,21 +11,21 @@
   tvQuotaError       — inline validation message shown by saveTask()
 -->
 <com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="3dp"
     android:layout_marginStart="@dimen/app_card_margin_horizontal"
     android:layout_marginEnd="@dimen/app_card_margin_horizontal"
+    android:layout_marginTop="@dimen/app_card_margin_top"
     android:layout_marginBottom="@dimen/app_card_spacing">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="@dimen/app_card_padding_md">
 
         <!-- Header row: title + subtitle + toggle -->
         <LinearLayout
@@ -44,17 +44,17 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Quota Limit"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary" />
+                    android:textSize="@dimen/app_text_size_md"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Max time allowed per period (like Linux cgroup quota)"
-                    android:textSize="11sp"
-                    android:textColor="#9E9E9E"
-                    android:layout_marginTop="2dp" />
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_hint"
+                    android:layout_marginTop="@dimen/app_spacing_cs" />
             </LinearLayout>
 
             <com.google.android.material.switchmaterial.SwitchMaterial
@@ -69,14 +69,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="@dimen/app_spacing_lg"
             android:visibility="gone">
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_divider"
-                android:background="#E0E0E0"
-                android:layout_marginBottom="14dp" />
+                android:background="@color/app_divider_inner"
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
             <!-- Quota field -->
             <LinearLayout
@@ -84,37 +84,37 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="4dp">
+                android:layout_marginBottom="@dimen/app_spacing_sm">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Quota (max run time)"
-                    android:textSize="13sp"
-                    android:textColor="#212121"
+                    android:textSize="@dimen/app_text_size_md"
+                    android:textColor="@color/app_text_title"
                     android:fontFamily="sans-serif-medium" />
                 <TextView
                     android:id="@+id/tvQuotaPreview"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text=""
-                    android:textSize="13sp"
-                    android:textColor="@color/colorPrimary"
-                    android:textStyle="bold" />
+                    android:textSize="@dimen/app_text_size_md"
+                    android:textColor="@color/app_text_label"
+                    android:fontFamily="sans-serif-medium" />
             </LinearLayout>
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Format: NdNhNmNs  e.g. 30m · 2h · 1d4h · 7d (1s–365d)"
-                android:textSize="11sp"
-                android:textColor="#9E9E9E"
-                android:layout_marginBottom="6dp" />
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_hint"
+                android:layout_marginBottom="@dimen/app_spacing_md" />
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Quota  (e.g. 2h, 30m, 1d)"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="@dimen/app_spacing_xl">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etQuota"
                     android:layout_width="match_parent"
@@ -130,31 +130,31 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="4dp">
+                android:layout_marginBottom="@dimen/app_spacing_sm">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Period (time window)"
-                    android:textSize="13sp"
-                    android:textColor="#212121"
+                    android:textSize="@dimen/app_text_size_md"
+                    android:textColor="@color/app_text_title"
                     android:fontFamily="sans-serif-medium" />
                 <TextView
                     android:id="@+id/tvPeriodPreview"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="1d"
-                    android:textSize="13sp"
-                    android:textColor="@color/colorPrimary"
-                    android:textStyle="bold" />
+                    android:textSize="@dimen/app_text_size_md"
+                    android:textColor="@color/app_text_label"
+                    android:fontFamily="sans-serif-medium" />
             </LinearLayout>
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Rolling window for the quota; resets automatically (1s–365d)"
-                android:textSize="11sp"
-                android:textColor="#9E9E9E"
-                android:layout_marginBottom="6dp" />
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_hint"
+                android:layout_marginBottom="@dimen/app_spacing_md" />
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -175,9 +175,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text=""
-                android:textSize="12sp"
-                android:textColor="#F44336"
-                android:layout_marginTop="6dp"
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_color_error"
+                android:layout_marginTop="@dimen/app_spacing_md"
                 android:visibility="gone" />
 
         </LinearLayout>
