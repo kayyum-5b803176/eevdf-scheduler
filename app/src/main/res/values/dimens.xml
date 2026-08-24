@@ -64,6 +64,25 @@
     <dimen name="app_text_size_cl">22sp</dimen>  <!-- free custom large    -->
 
     <!-- ══════════════════════════════════════════════════════════════════════
+         CHART HEIGHT SCALE
+         Standard (medium) = 240dp  ·  Factor = 40dp
+         ──────────────────────────────────────────────────────────────────
+         cs = custom small  (free — thumbnail / embedded)
+         xs = md − 2f = 240 − 80 = 160dp   (reserved)
+         sm = md − 1f = 240 − 40 = 200dp   (reserved — compact)
+         md =           240dp               ← standard, most charts
+         lg = md + 1f = 240 + 40 = 280dp   (complex / dense charts)
+         xl = md + 2f = 240 + 80 = 320dp   (reserved — full-screen)
+         cl = custom large  (free — above scale)
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <dimen name="app_chart_height_xs">160dp</dimen>  <!-- reserved          -->
+    <dimen name="app_chart_height_sm">200dp</dimen>  <!-- reserved          -->
+    <dimen name="app_chart_height_md">240dp</dimen>  <!-- standard          -->
+    <dimen name="app_chart_height_lg">280dp</dimen>  <!-- complex / dense   -->
+    <dimen name="app_chart_height_xl">320dp</dimen>  <!-- reserved          -->
+
+    <!-- ══════════════════════════════════════════════════════════════════════
          CARD SHAPE + ELEVATION
          ══════════════════════════════════════════════════════════════════ -->
 
