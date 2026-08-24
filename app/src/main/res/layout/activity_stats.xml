@@ -28,7 +28,7 @@
             android:layout_width="match_parent"
             android:layout_height="@dimen/app_size_row"
             android:background="@color/colorPrimary"
-            app:tabTextColor="#BBDEFB"
+            app:tabTextColor="@color/tabTextInactive"
             app:tabSelectedTextColor="@color/textOnHeader"
             app:tabIndicatorColor="@color/textOnHeader"
             app:tabIndicatorHeight="3dp"
