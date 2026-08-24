@@ -17,7 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/headerBackground"
-            app:titleTextColor="@color/textOnHeader"
+            app:titleTextColor="@android:color/white"
             app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
 
         <com.google.android.material.tabs.TabLayout
@@ -25,9 +25,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/headerBackground"
-            app:tabIndicatorColor="@color/textOnHeader"
+            app:tabIndicatorColor="@android:color/white"
             app:tabTextColor="#AAFFFFFF"
-            app:tabSelectedTextColor="@color/textOnHeader" />
+            app:tabSelectedTextColor="@android:color/white" />
 
         <!-- Stats bar -->
         <LinearLayout
@@ -53,7 +53,7 @@
                     android:layout_height="wrap_content"
                     android:text="Active: 0  |  Done: 0  |  Weight: 0.0"
                     android:textColor="#CCFFFFFF"
-                    android:textSize="11sp" />
+                    android:textSize="@dimen/app_text_size_sm" />
 
                 <TextView
                     android:id="@+id/tvFairness"
@@ -61,7 +61,7 @@
                     android:layout_height="wrap_content"
                     android:text="Fairness: 100%  |  Avg VRT: 0.00"
                     android:textColor="#AAFFFFFF"
-                    android:textSize="11sp" />
+                    android:textSize="@dimen/app_text_size_sm" />
             </LinearLayout>
 
             <!-- Right: queue rank of current running task -->
@@ -70,9 +70,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="#1"
-                android:textColor="@color/textOnHeader"
+                android:textColor="@android:color/white"
                 android:textSize="15sp"
-                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
                 android:layout_marginStart="12dp"
                 android:visibility="gone" />
 
@@ -110,17 +110,15 @@
              and switching blocks does not resize the card or move the list.
              ════════════════════════════════════════════════════════════════ -->
         <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
             android:id="@+id/cardTimer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_spacing"
-            android:layout_marginBottom="@dimen/app_card_spacing"
-            android:visibility="gone"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="8dp"
-            app:cardBackgroundColor="@color/colorPrimary">
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginTop="@dimen/app_spacing_lg"
+            android:layout_marginBottom="@dimen/app_spacing_lg"
+            android:visibility="gone">
 
             <FrameLayout
                 android:layout_width="match_parent"
@@ -132,7 +130,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp"
+                    android:padding="@dimen/app_card_padding_md"
                     android:clipChildren="false"
                     android:clipToPadding="false">
 
@@ -154,9 +152,9 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Task Name"
-                                android:textColor="@color/textOnHeader"
-                                android:textSize="16sp"
-                                android:textStyle="bold"
+                                android:textColor="@android:color/white"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:fontFamily="sans-serif-medium"
                                 android:maxLines="1"
                                 android:ellipsize="end" />
 
@@ -166,7 +164,7 @@
                                 android:layout_height="wrap_content"
                                 android:text="Priority 5 · General"
                                 android:textColor="#AAFFFFFF"
-                                android:textSize="12sp" />
+                                android:textSize="@dimen/app_text_size_sm" />
                         </LinearLayout>
 
                         <TextView
@@ -174,9 +172,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="25:00"
-                            android:textColor="@color/textOnHeader"
+                            android:textColor="@android:color/white"
                             android:textSize="40sp"
-                            android:textStyle="bold"
                             android:fontFamily="monospace"
                             android:layout_marginStart="16dp" />
                     </LinearLayout>
@@ -185,7 +182,7 @@
                     <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
+                        android:layout_marginTop="@dimen/app_spacing_lg"
                         android:clipChildren="false"
                         android:clipToPadding="false">
 
@@ -200,11 +197,11 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Next"
-                                android:textColor="@color/textOnHeader"
+                                android:textColor="@android:color/white"
                                 app:backgroundTint="@android:color/transparent"
-                                android:layout_marginEnd="8dp"
+                                android:layout_marginEnd="@dimen/app_spacing_md"
                                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                                app:strokeColor="@color/textOnHeader" />
+                                app:strokeColor="@android:color/white" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnStartPause"
@@ -213,7 +210,7 @@
                                 android:layout_weight="1"
                                 android:text="Start"
                                 app:backgroundTint="@color/timerGreen"
-                                android:textColor="@color/textOnHeader"
+                                android:textColor="@android:color/white"
                                 android:layout_marginHorizontal="4dp" />
 
                             <com.google.android.material.button.MaterialButton
@@ -221,9 +218,9 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="INT-A"
-                                android:textColor="@color/colorPrimary"
-                                android:textStyle="bold"
-                                android:layout_marginStart="8dp"
+                                android:textColor="@color/app_text_label"
+                                android:fontFamily="sans-serif-medium"
+                                android:layout_marginStart="@dimen/app_spacing_md"
                                 app:backgroundTint="@color/intButtonBackground" />
                         </LinearLayout>
 
@@ -233,7 +230,7 @@
                             android:layout_height="5dp"
                             android:layout_gravity="bottom"
                             android:translationY="5dp"
-                            android:background="#4CAF50"
+                            android:background="@color/app_green_nd"
                             android:visibility="gone" />
 
                     </FrameLayout>
@@ -245,7 +242,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp"
+                    android:padding="@dimen/app_card_padding_md"
                     android:visibility="gone">
 
                     <!-- Header: name + subtitle left, elapsed right -->
@@ -266,9 +263,9 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Task Name"
-                                android:textColor="@color/textOnHeader"
-                                android:textSize="16sp"
-                                android:textStyle="bold"
+                                android:textColor="@android:color/white"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:fontFamily="sans-serif-medium"
                                 android:maxLines="1"
                                 android:ellipsize="end" />
 
@@ -277,8 +274,8 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Time slice complete · tap Stop to dismiss"
-                                android:textColor="#FFCDD2"
-                                android:textSize="12sp"
+                                android:textColor="@color/app_red_lt"
+                                android:textSize="@dimen/app_text_size_sm"
                                 android:maxLines="1"
                                 android:ellipsize="end" />
                         </LinearLayout>
@@ -288,9 +285,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0:00"
-                            android:textColor="@color/textOnHeader"
+                            android:textColor="@android:color/white"
                             android:textSize="40sp"
-                            android:textStyle="bold"
                             android:fontFamily="monospace"
                             android:layout_marginStart="16dp" />
                     </LinearLayout>
@@ -301,7 +297,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center"
-                        android:layout_marginTop="12dp">
+                        android:layout_marginTop="@dimen/app_spacing_lg">
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnStopAlarm"
@@ -310,7 +306,7 @@
                             android:text="Stop"
                             android:textColor="@color/stopButtonText"
                             android:textSize="15sp"
-                            android:textStyle="bold"
+                            android:fontFamily="sans-serif-medium"
                             app:backgroundTint="@color/stopButtonBackground"
                             app:cornerRadius="8dp" />
                     </LinearLayout>
@@ -331,18 +327,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="No tasks yet"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="@color/textSecondary"
-                android:layout_marginTop="16dp" />
+                android:textSize="@dimen/app_text_size_xl"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/app_text_body"
+                android:layout_marginTop="@dimen/app_spacing_xl" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Tap + to add your first task"
-                android:textSize="14sp"
-                android:textColor="#BDBDBD"
-                android:layout_marginTop="8dp" />
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/divider"
+                android:layout_marginTop="@dimen/app_spacing_md" />
         </LinearLayout>
 
         <!-- Task list -->
@@ -371,7 +367,7 @@
         android:layout_marginBottom="88dp"
         android:src="@drawable/outline_autopause_24"
         app:backgroundTint="@color/colorPrimary"
-        app:tint="@color/textOnHeader"
+        app:tint="@android:color/white"
         android:contentDescription="Quick Action"
         android:visibility="gone" />
 
@@ -383,7 +379,7 @@
         android:layout_margin="16dp"
         android:src="@android:drawable/ic_input_add"
         app:backgroundTint="@color/colorAccent"
-        app:tint="@color/textOnHeader"
+        app:tint="@android:color/white"
         android:contentDescription="Add Task" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

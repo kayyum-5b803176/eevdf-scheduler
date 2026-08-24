@@ -12,47 +12,38 @@
     android:orientation="vertical"
     android:background="@color/screenBackground">
 
-    <com.google.android.material.appbar.AppBarLayout
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/settingsToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/screenBackground"
+        android:elevation="4dp"
+        app:titleTextColor="@color/app_text_title" />
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/settingsTabLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar">
-
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/settingsToolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="@color/headerBackground"
-            app:titleTextColor="@color/textOnHeader"
-            app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
-
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/settingsTabLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@color/headerBackground"
-            app:tabMode="fixed"
-            app:tabGravity="fill"
-            app:tabSelectedTextColor="@color/textOnHeader"
-            app:tabIndicatorColor="@color/textOnHeader"
-            app:tabTextColor="@color/tabTextInactive"
-            app:tabTextAppearance="@style/App.Tab.Text" />
-
-    </com.google.android.material.appbar.AppBarLayout>
-
-
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
 
     <ScrollView
         android:id="@+id/settingsScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical">
+            android:padding="@dimen/app_card_padding_xl"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
             <!-- ══ TAB: platform ════════════════════════════════════════ -->
             <LinearLayout
@@ -66,21 +57,20 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:id="@+id/rowVisual"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp"
+                        android:padding="@dimen/app_card_padding_lg"
                         android:background="?attr/selectableItemBackground">
                         <LinearLayout
                             android:layout_width="0dp"
@@ -91,23 +81,23 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="display"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="appearance, layout, density, overlay"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="&#8250;"
                             android:textSize="22sp"
-                            android:textColor="@color/textSecondary" />
+                            android:textColor="@color/app_text_body" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -115,21 +105,20 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:id="@+id/rowSoundVibration"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp"
+                        android:padding="@dimen/app_card_padding_lg"
                         android:background="?attr/selectableItemBackground">
                         <LinearLayout
                             android:layout_width="0dp"
@@ -140,23 +129,23 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="sound and vibration"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="profiles, patterns, haptic feedback"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="&#8250;"
                             android:textSize="22sp"
-                            android:textColor="@color/textSecondary" />
+                            android:textColor="@color/app_text_body" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -174,21 +163,20 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:id="@+id/rowButtonAction"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp"
+                        android:padding="@dimen/app_card_padding_lg"
                         android:background="?attr/selectableItemBackground">
                         <LinearLayout
                             android:layout_width="0dp"
@@ -199,23 +187,23 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="control"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="hardware keys, quick action"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="&#8250;"
                             android:textSize="22sp"
-                            android:textColor="@color/textSecondary" />
+                            android:textColor="@color/app_text_body" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -223,20 +211,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp">
+                        android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -245,16 +232,16 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="event handle service"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="no settings available yet"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -263,21 +250,20 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:id="@+id/rowAutoSwitch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp"
+                        android:padding="@dimen/app_card_padding_lg"
                         android:background="?attr/selectableItemBackground">
                         <LinearLayout
                             android:layout_width="0dp"
@@ -288,23 +274,23 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="auto switch"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="pause and resume on incoming calls"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="&#8250;"
                             android:textSize="22sp"
-                            android:textColor="@color/textSecondary" />
+                            android:textColor="@color/app_text_body" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -322,20 +308,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp">
+                        android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -344,16 +329,16 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="system config"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="no settings available yet"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -362,20 +347,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp">
+                        android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -384,16 +368,16 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="core algorithm"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="no settings available yet"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -402,20 +386,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp">
+                        android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -424,16 +407,16 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="rules"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="no settings available yet"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -452,21 +435,20 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="@dimen/app_spacing_lg">
                     <LinearLayout
                         android:id="@+id/rowDataBackup"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp"
+                        android:padding="@dimen/app_card_padding_lg"
                         android:background="?attr/selectableItemBackground">
                         <LinearLayout
                             android:layout_width="0dp"
@@ -477,39 +459,38 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="data and backup"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="export and import app data"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="&#8250;"
                             android:textSize="22sp"
-                            android:textColor="@color/textSecondary" />
+                            android:textColor="@color/app_text_body" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:id="@+id/rowMultiUserSync"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp"
+                        android:padding="@dimen/app_card_padding_lg"
                         android:background="?attr/selectableItemBackground">
                         <LinearLayout
                             android:layout_width="0dp"
@@ -520,23 +501,23 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="multiuser sync"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="share task state across devices"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="&#8250;"
                             android:textSize="22sp"
-                            android:textColor="@color/textSecondary" />
+                            android:textColor="@color/app_text_body" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -544,20 +525,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp">
+                        android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -566,16 +546,16 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="logs"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="no settings available yet"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -584,20 +564,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="20dp">
+                        android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -606,16 +585,16 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="about"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="no settings available yet"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

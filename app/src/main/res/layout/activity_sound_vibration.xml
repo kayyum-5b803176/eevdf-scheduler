@@ -11,9 +11,9 @@
         android:id="@+id/svToolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@color/headerBackground"
+        android:background="@color/screenBackground"
         android:elevation="4dp"
-        app:titleTextColor="@color/textOnHeader" />
+        app:titleTextColor="@color/app_text_title" />
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
@@ -21,9 +21,9 @@
         android:layout_height="wrap_content"
         app:tabMode="fixed"
         app:tabGravity="fill"
-        app:tabSelectedTextColor="@color/colorPrimary"
-        app:tabIndicatorColor="@color/colorPrimary"
-        app:tabTextColor="@color/textSecondary" />
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
 
 
     <ScrollView
@@ -36,8 +36,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical"
+            android:padding="@dimen/app_card_padding_xl"
             android:clipChildren="false"
             android:clipToPadding="false">
 
@@ -46,28 +45,24 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:background="@color/divider"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
             <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/cardBackground"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                android:layout_marginBottom="24dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="@dimen/app_card_padding_lg">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="8dp">
+                        android:layout_marginBottom="@dimen/app_spacing_md">
                         <LinearLayout
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -77,16 +72,16 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Profile Settings"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Sound &amp; vibration per task type: Default, Notice, Alert, Custom"
-                                android:textSize="13sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
                         </LinearLayout>
                     </LinearLayout>
                     <com.google.android.material.button.MaterialButton
@@ -103,36 +98,32 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:background="@color/divider"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
             <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/cardBackground"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                android:layout_marginBottom="24dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="@dimen/app_card_padding_lg">
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchSvHaptic"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Haptic Feedback on Buttons"
-                        android:textSize="16sp"
+                        android:textSize="@dimen/app_text_size_lg"
                         android:checked="true" />
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Short vibration on every UI button tap"
-                        android:textSize="12sp"
-                        android:textColor="@color/textSecondary"
-                        android:layout_marginTop="4dp" />
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_body"
+                        android:layout_marginTop="@dimen/app_spacing_sm" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

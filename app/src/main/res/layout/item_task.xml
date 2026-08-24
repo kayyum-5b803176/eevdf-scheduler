@@ -1,17 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/cardTask"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginStart="8dp"
+    android:layout_marginStart="@dimen/app_spacing_md"
     android:layout_marginEnd="3dp"
-    android:layout_marginTop="8dp"
-    android:layout_marginBottom="4dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="4dp"
-    app:cardBackgroundColor="@color/cardBackground">
+    android:layout_marginTop="@dimen/app_spacing_md"
+    android:layout_marginBottom="@dimen/app_spacing_sm">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -31,7 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="14dp">
+            android:padding="@dimen/app_card_padding_sm">
 
             <!-- Row 1: Rank + Name + Category + Priority badge -->
             <LinearLayout
@@ -45,10 +43,10 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="#1"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
-                    android:layout_marginEnd="8dp"
+                    android:textSize="@dimen/app_text_size_md"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label"
+                    android:layout_marginEnd="@dimen/app_spacing_md"
                     android:visibility="gone" />
 
                 <LinearLayout
@@ -62,9 +60,9 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Task Name"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/textPrimary"
+                        android:textSize="@dimen/app_text_size_lg"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/app_text_title"
                         android:maxLines="1"
                         android:ellipsize="end" />
 
@@ -73,8 +71,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="General"
-                        android:textSize="11sp"
-                        android:textColor="@color/textSecondary" />
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_body" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -82,15 +80,15 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:gravity="end"
-                    android:layout_marginStart="8dp">
+                    android:layout_marginStart="@dimen/app_spacing_md">
 
                     <TextView
                         android:id="@+id/tvPriority"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Priority: 5/10"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:fontFamily="sans-serif-medium" />
 
                     <!-- Pill timer (DL) + Quota timer share this row.
                          Both are gone by default; adapter shows one, both, or neither. -->
@@ -107,9 +105,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="DL"
-                            android:textSize="10sp"
-                            android:textColor="#FFFFFF"
-                            android:textStyle="bold"
+                            android:textSize="@dimen/app_text_size_xs"
+                            android:textColor="@color/cardBackground"
+                            android:fontFamily="sans-serif-medium"
                             android:paddingStart="6dp"
                             android:paddingEnd="6dp"
                             android:paddingTop="2dp"
@@ -124,9 +122,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="RT"
-                            android:textSize="10sp"
-                            android:textColor="#FFFFFF"
-                            android:textStyle="bold"
+                            android:textSize="@dimen/app_text_size_xs"
+                            android:textColor="@color/cardBackground"
+                            android:fontFamily="sans-serif-medium"
                             android:paddingStart="6dp"
                             android:paddingEnd="6dp"
                             android:paddingTop="2dp"
@@ -142,8 +140,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text=""
-                            android:textSize="10sp"
-                            android:textColor="@color/textSecondary"
+                            android:textSize="@dimen/app_text_size_xs"
+                            android:textColor="@color/app_text_body"
                             android:layout_marginStart="4dp"
                             android:visibility="gone" />
 
@@ -158,7 +156,7 @@
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_bar_notice"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="@dimen/app_spacing_md"
                 android:layout_marginBottom="2dp"
                 android:max="100"
                 android:progress="0"
@@ -173,7 +171,7 @@
                 android:id="@+id/progressNotice"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_bar_notice"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="@dimen/app_spacing_md"
                 android:layout_marginBottom="2dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
@@ -185,11 +183,11 @@
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/app_bar_track"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
                 android:max="100"
                 android:progress="0"
-                android:progressTint="#FFA000"
+                android:progressTint="@color/app_orange_nd"
                 android:progressBackgroundTint="@color/divider"
                 android:visibility="gone" />
 
@@ -199,7 +197,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="4dp">
+                android:layout_marginTop="@dimen/app_spacing_sm">
 
                 <TextView
                     android:id="@+id/tvTimeSlice"
@@ -207,18 +205,18 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="TRT: 0s"
-                    android:textSize="12sp"
-                    android:textColor="@color/textSecondary" />
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_body" />
 
                 <TextView
                     android:id="@+id/tvRemaining"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="25:00"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimary"
-                    android:fontFamily="monospace" />
+                    android:textSize="@dimen/app_text_size_md"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label"
+                     />
             </LinearLayout>
 
             <!-- Row 3: EEVDF metrics -->
@@ -227,7 +225,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="4dp">
+                android:layout_marginTop="@dimen/app_spacing_sm">
 
                 <TextView
                     android:id="@+id/tvVruntime"
@@ -235,7 +233,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="VRT: 0.00"
-                    android:textSize="10sp"
+                    android:textSize="@dimen/app_text_size_xs"
                     android:textColor="@color/divider" />
 
                 <TextView
@@ -244,7 +242,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="VDL: 0.00"
-                    android:textSize="10sp"
+                    android:textSize="@dimen/app_text_size_xs"
                     android:textColor="@color/divider" />
 
                 <TextView
@@ -253,7 +251,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="RS: 0.0"
-                    android:textSize="10sp"
+                    android:textSize="@dimen/app_text_size_xs"
                     android:textColor="@color/divider" />
 
                 <TextView
@@ -261,7 +259,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Runs: 0"
-                    android:textSize="10sp"
+                    android:textSize="@dimen/app_text_size_xs"
                     android:textColor="@color/divider" />
             </LinearLayout>
 
@@ -271,7 +269,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="@dimen/app_spacing_md"
                 android:gravity="end">
 
                 <ImageButton
@@ -280,7 +278,7 @@
                     android:layout_height="@dimen/app_btn_icon"
                     android:src="@drawable/ic_undo_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="#7E57C2"
+                    android:tint="@color/app_violet_nd"
                     android:contentDescription="Revert to Queue"
                     android:visibility="gone" />
 
@@ -290,7 +288,7 @@
                     android:layout_height="@dimen/app_btn_icon"
                     android:src="@drawable/outline_rotate_left_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="#FF9800"
+                    android:tint="@color/app_orange_nd"
                     android:contentDescription="Reset Timer Slice"
                     android:visibility="gone" />
 
@@ -320,7 +318,7 @@
                     android:layout_height="@dimen/app_btn_icon"
                     android:src="@drawable/outline_check_circle_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="#4CAF50"
+                    android:tint="@color/app_green_nd"
                     android:contentDescription="Mark Complete" />
 
                 <ImageButton
@@ -329,7 +327,7 @@
                     android:layout_height="@dimen/app_btn_icon"
                     android:src="@drawable/baseline_delete_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="#F44336"
+                    android:tint="@color/app_color_error"
                     android:contentDescription="Delete" />
             </LinearLayout>
 

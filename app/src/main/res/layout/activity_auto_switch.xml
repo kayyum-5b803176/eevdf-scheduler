@@ -11,9 +11,9 @@
         android:id="@+id/autoSwitchToolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@color/headerBackground"
+        android:background="@color/screenBackground"
         android:elevation="4dp"
-        app:titleTextColor="@color/textOnHeader" />
+        app:titleTextColor="@color/app_text_title" />
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
@@ -21,9 +21,9 @@
         android:layout_height="wrap_content"
         app:tabMode="fixed"
         app:tabGravity="fill"
-        app:tabSelectedTextColor="@color/colorPrimary"
-        app:tabIndicatorColor="@color/colorPrimary"
-        app:tabTextColor="@color/textSecondary" />
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
 
 
     <ScrollView
@@ -36,8 +36,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingTop="@dimen/app_page_padding_vertical"
-            android:paddingBottom="@dimen/app_page_padding_vertical"
+            android:padding="@dimen/app_card_padding_xl"
             android:clipChildren="false"
             android:clipToPadding="false">
 
@@ -46,24 +45,20 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:background="@color/divider"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
             <!-- Call Detection card -->
             <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/cardBackground"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                android:layout_marginBottom="24dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="@dimen/app_card_padding_lg">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -81,17 +76,17 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Call Detection"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Pause and resume tasks automatically during phone calls"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
 
                         </LinearLayout>
 
@@ -108,15 +103,15 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Phone permission not granted"
-                        android:textSize="12sp"
-                        android:layout_marginTop="8dp" />
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:layout_marginTop="@dimen/app_spacing_md" />
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
                         android:background="@color/divider"
-                        android:layout_marginTop="16dp"
-                        android:layout_marginBottom="16dp" />
+                        android:layout_marginTop="@dimen/app_spacing_xl"
+                        android:layout_marginBottom="@dimen/app_spacing_xl" />
 
                     <LinearLayout
                         android:id="@+id/layoutCallTaskPicker"
@@ -129,10 +124,10 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Switch to task during call"
-                            android:textSize="14sp"
-                            android:textColor="@color/textPrimary"
+                            android:textSize="@dimen/app_text_size_md"
+                            android:textColor="@color/app_text_title"
                             android:fontFamily="sans-serif-medium"
-                            android:layout_marginBottom="6dp" />
+                            android:layout_marginBottom="@dimen/app_spacing_md" />
 
                         <com.google.android.material.textfield.TextInputLayout
                             android:id="@+id/tilCallSlot"
@@ -159,40 +154,40 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:background="@color/infoBoxBackground"
-                        android:padding="12dp">
+                        android:padding="@dimen/app_card_padding_sm">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="When a call starts"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
                             android:fontFamily="sans-serif-medium" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="→ Current task pauses, switches to assigned call task"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="2dp" />
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
+                            android:layout_marginTop="@dimen/app_spacing_cs" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="When the call ends"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
                             android:fontFamily="sans-serif-medium"
-                            android:layout_marginTop="8dp" />
+                            android:layout_marginTop="@dimen/app_spacing_md" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="→ Returns to previous task and resumes"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="2dp" />
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
+                            android:layout_marginTop="@dimen/app_spacing_cs" />
 
                     </LinearLayout>
 
@@ -204,23 +199,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:background="@color/divider"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
             <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/cardBackground"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                android:layout_marginBottom="24dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="@dimen/app_card_padding_lg">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -238,17 +229,17 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Quick Switch"
-                                android:textSize="16sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_lg"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Switch tasks in the background without opening the app"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
 
                         </LinearLayout>
 
@@ -265,41 +256,41 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:background="@color/infoBoxBackground"
-                        android:padding="12dp"
-                        android:layout_marginTop="16dp">
+                        android:padding="@dimen/app_card_padding_sm"
+                        android:layout_marginTop="@dimen/app_spacing_xl">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="When OFF"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
                             android:fontFamily="sans-serif-medium" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="→ Task switch fires only while the app is open"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="2dp" />
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
+                            android:layout_marginTop="@dimen/app_spacing_cs" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="When ON"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
                             android:fontFamily="sans-serif-medium"
-                            android:layout_marginTop="8dp" />
+                            android:layout_marginTop="@dimen/app_spacing_md" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="→ Switch happens in background; hover bubble available"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:layout_marginTop="2dp" />
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:textColor="@color/app_text_body"
+                            android:layout_marginTop="@dimen/app_spacing_cs" />
 
                     </LinearLayout>
 
@@ -318,23 +309,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="@color/divider"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                 <com.google.android.material.card.MaterialCardView
+        style="@style/App.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="2dp"
-                    app:cardBackgroundColor="@color/cardBackground"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                    android:layout_marginBottom="@dimen/app_card_spacing">
+                    android:layout_marginBottom="24dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="20dp">
+                        android:padding="@dimen/app_card_padding_lg">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -352,17 +339,17 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Hover Bubble"
-                                    android:textSize="16sp"
-                                    android:textColor="@color/textPrimary"
+                                    android:textSize="@dimen/app_text_size_lg"
+                                    android:textColor="@color/app_text_title"
                                     android:fontFamily="sans-serif-medium" />
 
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Show a floating bubble during calls on configured apps"
-                                    android:textSize="12sp"
-                                    android:textColor="@color/textSecondary"
-                                    android:layout_marginTop="2dp" />
+                                    android:textSize="@dimen/app_text_size_sm"
+                                    android:textColor="@color/app_text_body"
+                                    android:layout_marginTop="@dimen/app_spacing_cs" />
 
                             </LinearLayout>
 
@@ -379,23 +366,23 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Overlay permission not granted"
-                            android:textSize="12sp"
-                            android:layout_marginTop="8dp" />
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:layout_marginTop="@dimen/app_spacing_md" />
 
                         <TextView
                             android:id="@+id/tvUsageStatsPermStatus"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Usage access not granted"
-                            android:textSize="12sp"
-                            android:layout_marginTop="4dp" />
+                            android:textSize="@dimen/app_text_size_sm"
+                            android:layout_marginTop="@dimen/app_spacing_sm" />
 
                         <View
                             android:layout_width="match_parent"
                             android:layout_height="@dimen/app_divider"
                             android:background="@color/divider"
-                            android:layout_marginTop="16dp"
-                            android:layout_marginBottom="16dp" />
+                            android:layout_marginTop="@dimen/app_spacing_xl"
+                            android:layout_marginBottom="@dimen/app_spacing_xl" />
 
                         <LinearLayout
                             android:id="@+id/layoutBubbleOptions"
@@ -408,24 +395,24 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Bubble position"
-                                android:textSize="14sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium"
-                                android:layout_marginBottom="8dp" />
+                                android:layout_marginBottom="@dimen/app_spacing_md" />
 
                             <RadioGroup
                                 android:id="@+id/rgBubblePosition"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
-                                android:layout_marginBottom="16dp">
+                                android:layout_marginBottom="@dimen/app_spacing_xl">
 
                                 <com.google.android.material.radiobutton.MaterialRadioButton
                                     android:id="@+id/rbFixed"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Fixed"
-                                    android:textSize="14sp"
+                                    android:textSize="@dimen/app_text_size_md"
                                     android:layout_marginEnd="24dp" />
 
                                 <com.google.android.material.radiobutton.MaterialRadioButton
@@ -433,7 +420,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Draggable"
-                                    android:textSize="14sp" />
+                                    android:textSize="@dimen/app_text_size_md" />
 
                             </RadioGroup>
 
@@ -441,18 +428,18 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Active on these apps"
-                                android:textSize="14sp"
-                                android:textColor="@color/textPrimary"
+                                android:textSize="@dimen/app_text_size_md"
+                                android:textColor="@color/app_text_title"
                                 android:fontFamily="sans-serif-medium"
-                                android:layout_marginBottom="4dp" />
+                                android:layout_marginBottom="@dimen/app_spacing_sm" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Bubble appears only when one of these apps is in the foreground during a call. Leave empty to show on all apps."
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginBottom="10dp" />
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginBottom="@dimen/app_spacing_lg" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnConfigureApps"
@@ -460,15 +447,15 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Configure Apps"
-                                android:layout_marginBottom="8dp" />
+                                android:layout_marginBottom="@dimen/app_spacing_md" />
 
                             <TextView
                                 android:id="@+id/tvConfiguredApps"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="All apps (no filter)"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary" />
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body" />
 
                         </LinearLayout>
 
@@ -477,48 +464,48 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
                             android:background="@color/infoBoxBackground"
-                            android:padding="12dp">
+                            android:padding="@dimen/app_card_padding_sm">
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Bubble colour"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
                                 android:fontFamily="sans-serif-medium" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="● Green — call task timer is running"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="● Amber — call task timer is paused"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Tap bubble"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
                                 android:fontFamily="sans-serif-medium"
-                                android:layout_marginTop="8dp" />
+                                android:layout_marginTop="@dimen/app_spacing_md" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="→ Toggles pause / resume on the assigned call task"
-                                android:textSize="12sp"
-                                android:textColor="@color/textSecondary"
-                                android:layout_marginTop="2dp" />
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_body"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
 
                         </LinearLayout>
 
