@@ -191,6 +191,35 @@
         <item name="android:fontFamily">sans-serif-medium</item>
     </style>
 
+    <!-- Hint / placeholder text (lighter gray, inside inputs and info rows) -->
+    <style name="App.Text.Hint">
+        <item name="android:textSize">@dimen/app_text_size_caption</item>
+        <item name="android:textColor">@color/app_text_hint</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <!-- Error / validation message (red, caption scale) -->
+    <style name="App.Text.Error">
+        <item name="android:textSize">@dimen/app_text_size_caption</item>
+        <item name="android:textColor">@color/app_color_error</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <!-- Warning message text (deep orange, caption scale) -->
+    <style name="App.Text.Warning">
+        <item name="android:textSize">@dimen/app_text_size_caption</item>
+        <item name="android:textColor">@color/app_warning_text</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:background">@color/app_warning_background</item>
+    </style>
+
+    <!-- Micro label — slider tick text, smallest visible scale -->
+    <style name="App.Text.Micro">
+        <item name="android:textSize">@dimen/app_text_size_micro</item>
+        <item name="android:textColor">@color/app_text_hint</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
     <style name="App.Text.Chevron">
         <item name="android:textSize">@dimen/app_chevron_size</item>
         <item name="android:textColor">@color/app_chevron</item>

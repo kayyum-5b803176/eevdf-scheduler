@@ -103,6 +103,28 @@
     <!-- 10% of colorPrimary — gives a blue tint on tap consistent with brand -->
     <color name="app_ripple">#1A1565C0</color>
 
+    <!-- Hint / placeholder text inside form inputs -->
+    <color name="app_text_hint">#9E9E9E</color>
+
+    <!-- Tertiary body text (medium gray — between textPrimary and textSecondary) -->
+    <color name="app_text_tertiary">#616161</color>
+
+    <!-- Light divider used inside cards (between sub-sections) -->
+    <color name="app_divider_inner">#E0E0E0</color>
+
+    <!-- Subtle info box / read-only field background -->
+    <color name="app_surface_subtle">#F3F3F3</color>
+
+    <!-- Semantic: error / validation -->
+    <color name="app_color_error">#F44336</color>
+
+    <!-- Semantic: warning surface and text -->
+    <color name="app_warning_background">#FFF3E0</color>
+    <color name="app_warning_text">#E65100</color>
+
+    <!-- Semantic: success text -->
+    <color name="app_success_text">#1B5E20</color>
+
     <!-- Card stroke boundary (0dp elevation variant) -->
     <color name="app_card_stroke">@color/divider</color>
 
