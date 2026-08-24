@@ -43,15 +43,71 @@
 
     <!-- Thin progress / track bar -->
     <dimen name="app_bar_track">4dp</dimen>
-    <!-- ── Design Token: Card layout spacing ──────────────────────────────── -->
 
-    <!-- Page-level inner padding (all sides) -->
+    <!-- ── Design Token: Page layout ────────────────────────────────────────── -->
+
+    <!-- Vertical breathing room at top and bottom of scroll content -->
     <dimen name="app_page_padding_vertical">16dp</dimen>
 
-    <!-- Card horizontal inset from page edge -->
+    <!-- Card inset from left and right screen edge -->
     <dimen name="app_card_margin_horizontal">10dp</dimen>
 
-    <!-- Vertical gap between cards -->
+    <!-- Vertical gap between adjacent cards on the same page -->
     <dimen name="app_card_spacing">12dp</dimen>
+
+    <!-- ── Design Token: Card template — shape ──────────────────────────────── -->
+
+    <!-- All cards share the same corner radius -->
+    <dimen name="app_card_corner_radius">12dp</dimen>
+
+    <!-- Elevated cards (task cards, stat cards) — shadow defines the boundary -->
+    <dimen name="app_card_elevation">4dp</dimen>
+
+    <!-- Stroke on cards that sit flush (0dp = no stroke, rely on elevation) -->
+    <dimen name="app_card_stroke_width">0dp</dimen>
+
+    <!-- ── Design Token: Card template — internal padding ───────────────────── -->
+
+    <!--
+        Small   — tightest content; stat metric tiles, reserved placeholders
+        Standard — default settings nav rows, simple toggles, single-action rows
+        Large   — form inputs, sliders, grouped controls (edit task sections)
+        Panel   — content-heavy cards; task cards, distribution lists, calendar
+    -->
+    <dimen name="app_card_padding_small">12dp</dimen>
+    <dimen name="app_card_padding_standard">16dp</dimen>
+    <dimen name="app_card_padding_large">20dp</dimen>
+    <dimen name="app_card_padding_panel">24dp</dimen>
+
+    <!-- ── Design Token: Card template — element spacing (inside card) ─────── -->
+
+    <!--
+        xs — subtitle sitting directly under a title (tight coupling)
+        sm — between a description line and the next element
+        md — before an action area, before a divider inside a card
+    -->
+    <dimen name="app_element_spacing_xs">2dp</dimen>
+    <dimen name="app_element_spacing_sm">4dp</dimen>
+    <dimen name="app_element_spacing_md">8dp</dimen>
+
+    <!-- ── Design Token: Typography — sizes ─────────────────────────────────── -->
+
+    <!--
+        label   — section divider text (11sp, letter-spaced, medium weight)
+        caption — smallest visible text; reserved notices, helper lines (12sp)
+        body    — standard secondary/subtitle text inside cards (13sp)
+        title   — primary row title, card headings (16sp)
+        heading — prominent card-level headings, e.g. "Task Detail" (18sp)
+    -->
+    <dimen name="app_text_size_label">11sp</dimen>
+    <dimen name="app_text_size_caption">12sp</dimen>
+    <dimen name="app_text_size_body">13sp</dimen>
+    <dimen name="app_text_size_title">16sp</dimen>
+    <dimen name="app_text_size_heading">18sp</dimen>
+
+    <!-- ── Design Token: Typography — chevron ───────────────────────────────── -->
+
+    <!-- Navigation indicator rendered as › text character -->
+    <dimen name="app_chevron_size">22sp</dimen>
 
 </resources>

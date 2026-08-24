@@ -82,4 +82,24 @@
 
     <!-- Tab bar inactive text on dark toolbar -->
     <color name="tabTextInactive">#99FFFFFF</color>
+    <!-- ── Design Token: Semantic text role colors ─────────────────────────── -->
+
+    <!-- Primary text on any card surface (titles, headings) -->
+    <color name="app_text_title">@color/textPrimary</color>
+
+    <!-- Secondary text on any card surface (body, subtitles) -->
+    <color name="app_text_body">@color/textSecondary</color>
+
+    <!-- Smallest text on any card surface (captions, notices) -->
+    <color name="app_text_caption">@color/textSecondary</color>
+
+    <!-- Section divider label text (blue, letter-spaced) -->
+    <color name="app_text_label">@color/colorPrimary</color>
+
+    <!-- Navigation chevron and trailing action indicators -->
+    <color name="app_chevron">@color/textSecondary</color>
+
+    <!-- Card stroke boundary (0dp elevation variant) -->
+    <color name="app_card_stroke">@color/divider</color>
+
 </resources>

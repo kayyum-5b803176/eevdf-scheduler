@@ -7,27 +7,13 @@
         <item name="android:windowBackground">@color/screenBackground</item>
 
         <!-- ── Design Token: global Material overrides ─────────────────────── -->
-
-        <!-- All TextInputLayout fields (inputs + ExposedDropdownMenu) -->
         <item name="textInputStyle">@style/App.TextInput</item>
-
-        <!-- All MaterialAlertDialog -->
         <item name="materialAlertDialogTheme">@style/App.Dialog</item>
-
-        <!-- All MaterialCardView -->
         <item name="materialCardViewStyle">@style/App.Card</item>
-
-        <!-- All CheckBox (auto-applies to MaterialCheckBox) -->
         <item name="checkboxStyle">@style/App.CheckBox</item>
-
-        <!-- All RadioButton (auto-applies to MaterialRadioButton) -->
         <item name="radioButtonStyle">@style/App.RadioButton</item>
-
-        <!-- Shape appearance tokens -->
         <item name="shapeAppearanceSmallComponent">@style/App.Shape.Small</item>
         <item name="shapeAppearanceMediumComponent">@style/App.Shape.Medium</item>
-
-        <!-- All TabLayout -->
         <item name="tabStyle">@style/App.Tab</item>
     </style>
 
@@ -36,9 +22,8 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <!-- Used by GroupPickerDialog — a min-width Material dialog theme,
-         declared locally so it resolves via this app's generated R.style. -->
-    <style name="AppTheme.GroupPickerDialog" parent="Theme.MaterialComponents.DayNight.Dialog.MinWidth" />
+    <style name="AppTheme.GroupPickerDialog"
+        parent="Theme.MaterialComponents.DayNight.Dialog.MinWidth" />
 
     <!-- ── Design Token: Shape ─────────────────────────────────────────────── -->
 
@@ -52,7 +37,8 @@
 
     <!-- ── Design Token: TextInputLayout ───────────────────────────────────── -->
 
-    <style name="App.TextInput" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+    <style name="App.TextInput"
+        parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
         <item name="boxStrokeColor">@color/divider</item>
         <item name="boxCornerRadiusTopStart">8dp</item>
         <item name="boxCornerRadiusTopEnd">8dp</item>
@@ -60,40 +46,34 @@
         <item name="boxCornerRadiusBottomEnd">8dp</item>
     </style>
 
-    <style name="App.TextInput.Dropdown" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+    <style name="App.TextInput.Dropdown"
+        parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
         <item name="boxStrokeColor">@color/divider</item>
         <item name="boxCornerRadiusTopStart">8dp</item>
         <item name="boxCornerRadiusTopEnd">8dp</item>
         <item name="boxCornerRadiusBottomStart">8dp</item>
         <item name="boxCornerRadiusBottomEnd">8dp</item>
-    </style>
-
-    <!-- ── Design Token: MaterialCardView ──────────────────────────────────── -->
-
-    <style name="App.Card" parent="Widget.MaterialComponents.CardView">
-        <item name="cardCornerRadius">12dp</item>
-        <item name="cardElevation">4dp</item>
-        <item name="cardBackgroundColor">@color/cardBackground</item>
     </style>
 
     <!-- ── Design Token: MaterialAlertDialog ────────────────────────────────── -->
 
-    <style name="App.Dialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+    <style name="App.Dialog"
+        parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
         <item name="shapeAppearanceOverlay">@style/App.Shape.Medium</item>
     </style>
 
-    <!-- ── Design Token: CheckBox ──────────────────────────────────────────── -->
+    <!-- ── Design Token: CheckBox / RadioButton ────────────────────────────── -->
 
-    <style name="App.CheckBox" parent="Widget.MaterialComponents.CompoundButton.CheckBox">
-        <item name="android:textSize">14sp</item>
-        <item name="android:textColor">@color/textPrimary</item>
+    <style name="App.CheckBox"
+        parent="Widget.MaterialComponents.CompoundButton.CheckBox">
+        <item name="android:textSize">@dimen/app_text_size_body</item>
+        <item name="android:textColor">@color/app_text_title</item>
     </style>
 
-    <!-- ── Design Token: RadioButton ───────────────────────────────────────── -->
-
-    <style name="App.RadioButton" parent="Widget.MaterialComponents.CompoundButton.RadioButton">
-        <item name="android:textSize">14sp</item>
-        <item name="android:textColor">@color/textPrimary</item>
+    <style name="App.RadioButton"
+        parent="Widget.MaterialComponents.CompoundButton.RadioButton">
+        <item name="android:textSize">@dimen/app_text_size_body</item>
+        <item name="android:textColor">@color/app_text_title</item>
     </style>
 
     <!-- ── Design Token: TabLayout ─────────────────────────────────────────── -->
@@ -104,6 +84,110 @@
 
     <style name="App.Tab.Text" parent="TextAppearance.Design.Tab">
         <item name="android:textAllCaps">false</item>
+    </style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Design Token: Card template system
+         ═══════════════════════════════════════════════════════════════════════
+
+         App.Card          — base: shape, elevation, background, stroke (inherited by all)
+         App.Card.Small    — metric tiles, reserved placeholders         padding 12dp
+         App.Card.Standard — settings nav rows, toggles, action rows     padding 16dp
+         App.Card.Large    — form inputs, sliders, grouped controls       padding 20dp
+         App.Card.Panel    — task cards, distributions, calendar content  padding 24dp
+
+         Usage in layout:
+             style="@style/App.Card.Standard"
+
+         Internal padding is applied via contentPadding on the card.
+         For cards with complex inner structure (multiple sections, headers),
+         set padding on the inner LinearLayout using the dimen token:
+             android:padding="@dimen/app_card_padding_large"
+         ─────────────────────────────────────────────────────────────────── -->
+
+    <style name="App.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardCornerRadius">@dimen/app_card_corner_radius</item>
+        <item name="cardElevation">@dimen/app_card_elevation</item>
+        <item name="cardBackgroundColor">@color/cardBackground</item>
+        <item name="strokeWidth">@dimen/app_card_stroke_width</item>
+        <item name="strokeColor">@color/app_card_stroke</item>
+    </style>
+
+    <style name="App.Card.Small" parent="App.Card">
+        <item name="contentPadding">@dimen/app_card_padding_small</item>
+    </style>
+
+    <style name="App.Card.Standard" parent="App.Card">
+        <item name="contentPadding">@dimen/app_card_padding_standard</item>
+    </style>
+
+    <style name="App.Card.Large" parent="App.Card">
+        <item name="contentPadding">@dimen/app_card_padding_large</item>
+    </style>
+
+    <style name="App.Card.Panel" parent="App.Card">
+        <item name="contentPadding">@dimen/app_card_padding_panel</item>
+    </style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Design Token: Typography system
+         ═══════════════════════════════════════════════════════════════════════
+
+         App.Text.Label    — section divider text    11sp  colorPrimary  medium  ls=0.12
+         App.Text.Caption  — smallest body text      12sp  textSecondary regular
+         App.Text.Body     — standard subtitle text  13sp  textSecondary regular
+         App.Text.Title    — primary row title        16sp  textPrimary   medium
+         App.Text.Heading  — card-level heading       18sp  textPrimary   medium
+
+         App.Text.Chevron  — navigation › indicator  22sp  textSecondary regular
+
+         Usage in layout:
+             style="@style/App.Text.Title"
+         ─────────────────────────────────────────────────────────────────── -->
+
+    <!-- Base — all App.Text.* styles inherit from this implicitly via dot notation -->
+    <style name="App.Text" parent="android:TextAppearance" />
+
+    <style name="App.Text.Label">
+        <item name="android:textSize">@dimen/app_text_size_label</item>
+        <item name="android:textColor">@color/app_text_label</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="App.Text.Caption">
+        <item name="android:textSize">@dimen/app_text_size_caption</item>
+        <item name="android:textColor">@color/app_text_caption</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <style name="App.Text.Body">
+        <item name="android:textSize">@dimen/app_text_size_body</item>
+        <item name="android:textColor">@color/app_text_body</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <style name="App.Text.Title">
+        <item name="android:textSize">@dimen/app_text_size_title</item>
+        <item name="android:textColor">@color/app_text_title</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- Small card variant — title at body scale -->
+    <style name="App.Text.Title.Small" parent="App.Text.Title">
+        <item name="android:textSize">@dimen/app_text_size_body</item>
+    </style>
+
+    <style name="App.Text.Heading">
+        <item name="android:textSize">@dimen/app_text_size_heading</item>
+        <item name="android:textColor">@color/app_text_title</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="App.Text.Chevron">
+        <item name="android:textSize">@dimen/app_chevron_size</item>
+        <item name="android:textColor">@color/app_chevron</item>
     </style>
 
 </resources>
