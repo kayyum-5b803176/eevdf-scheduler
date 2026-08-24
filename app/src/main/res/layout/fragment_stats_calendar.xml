@@ -22,7 +22,7 @@
             android:layout_width="@dimen/app_day_cell"
             android:layout_height="@dimen/app_day_cell"
             android:text="‹"
-            android:textSize="18sp"
+            android:textSize="@dimen/app_text_size_xl"
             android:padding="0dp"
             style="@style/Widget.MaterialComponents.Button.TextButton" />
 
@@ -32,9 +32,9 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:gravity="center"
-            android:textSize="14sp"
+            android:textSize="@dimen/app_text_size_md"
             android:textStyle="bold"
-            android:textColor="#212121"
+            android:textColor="@color/app_text_title"
             android:text="May 2026" />
 
         <com.google.android.material.button.MaterialButton
@@ -42,7 +42,7 @@
             android:layout_width="@dimen/app_day_cell"
             android:layout_height="@dimen/app_day_cell"
             android:text="›"
-            android:textSize="18sp"
+            android:textSize="@dimen/app_text_size_xl"
             android:padding="0dp"
             style="@style/Widget.MaterialComponents.Button.TextButton" />
 
@@ -68,6 +68,7 @@
 
             <!-- ── Calendar Grid ──────────────────────────────────── -->
             <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:cardCornerRadius="10dp"
@@ -79,7 +80,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="3dp">
+                    android:padding="@dimen/app_spacing_cs">
 
                     <LinearLayout
                         android:id="@+id/llCalHeader"
@@ -102,13 +103,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Tap: task overview  •  Hold: with run times"
-                android:textSize="10sp"
-                android:textColor="#BDBDBD"
+                android:textSize="@dimen/app_text_size_xs"
+                android:textColor="@color/app_text_hint"
                 android:gravity="center"
-                android:layout_marginBottom="6dp" />
+                android:layout_marginBottom="@dimen/app_spacing_md" />
 
             <!-- ── Day Detail Panel ───────────────────────────────── -->
             <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
                 android:id="@+id/cardDayDetail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -122,7 +124,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="12dp">
+                    android:padding="@dimen/app_card_padding_sm">
 
                     <!-- Date + mode label row -->
                     <LinearLayout
@@ -130,7 +132,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="8dp"
+                        android:layout_marginBottom="@dimen/app_spacing_md"
                         android:layout_marginStart="@dimen/app_card_margin_horizontal"
                         android:layout_marginEnd="@dimen/app_card_margin_horizontal">
 
@@ -139,16 +141,16 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:textSize="13sp"
+                            android:textSize="@dimen/app_text_size_md"
                             android:textStyle="bold"
-                            android:textColor="#212121" />
+                            android:textColor="@color/app_text_title" />
 
                         <TextView
                             android:id="@+id/tvDetailMode"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:textSize="10sp"
-                            android:textColor="#9E9E9E"
+                            android:textSize="@dimen/app_text_size_xs"
+                            android:textColor="@color/app_text_hint"
                             android:text="overview" />
 
                     </LinearLayout>
@@ -164,11 +166,11 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="No sessions on this day"
-                        android:textSize="12sp"
-                        android:textColor="#BDBDBD"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_hint"
                         android:gravity="center"
                         android:visibility="gone"
-                        android:padding="8dp" />
+                        android:padding="@dimen/app_spacing_md" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
