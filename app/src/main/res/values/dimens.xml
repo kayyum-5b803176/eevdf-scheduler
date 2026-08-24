@@ -52,6 +52,9 @@
     <!-- Card inset from left and right screen edge -->
     <dimen name="app_card_margin_horizontal">10dp</dimen>
 
+    <!-- Vertical gap above each card — mirrors marginBottom for symmetric float effect -->
+    <dimen name="app_card_margin_top">12dp</dimen>
+
     <!-- Vertical gap between adjacent cards on the same page -->
     <dimen name="app_card_spacing">12dp</dimen>
 

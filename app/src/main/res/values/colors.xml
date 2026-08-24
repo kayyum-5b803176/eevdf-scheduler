@@ -99,6 +99,10 @@
     <!-- Navigation chevron and trailing action indicators -->
     <color name="app_chevron">@color/textSecondary</color>
 
+    <!-- Ripple / press state overlay on interactive cards and rows -->
+    <!-- 10% of colorPrimary — gives a blue tint on tap consistent with brand -->
+    <color name="app_ripple">#1A1565C0</color>
+
     <!-- Card stroke boundary (0dp elevation variant) -->
     <color name="app_card_stroke">@color/divider</color>
 

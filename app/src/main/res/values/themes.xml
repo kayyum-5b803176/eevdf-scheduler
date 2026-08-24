@@ -15,6 +15,9 @@
         <item name="shapeAppearanceSmallComponent">@style/App.Shape.Small</item>
         <item name="shapeAppearanceMediumComponent">@style/App.Shape.Medium</item>
         <item name="tabStyle">@style/App.Tab</item>
+
+        <!-- Ripple colour for all ?attr/selectableItemBackground press states -->
+        <item name="colorControlHighlight">@color/app_ripple</item>
     </style>
 
     <style name="AppTheme.NoActionBar">
@@ -160,12 +163,15 @@
         <item name="android:textSize">@dimen/app_text_size_caption</item>
         <item name="android:textColor">@color/app_text_caption</item>
         <item name="android:fontFamily">sans-serif</item>
+        <item name="android:lineSpacingMultiplier">1.2</item>
     </style>
 
     <style name="App.Text.Body">
         <item name="android:textSize">@dimen/app_text_size_body</item>
         <item name="android:textColor">@color/app_text_body</item>
         <item name="android:fontFamily">sans-serif</item>
+        <!-- 1.2× line height — keeps multi-line subtitles readable without excess space -->
+        <item name="android:lineSpacingMultiplier">1.2</item>
     </style>
 
     <style name="App.Text.Title">
