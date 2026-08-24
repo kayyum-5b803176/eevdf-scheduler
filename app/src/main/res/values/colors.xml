@@ -2,133 +2,133 @@
 <resources>
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         FUNDAMENTAL ANCHORS
-         Standalone. Not part of any family scale.
+         COLOUR PALETTE — MATHEMATICAL NORMAL SYSTEM
+         ──────────────────────────────────────────────────────────────────
+         Each family has a mathematical normal (nd) at the pure colour.
+         Other slots are derived by adjusting HSL lightness ±12.5% per step.
+         Custom slots (cl, cd) hold design values outside the systematic range.
+
+         Slot   Lightness   Meaning
+         ─────  ─────────   ─────────────────────────────────────────────
+         cl     free        custom light  — design value below the scale
+         xl     +25%        extra light   = nd lightened two steps
+         lt     +12.5%      light         = nd lightened one step
+         nd     50%         normal        = pure mathematical colour
+         dk     −12.5%      dark          = nd darkened one step
+         xd     −25%        extra dark    = nd darkened two steps
+         cd     free        custom dark   — design value above the scale
+
+         Grey anchors: xl = #FFFFFF (pure white), xd = #000000 (pure black)
          ══════════════════════════════════════════════════════════════════ -->
 
+    <!-- ── Standalone anchors ─────────────────────────────────────────────── -->
     <color name="app_white">#FFFFFF</color>
     <color name="app_black">#000000</color>
 
-    <!-- ══════════════════════════════════════════════════════════════════════
-         GREY PALETTE  (luminosity axis — light to dark)
-         ──────────────────────────────────────────────────────────────────
-         cl = custom light  #F5F5F5   screen / page background
-         xl = pure white    #FFFFFF   (fixed anchor — same as app_white)
-         lt = light         #E0E0E0   inner card divider
-         nd = normal        #BDBDBD   standard divider / inactive
-         dk = dark          #757575   secondary / body text
-         xd = pure black    #000000   (fixed anchor — same as app_black)
-         cd = custom dark   #212121   primary text
-         ══════════════════════════════════════════════════════════════════ -->
-
+    <!-- ── Grey  (H=0° S=0% — desaturated, lightness axis only) ─────────── -->
+    <!--    cl  free     #F5F5F5   custom light — screen / page background   -->
+    <!--    xl  L=100%   #FFFFFF   white anchor (fixed)                      -->
+    <!--    lt  L=62.5%  #9F9F9F   systematic light                          -->
+    <!--    nd  L=50%    #7F7F7F   mathematical normal                       -->
+    <!--    dk  L=37.5%  #5F5F5F   systematic dark                           -->
+    <!--    xd  L=0%     #000000   black anchor (fixed)                      -->
+    <!--    cd  free     #212121   custom dark — primary text                -->
     <color name="app_grey_cl">#F5F5F5</color>
     <color name="app_grey_xl">#FFFFFF</color>
-    <color name="app_grey_lt">#E0E0E0</color>
-    <color name="app_grey_nd">#BDBDBD</color>
-    <color name="app_grey_dk">#757575</color>
+    <color name="app_grey_lt">#9F9F9F</color>
+    <color name="app_grey_nd">#7F7F7F</color>
+    <color name="app_grey_dk">#5F5F5F</color>
     <color name="app_grey_xd">#000000</color>
     <color name="app_grey_cd">#212121</color>
 
-    <!-- ══════════════════════════════════════════════════════════════════════
-         BLUE PALETTE
-         ──────────────────────────────────────────────────────────────────
-         cl = #E3F2FD   extra light surface (reserved)
-         xl = #BBDEFB   light blue accent
-         lt = #90CAF9   light blue (reserved)
-         nd = #42A5F5   normal blue (reserved)
-         dk = #1565C0   primary blue — toolbar, labels, primary actions
-         xd = #0D47A1   extra dark blue — status bar
-         cd = #4A148C   custom dark — purple stat accent (off-family, closest)
-         ══════════════════════════════════════════════════════════════════ -->
-
+    <!-- ── Blue  (H=240° S=100%) ──────────────────────────────────────────── -->
+    <!--    cl  free     #E3F2FD   custom light — light blue surface         -->
+    <!--    xl  L=75%    #7F7FFF   extra light                               -->
+    <!--    lt  L=62.5%  #3F3FFF   light                                     -->
+    <!--    nd  L=50%    #0000FF   mathematical normal — pure blue           -->
+    <!--    dk  L=37.5%  #0000BF   dark                                      -->
+    <!--    xd  L=25%    #00007F   extra dark                                -->
+    <!--    cd  free     #1565C0   custom dark — app primary (desaturated)   -->
     <color name="app_blue_cl">#E3F2FD</color>
-    <color name="app_blue_xl">#BBDEFB</color>
-    <color name="app_blue_lt">#90CAF9</color>
-    <color name="app_blue_nd">#42A5F5</color>
-    <color name="app_blue_dk">#1565C0</color>
-    <color name="app_blue_xd">#0D47A1</color>
-    <color name="app_blue_cd">#4A148C</color>
+    <color name="app_blue_xl">#7F7FFF</color>
+    <color name="app_blue_lt">#3F3FFF</color>
+    <color name="app_blue_nd">#0000FF</color>
+    <color name="app_blue_dk">#0000BF</color>
+    <color name="app_blue_xd">#00007F</color>
+    <color name="app_blue_cd">#1565C0</color>
 
-    <!-- ══════════════════════════════════════════════════════════════════════
-         RED PALETTE  (covers error, orange/warning — closest family)
-         ──────────────────────────────────────────────────────────────────
-         cl = #FFF3E0   warning background (orange tint — custom light)
-         xl = #FFCDD2   light red (reserved)
-         lt = #EF9A9A   light red (reserved)
-         nd = #F44336   error / validation red
-         dk = #D32F2F   dark red (reserved)
-         xd = #E65100   deep orange — warning text (custom — off-spectrum)
-         cd = #B71C1C   custom dark red (reserved)
-         ══════════════════════════════════════════════════════════════════ -->
-
+    <!-- ── Red  (H=0° S=100%) ─────────────────────────────────────────────── -->
+    <!--    cl  free     #FFF3E0   custom light — warning / orange surface   -->
+    <!--    xl  L=75%    #FF7F7F   extra light                               -->
+    <!--    lt  L=62.5%  #FF3F3F   light                                     -->
+    <!--    nd  L=50%    #FF0000   mathematical normal — pure red            -->
+    <!--    dk  L=37.5%  #BF0000   dark                                      -->
+    <!--    xd  L=25%    #7F0000   extra dark                                -->
+    <!--    cd  free     #E65100   custom dark — warning / deep orange text  -->
     <color name="app_red_cl">#FFF3E0</color>
-    <color name="app_red_xl">#FFCDD2</color>
-    <color name="app_red_lt">#EF9A9A</color>
-    <color name="app_red_nd">#F44336</color>
-    <color name="app_red_dk">#D32F2F</color>
-    <color name="app_red_xd">#E65100</color>
-    <color name="app_red_cd">#B71C1C</color>
+    <color name="app_red_xl">#FF7F7F</color>
+    <color name="app_red_lt">#FF3F3F</color>
+    <color name="app_red_nd">#FF0000</color>
+    <color name="app_red_dk">#BF0000</color>
+    <color name="app_red_xd">#7F0000</color>
+    <color name="app_red_cd">#E65100</color>
 
-    <!-- ══════════════════════════════════════════════════════════════════════
-         GREEN PALETTE
-         ──────────────────────────────────────────────────────────────────
-         cl = #F1F8E9   extra light green surface (reserved)
-         xl = #DCEDC8   light green (reserved)
-         lt = #A5D6A7   light green (reserved)
-         nd = #4CAF50   normal green (reserved)
-         dk = #388E3C   dark green (reserved)
-         xd = #2E7D32   extra dark green (reserved)
-         cd = #1B5E20   custom dark — success text
-         ══════════════════════════════════════════════════════════════════ -->
-
+    <!-- ── Green  (H=120° S=100%) ─────────────────────────────────────────── -->
+    <!--    cl  free     #F1F8E9   custom light — light green surface        -->
+    <!--    xl  L=75%    #7FFF7F   extra light                               -->
+    <!--    lt  L=62.5%  #3FFF3F   light                                     -->
+    <!--    nd  L=50%    #00FF00   mathematical normal — pure green          -->
+    <!--    dk  L=37.5%  #00BF00   dark                                      -->
+    <!--    xd  L=25%    #007F00   extra dark                                -->
+    <!--    cd  free     #1B5E20   custom dark — success / deep green text   -->
     <color name="app_green_cl">#F1F8E9</color>
-    <color name="app_green_xl">#DCEDC8</color>
-    <color name="app_green_lt">#A5D6A7</color>
-    <color name="app_green_nd">#4CAF50</color>
-    <color name="app_green_dk">#388E3C</color>
-    <color name="app_green_xd">#2E7D32</color>
+    <color name="app_green_xl">#7FFF7F</color>
+    <color name="app_green_lt">#3FFF3F</color>
+    <color name="app_green_nd">#00FF00</color>
+    <color name="app_green_dk">#00BF00</color>
+    <color name="app_green_xd">#007F00</color>
     <color name="app_green_cd">#1B5E20</color>
 
     <!-- ══════════════════════════════════════════════════════════════════════
          SEMANTIC ALIASES
-         Purpose-named tokens that point to palette values.
-         Change a palette value — all aliases using it update everywhere.
+         Purpose-named tokens pointing to palette slots.
+         Layouts and styles reference only these — never raw palette tokens.
          ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Android theme requirements -->
-    <color name="colorPrimary">@color/app_blue_dk</color>
-    <color name="colorPrimaryDark">@color/app_blue_xd</color>
+    <!-- Android theme -->
+    <color name="colorPrimary">@color/app_blue_cd</color>
+    <color name="colorPrimaryDark">#0D47A1</color>
     <color name="colorAccent">#FF6D00</color>
 
     <!-- Surfaces -->
     <color name="screenBackground">@color/app_grey_cl</color>
     <color name="cardBackground">@color/app_grey_xl</color>
-    <color name="headerBackground">@color/app_blue_dk</color>
-    <color name="statsBarBackground">@color/app_blue_xd</color>
+    <color name="headerBackground">@color/app_blue_cd</color>
+    <color name="statsBarBackground">#0D47A1</color>
+    <color name="infoBoxBackground">@color/app_grey_cl</color>
 
     <!-- Text hierarchy -->
     <color name="textPrimary">@color/app_grey_cd</color>
-    <color name="textSecondary">@color/app_grey_dk</color>
+    <color name="textSecondary">@color/app_grey_lt</color>
     <color name="textOnHeader">@color/app_grey_xl</color>
 
     <!-- Structural -->
-    <color name="divider">@color/app_grey_nd</color>
-    <color name="infoBoxBackground">@color/app_grey_cl</color>
+    <color name="divider">@color/app_grey_lt</color>
 
-    <!-- App-level semantic tokens -->
+    <!-- App semantic text tokens -->
     <color name="app_text_title">@color/app_grey_cd</color>
-    <color name="app_text_body">@color/app_grey_dk</color>
-    <color name="app_text_hint">@color/app_grey_dk</color>
-    <color name="app_text_caption">@color/app_grey_dk</color>
-    <color name="app_text_tertiary">@color/app_grey_dk</color>
-    <color name="app_text_label">@color/app_blue_dk</color>
-    <color name="app_chevron">@color/app_grey_dk</color>
+    <color name="app_text_body">@color/app_grey_lt</color>
+    <color name="app_text_hint">@color/app_grey_lt</color>
+    <color name="app_text_caption">@color/app_grey_lt</color>
+    <color name="app_text_tertiary">@color/app_grey_lt</color>
+    <color name="app_text_label">@color/app_blue_cd</color>
+    <color name="app_chevron">@color/app_grey_lt</color>
     <color name="app_divider_inner">@color/app_grey_lt</color>
     <color name="app_surface_subtle">@color/app_grey_cl</color>
-    <color name="app_card_stroke">@color/app_grey_nd</color>
-    <color name="app_color_error">@color/app_red_nd</color>
+    <color name="app_card_stroke">@color/app_grey_lt</color>
+    <color name="app_color_error">@color/app_red_lt</color>
     <color name="app_warning_background">@color/app_red_cl</color>
-    <color name="app_warning_text">@color/app_red_xd</color>
+    <color name="app_warning_text">@color/app_red_cd</color>
     <color name="app_success_text">@color/app_green_cd</color>
 
     <!-- ══════════════════════════════════════════════════════════════════════
@@ -155,60 +155,59 @@
     <color name="priority7">@color/app_red_nd</color>
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         COMPONENT TOKENS  (specific UI elements)
+         COMPONENT TOKENS
          ══════════════════════════════════════════════════════════════════ -->
 
     <!-- Timer / alarm -->
     <color name="timerGreen">@color/app_green_nd</color>
     <color name="timerYellow">#FF9800</color>
     <color name="timerRed">@color/app_red_nd</color>
-    <color name="timerCardBackground">@color/app_blue_dk</color>
+    <color name="timerCardBackground">@color/app_blue_cd</color>
     <color name="expiredCardBackground">@color/app_red_dk</color>
     <color name="intButtonBackground">@color/app_grey_xl</color>
     <color name="stopButtonBackground">@color/app_grey_xl</color>
-    <color name="stopButtonText">@color/app_red_cd</color>
+    <color name="stopButtonText">@color/app_red_xd</color>
 
     <!-- Quota -->
-    <color name="quotaTextExceeded">@color/app_red_xd</color>
+    <color name="quotaTextExceeded">@color/app_red_cd</color>
     <color name="quotaTextWarning">#F57C00</color>
-    <color name="quotaTextNormal">@color/app_grey_dk</color>
+    <color name="quotaTextNormal">@color/app_grey_lt</color>
     <color name="quotaBarExceeded">#E53935</color>
     <color name="quotaBarWarning">#FFA000</color>
     <color name="quotaBarNormal">#66BB6A</color>
 
     <!-- Scheduler banners -->
     <color name="bannerDl">@color/app_red_dk</color>
-    <color name="bannerRt">@color/app_red_xd</color>
-    <color name="bannerStop">@color/app_red_cd</color>
-    <color name="bannerIdle">@color/app_grey_dk</color>
+    <color name="bannerRt">@color/app_red_cd</color>
+    <color name="bannerStop">@color/app_red_xd</color>
+    <color name="bannerIdle">@color/app_grey_lt</color>
 
     <!-- DL / RT pills -->
-    <color name="pillDlActive">@color/app_red_xd</color>
+    <color name="pillDlActive">@color/app_red_cd</color>
     <color name="pillRtActive">@color/app_green_cd</color>
     <color name="pillInactive">#78909C</color>
 
     <!-- Rank indicators -->
-    <color name="rankDl">@color/app_blue_dk</color>
+    <color name="rankDl">@color/app_blue_cd</color>
     <color name="rankRt">@color/app_green_cd</color>
 
     <!-- Pin -->
     <color name="pinActive">#FF9800</color>
-    <color name="pinInactive">@color/app_grey_nd</color>
+    <color name="pinInactive">@color/app_grey_lt</color>
 
     <!-- Sync status dots -->
     <color name="syncDotOK">@color/app_green_nd</color>
     <color name="syncDotError">@color/app_red_nd</color>
     <color name="syncDotSyncing">#FF9800</color>
-    <color name="syncDotDisabled">@color/app_grey_dk</color>
+    <color name="syncDotDisabled">@color/app_grey_lt</color>
 
     <!-- Tab bar -->
     <color name="tabTextInactive">#99FFFFFF</color>
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         OPACITY-BASED  (outside palette — alpha-composited)
+         OPACITY-BASED  (outside palette — alpha-composited values)
          ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Ripple: 10% primary blue on tap -->
     <color name="app_ripple">#1A1565C0</color>
 
 </resources>
