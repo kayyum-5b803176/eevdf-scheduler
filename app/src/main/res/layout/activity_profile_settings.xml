@@ -44,8 +44,11 @@
             <!-- Timer sound -->
             <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_lg" app:cardElevation="2dp">
+                android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -72,8 +75,11 @@
             <!-- Sound timeout -->
             <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_lg" app:cardElevation="2dp">
+                android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -106,8 +112,11 @@
             <!-- Default volume -->
             <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_lg" app:cardElevation="2dp">
+                android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -136,8 +145,11 @@
             <!-- Gradual volume increase -->
             <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_cl" app:cardElevation="2dp">
+                android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -173,8 +185,11 @@
             <!-- Vibration pattern spinner -->
             <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_lg" app:cardElevation="2dp">
+                android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -207,8 +222,11 @@
             <!-- Vibration timeout -->
             <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_cl" app:cardElevation="2dp">
+                android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -250,8 +268,11 @@
                 <!-- Execute sound -->
                 <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginBottom="@dimen/app_spacing_lg" app:cardElevation="2dp">
+                    android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginTop="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_card_gap">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -284,8 +305,11 @@
                 <!-- Wait sound -->
                 <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginBottom="@dimen/app_spacing_lg" app:cardElevation="2dp">
+                    android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginTop="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_card_gap">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -318,8 +342,11 @@
                 <!-- Action volume -->
                 <com.google.android.material.card.MaterialCardView
         style="@style/App.Card"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginBottom="@dimen/app_spacing_cl" app:cardElevation="2dp">
+                    android:layout_width="match_parent" android:layout_height="wrap_content" app:cardElevation="2dp"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginTop="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_card_gap">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="vertical" android:padding="@dimen/app_card_padding_lg">
                         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"

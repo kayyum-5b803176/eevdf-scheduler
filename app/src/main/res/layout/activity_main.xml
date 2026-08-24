@@ -114,11 +114,11 @@
             android:id="@+id/cardTimer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/app_spacing_lg"
-            android:layout_marginEnd="@dimen/app_spacing_lg"
-            android:layout_marginTop="@dimen/app_spacing_lg"
-            android:layout_marginBottom="@dimen/app_spacing_lg"
-            android:visibility="gone">
+            android:visibility="gone"
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
 
             <FrameLayout
                 android:layout_width="match_parent"

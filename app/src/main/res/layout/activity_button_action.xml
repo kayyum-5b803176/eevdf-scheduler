@@ -46,7 +46,10 @@
         style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_xl">
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -106,10 +109,13 @@
                 android:id="@+id/cardHardwareKeys"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/app_spacing_xl"
                 android:clickable="true"
                 android:focusable="true"
-                app:cardUseCompatPadding="false">
+                app:cardUseCompatPadding="false"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
 
                 <LinearLayout
                     android:layout_width="match_parent"

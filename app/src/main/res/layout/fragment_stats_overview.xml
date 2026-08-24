@@ -21,10 +21,10 @@
             style="@style/App.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -43,8 +43,8 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                    android:layout_marginEnd="@dimen/app_card_margin_horizontal">
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap">
                     <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -86,15 +86,18 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginBottom="@dimen/app_spacing_lg"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap">
             <com.google.android.material.card.MaterialCardView
             style="@style/App.Card"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginEnd="@dimen/app_spacing_sm">
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -109,7 +112,10 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="@dimen/app_spacing_sm">
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -125,15 +131,18 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginBottom="@dimen/app_spacing_lg"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap">
             <com.google.android.material.card.MaterialCardView
             style="@style/App.Card"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginEnd="@dimen/app_spacing_sm">
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -148,7 +157,10 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="@dimen/app_spacing_sm">
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -163,10 +175,10 @@
         <!-- ── Time Distribution ─────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -180,10 +192,10 @@
         <!-- ── Most / Least Frequent ─────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -195,10 +207,10 @@
         </com.google.android.material.card.MaterialCardView>
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -212,10 +224,10 @@
         <!-- ── Longest Untouched ─────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -229,10 +241,10 @@
         <!-- ── Quota Violators ───────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -246,10 +258,10 @@
         <!-- ── Task Switching ────────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -263,10 +275,10 @@
         <!-- ── Window Activity ───────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -280,10 +292,10 @@
         <!-- ── Peak Day ──────────────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -297,10 +309,10 @@
         <!-- ── Weekday Heatmap ───────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -314,10 +326,10 @@
         <!-- ── Streaks ───────────────────────────────────────────────── -->
         <com.google.android.material.card.MaterialCardView
             style="@style/App.Card" android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="3dp"
-            android:layout_marginStart="@dimen/app_card_margin_horizontal"
-            android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-            android:layout_marginTop="@dimen/app_card_margin_top"
-            android:layout_marginBottom="@dimen/app_card_spacing">
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="@dimen/app_card_padding_sm">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"

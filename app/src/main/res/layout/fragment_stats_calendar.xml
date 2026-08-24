@@ -14,8 +14,8 @@
         android:gravity="center_vertical"
         android:paddingStart="@dimen/app_spacing_sm"
         android:paddingEnd="@dimen/app_spacing_sm"
-        android:layout_marginStart="@dimen/app_card_margin_horizontal"
-        android:layout_marginEnd="@dimen/app_card_margin_horizontal">
+        android:layout_marginStart="@dimen/app_card_gap"
+        android:layout_marginEnd="@dimen/app_card_gap">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPrevMonth"
@@ -73,9 +73,10 @@
                 android:layout_height="wrap_content"
                 app:cardCornerRadius="10dp"
                 app:cardElevation="2dp"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -117,9 +118,10 @@
                 app:cardCornerRadius="10dp"
                 app:cardElevation="2dp"
                 android:visibility="gone"
-                android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                android:layout_marginEnd="@dimen/app_card_margin_horizontal"
-                android:layout_marginBottom="@dimen/app_card_spacing">
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -133,8 +135,8 @@
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
                         android:layout_marginBottom="@dimen/app_spacing_md"
-                        android:layout_marginStart="@dimen/app_card_margin_horizontal"
-                        android:layout_marginEnd="@dimen/app_card_margin_horizontal">
+                        android:layout_marginStart="@dimen/app_card_gap"
+                        android:layout_marginEnd="@dimen/app_card_gap">
 
                         <TextView
                             android:id="@+id/tvDetailDate"

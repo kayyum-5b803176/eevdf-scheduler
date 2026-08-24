@@ -96,9 +96,8 @@
          ══════════════════════════════════════════════════════════════════ -->
 
     <dimen name="app_page_padding_vertical">16dp</dimen>
-    <dimen name="app_card_margin_horizontal">10dp</dimen>
-    <dimen name="app_card_margin_top">12dp</dimen>
-    <dimen name="app_card_spacing">12dp</dimen>
+    <!-- Uniform gap between every card and its surroundings (all 4 sides) -->
+    <dimen name="app_card_gap">10dp</dimen>
 
     <!-- ══════════════════════════════════════════════════════════════════════
          COMPONENT — specific sizes outside the scale
