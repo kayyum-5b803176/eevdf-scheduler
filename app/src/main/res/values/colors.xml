@@ -109,7 +109,7 @@
 
     <!-- Text hierarchy -->
     <color name="textPrimary">@color/app_grey_cd</color>
-    <color name="textSecondary">@color/app_grey_lt</color>
+    <color name="textSecondary">@color/app_grey_nd</color>
     <color name="textOnHeader">@color/app_grey_xl</color>
 
     <!-- Structural -->
@@ -117,12 +117,12 @@
 
     <!-- App semantic text tokens -->
     <color name="app_text_title">@color/app_grey_cd</color>
-    <color name="app_text_body">@color/app_grey_lt</color>
+    <color name="app_text_body">@color/app_grey_nd</color>
     <color name="app_text_hint">@color/app_grey_lt</color>
-    <color name="app_text_caption">@color/app_grey_lt</color>
-    <color name="app_text_tertiary">@color/app_grey_lt</color>
+    <color name="app_text_caption">@color/app_grey_nd</color>
+    <color name="app_text_tertiary">@color/app_grey_dk</color>
     <color name="app_text_label">@color/app_blue_cd</color>
-    <color name="app_chevron">@color/app_grey_lt</color>
+    <color name="app_chevron">@color/app_grey_nd</color>
     <color name="app_divider_inner">@color/app_grey_lt</color>
     <color name="app_surface_subtle">@color/app_grey_cl</color>
     <color name="app_card_stroke">@color/app_grey_lt</color>
