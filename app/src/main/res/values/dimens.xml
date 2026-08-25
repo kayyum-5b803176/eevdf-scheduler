@@ -124,6 +124,48 @@
     <dimen name="app_row_boundary_rung_72">72dp</dimen>
     <dimen name="app_row_spacer_navcard_01">6dp</dimen>  <!-- = app_bar_notice, reused -->
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         PIECE-BOUNDARY SCALE EXTENSION — ToggleCard piece 0 + piece 1
+         ──────────────────────────────────────────────────────────────────
+         ToggleCard's title+switch row (piece 0, ~32dp — dominated by the
+         switch's own intrinsic touch-target height, not the text line)
+         plus its description piece (piece 1, ~20dp) plus card padding
+         (40dp) totals ~92dp, which is not a rung. Continuing the ladder
+         to 96dp. This rung is named in its own namespace deliberately —
+         96dp also happens to be the numeric value of app_label_slot_sm
+         (a label WIDTH token, unrelated), so this is a distinct token
+         rather than a reused reference, to avoid two unrelated concerns
+         silently tracking the same number by coincidence.
+         ══════════════════════════════════════════════════════════════════ -->
+    <dimen name="app_row_boundary_rung_96">96dp</dimen>
+    <dimen name="app_row_spacer_togglecard_01">4dp</dimen>  <!-- = app_spacing_sm, reused -->
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         PIECE-BOUNDARY SCALE EXTENSION — ValueCard piece 0 + 1 + 2 + 3
+         ──────────────────────────────────────────────────────────────────
+         ValueCard's label+value row (piece 0, ~20dp) + description
+         (piece 1, ~20dp) + slider (piece 2, ~48dp incl. top gap) +
+         caption row (piece 3, ~16dp) + card padding (40dp) totals ~144dp,
+         not a rung. Continuing the ladder to 160dp. Same deliberate
+         separate-namespace reasoning as above — 160dp is also the
+         numeric value of app_chart_height_xs (an unrelated chart-sizing
+         token).
+         ══════════════════════════════════════════════════════════════════ -->
+    <dimen name="app_row_boundary_rung_160">160dp</dimen>
+    <dimen name="app_row_spacer_valuecard_0123">16dp</dimen>  <!-- = app_spacing_xl, reused -->
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         PIECE-BOUNDARY SCALE EXTENSION — DropdownCard piece 0 + piece 1
+         ──────────────────────────────────────────────────────────────────
+         DropdownCard's title (piece 0, ~20dp) + dropdown control (piece 1,
+         ~56dp, Material outlined dropdown intrinsic height) + card padding
+         (40dp) totals ~116dp. This lands under the 160dp rung already
+         defined for ValueCard above — reused directly, no new rung needed.
+         Spacer is dedicated (44dp), since no existing token already named
+         that exact value.
+         ══════════════════════════════════════════════════════════════════ -->
+    <dimen name="app_row_spacer_dropdowncard_01">44dp</dimen>
+
 
     <!-- Horizontal padding inside a row (start + end) -->
     <dimen name="app_row_padding_horizontal">16dp</dimen>

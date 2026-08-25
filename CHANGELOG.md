@@ -1,5 +1,59 @@
 # Changelog
 
+## 5.4.0 — Render tab: ToggleCard/ValueCard/DropdownCard demos + real metrics
+
+`versionName` 5.3.0 → **5.4.0** (MINOR). `versionCode` unchanged at 1.
+
+### Fixed — spacer inheritance bug, caught before release
+
+`App.Row.Nav.Spacer` (added in 5.3.0, not yet in any released build) had
+no explicit `parent=`, so it implicitly inherited `App.Row.Nav` →
+`App.Row.Base` — which carries `minHeight="@dimen/app_row_min_height"`
+(48dp), horizontal/vertical padding, and a ripple background. A spacer's
+own explicit `layout_height` (6dp) does not override an inherited
+`minHeight` that is larger, so the spacer was silently rendering at 48dp,
+not 6dp — defeating the entire point of computing it. Fixed by giving
+every spacer style an explicit `parent="App"` (the genuinely inert root
+style already used by `App.List.Content` and `App.SettingsCard.Body`),
+so a spacer never inherits row chrome it has no business carrying.
+
+### Added — three more demo templates in the Render tab
+
+`activity_display_settings.xml`'s render tab previously had only NavCard
+demos. Added, each computed the same way NavCard's spacer was (real piece
+heights, checked against the boundary-rung scale, spacer sized to close
+the actual gap — never an invented number):
+
+- **ToggleCard (0,1)** — `App.SwitchRow` + `App.SwitchRow.Description`.
+  Piece 0 (~32dp, switch-dominated) + piece 1 (~20dp) + card padding
+  (40dp) = 92dp → `App.Row.Toggle.Spacer` (+4dp) → new rung
+  `app_row_boundary_rung_96`.
+- **ValueCard (0,1,2,3)** — `App.ValueRow` + description + `App.Slider`
+  + caption row. Pieces total ~104dp + card padding (40dp) = 144dp →
+  `App.Row.Value.Spacer` (+16dp) → new rung `app_row_boundary_rung_160`.
+- **DropdownCard (0,1)** — title + `App.TextInput.Dropdown`. Piece 0
+  (~20dp) + piece 1 (~56dp, Material outlined dropdown intrinsic height)
+  + card padding (40dp) = 116dp → `App.Row.Dropdown.Spacer` (+44dp) →
+  reuses the same `app_row_boundary_rung_160` ValueCard just defined,
+  since 116dp already falls under that rung.
+
+New rung tokens (`app_row_boundary_rung_96`, `_160`) are named in their
+own dedicated namespace deliberately, even where the numeric value
+coincides with an unrelated existing token (96dp = `app_label_slot_sm`,
+a label width; 160dp = `app_chart_height_xs`, a chart size) — reusing
+those by number alone would make two unrelated concerns silently track
+the same value by coincidence rather than by shared meaning.
+
+### Added — real metric captions
+
+Every demo card in the render tab, including the two pre-existing NavCard
+ones, now shows a monospace caption underneath (`App.Render.Metric`)
+stating the actual piece heights, the computed total, whether a spacer
+was needed, and which rung it lands on — e.g. `piece 0 (48dp) + piece 1
+(18dp) = 66dp -> App.Row.Nav.Spacer +6dp -> app_row_boundary_rung_72`.
+This is the real number backing each demo, not a placeholder or a
+rounded estimate.
+
 ## 5.3.0 — Display screen rename, ui/render tabs, template demo catalog
 
 `versionName` 5.2.0 → **5.3.0** (MINOR). `versionCode` unchanged at 1.

@@ -578,9 +578,47 @@
          composition, not a value a developer places or edits.
          ══════════════════════════════════════════════════════════════════ -->
 
-    <style name="App.Row.Nav.Spacer">
+    <!-- ══════════════════════════════════════════════════════════════════════
+         [S] SPACERS — never authored per-instance, always inert
+         ──────────────────────────────────────────────────────────────────
+         Content-less pieces that close the gap between a card's real
+         content height and the nearest rung on the boundary-rung scale.
+         Explicit parent="App" (not App.Row.*) so a spacer never inherits
+         a row's minHeight, padding, or ripple background — a spacer that
+         silently claimed 48dp via inherited minHeight, regardless of its
+         own explicit height, would defeat the entire point of computing
+         the value precisely.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.Row.Nav.Spacer" parent="App">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">@dimen/app_row_spacer_navcard_01</item>
+    </style>
+
+    <style name="App.Row.Toggle.Spacer" parent="App">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/app_row_spacer_togglecard_01</item>
+    </style>
+
+    <style name="App.Row.Value.Spacer" parent="App">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/app_row_spacer_valuecard_0123</item>
+    </style>
+
+    <style name="App.Row.Dropdown.Spacer" parent="App">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/app_row_spacer_dropdowncard_01</item>
+    </style>
+
+    <!-- Render tab: shows a demo's real computed geometry (style name +
+         literal dp value) under the demo card, not just a silent render. -->
+    <style name="App.Render.Metric" parent="App">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/app_text_size_xs</item>
+        <item name="android:textColor">@color/app_text_hint</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:layout_marginTop">@dimen/app_spacing_sm</item>
     </style>
 
     <!-- App.Row.Reserved that is disabled-looking (lower alpha) rather
