@@ -120,6 +120,47 @@
     <dimen name="app_row_action_gap">12dp</dimen>
 
     <!-- ══════════════════════════════════════════════════════════════════════
+         LABEL SLOT WIDTHS — reserved, not measured
+         ──────────────────────────────────────────────────────────────────
+         A label placed next to a trailing-flexible element (value text,
+         slider) must claim a FIXED width tier, never "however wide the
+         text happens to be." If the label's box is sized to its own
+         content, the trailing element's start position shifts row to
+         row depending on label text length — which breaks "identical
+         relative position" even though both rows use edge anchoring.
+
+         These are widths for the LABEL side of a value-row, so the
+         trailing value/slider always starts at the same relative X
+         regardless of which row it's in.
+
+         Usage: android:layout_width="@dimen/app_label_slot_md" (fixed,
+         not 0dp+weight) on the TextView that is siblings with a
+         trailing value — NOT on App.Row.TextBlock, which legitimately
+         uses 0dp+weight because it has no trailing sibling competing
+         for reserved space in App.Row.Nav/Toggle.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <dimen name="app_label_slot_sm">96dp</dimen>   <!-- short labels: "On/Off", "Volume" -->
+    <dimen name="app_label_slot_md">140dp</dimen>  <!-- standard: "Sound Timeout" -->
+    <dimen name="app_label_slot_lg">180dp</dimen>  <!-- long: "Gradual Volume Increase" -->
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         VALUE ROW — title + trailing value (read-only or slider-linked)
+         Category: trailing-flexible. Docked to far edge; width is
+         whatever remains after the reserved label slot, never derived
+         from the trailing text's own measured width.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Gap between label slot and the trailing value text -->
+    <dimen name="app_value_row_gap">12dp</dimen>
+
+    <!-- Gap between a value-row's header line and the slider beneath it -->
+    <dimen name="app_slider_top_gap">8dp</dimen>
+
+    <!-- Gap between a slider and its min/max caption row beneath it -->
+    <dimen name="app_slider_caption_gap">2dp</dimen>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
          COMPONENT — specific sizes outside the scale
          ══════════════════════════════════════════════════════════════════ -->
 

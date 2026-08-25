@@ -1,5 +1,101 @@
 # Changelog
 
+## 5.2.0 — Settings UI template system: reserved-slot rows, sliders, enforcement
+
+`versionName` 5.1.1 → **5.2.0** (MINOR). `versionCode` unchanged at 1.
+
+### Fixed after initial commit — same day
+
+`App.SettingsCard.Body` was declared with no explicit `parent=`. Android's
+dot-notation implicit inheritance strips the last segment of the name to
+find its parent, so it silently tried to inherit from a style literally
+named `App.SettingsCard` — which doesn't exist — and AAPT failed the build
+with `resource style/App.SettingsCard not found`. This is the identical
+failure mode `App.List.Content` hit in the previous session; it recurred
+because nothing mechanically checked implicit-parent resolution, only that
+referenced style *names* existed somewhere in `themes.xml`.
+
+Fixed by adding `parent="App"` to the declaration. `scripts/check_ui_geometry.sh`
+gained a 5th check ("Style implicit-parent resolution") that parses every
+`<style>` tag in `values/themes.xml` and fails if a dotted name's implicit
+parent — or an explicit `parent="..."` — doesn't resolve to either a locally
+declared style or a known AndroidX/Material/platform root. Verified by
+reintroducing the exact bug and confirming the check catches it before
+re-fixing it.
+
+### Why (original entry)
+
+Every settings screen was independently hand-rolling the same three shapes —
+a full-bleed toggle with a description, a value row with a slider beneath it,
+and a nav row with a chevron — with the geometry baked into each call site as
+raw `android:textSize`, `android:padding*`, and `android:margin*` attributes.
+`activity_hardware_key_action.xml` had drifted furthest: raw `dp`/`sp`
+literals throughout and the legacy `textPrimary`/`textSecondary` color tokens
+instead of the `app_text_*` family the rest of the app had already moved to.
+Two rows in the same card could end up at slightly different padding with
+nothing to catch it, because nothing tied any of them back to one definition.
+
+The specific bug this produces: a label placed next to a trailing value or
+slider was sized to its own text (`wrap_content` / `0dp` + weight sharing
+the row with the value), so the value's start position shifted per-row
+depending on label length — "Sound Timeout" and "Gradual Volume Increase"
+put their sliders at different effective starting points even though both
+"looked anchored to the edge."
+
+### Added — themes.xml / dimens.xml
+
+- `app_label_slot_sm/md/lg` — reserved (not measured) label-width tiers, so
+  a value-row's label claims a fixed box and the trailing value/slider
+  always starts at the same relative X regardless of label text length.
+- `App.SettingsCard.Body` — the vertical container every settings card's
+  content sits in; replaces the padding block hand-copied into every card.
+- `App.SwitchRow` / `App.SwitchRow.Description` — full-bleed toggle-with-title
+  pattern (Simple Mode, SI Unit Format, Overlay Intent, Haptic Feedback).
+- `App.ValueRow` / `App.ValueRow.Label` / `App.ValueRow.Value` — label
+  (reserved slot) + trailing current-value text (Sound Timeout, Default
+  Volume, Card Height, Action Volume, ...).
+- `App.Slider` / `App.Slider.CaptionRow` / `App.Slider.CaptionStart` /
+  `App.Slider.CaptionEnd` — slider plus its min/max caption row, with the
+  same reserved-vs-measured discipline on the caption labels.
+- `App.Row.Toggle.Flush` / `App.Row.Value.Flush` / `App.Row.Nav.FlushHorizontal`
+  — named variants for a row nested inside a card that already supplies its
+  own padding, replacing the ad hoc zero-padding overrides that were
+  starting to appear at individual call sites.
+
+### Changed — layouts migrated onto the template
+
+`activity_hardware_key_action.xml`, `activity_ui_customization.xml`,
+`activity_sound_vibration.xml`, `activity_profile_settings.xml`,
+`activity_button_action.xml`, `activity_data_backup.xml`. No `@+id/` was
+renamed or removed — every `findViewById` call in the corresponding
+Activities resolves unchanged. Visual output is equivalent where the
+original was already consistent, and corrected where it wasn't (hardware
+key action screen now uses the same card/row/text tokens as every other
+settings screen instead of raw dp/sp and legacy color tokens).
+
+### Added — scripts/check_ui_geometry.sh
+
+Ratchet-style guard, same convention as `check_architecture.sh`: fails CI on
+new raw `dp`/`sp` literals, legacy `textPrimary`/`textSecondary`/
+`textOnHeader` color tokens, `left`/`right` directional attributes, or a
+style whose implicit or explicit parent doesn't resolve (see "Fixed after
+initial commit" above). Dialog/list-item/toolbar-menu-action layouts
+(`dialog_group_picker.xml`, `item_group_picker_*.xml`,
+`fragment_stats_calendar.xml`, `menu_action_*.xml`) are grandfathered as a
+separate component family, not settings screens — shrink that list as they
+migrate; never add a new settings screen to it. The directional-anchoring
+check (`left`/`right` vs `start`/`end`) is zero-tolerance with no grandfather
+list: every layout already passes it today.
+
+Run locally: `bash scripts/check_ui_geometry.sh`
+
+### Not done in this pass
+
+Dialog rows, list-item rows, and stats fragments still use their own
+component conventions (single-line picker rows, not card+row settings
+screens) — intentionally out of scope; migrating them is a separate pass
+with its own template shape, not an extension of this one.
+
 ## 4.7.1 — Fix: two self-contradictory quota tests
 
 `versionName` 4.7.0 → **4.7.1** (PATCH). `versionCode` unchanged at 1.

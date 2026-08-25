@@ -59,25 +59,11 @@
                             android:contentDescription="Export icon"
                             android:layout_marginEnd="@dimen/app_spacing_lg"
                             app:tint="@color/colorPrimary" />
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Export Database"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Save a complete copy of the database to a .db file"
-                                android:textSize="@dimen/app_text_size_sm"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="Export Database" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="Save a complete copy of the database to a .db file" />
                         </LinearLayout>
                     </LinearLayout>
                     <com.google.android.material.button.MaterialButton
@@ -117,25 +103,11 @@
                             android:contentDescription="Import icon"
                             android:layout_marginEnd="@dimen/app_spacing_lg"
                             app:tint="@color/app_color_error" />
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Import Database"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Restore from a .db backup file — replaces all current data"
-                                android:textSize="@dimen/app_text_size_sm"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="Import Database" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="Restore from a .db backup file — replaces all current data" />
                         </LinearLayout>
                     </LinearLayout>
                     <LinearLayout

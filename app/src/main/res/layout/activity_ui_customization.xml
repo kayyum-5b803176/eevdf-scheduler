@@ -26,17 +26,14 @@
         app:tabTextColor="@color/app_text_body" />
 
 
-    <ScrollView
-        style="@style/App.PageScroll">
+    <ScrollView style="@style/App.PageScroll">
 
-        <LinearLayout
-            style="@style/App.PageContent">
+        <LinearLayout style="@style/App.PageContent">
 
             <!-- ══ APPEARANCE ═════════════════════════════════════════════ -->
 
-
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
@@ -44,27 +41,13 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.SettingsCard.Body">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Dark Mode"
-                        android:textSize="@dimen/app_text_size_lg"
-                        android:textColor="@color/app_text_title"
-                        android:fontFamily="sans-serif-medium" />
+                    <TextView style="@style/App.SwitchRow"
+                        android:text="Dark Mode" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                    <TextView style="@style/App.SwitchRow.Description"
                         android:text="Choose between light theme, dark theme, or follow the system setting."
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
-                        android:layout_marginTop="@dimen/app_spacing_sm"
                         android:layout_marginBottom="@dimen/app_spacing_xl" />
 
                     <com.google.android.material.button.MaterialButtonToggleGroup
@@ -104,14 +87,10 @@
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ SIMPLE MODE ═════════════════════════════════════════════ -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/divider"
-                android:layout_marginBottom="@dimen/app_spacing_lg" />
+            <View style="@style/App.Divider.Section" />
 
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
@@ -119,41 +98,24 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.SettingsCard.Body">
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchSimpleMode"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Simple Mode"
-                        android:textSize="@dimen/app_text_size_lg"
-                        android:textColor="@color/app_text_title"
-                        android:fontFamily="sans-serif-medium" />
+                        style="@style/App.SwitchRow"
+                        android:text="Simple Mode" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Unselected cards show name only. Tap to expand. Running task stays expanded."
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
-                        android:layout_marginTop="@dimen/app_spacing_sm" />
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:text="Unselected cards show name only. Tap to expand. Running task stays expanded." />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ UNIT FORMAT ══════════════════════════════════════════════ -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/divider"
-                android:layout_marginBottom="@dimen/app_spacing_lg" />
+            <View style="@style/App.Divider.Section" />
 
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
@@ -161,35 +123,22 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.SettingsCard.Body">
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchUnitFormat"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="SI Unit Format"
-                        android:textSize="@dimen/app_text_size_lg"
-                        android:textColor="@color/app_text_title"
-                        android:fontFamily="sans-serif-medium" />
+                        style="@style/App.SwitchRow"
+                        android:text="SI Unit Format" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="VRT, VDL, Runs, TRT use SI suffixes. Floats: 88191 → 88.19K. Integers: 1800 → 1.8K. Time: 3d 28h 3s → 3d 28h."
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
-                        android:layout_marginTop="@dimen/app_spacing_sm" />
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:text="VRT, VDL, Runs, TRT use SI suffixes. Floats: 88191 → 88.19K. Integers: 1800 → 1.8K. Time: 3d 28h 3s → 3d 28h." />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ OVERLAY INTENT ═══════════════════════════════════════════ -->
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
@@ -197,28 +146,15 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.SettingsCard.Body">
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchOverlayIntent"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Overlay Intent"
-                        android:textSize="@dimen/app_text_size_lg"
-                        android:textColor="@color/app_text_title"
-                        android:fontFamily="sans-serif-medium" />
+                        style="@style/App.SwitchRow"
+                        android:text="Overlay Intent" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                    <TextView style="@style/App.SwitchRow.Description"
                         android:text="Don't show the full-screen timer-expiry overlay while one of the selected apps is open. The alarm still rings and shows a notification. Hardware keys (Stop / Restart) work only while the overlay is shown, so they are inactive on these apps."
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
-                        android:layout_marginTop="@dimen/app_spacing_sm"
                         android:lineSpacingMultiplier="1.3" />
 
                     <View
@@ -229,65 +165,33 @@
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchOverlayIntentLockOnly"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        style="@style/App.SwitchRow"
                         android:text="Show intent only on lock screen"
-                        android:textSize="@dimen/app_text_size_lg"
-                        android:textColor="@color/app_text_title"
                         android:layout_marginTop="@dimen/app_spacing_lg" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                    <TextView style="@style/App.SwitchRow.Description"
                         android:text="When on, the overlay appears only while the device is locked (like the Clock app). On an unlocked device the alarm just rings with a notification. This overrides the app list below."
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
-                        android:layout_marginTop="@dimen/app_spacing_sm"
                         android:lineSpacingMultiplier="1.3" />
 
                     <LinearLayout
                         android:id="@+id/rowOverlayIntentApps"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
-                        android:focusable="true"
+                        style="@style/App.Row.Nav.FlushHorizontal"
                         android:paddingTop="@dimen/app_card_padding_md"
-                        android:paddingBottom="@dimen/app_spacing_sm">
+                        android:paddingBottom="@dimen/app_spacing_sm"
+                        android:minHeight="0dp">
 
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Configure apps"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title" />
-
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="Configure apps" />
                             <TextView
                                 android:id="@+id/tvOverlayIntentApps"
+                                style="@style/App.Row.Subtitle"
                                 android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="No apps selected"
-                                android:textSize="@dimen/app_text_size_sm"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
-
+                                android:text="No apps selected" />
                         </LinearLayout>
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="@dimen/app_spacing_lg"
-                            android:text="\u203A"
-                            android:textSize="@dimen/app_text_size_cl"
-                            android:textColor="@color/divider" />
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
 
                     </LinearLayout>
 
@@ -295,14 +199,10 @@
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ CARD HEIGHT ══════════════════════════════════════════════ -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/divider"
-                android:layout_marginBottom="@dimen/app_spacing_lg" />
+            <View style="@style/App.Divider.Section" />
 
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
@@ -310,90 +210,50 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.SettingsCard.Body">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Card Height"
-                            android:textSize="@dimen/app_text_size_lg"
-                            android:textColor="@color/app_text_title"
-                            android:fontFamily="sans-serif-medium" />
-
+                    <LinearLayout style="@style/App.ValueRow">
+                        <TextView style="@style/App.ValueRow.Label"
+                            android:layout_width="@dimen/app_label_slot_md"
+                            android:layout_weight="0"
+                            android:text="Card Height" />
                         <TextView
                             android:id="@+id/tvCardHeightValue"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="5 (Default)"
-                            android:textSize="@dimen/app_text_size_md"
-                            android:textColor="@color/app_text_label"
-                            android:fontFamily="sans-serif-medium" />
+                            style="@style/App.ValueRow.Value"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="5 (Default)" />
                     </LinearLayout>
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                    <TextView style="@style/App.SwitchRow.Description"
                         android:text="Adjusts card padding. Font size unchanged."
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
                         android:layout_marginTop="@dimen/app_spacing_cs"
                         android:layout_marginBottom="@dimen/app_spacing_md" />
 
                     <com.google.android.material.slider.Slider
                         android:id="@+id/sliderCardHeight"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        style="@style/App.Slider"
+                        android:layout_marginTop="0dp"
                         android:valueFrom="1"
                         android:valueTo="5"
                         android:stepSize="1"
-                        android:value="5"
-                        app:thumbColor="@color/colorPrimary"
-                        app:trackColorActive="@color/colorPrimary" />
+                        android:value="5" />
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Compact"
-                            android:textSize="@dimen/app_text_size_xs"
-                            android:textColor="@color/app_text_body" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Default"
-                            android:textSize="@dimen/app_text_size_xs"
-                            android:textColor="@color/app_text_body" />
+                    <LinearLayout style="@style/App.Slider.CaptionRow">
+                        <TextView style="@style/App.Slider.CaptionStart"
+                            android:text="Compact" />
+                        <TextView style="@style/App.Slider.CaptionEnd"
+                            android:text="Default" />
                     </LinearLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ══ WINDOW CALIBRATE ═════════════════════════════════════════ -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/divider"
-                android:layout_marginBottom="@dimen/app_spacing_lg" />
+            <View style="@style/App.Divider.Section" />
 
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
@@ -401,31 +261,16 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.SettingsCard.Body">
 
-                    <!-- Toggle -->
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchAutoAdjust"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Window Calibrate"
-                        android:textSize="@dimen/app_text_size_lg"
-                        android:textColor="@color/app_text_title"
-                        android:fontFamily="sans-serif-medium" />
+                        style="@style/App.SwitchRow"
+                        android:text="Window Calibrate" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Hides stat rows on FLOAT / MINI profiles. NORMAL keeps full layout."
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
-                        android:layout_marginTop="@dimen/app_spacing_sm" />
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:text="Hides stat rows on FLOAT / MINI profiles. NORMAL keeps full layout." />
 
-                    <!-- Divider -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
@@ -448,7 +293,6 @@
                         android:paddingTop="@dimen/app_spacing_sm"
                         android:paddingBottom="@dimen/app_spacing_sm" />
 
-                    <!-- Divider -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="@dimen/app_divider"
@@ -457,14 +301,10 @@
                         android:background="@color/divider" />
 
                     <!-- Calibrate Profiles header -->
-                    <TextView
+                    <TextView style="@style/App.Text.Label"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="CALIBRATE PROFILES"
-                        android:textSize="@dimen/app_text_size_xs"
-                        android:letterSpacing="0.12"
-                        android:textColor="@color/app_text_label"
-                        android:fontFamily="sans-serif-medium"
                         android:layout_marginBottom="@dimen/app_spacing_md" />
 
                     <!-- 3-column profile picker -->
@@ -475,7 +315,7 @@
 
                         <!-- FLOAT profile card -->
                         <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                            style="@style/App.Card"
                             android:id="@+id/cardCalFloat"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -492,13 +332,10 @@
                                 android:orientation="vertical"
                                 android:gravity="center"
                                 android:padding="@dimen/app_card_padding_sm">
-                                <TextView
+                                <TextView style="@style/App.Text.Label"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="FLOAT"
-                                    android:textSize="@dimen/app_text_size_sm"
-                                    android:textColor="@color/app_text_label"
-                                    android:fontFamily="sans-serif-medium" />
+                                    android:text="FLOAT" />
                                 <TextView
                                     android:id="@+id/tvCalFloatDims"
                                     android:layout_width="wrap_content"
@@ -513,7 +350,7 @@
 
                         <!-- NORMAL profile card -->
                         <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                            style="@style/App.Card"
                             android:id="@+id/cardCalNormal"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -530,13 +367,10 @@
                                 android:orientation="vertical"
                                 android:gravity="center"
                                 android:padding="@dimen/app_card_padding_sm">
-                                <TextView
+                                <TextView style="@style/App.Text.Label"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="NORMAL"
-                                    android:textSize="@dimen/app_text_size_sm"
-                                    android:textColor="@color/app_text_label"
-                                    android:fontFamily="sans-serif-medium" />
+                                    android:text="NORMAL" />
                                 <TextView
                                     android:id="@+id/tvCalNormalDims"
                                     android:layout_width="wrap_content"
@@ -551,7 +385,7 @@
 
                         <!-- MINI profile card -->
                         <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                            style="@style/App.Card"
                             android:id="@+id/cardCalMini"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -568,13 +402,10 @@
                                 android:orientation="vertical"
                                 android:gravity="center"
                                 android:padding="@dimen/app_card_padding_sm">
-                                <TextView
+                                <TextView style="@style/App.Text.Label"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="MINI"
-                                    android:textSize="@dimen/app_text_size_sm"
-                                    android:textColor="@color/app_text_label"
-                                    android:fontFamily="sans-serif-medium" />
+                                    android:text="MINI" />
                                 <TextView
                                     android:id="@+id/tvCalMiniDims"
                                     android:layout_width="wrap_content"
@@ -590,12 +421,8 @@
                     </LinearLayout>
 
                     <!-- Hint -->
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                    <TextView style="@style/App.SwitchRow.Description"
                         android:text="Tap to record · Long-press to clear"
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
                         android:layout_marginTop="@dimen/app_spacing_md" />
 
                 </LinearLayout>

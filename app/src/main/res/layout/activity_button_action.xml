@@ -26,16 +26,14 @@
         app:tabTextColor="@color/app_text_body" />
 
 
-    <ScrollView
-        style="@style/App.PageScroll">
+    <ScrollView style="@style/App.PageScroll">
 
-        <LinearLayout
-            style="@style/App.PageContent">
+        <LinearLayout style="@style/App.PageContent">
 
             <!-- ── Quick Action ─────────────────────────────────────────────── -->
 
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
@@ -43,52 +41,28 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.SettingsCard.Body">
 
-                    <!-- Row: label + switch -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                    <LinearLayout style="@style/App.Row.Toggle.Flush">
 
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Quick Action"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:fontFamily="sans-serif-medium"
-                                android:textColor="@color/app_text_title" />
-
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="Quick Action" />
                         </LinearLayout>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/switchQuickAction"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="@dimen/app_spacing_lg" />
+                            android:layout_marginStart="@dimen/app_row_action_gap" />
 
                     </LinearLayout>
 
-                    <!-- Description -->
                     <TextView
                         android:id="@+id/tvQuickActionDesc"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        style="@style/App.SwitchRow.Description"
                         android:layout_marginTop="@dimen/app_spacing_md"
                         android:text="Adds a floating button above the Add Task button. Tap it to instantly select the current interrupt task (INT-A or INT-B) and start the timer."
-                        android:textSize="@dimen/app_text_size_md"
-                        android:textColor="@color/app_text_body"
                         android:lineSpacingMultiplier="1.3" />
 
                 </LinearLayout>
@@ -97,7 +71,7 @@
             <!-- ── Hardware Keys ────────────────────────────────────────────── -->
 
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:id="@+id/cardHardwareKeys"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -109,46 +83,30 @@
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:background="?attr/selectableItemBackground"
-                    android:padding="@dimen/app_card_padding_lg">
+                <LinearLayout style="@style/App.Row.Nav"
+                    android:paddingStart="@dimen/app_card_padding_lg"
+                    android:paddingEnd="@dimen/app_card_padding_lg"
+                    android:paddingTop="@dimen/app_card_padding_lg"
+                    android:paddingBottom="@dimen/app_card_padding_lg"
+                    android:minHeight="0dp">
 
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                    <LinearLayout style="@style/App.Row.TextBlock">
+
+                        <TextView style="@style/App.Row.Title"
+                            android:text="Hardware Keys" />
 
                         <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Hardware Keys"
-                            android:textSize="@dimen/app_text_size_lg"
-                            android:fontFamily="sans-serif-medium"
-                            android:textColor="@color/app_text_title" />
-
-                        <TextView
+                            style="@style/App.Row.Subtitle"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
                             android:layout_marginTop="@dimen/app_spacing_md"
                             android:text="Use Volume Up, Volume Down, or the Power button to Stop or Restart a task when its timer expires."
-                            android:textSize="@dimen/app_text_size_md"
-                            android:textColor="@color/app_text_body"
                             android:lineSpacingMultiplier="1.3" />
 
                     </LinearLayout>
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                    <TextView style="@style/App.Text.Chevron"
                         android:layout_marginStart="@dimen/app_spacing_lg"
-                        android:text="\u203A"
-                        android:textSize="@dimen/app_text_size_cl"
-                        android:textColor="@color/divider" />
+                        android:text="&#8250;" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

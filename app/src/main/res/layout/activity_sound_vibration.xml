@@ -26,98 +26,65 @@
         app:tabTextColor="@color/app_text_body" />
 
 
-    <ScrollView
-        style="@style/App.PageScroll">
+    <ScrollView style="@style/App.PageScroll">
 
-        <LinearLayout
-            style="@style/App.PageContent">
+        <LinearLayout style="@style/App.PageContent">
 
             <!-- ── Task Type Profiles ────────────────────────────────────── -->
 
-
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
                 android:layout_marginEnd="@dimen/app_card_gap"
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
-                    <LinearLayout
+
+                <LinearLayout style="@style/App.SettingsCard.Body">
+
+                    <LinearLayout style="@style/App.Row.TextBlock"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
                         android:layout_marginBottom="@dimen/app_spacing_md">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Profile Settings"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Sound &amp; vibration per task type: Default, Notice, Alert, Custom"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
-                        </LinearLayout>
+                        <TextView style="@style/App.Row.Title"
+                            android:text="Profile Settings" />
+                        <TextView style="@style/App.Row.Subtitle"
+                            android:text="Sound &amp; vibration per task type: Default, Notice, Alert, Custom" />
                     </LinearLayout>
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSvOpenProfiles"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Configure Profiles"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- ── Haptic Feedback ───────────────────────────────────────── -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/divider"
-                android:layout_marginBottom="@dimen/app_spacing_lg" />
+            <View style="@style/App.Divider.Section" />
 
             <com.google.android.material.card.MaterialCardView
-        style="@style/App.Card"
+                style="@style/App.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/app_card_gap"
                 android:layout_marginEnd="@dimen/app_card_gap"
                 android:layout_marginTop="@dimen/app_card_gap"
                 android:layout_marginBottom="@dimen/app_card_gap">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/app_card_padding_lg">
+
+                <LinearLayout style="@style/App.SettingsCard.Body">
+
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchSvHaptic"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        style="@style/App.SwitchRow"
                         android:text="Haptic Feedback on Buttons"
-                        android:textSize="@dimen/app_text_size_lg"
                         android:checked="true" />
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Short vibration on every UI button tap"
-                        android:textSize="@dimen/app_text_size_sm"
-                        android:textColor="@color/app_text_body"
-                        android:layout_marginTop="@dimen/app_spacing_sm" />
+
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:text="Short vibration on every UI button tap" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -385,4 +385,217 @@
         <item name="android:layout_marginBottom">@dimen/app_card_gap</item>
     </style>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SETTINGS CARD BODY — vertical container inside a settings card
+         ──────────────────────────────────────────────────────────────────
+         Category: full-bleed. Every "value-style" settings card (toggle
+         with description, slider with caption, value row) uses this as
+         its direct MaterialCardView child instead of a hand-rolled
+         LinearLayout with android:padding="@dimen/app_card_padding_lg"
+         repeated at every call site. One token controls the padding for
+         every settings card in the app.
+
+         Usage:
+           <com.google.android.material.card.MaterialCardView style="@style/App.Card">
+               <LinearLayout style="@style/App.SettingsCard.Body">
+                   ...
+               </LinearLayout>
+           </com.google.android.material.card.MaterialCardView>
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.SettingsCard.Body" parent="App">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">@dimen/app_card_padding_lg</item>
+    </style>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SWITCH ROW — full-bleed toggle with title baked into the switch
+         ──────────────────────────────────────────────────────────────────
+         Category: full-bleed. This is the "SwitchMaterial spanning the
+         full card width, text baked into the switch itself" pattern
+         used by every settings toggle (Simple Mode, SI Unit Format,
+         Overlay Intent, Haptic Feedback, Quick Action). Previously each
+         call site hardcoded android:textSize / textColor / fontFamily
+         on the SwitchMaterial directly, so a missed attribute (as with
+         switchSvHaptic, which never set textColor or fontFamily) drifts
+         silently from every other switch row in the app.
+
+         Usage:
+           <com.google.android.material.switchmaterial.SwitchMaterial
+               style="@style/App.SwitchRow"
+               android:text="Haptic Feedback on Buttons" />
+           <TextView style="@style/App.SwitchRow.Description" android:text="..." />
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.SwitchRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/app_text_size_lg</item>
+        <item name="android:textColor">@color/app_text_title</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- Description line under a switch row or value row header -->
+    <style name="App.SwitchRow.Description">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/app_text_size_sm</item>
+        <item name="android:textColor">@color/app_text_body</item>
+        <item name="android:layout_marginTop">@dimen/app_spacing_sm</item>
+    </style>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         VALUE ROW — label (reserved slot) + trailing current-value text
+         ──────────────────────────────────────────────────────────────────
+         Category: trailing-flexible. Used above every slider and above
+         standalone read-only value displays ("Sound Timeout — 1 min",
+         "Default Volume — 80%", "Card Height — 5 (Default)"). The
+         label side MUST use a reserved slot width (@dimen/app_label_slot_*),
+         not 0dp+weight — seeanchoring rationale in dimens.xml. The value
+         side is wrap_content, gravity end, anchored to the far edge.
+
+         Usage:
+           <LinearLayout style="@style/App.ValueRow">
+               <TextView style="@style/App.ValueRow.Label" android:text="Sound Timeout" />
+               <TextView style="@style/App.ValueRow.Value" android:text="1 min" />
+           </LinearLayout>
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.ValueRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <!-- Default (md) reserved-slot label. Use .Sm/.Lg siblings for short/long text. -->
+    <style name="App.ValueRow.Label">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textSize">@dimen/app_text_size_lg</item>
+        <item name="android:textColor">@color/app_text_title</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="App.ValueRow.Value">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">@dimen/app_value_row_gap</item>
+        <item name="android:textSize">@dimen/app_text_size_md</item>
+        <item name="android:textColor">@color/app_text_label</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:gravity">end</item>
+    </style>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SLIDER BLOCK — slider + min/max caption row
+         ──────────────────────────────────────────────────────────────────
+         Category: full-bleed. Pairs with App.ValueRow above it (the
+         value shown updates as the slider moves). The caption row
+         beneath uses the same reserved-slot discipline: the min label
+         is 0dp+weight so the max label is always right-anchored,
+         regardless of min/max text length ("0%"..."100%" vs
+         "No timeout"..."15 min").
+
+         Usage:
+           <LinearLayout style="@style/App.ValueRow"> ...label + value... </LinearLayout>
+           <com.google.android.material.slider.Slider style="@style/App.Slider" ... />
+           <LinearLayout style="@style/App.Slider.CaptionRow">
+               <TextView style="@style/App.Slider.CaptionStart" android:text="0%" />
+               <TextView style="@style/App.Slider.CaptionEnd" android:text="100%" />
+           </LinearLayout>
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.Slider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">@dimen/app_slider_top_gap</item>
+        <item name="thumbColor">@color/colorPrimary</item>
+        <item name="trackColorActive">@color/colorPrimary</item>
+    </style>
+
+    <style name="App.Slider.CaptionRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:layout_marginTop">@dimen/app_slider_caption_gap</item>
+    </style>
+
+    <style name="App.Slider.CaptionStart">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textSize">@dimen/app_text_size_xs</item>
+        <item name="android:textColor">@color/app_text_hint</item>
+    </style>
+
+    <style name="App.Slider.CaptionEnd">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/app_text_size_xs</item>
+        <item name="android:textColor">@color/app_text_hint</item>
+    </style>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         ROW STATE VARIANTS — named, not improvised
+         ──────────────────────────────────────────────────────────────────
+         Pre-defined variants for the cases that otherwise get bent
+         ad hoc: a row that needs a trailing icon-button instead of a
+         chevron, and a row disabled pending a feature flag. Add new
+         variants here — centrally — rather than nudging an instance
+         with an extra wrapper or inline attribute.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <!-- App.Row.Nav with a fixed icon-button instead of a chevron (e.g. a
+         card row that opens a picker via icon rather than navigating) -->
+    <style name="App.Row.Nav.IconTrailing" parent="App.Row.Nav" />
+
+    <!-- App.Row.Nav nested inside a card body/section that already
+         supplies its own horizontal inset (e.g. below a switch row in
+         the same card). Keeps App.Row.Nav's vertical padding tokens
+         so the row still owns its own top/bottom rhythm — only the
+         horizontal padding is zeroed, and it's zeroed once, here,
+         rather than at every call site. -->
+    <style name="App.Row.Nav.FlushHorizontal" parent="App.Row.Nav">
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+    </style>
+
+    <!-- App.Row.Reserved that is disabled-looking (lower alpha) rather
+         than the plain "no settings yet" placeholder -->
+    <style name="App.Row.Reserved.Disabled" parent="App.Row.Reserved">
+        <item name="android:alpha">0.5</item>
+    </style>
+
+    <!-- "Flush" variants — for a row nested inside App.SettingsCard.Body,
+         which already supplies the card's own padding. Without these,
+         App.Row.Base's own horizontal/vertical padding would double up
+         with the parent card's padding, so call sites were zeroing all
+         four padding attributes ad hoc at every use. Named here once
+         instead: still gets center_vertical + min-height + background,
+         just no padding of its own and no forced min-height, since the
+         surrounding card body already reserves that space. -->
+    <style name="App.Row.Toggle.Flush" parent="App.Row.Toggle">
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="App.Row.Value.Flush" parent="App.Row.Value">
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
 </resources>
