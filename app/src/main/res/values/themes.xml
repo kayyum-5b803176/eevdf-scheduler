@@ -235,6 +235,8 @@
 
     <!-- Navigation chevron › rendered as text -->
     <style name="App.Text.Chevron">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
         <item name="android:textSize">@dimen/app_text_size_cl</item>
         <item name="android:textColor">@color/app_chevron</item>
     </style>
