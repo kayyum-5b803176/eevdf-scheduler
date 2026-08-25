@@ -239,4 +239,133 @@
         <item name="android:textColor">@color/app_chevron</item>
     </style>
 
+
+    <!-- Base roots required by Android dot-notation implicit inheritance -->
+    <style name="App" parent="android:Widget" />
+    <style name="App.Row" parent="App" />
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         PAGE CHROME — scroll container and content holder
+         ──────────────────────────────────────────────────────────────────
+         Usage:
+           <ScrollView style="@style/App.PageScroll">
+               <LinearLayout style="@style/App.PageContent">
+                   ...cards...
+               </LinearLayout>
+           </ScrollView>
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.PageScroll">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:clipToPadding">false</item>
+        <item name="android:scrollbars">vertical</item>
+    </style>
+
+    <style name="App.PageContent">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingTop">@dimen/app_card_gap</item>
+        <item name="android:paddingBottom">@dimen/app_card_gap</item>
+        <item name="android:clipChildren">false</item>
+        <item name="android:clipToPadding">false</item>
+    </style>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         ROW TEMPLATES — internal structure of rows inside cards
+         ──────────────────────────────────────────────────────────────────
+         App.Row.Base    — shared: horizontal, center_vertical, min height, padding
+         App.Row.Nav     — navigates to child page (chevron ›)
+         App.Row.Toggle  — on/off switch
+         App.Row.Value   — displays current value (read-only or tappable)
+         App.Row.Action  — contains a button
+         App.Row.Reserved— placeholder for future settings
+
+         Usage:
+           <LinearLayout style="@style/App.Row.Nav">
+               <LinearLayout style="@style/App.Row.TextBlock">
+                   <TextView style="@style/App.Row.Title" android:text="..." />
+                   <TextView style="@style/App.Row.Subtitle" android:text="..." />
+               </LinearLayout>
+               <TextView style="@style/App.Text.Chevron" android:text="›" />
+           </LinearLayout>
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.Row.Base">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">@dimen/app_row_min_height</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">@dimen/app_row_padding_horizontal</item>
+        <item name="android:paddingEnd">@dimen/app_row_padding_horizontal</item>
+        <item name="android:paddingTop">@dimen/app_row_padding_vertical</item>
+        <item name="android:paddingBottom">@dimen/app_row_padding_vertical</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+    </style>
+
+    <style name="App.Row.Nav" parent="App.Row.Base" />
+
+    <style name="App.Row.Toggle" parent="App.Row.Base" />
+
+    <style name="App.Row.Value" parent="App.Row.Base" />
+
+    <style name="App.Row.Action" parent="App.Row.Base">
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="App.Row.Reserved" parent="App.Row.Base">
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <!-- Text block inside a row — vertical container for title + subtitle -->
+    <style name="App.Row.TextBlock">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <!-- Row title — primary label -->
+    <style name="App.Row.Title">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/app_text_size_lg</item>
+        <item name="android:textColor">@color/app_text_title</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- Row subtitle — secondary description -->
+    <style name="App.Row.Subtitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/app_text_size_md</item>
+        <item name="android:textColor">@color/app_text_body</item>
+        <item name="android:layout_marginTop">@dimen/app_row_title_gap</item>
+    </style>
+
+    <!-- Row value — trailing current value display -->
+    <style name="App.Row.ValueText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/app_text_size_md</item>
+        <item name="android:textColor">@color/app_text_label</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:layout_marginStart">@dimen/app_row_action_gap</item>
+    </style>
+
+    <!-- Divider inside a card — between rows -->
+    <style name="App.Divider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/app_divider</item>
+        <item name="android:background">@color/divider</item>
+    </style>
+
+    <!-- Divider between cards on a page -->
+    <style name="App.Divider.Section">
+        <item name="android:layout_marginBottom">@dimen/app_card_gap</item>
+    </style>
+
 </resources>

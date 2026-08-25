@@ -99,6 +99,26 @@
     <!-- Uniform gap between every card and its surroundings (all 4 sides) -->
     <dimen name="app_card_gap">10dp</dimen>
 
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         ROW TEMPLATE — internal structure of card rows
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Minimum tap target height for any interactive row -->
+    <dimen name="app_row_min_height">48dp</dimen>
+
+    <!-- Horizontal padding inside a row (start + end) -->
+    <dimen name="app_row_padding_horizontal">16dp</dimen>
+
+    <!-- Vertical padding inside a row (top + bottom) -->
+    <dimen name="app_row_padding_vertical">14dp</dimen>
+
+    <!-- Gap between title and subtitle within a row -->
+    <dimen name="app_row_title_gap">2dp</dimen>
+
+    <!-- Gap between last text element and trailing action (switch, chevron, value) -->
+    <dimen name="app_row_action_gap">12dp</dimen>
+
     <!-- ══════════════════════════════════════════════════════════════════════
          COMPONENT — specific sizes outside the scale
          ══════════════════════════════════════════════════════════════════ -->
