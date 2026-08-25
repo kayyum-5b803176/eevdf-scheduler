@@ -26,7 +26,7 @@
             android:layout_height="wrap_content"
             android:background="@color/headerBackground"
             app:tabIndicatorColor="@android:color/white"
-            app:tabTextColor="#AAFFFFFF"
+            app:tabTextColor="@color/app_white_67"
             app:tabSelectedTextColor="@android:color/white" />
 
         <!-- Stats bar -->
@@ -52,7 +52,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Active: 0  |  Done: 0  |  Weight: 0.0"
-                    android:textColor="#CCFFFFFF"
+                    android:textColor="@color/app_white_80"
                     android:textSize="@dimen/app_text_size_sm" />
 
                 <TextView
@@ -60,7 +60,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Fairness: 100%  |  Avg VRT: 0.00"
-                    android:textColor="#AAFFFFFF"
+                    android:textColor="@color/app_white_67"
                     android:textSize="@dimen/app_text_size_sm" />
             </LinearLayout>
 
@@ -163,7 +163,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Priority 5 · General"
-                                android:textColor="#AAFFFFFF"
+                                android:textColor="@color/app_white_67"
                                 android:textSize="@dimen/app_text_size_sm" />
                         </LinearLayout>
 

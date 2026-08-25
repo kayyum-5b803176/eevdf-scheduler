@@ -54,40 +54,17 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowVisual"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg"
-                        android:background="?attr/selectableItemBackground">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="display"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="appearance, layout, density, overlay"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Nav"
+                        android:id="@+id/rowVisual">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="display" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="appearance, layout, density, overlay" />
                         </LinearLayout>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="&#8250;"
-                            android:textSize="@dimen/app_text_size_cl"
-                            android:textColor="@color/app_text_body" />
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -105,40 +82,17 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowSoundVibration"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg"
-                        android:background="?attr/selectableItemBackground">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="sound and vibration"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="profiles, patterns, haptic feedback"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Nav"
+                        android:id="@+id/rowSoundVibration">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="sound and vibration" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="profiles, patterns, haptic feedback" />
                         </LinearLayout>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="&#8250;"
-                            android:textSize="@dimen/app_text_size_cl"
-                            android:textColor="@color/app_text_body" />
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -161,40 +115,17 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowButtonAction"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg"
-                        android:background="?attr/selectableItemBackground">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="control"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="hardware keys, quick action"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Nav"
+                        android:id="@+id/rowButtonAction">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="control" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="hardware keys, quick action" />
                         </LinearLayout>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="&#8250;"
-                            android:textSize="@dimen/app_text_size_cl"
-                            android:textColor="@color/app_text_body" />
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -212,30 +143,13 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="event handle service"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="no settings available yet"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Reserved">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="event handle service" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="no settings available yet" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -254,40 +168,17 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowAutoSwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg"
-                        android:background="?attr/selectableItemBackground">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="auto switch"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="pause and resume on incoming calls"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Nav"
+                        android:id="@+id/rowAutoSwitch">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="auto switch" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="pause and resume on incoming calls" />
                         </LinearLayout>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="&#8250;"
-                            android:textSize="@dimen/app_text_size_cl"
-                            android:textColor="@color/app_text_body" />
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -310,30 +201,13 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="system config"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="no settings available yet"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Reserved">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="system config" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="no settings available yet" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -352,30 +226,13 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="core algorithm"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="no settings available yet"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Reserved">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="core algorithm" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="no settings available yet" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -394,30 +251,13 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="rules"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="no settings available yet"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Reserved">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="rules" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="no settings available yet" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -441,40 +281,17 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowDataBackup"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg"
-                        android:background="?attr/selectableItemBackground">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="data and backup"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="export and import app data"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Nav"
+                        android:id="@+id/rowDataBackup">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="data and backup" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="export and import app data" />
                         </LinearLayout>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="&#8250;"
-                            android:textSize="@dimen/app_text_size_cl"
-                            android:textColor="@color/app_text_body" />
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -486,40 +303,17 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowMultiUserSync"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg"
-                        android:background="?attr/selectableItemBackground">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="multiuser sync"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="share task state across devices"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Nav"
+                        android:id="@+id/rowMultiUserSync">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="multiuser sync" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="share task state across devices" />
                         </LinearLayout>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="&#8250;"
-                            android:textSize="@dimen/app_text_size_cl"
-                            android:textColor="@color/app_text_body" />
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -537,30 +331,13 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="logs"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="no settings available yet"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Reserved">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="logs" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="no settings available yet" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -579,30 +356,13 @@
                     android:layout_marginEnd="@dimen/app_card_gap"
                     android:layout_marginTop="@dimen/app_card_gap"
                     android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="@dimen/app_card_padding_lg">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="about"
-                                android:textSize="@dimen/app_text_size_lg"
-                                android:textColor="@color/app_text_title"
-                                android:fontFamily="sans-serif-medium" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="no settings available yet"
-                                android:textSize="@dimen/app_text_size_md"
-                                android:textColor="@color/app_text_body"
-                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                                        <LinearLayout
+                        style="@style/App.Row.Reserved">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="about" />
+                            <TextView style="@style/App.Row.Subtitle"
+                                android:text="no settings available yet" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

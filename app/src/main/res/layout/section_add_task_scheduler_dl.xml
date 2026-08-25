@@ -248,8 +248,8 @@
             android:text="RT Sync"
             android:textSize="@dimen/app_text_size_sm"
             android:minWidth="0dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp" />
+            android:paddingStart="@dimen/app_card_padding_sm"
+            android:paddingEnd="@dimen/app_card_padding_sm" />
 
     </LinearLayout>
 

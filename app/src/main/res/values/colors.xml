@@ -179,6 +179,10 @@
     <color name="app_warning_text">@color/app_orange_cd</color>
     <color name="app_success_text">@color/app_green_xd</color>
     <color name="app_stat_accent">@color/app_violet_cd</color>
+    <!-- Semi-transparent whites (alpha-composite) -->
+    <color name="app_white_67">#AAFFFFFF</color>
+    <color name="app_white_80">#CCFFFFFF</color>
+
     <color name="app_ripple">#1A1565C0</color>
 
     <!-- ══════════════════════════════════════════════════════════════════════
