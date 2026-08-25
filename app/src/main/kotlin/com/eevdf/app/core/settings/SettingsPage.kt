@@ -9,7 +9,7 @@ package com.eevdf.app.core.settings
  *
  * ## Example
  * ```kotlin
- * class UiCustomizationActivity : AppCompatActivity(), SettingsPage {
+ * class DisplaySettingsActivity : AppCompatActivity(), SettingsPage {
  *     override val pageId    = "settings.platform.display"
  *     override val pageTitle = "display"
  *     override fun getTrackedKeys() = listOf(

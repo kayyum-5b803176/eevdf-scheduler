@@ -107,6 +107,24 @@
     <!-- Minimum tap target height for any interactive row -->
     <dimen name="app_row_min_height">48dp</dimen>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         PIECE-BOUNDARY SCALE EXTENSION — NavCard piece 0 + piece 1
+         ──────────────────────────────────────────────────────────────────
+         NavCard's title-row (48dp, from app_row_min_height) plus its
+         subtitle piece (18dp: 14sp line + app_row_title_gap) totals 66dp,
+         which is not a rung on the existing scale (0,2,4,8,12,16,24,48).
+         Per the scale-alignment rule, a new rung is added by continuing
+         the scale's progression rather than left off-scale: 72dp. The
+         6dp shortfall (72-66) is an [S] spacer, auto-inserted by the
+         template — never authored per-instance — and reuses the value
+         already named as app_bar_notice rather than introducing a new
+         one-off number.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <dimen name="app_row_boundary_rung_72">72dp</dimen>
+    <dimen name="app_row_spacer_navcard_01">6dp</dimen>  <!-- = app_bar_notice, reused -->
+
+
     <!-- Horizontal padding inside a row (start + end) -->
     <dimen name="app_row_padding_horizontal">16dp</dimen>
 

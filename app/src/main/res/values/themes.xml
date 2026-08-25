@@ -566,6 +566,23 @@
         <item name="android:paddingEnd">0dp</item>
     </style>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         NAVCARD SPACER — [S] piece, never authored per-instance
+         ──────────────────────────────────────────────────────────────────
+         NavCard piece 0 (title row, 48dp) + piece 1 (subtitle, 18dp) sum
+         to 66dp, which is not a rung on the spacing scale. This spacer
+         closes the gap to the next rung (72dp) so whatever piece follows
+         a NavCard in a page's stack always starts at a scale-aligned
+         position. Content-less by definition — never given a background,
+         text, or click target. Part of the NavCard template's fixed
+         composition, not a value a developer places or edits.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.Row.Nav.Spacer">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/app_row_spacer_navcard_01</item>
+    </style>
+
     <!-- App.Row.Reserved that is disabled-looking (lower alpha) rather
          than the plain "no settings yet" placeholder -->
     <style name="App.Row.Reserved.Disabled" parent="App.Row.Reserved">

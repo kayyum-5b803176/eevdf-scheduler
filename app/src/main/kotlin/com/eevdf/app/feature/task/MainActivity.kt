@@ -16,7 +16,7 @@ import androidx.activity.viewModels
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import com.eevdf.app.core.signals.BubbleEventBus
 import com.eevdf.app.core.signals.CallEvents
-import com.eevdf.app.core.prefs.UiCustomizationPrefs
+import com.eevdf.app.core.prefs.DisplayPrefs
 import com.eevdf.app.core.prefs.QuickActionPrefs
 import com.eevdf.app.core.prefs.HardwareKeyPrefs
 import android.view.KeyEvent
@@ -312,7 +312,7 @@ class MainActivity : AppCompatActivity() {
         // while the app was backgrounded or the process was dead.
         viewModel.syncFromDb()
         // Re-read UI customization prefs every time we come back to the activity
-        // (user may have changed them in UiCustomizationActivity and pressed Back)
+        // (user may have changed them in DisplaySettingsActivity and pressed Back)
         applyDisplayPrefs()
     }
     override fun onPause()  {
@@ -322,10 +322,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Reads card height scale and auto-adjust preference from [UiCustomizationPrefs]
+     * Reads card height scale and auto-adjust preference from [DisplayPrefs]
      * and pushes them to all three adapters and the fixed timer / alarm cards.
      *
-     * Called on [onResume] so changes made in [UiCustomizationActivity] are picked
+     * Called on [onResume] so changes made in [DisplaySettingsActivity] are picked
      * up immediately when the user navigates back.
      *
      * Simple-mode note: when simple mode is enabled the RecyclerView item animator
@@ -338,10 +338,10 @@ class MainActivity : AppCompatActivity() {
      * restored so normal-mode list updates keep their default feel.
      */
     private fun applyDisplayPrefs() {
-        val scale      = UiCustomizationPrefs.getCardHeightScale(this)
-        val autoAdj    = UiCustomizationPrefs.isAutoAdjustEnabled(this)
-        val simpleMode = UiCustomizationPrefs.isSimpleModeEnabled(this)
-        val unitFormat = UiCustomizationPrefs.isUnitFormatEnabled(this)
+        val scale      = DisplayPrefs.getCardHeightScale(this)
+        val autoAdj    = DisplayPrefs.isAutoAdjustEnabled(this)
+        val simpleMode = DisplayPrefs.isSimpleModeEnabled(this)
+        val unitFormat = DisplayPrefs.isUnitFormatEnabled(this)
 
         activeAdapter.setSimpleMode(simpleMode)
         scheduleAdapter.setSimpleMode(simpleMode)
@@ -383,10 +383,10 @@ class MainActivity : AppCompatActivity() {
         val inPip     = isInPictureInPictureMode
         val inMulti   = isInMultiWindowMode
 
-        val matched   = UiCustomizationPrefs.matchProfile(this, widthDp, heightDp)
+        val matched   = DisplayPrefs.matchProfile(this, widthDp, heightDp)
         val shouldBeCompact = autoAdjust && when (matched) {
             null -> inPip || inMulti
-            else -> UiCustomizationPrefs.isCompactProfile(matched)
+            else -> DisplayPrefs.isCompactProfile(matched)
         }
 
         isCompactModeActive = shouldBeCompact
@@ -402,7 +402,7 @@ class MainActivity : AppCompatActivity() {
         // The TabLayout row stays visible so the user can switch tabs.
         // Both banners are restored for any other profile or when auto-adjust
         // is off, so normal / mini / uncalibrated modes are unaffected.
-        val isFloatProfile = autoAdjust && matched == UiCustomizationPrefs.CalibrateProfile.MINI
+        val isFloatProfile = autoAdjust && matched == DisplayPrefs.CalibrateProfile.MINI
         val bannerVis = if (isFloatProfile) View.GONE else View.VISIBLE
         mainToolbar.visibility = bannerVis
         statsBar.visibility    = bannerVis
@@ -413,7 +413,7 @@ class MainActivity : AppCompatActivity() {
         // overlap content in compact mode.  NORMAL profile and uncalibrated
         // windows always show the FABs (subject to their own pref gates).
         val isCompactProfile = autoAdjust && matched != null &&
-            UiCustomizationPrefs.isCompactProfile(matched)
+            DisplayPrefs.isCompactProfile(matched)
         applyFabVisibility(isCompactProfile)
 
         // Scale the fixed cards (timer + alarm) to match task cards
@@ -495,21 +495,21 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (UiCustomizationPrefs.isAutoAdjustEnabled(this)) {
+        if (DisplayPrefs.isAutoAdjustEnabled(this)) {
             applyDisplayPrefs()
         }
     }
 
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
-        if (UiCustomizationPrefs.isAutoAdjustEnabled(this)) {
+        if (DisplayPrefs.isAutoAdjustEnabled(this)) {
             applyDisplayPrefs()
         }
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode)
-        if (UiCustomizationPrefs.isAutoAdjustEnabled(this)) {
+        if (DisplayPrefs.isAutoAdjustEnabled(this)) {
             applyDisplayPrefs()
         }
     }
@@ -976,12 +976,12 @@ class MainActivity : AppCompatActivity() {
             allowEditMenuItem?.isChecked = enabled
             // FAB visibility and RecyclerView bottom padding are both managed by
             // applyFabVisibility so the compact-profile gate is applied consistently.
-            val autoAdj = UiCustomizationPrefs.isAutoAdjustEnabled(this)
+            val autoAdj = DisplayPrefs.isAutoAdjustEnabled(this)
             val widthDp = resources.configuration.screenWidthDp
             val heightDp = resources.configuration.screenHeightDp
-            val matched = UiCustomizationPrefs.matchProfile(this, widthDp, heightDp)
+            val matched = DisplayPrefs.matchProfile(this, widthDp, heightDp)
             val suppress = autoAdj && matched != null &&
-                UiCustomizationPrefs.isCompactProfile(matched)
+                DisplayPrefs.isCompactProfile(matched)
             applyFabVisibility(suppress)
         }
         viewModel.autoScrollEnabled.observe(this) { enabled ->

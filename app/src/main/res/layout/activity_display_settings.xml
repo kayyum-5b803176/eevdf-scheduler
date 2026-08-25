@@ -8,7 +8,7 @@
     android:background="@color/screenBackground">
 
     <androidx.appcompat.widget.Toolbar
-        android:id="@+id/uiCustomizationToolbar"
+        android:id="@+id/displaySettingsToolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="@color/screenBackground"
@@ -29,6 +29,14 @@
     <ScrollView style="@style/App.PageScroll">
 
         <LinearLayout style="@style/App.PageContent">
+
+            <!-- ══ TAB: ui ══════════════════════════════════════════════ -->
+            <LinearLayout
+                android:id="@+id/tabContentUi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="visible">
 
             <!-- ══ APPEARANCE ═════════════════════════════════════════════ -->
 
@@ -427,6 +435,110 @@
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout><!-- end tabContentUi -->
+
+            <!-- ══ TAB: render ══════════════════════════════════════════════
+                 Demo config catalog. Every card below is built from the same
+                 production styles a real settings screen uses (App.Card,
+                 App.Row.Nav, App.Row.TextBlock, App.Row.Title, App.Row.Subtitle,
+                 App.Text.Chevron, App.Row.Nav.Spacer) — never a copy or mock.
+                 A new template or piece variant is checked here, against these
+                 same styles, before it is ever applied to a real settings page.
+                 See TEMPLATE_CATALOG.md for the piece-sequence rules each demo
+                 below is required to conform to.
+            ══════════════════════════════════════════════════════════════ -->
+            <LinearLayout
+                android:id="@+id/tabContentRender"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_spacing_lg"
+                    android:text="Demo instances of each catalog template, built from the same styles real settings pages use."
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_body"
+                    android:lineSpacingMultiplier="1.3" />
+
+                <!-- NavCard demo: piece subset (0) — title + chevron only -->
+                <TextView style="@style/App.Text.Label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_spacing_sm"
+                    android:text="NavCard — (0)" />
+
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/App.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_card_gap">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <LinearLayout style="@style/App.Row.Nav">
+                            <LinearLayout style="@style/App.Row.TextBlock">
+                                <TextView style="@style/App.Row.Title"
+                                    android:text="demo title" />
+                            </LinearLayout>
+                            <TextView style="@style/App.Text.Chevron"
+                                android:text="&#8250;" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <View style="@style/App.Divider.Section" />
+
+                <!-- NavCard demo: piece subset (0,1) — title + chevron + subtitle,
+                     with the auto-inserted spacer per TEMPLATE_CATALOG.md -->
+                <TextView style="@style/App.Text.Label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_spacing_sm"
+                    android:text="NavCard — (0,1)" />
+
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/App.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_card_gap">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <LinearLayout style="@style/App.Row.Nav">
+                            <LinearLayout style="@style/App.Row.TextBlock">
+                                <TextView style="@style/App.Row.Title"
+                                    android:text="demo title" />
+                            </LinearLayout>
+                            <TextView style="@style/App.Text.Chevron"
+                                android:text="&#8250;" />
+                        </LinearLayout>
+                        <TextView style="@style/App.Row.Subtitle"
+                            android:layout_width="match_parent"
+                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
+                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
+                            android:layout_marginBottom="@dimen/app_spacing_sm"
+                            android:text="demo subtitle text" />
+                        <View style="@style/App.Row.Nav.Spacer" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout><!-- end tabContentRender -->
 
         </LinearLayout>
     </ScrollView>

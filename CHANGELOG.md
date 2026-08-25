@@ -1,5 +1,46 @@
 # Changelog
 
+## 5.3.0 — Display screen rename, ui/render tabs, template demo catalog
+
+`versionName` 5.2.0 → **5.3.0** (MINOR). `versionCode` unchanged at 1.
+
+### Renamed
+
+`UiCustomizationActivity` → `DisplaySettingsActivity`. Follows through
+internally, not just the on-screen title: class/file name, layout file
+(`activity_ui_customization.xml` → `activity_display_settings.xml`),
+`UiCustomizationPrefs` → `DisplayPrefs` (class/file, all call sites across
+`MainActivity.kt`, `AlarmForegroundService.kt`, `SchedulerApplication.kt`,
+`SettingsPage.kt`), manifest declaration, and the on-screen title
+("UI Customization" → "Display").
+
+**Breaking, by explicit request, no migration:** the SharedPreferences
+on-disk filename also changed (`ui_customization_prefs` →
+`display_settings_prefs`). Existing installs will have Dark Mode, Simple
+Mode, SI Unit Format, Overlay Intent, Card Height, and Window Calibrate
+settings reset to default the first time this update runs. `SettingsBackup.kt`
+updated to match so future backups target the new filename; old backups
+made before this version will no longer restore these settings.
+
+### Added — ui / render tabs
+
+The Display screen's `TabLayout` existed in the layout already but was
+never wired to anything — added two tabs, `ui` and `render`, and connected
+visibility switching in `DisplaySettingsActivity.kt` (same
+`OnTabSelectedListener` pattern already used in `ProfileSettingsActivity`).
+
+- **ui** — the screen's existing settings content, unchanged, now wrapped
+  in `tabContentUi`.
+- **render** — new. A demo-config catalog: instances of catalog templates
+  (see `TEMPLATE_CATALOG.md`) built from the same production styles a real
+  settings page uses (`App.Card`, `App.Row.Nav`, `App.Row.Title`,
+  `App.Row.Subtitle`, `App.Text.Chevron`, `App.Row.Nav.Spacer`) — never a
+  mock or a copy. Intended as the check surface a new template or piece
+  variant is verified against before it is applied to a real settings page.
+  Ships with two `NavCard` demos (piece subsets `(0)` and `(0,1)`,
+  including the auto-inserted spacer); `ToggleCard`/`ValueCard`/
+  `DropdownCard` demos are not yet included.
+
 ## 5.2.0 — Settings UI template system: reserved-slot rows, sliders, enforcement
 
 `versionName` 5.1.1 → **5.2.0** (MINOR). `versionCode` unchanged at 1.

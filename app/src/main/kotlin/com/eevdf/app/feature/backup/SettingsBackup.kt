@@ -28,7 +28,7 @@ object SettingsBackup {
     private val SETTINGS_FILES = listOf(
         "eevdf_prefs",            // main settings + sound/vibration/profile + view prefs
         "auto_switch_prefs",      // Auto-Switch feature settings
-        "ui_customization_prefs", // UI customization settings
+        "display_settings_prefs", // Display settings
         "button_action_prefs",    // Button Action: Quick Action + hardware-key mappings
     )
 

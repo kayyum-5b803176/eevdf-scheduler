@@ -115,9 +115,9 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
 
-        <!-- UI Customization settings screen -->
+        <!-- Display settings screen -->
         <activity
-            android:name="com.eevdf.app.feature.settings.UiCustomizationActivity"
+            android:name="com.eevdf.app.feature.settings.DisplaySettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"

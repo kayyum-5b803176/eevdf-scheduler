@@ -13,7 +13,7 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.eevdf.app.R
 import com.eevdf.app.core.media.SoundManager
-import com.eevdf.app.core.prefs.UiCustomizationPrefs
+import com.eevdf.app.core.prefs.DisplayPrefs
 import com.eevdf.app.core.media.VibrationManager
 import com.eevdf.app.core.nav.AppRoutes
 
@@ -239,7 +239,7 @@ class AlarmForegroundService : Service() {
                     // rings and shows its notification; only the overlay is hidden.
                     // Because the hardware-key handlers live in the overlay, keys
                     // are inactive while it is suppressed — by design.
-                    val suppressOverlay = UiCustomizationPrefs.shouldSuppressOverlay(
+                    val suppressOverlay = DisplayPrefs.shouldSuppressOverlay(
                         this, getForegroundPackage(), isDeviceLocked()
                     )
 

@@ -3,6 +3,8 @@ package com.eevdf.app.feature.settings
 import android.graphics.Color
 import android.os.Bundle
 import android.view.MenuItem
+import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -12,9 +14,14 @@ import com.eevdf.app.R
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
-import com.eevdf.app.core.prefs.UiCustomizationPrefs
+import com.google.android.material.tabs.TabLayout
+import com.eevdf.app.core.prefs.DisplayPrefs
 
-class UiCustomizationActivity : AppCompatActivity() {
+class DisplaySettingsActivity : AppCompatActivity() {
+
+    private lateinit var tabLayout:        TabLayout
+    private lateinit var tabContentUi:      LinearLayout
+    private lateinit var tabContentRender:  LinearLayout
 
     private lateinit var darkModeToggleGroup: MaterialButtonToggleGroup
 
@@ -27,7 +34,7 @@ class UiCustomizationActivity : AppCompatActivity() {
     // ── Overlay Intent ────────────────────────────────────────────────────────
     private lateinit var switchOverlayIntent: SwitchMaterial
     private lateinit var switchOverlayIntentLockOnly: SwitchMaterial
-    private lateinit var rowOverlayIntentApps: android.widget.LinearLayout
+    private lateinit var rowOverlayIntentApps: LinearLayout
     private lateinit var tvOverlayIntentApps:  TextView
 
     // ── Window Calibrate: live stats + profile cards ──────────────────────────
@@ -41,12 +48,30 @@ class UiCustomizationActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_ui_customization)
+        setContentView(R.layout.activity_display_settings)
 
-        val toolbar = findViewById<Toolbar>(R.id.uiCustomizationToolbar)
+        val toolbar = findViewById<Toolbar>(R.id.displaySettingsToolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "UI Customization"
+        supportActionBar?.title = "Display"
+
+        // ── ui / render tabs ────────────────────────────────────────────────
+        tabLayout       = findViewById(R.id.tabLayout)
+        tabContentUi     = findViewById(R.id.tabContentUi)
+        tabContentRender = findViewById(R.id.tabContentRender)
+
+        tabLayout.addTab(tabLayout.newTab().setText("ui"))
+        tabLayout.addTab(tabLayout.newTab().setText("render"))
+
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val showUi = tab.position == 0
+                tabContentUi.visibility     = if (showUi) View.VISIBLE else View.GONE
+                tabContentRender.visibility = if (showUi) View.GONE    else View.VISIBLE
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
 
         sliderCardHeight  = findViewById(R.id.sliderCardHeight)
         tvCardHeightValue = findViewById(R.id.tvCardHeightValue)
@@ -57,7 +82,7 @@ class UiCustomizationActivity : AppCompatActivity() {
         darkModeToggleGroup = findViewById(R.id.darkModeToggleGroup)
 
         // ── Dark mode toggle ──────────────────────────────────────────────
-        darkModeToggleGroup.check(when (UiCustomizationPrefs.getDarkMode(this)) {
+        darkModeToggleGroup.check(when (DisplayPrefs.getDarkMode(this)) {
             "light" -> R.id.btnDarkModeLight
             "dark"  -> R.id.btnDarkModeDark
             else    -> R.id.btnDarkModeSystem
@@ -69,8 +94,8 @@ class UiCustomizationActivity : AppCompatActivity() {
                 R.id.btnDarkModeDark   -> "dark"
                 else                   -> "system"
             }
-            UiCustomizationPrefs.setDarkMode(this, mode)
-            UiCustomizationPrefs.applyDarkMode(this)
+            DisplayPrefs.setDarkMode(this, mode)
+            DisplayPrefs.applyDarkMode(this)
         }
 
         switchOverlayIntent  = findViewById(R.id.switchOverlayIntent)
@@ -87,15 +112,15 @@ class UiCustomizationActivity : AppCompatActivity() {
         tvCalMiniDims     = findViewById(R.id.tvCalMiniDims)
 
         // ── Load saved prefs ──────────────────────────────────────────────────
-        val savedScale = UiCustomizationPrefs.getCardHeightScale(this)
+        val savedScale = DisplayPrefs.getCardHeightScale(this)
         sliderCardHeight.value  = savedScale.toFloat()
         updateScaleLabel(savedScale)
-        switchAutoAdjust.isChecked = UiCustomizationPrefs.isAutoAdjustEnabled(this)
-        switchSimpleMode.isChecked = UiCustomizationPrefs.isSimpleModeEnabled(this)
-        switchUnitFormat.isChecked = UiCustomizationPrefs.isUnitFormatEnabled(this)
+        switchAutoAdjust.isChecked = DisplayPrefs.isAutoAdjustEnabled(this)
+        switchSimpleMode.isChecked = DisplayPrefs.isSimpleModeEnabled(this)
+        switchUnitFormat.isChecked = DisplayPrefs.isUnitFormatEnabled(this)
 
-        switchOverlayIntent.isChecked = UiCustomizationPrefs.isOverlayIntentEnabled(this)
-        switchOverlayIntentLockOnly.isChecked = UiCustomizationPrefs.isOverlayIntentLockOnly(this)
+        switchOverlayIntent.isChecked = DisplayPrefs.isOverlayIntentEnabled(this)
+        switchOverlayIntentLockOnly.isChecked = DisplayPrefs.isOverlayIntentLockOnly(this)
         refreshOverlayIntentAppsSummary()
         updateOverlayIntentRowState(switchOverlayIntent.isChecked)
 
@@ -103,22 +128,22 @@ class UiCustomizationActivity : AppCompatActivity() {
         sliderCardHeight.addOnChangeListener { _, value, _ ->
             val scale = value.toInt()
             updateScaleLabel(scale)
-            UiCustomizationPrefs.setCardHeightScale(this, scale)
+            DisplayPrefs.setCardHeightScale(this, scale)
         }
 
         // ── Switches ─────────────────────────────────────────────────────────
         switchAutoAdjust.setOnCheckedChangeListener { _, isChecked ->
-            UiCustomizationPrefs.setAutoAdjustEnabled(this, isChecked)
+            DisplayPrefs.setAutoAdjustEnabled(this, isChecked)
         }
         switchSimpleMode.setOnCheckedChangeListener { _, isChecked ->
-            UiCustomizationPrefs.setSimpleModeEnabled(this, isChecked)
+            DisplayPrefs.setSimpleModeEnabled(this, isChecked)
         }
         switchUnitFormat.setOnCheckedChangeListener { _, isChecked ->
-            UiCustomizationPrefs.setUnitFormatEnabled(this, isChecked)
+            DisplayPrefs.setUnitFormatEnabled(this, isChecked)
         }
 
         switchOverlayIntent.setOnCheckedChangeListener { _, isChecked ->
-            UiCustomizationPrefs.setOverlayIntentEnabled(this, isChecked)
+            DisplayPrefs.setOverlayIntentEnabled(this, isChecked)
             updateOverlayIntentRowState(isChecked)
             // App-list mode needs Usage Access to read the foreground app.
             // Lock-only mode does not (it uses the keyguard state), so don't
@@ -131,14 +156,14 @@ class UiCustomizationActivity : AppCompatActivity() {
         rowOverlayIntentApps.setOnClickListener { showOverlayIntentAppPicker() }
 
         switchOverlayIntentLockOnly.setOnCheckedChangeListener { _, isChecked ->
-            UiCustomizationPrefs.setOverlayIntentLockOnly(this, isChecked)
+            DisplayPrefs.setOverlayIntentLockOnly(this, isChecked)
             updateOverlayIntentRowState(switchOverlayIntent.isChecked)
         }
 
         // ── Calibrate profile cards ───────────────────────────────────────────
-        setupCalibrateCard(cardCalFloat,  UiCustomizationPrefs.CalibrateProfile.FLOAT)
-        setupCalibrateCard(cardCalNormal, UiCustomizationPrefs.CalibrateProfile.NORMAL)
-        setupCalibrateCard(cardCalMini,   UiCustomizationPrefs.CalibrateProfile.MINI)
+        setupCalibrateCard(cardCalFloat,  DisplayPrefs.CalibrateProfile.FLOAT)
+        setupCalibrateCard(cardCalNormal, DisplayPrefs.CalibrateProfile.NORMAL)
+        setupCalibrateCard(cardCalMini,   DisplayPrefs.CalibrateProfile.MINI)
     }
 
     override fun onResume() {
@@ -167,18 +192,18 @@ class UiCustomizationActivity : AppCompatActivity() {
         val hDp     = resources.configuration.screenHeightDp
         val multi   = isInMultiWindowMode
         val pip     = isInPictureInPictureMode
-        val matched = UiCustomizationPrefs.matchProfile(this, wDp, hDp)
+        val matched = DisplayPrefs.matchProfile(this, wDp, hDp)
 
         tvWindowLiveStats.text =
             "w = ${wDp}dp   h = ${hDp}dp   multiWin = $multi   pip = $pip" +
             if (matched != null) "   ▶ ${matched.name}" else ""
 
-        for (p in UiCustomizationPrefs.CalibrateProfile.values()) {
+        for (p in DisplayPrefs.CalibrateProfile.values()) {
             val card   = cardFor(p)
             val dimsTV = dimsViewFor(p)
-            val savedW = UiCustomizationPrefs.getCalibrateW(this, p)
-            val savedH = UiCustomizationPrefs.getCalibrateH(this, p)
-            val isSet  = savedW != UiCustomizationPrefs.CALIBRATE_NOT_SET
+            val savedW = DisplayPrefs.getCalibrateW(this, p)
+            val savedH = DisplayPrefs.getCalibrateH(this, p)
+            val isSet  = savedW != DisplayPrefs.CALIBRATE_NOT_SET
 
             dimsTV.text = if (isSet) "${savedW} × ${savedH} dp" else "not set"
 
@@ -197,12 +222,12 @@ class UiCustomizationActivity : AppCompatActivity() {
      */
     private fun setupCalibrateCard(
         card: CardView,
-        profile: UiCustomizationPrefs.CalibrateProfile
+        profile: DisplayPrefs.CalibrateProfile
     ) {
         card.setOnClickListener {
             val wDp = resources.configuration.screenWidthDp
             val hDp = resources.configuration.screenHeightDp
-            UiCustomizationPrefs.setCalibrate(this, profile, wDp, hDp)
+            DisplayPrefs.setCalibrate(this, profile, wDp, hDp)
             Toast.makeText(
                 this,
                 "${profile.name}: recorded ${wDp} × ${hDp} dp",
@@ -211,28 +236,28 @@ class UiCustomizationActivity : AppCompatActivity() {
             refreshWindowStats()
         }
         card.setOnLongClickListener {
-            UiCustomizationPrefs.clearCalibrate(this, profile)
+            DisplayPrefs.clearCalibrate(this, profile)
             Toast.makeText(this, "${profile.name} profile cleared", Toast.LENGTH_SHORT).show()
             refreshWindowStats()
             true
         }
     }
 
-    private fun cardFor(p: UiCustomizationPrefs.CalibrateProfile) = when (p) {
-        UiCustomizationPrefs.CalibrateProfile.FLOAT  -> cardCalFloat
-        UiCustomizationPrefs.CalibrateProfile.NORMAL -> cardCalNormal
-        UiCustomizationPrefs.CalibrateProfile.MINI   -> cardCalMini
+    private fun cardFor(p: DisplayPrefs.CalibrateProfile) = when (p) {
+        DisplayPrefs.CalibrateProfile.FLOAT  -> cardCalFloat
+        DisplayPrefs.CalibrateProfile.NORMAL -> cardCalNormal
+        DisplayPrefs.CalibrateProfile.MINI   -> cardCalMini
     }
 
-    private fun dimsViewFor(p: UiCustomizationPrefs.CalibrateProfile) = when (p) {
-        UiCustomizationPrefs.CalibrateProfile.FLOAT  -> tvCalFloatDims
-        UiCustomizationPrefs.CalibrateProfile.NORMAL -> tvCalNormalDims
-        UiCustomizationPrefs.CalibrateProfile.MINI   -> tvCalMiniDims
+    private fun dimsViewFor(p: DisplayPrefs.CalibrateProfile) = when (p) {
+        DisplayPrefs.CalibrateProfile.FLOAT  -> tvCalFloatDims
+        DisplayPrefs.CalibrateProfile.NORMAL -> tvCalNormalDims
+        DisplayPrefs.CalibrateProfile.MINI   -> tvCalMiniDims
     }
 
     private fun updateScaleLabel(scale: Int) {
         tvCardHeightValue.text =
-            if (scale == UiCustomizationPrefs.DEFAULT_CARD_HEIGHT_SCALE) "$scale (Default)"
+            if (scale == DisplayPrefs.DEFAULT_CARD_HEIGHT_SCALE) "$scale (Default)"
             else "$scale"
     }
 
@@ -258,7 +283,7 @@ class UiCustomizationActivity : AppCompatActivity() {
 
     private fun showOverlayIntentAppPicker() {
         val apps         = getInstalledUserApps()
-        val currentSet   = UiCustomizationPrefs.getOverlayIntentAppList(this)
+        val currentSet   = DisplayPrefs.getOverlayIntentAppList(this)
         val mutableCheck = apps.map { it.packageName in currentSet }.toBooleanArray()
 
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -269,11 +294,11 @@ class UiCustomizationActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val selected = apps.filterIndexed { i, _ -> mutableCheck[i] }
                     .map { it.packageName }.toSet()
-                UiCustomizationPrefs.setOverlayIntentAppList(this, selected)
+                DisplayPrefs.setOverlayIntentAppList(this, selected)
                 refreshOverlayIntentAppsSummary()
             }
             .setNeutralButton("Clear all") { _, _ ->
-                UiCustomizationPrefs.setOverlayIntentAppList(this, emptySet())
+                DisplayPrefs.setOverlayIntentAppList(this, emptySet())
                 refreshOverlayIntentAppsSummary()
             }
             .setNegativeButton("Cancel", null)
@@ -281,7 +306,7 @@ class UiCustomizationActivity : AppCompatActivity() {
     }
 
     private fun refreshOverlayIntentAppsSummary() {
-        val list = UiCustomizationPrefs.getOverlayIntentAppList(this)
+        val list = DisplayPrefs.getOverlayIntentAppList(this)
         tvOverlayIntentApps.text = if (list.isEmpty()) "No apps selected"
         else list.joinToString(", ") { pkg ->
             try {

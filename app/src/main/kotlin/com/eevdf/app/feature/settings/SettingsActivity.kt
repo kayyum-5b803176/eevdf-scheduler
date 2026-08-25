@@ -69,7 +69,7 @@ class SettingsActivity : AppCompatActivity() {
         showTab(0)
 
         rowVisual.setOnClickListener {
-            startActivity(Intent(this, UiCustomizationActivity::class.java))
+            startActivity(Intent(this, DisplaySettingsActivity::class.java))
         }
         rowSoundVibration.setOnClickListener {
             startActivity(Intent(this, SoundVibrationActivity::class.java))

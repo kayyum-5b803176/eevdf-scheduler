@@ -2,7 +2,7 @@ package com.eevdf.app
 
 import android.app.Application
 import com.eevdf.app.core.LogcatCrashReporter
-import com.eevdf.app.core.prefs.UiCustomizationPrefs
+import com.eevdf.app.core.prefs.DisplayPrefs
 import com.eevdf.shared.CrashIsolation
 import dagger.hilt.android.HiltAndroidApp
 
@@ -24,7 +24,7 @@ class SchedulerApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         // Apply before any Activity is drawn.
-        UiCustomizationPrefs.applyDarkMode(this)
+        DisplayPrefs.applyDarkMode(this)
         CrashIsolation.install(LogcatCrashReporter)
     }
 }

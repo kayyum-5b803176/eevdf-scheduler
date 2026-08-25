@@ -6,12 +6,12 @@ import androidx.appcompat.app.AppCompatDelegate
 import kotlin.math.abs
 
 /**
- * Thin helpers around the "ui_customization" SharedPreferences file.
- * Keeps all UI Customization preference keys in one place.
+ * Thin helpers around the "display_settings" SharedPreferences file.
+ * Keeps all Display preference keys in one place.
  */
-object UiCustomizationPrefs {
+object DisplayPrefs {
 
-    private const val PREFS_NAME               = "ui_customization_prefs"
+    private const val PREFS_NAME               = "display_settings_prefs"
     private const val KEY_CARD_HEIGHT_SCALE    = "card_height_scale"
     private const val KEY_AUTO_ADJUST_ENABLED  = "auto_adjust_enabled"
     private const val KEY_SIMPLE_MODE_ENABLED  = "simple_mode_enabled"
@@ -59,7 +59,7 @@ object UiCustomizationPrefs {
     /**
      * Reads the saved dark-mode preference and applies it via [AppCompatDelegate].
      * Call this from [Application.onCreate] so the mode is set before any
-     * Activity is drawn, and from [UiCustomizationActivity] whenever the user
+     * Activity is drawn, and from [DisplaySettingsActivity] whenever the user
      * changes it.
      */
     fun applyDarkMode(ctx: Context) {
