@@ -275,6 +275,21 @@
         <item name="android:clipToPadding">false</item>
     </style>
 
+    <!-- RecyclerView equivalent of App.PageContent, for pages that scroll a
+         card list directly (e.g. the main task list) instead of wrapping a
+         ScrollView + LinearLayout. Same paddingTop as App.PageContent so the
+         gap above the first card matches the gap App.Card items already
+         create between each other via their own symmetric marginTop/marginBottom.
+         No paddingStart/paddingEnd here — left/right spacing comes entirely
+         from each card's own marginStart/marginEnd (@dimen/app_card_gap), so
+         both sides stay equal. paddingBottom uses app_spacing_cl to clear the FABs. -->
+    <style name="App.List.Content" parent="App">
+        <item name="android:paddingTop">@dimen/app_card_gap</item>
+        <item name="android:paddingBottom">@dimen/app_spacing_cl</item>
+        <item name="android:clipToPadding">false</item>
+        <item name="android:scrollbarStyle">outsideOverlay</item>
+    </style>
+
     <!-- ══════════════════════════════════════════════════════════════════════
          ROW TEMPLATES — internal structure of rows inside cards
          ──────────────────────────────────────────────────────────────────

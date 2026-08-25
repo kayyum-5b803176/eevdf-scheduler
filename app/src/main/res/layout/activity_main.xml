@@ -343,14 +343,11 @@
 
         <!-- Task list -->
         <androidx.recyclerview.widget.RecyclerView
+            style="@style/App.List.Content"
             android:id="@+id/recyclerView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:paddingBottom="@dimen/app_spacing_cl"
-            android:paddingEnd="@dimen/app_spacing_md"
-            android:clipToPadding="false"
-            android:scrollbars="vertical"
-            android:scrollbarStyle="outsideOverlay" />
+            android:scrollbars="vertical" />
 
     </LinearLayout>
 
