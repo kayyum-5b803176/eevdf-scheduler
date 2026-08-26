@@ -78,6 +78,10 @@ class DisplaySettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, LayoutDemoActivity::class.java))
         }
 
+        findViewById<LinearLayout>(R.id.rowColorMatrix).setOnClickListener {
+            startActivity(Intent(this, ColorMatrixActivity::class.java))
+        }
+
         sliderCardHeight  = findViewById(R.id.sliderCardHeight)
         tvCardHeightValue = findViewById(R.id.tvCardHeightValue)
         switchAutoAdjust  = findViewById(R.id.switchAutoAdjust)

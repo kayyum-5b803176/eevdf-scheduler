@@ -472,6 +472,26 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- NavCard: Color — (0) -->
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/App.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_card_gap"
+                    android:layout_marginEnd="@dimen/app_card_gap"
+                    android:layout_marginBottom="@dimen/app_card_gap">
+                    <LinearLayout
+                        android:id="@+id/rowColorMatrix"
+                        style="@style/App.Row.Nav">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="color" />
+                        </LinearLayout>
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
             </LinearLayout><!-- end tabContentRender -->
 
         </LinearLayout>

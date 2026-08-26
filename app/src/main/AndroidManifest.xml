@@ -130,6 +130,13 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName="com.eevdf.app.feature.settings.DisplaySettingsActivity" />
 
+        <!-- Color matrix, opened from Display -> render -> "color" -->
+        <activity
+            android:name="com.eevdf.app.feature.settings.ColorMatrixActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName="com.eevdf.app.feature.settings.DisplaySettingsActivity" />
+
         <!-- Button Action settings screen -->
         <activity
             android:name="com.eevdf.app.feature.settings.ButtonActionActivity"

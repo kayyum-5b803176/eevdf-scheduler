@@ -1,5 +1,58 @@
 # Changelog
 
+## 5.6.0 — Color matrix screen under Display → render
+
+`versionName` 5.5.0 → **5.6.0** (MINOR). `versionCode` unchanged at 1.
+
+### Added — ColorMatrixActivity
+
+New screen, opened from Display → render → "color" (sibling `NavCard` to
+"layout"). Manifest-declared, `parentActivityName` pointing back to
+`DisplaySettingsActivity`. Ships with the same blank/unwired `TabLayout`
+every screen in this catalog carries by convention.
+
+A 13-row × 7-column grid: rows are the app's real color families (grey,
+red, orange, yellow, lime, green, mint, cyan, azure, blue, violet,
+magenta, rose — all 13 defined in `colors.xml`), columns are the 7 real
+lumen/tone stops (50, 100, 300, 500, 700, 800, 900). Every one of the 91
+swatches' `android:background` references the actual
+`@color/app_<family>_<stop>` resource — never a hardcoded hex copy — so
+the grid always reflects `colors.xml`, never a frozen snapshot of it.
+Scrolls vertically with the standard `App.PageScroll`/`App.PageContent`
+chrome, same as every other screen.
+
+Tapping a swatch reads that swatch's real color value at runtime
+(`ContextCompat.getColor`) and shows family name, lumen code, real hex,
+and token name in a one-line detail strip above the grid. The
+family/lumen/token data comes from a `token → R.color` map cross-checked
+1:1:1 against the layout's 91 swatch tags and backgrounds before this
+shipped — no gaps, no typos, no orphaned entries either direction.
+
+New dedicated dimension tokens (`app_color_matrix_cell_size` (40dp),
+`app_color_matrix_row_header_width` (72dp),
+`app_color_matrix_header_row_height` (32dp)) kept in their own namespace,
+even though 40dp and 72dp both numerically coincide with unrelated
+existing tokens (`app_size_calendar_row`, `app_row_boundary_rung_72`) —
+same reasoning as prior rungs: two unrelated concerns should never
+silently track the same value by coincidence of number.
+
+New `App.ColorMatrix.*` styles: `DetailStrip`, `Row`, `RowHeader`,
+`ColumnHeader`, `Swatch`. The swatch style deliberately puts its ripple
+in `android:foreground`, not `background` — the real swatch color is
+already set via `android:background` in the layout, and a ripple placed
+in `background` instead would have been silently overwritten.
+
+### Fixed — literal `--` inside XML comments, caught before this shipped
+
+Found and fixed six instances (across this file, `activity_layout_demo.xml`,
+and `themes.xml`) of a literal double-hyphen used as a dash separator
+inside XML comment bodies — invalid per the XML spec, and the same class
+of build-breaking mistake as the `App.SettingsCard.Body` implicit-parent
+bug from 5.2.0. Swept every file touched this session with a proper
+comment-body parser (not a naive text search, which false-positives on
+em-dashes and box-drawing characters) to confirm no other instance
+remained before packaging.
+
 ## 5.5.0 — Render tab becomes a card list; demo catalog moves to Layout screen
 
 `versionName` 5.4.0 → **5.5.0** (MINOR). `versionCode` unchanged at 1.

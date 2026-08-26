@@ -621,6 +621,65 @@
         <item name="android:layout_marginTop">@dimen/app_spacing_sm</item>
     </style>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         COLOR MATRIX GRID — 13 color-name rows × 7 lumen-code columns
+         ──────────────────────────────────────────────────────────────────
+         Fixed square swatch cells, column headers (lumen codes), a row
+         header (color family name), and a one-line detail strip that
+         shows the tapped swatch's family, lumen code, hex, and token
+         name. Scrolls vertically with the rest of the page — same
+         App.PageScroll/App.PageContent chrome as every other screen.
+         ══════════════════════════════════════════════════════════════════ -->
+
+    <style name="App.ColorMatrix.DetailStrip" parent="App">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">@dimen/app_color_matrix_header_row_height</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textSize">@dimen/app_text_size_sm</item>
+        <item name="android:textColor">@color/app_text_title</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:background">@color/infoBoxBackground</item>
+        <item name="android:paddingStart">@dimen/app_spacing_md</item>
+        <item name="android:paddingEnd">@dimen/app_spacing_md</item>
+    </style>
+
+    <style name="App.ColorMatrix.Row" parent="App">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <!-- Row-header cell: the color family name, left column -->
+    <style name="App.ColorMatrix.RowHeader" parent="App">
+        <item name="android:layout_width">@dimen/app_color_matrix_row_header_width</item>
+        <item name="android:layout_height">@dimen/app_color_matrix_cell_size</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textSize">@dimen/app_text_size_xs</item>
+        <item name="android:textColor">@color/app_text_label</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- Column-header cell: the lumen code (50/100/300/...), top row -->
+    <style name="App.ColorMatrix.ColumnHeader" parent="App">
+        <item name="android:layout_width">@dimen/app_color_matrix_cell_size</item>
+        <item name="android:layout_height">@dimen/app_color_matrix_header_row_height</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">@dimen/app_text_size_xs</item>
+        <item name="android:textColor">@color/app_text_label</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- The swatch itself: pure color, no text baked in, tappable.
+         Ripple lives in `foreground`, not `background` - the real swatch
+         color is set programmatically via setBackgroundColor(), which
+         would silently replace a ripple placed in `background` instead. -->
+    <style name="App.ColorMatrix.Swatch" parent="App">
+        <item name="android:layout_width">@dimen/app_color_matrix_cell_size</item>
+        <item name="android:layout_height">@dimen/app_color_matrix_cell_size</item>
+        <item name="android:foreground">?attr/selectableItemBackground</item>
+    </style>
+
     <!-- App.Row.Reserved that is disabled-looking (lower alpha) rather
          than the plain "no settings yet" placeholder -->
     <style name="App.Row.Reserved.Disabled" parent="App.Row.Reserved">

@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Color matrix screen. Reached from Display -> render -> "color" card.
+
+    13 color-name rows (y-axis) x 7 lumen-code columns (x-axis: 50, 100,
+    300, 500, 700, 800, 900). Every swatch's android:background references
+    the real @color/app_<family>_<stop> resource - never a hardcoded hex
+    copy - so this grid always reflects colors.xml, never a frozen
+    snapshot of it. Tapping a swatch updates the detail strip with that
+    swatch's family name, lumen code, real hex, and token name.
+
+    Ships with the same blank/unwired TabLayout pattern every screen in
+    this catalog carries, per convention, regardless of whether a use is
+    foreseen for this particular screen.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/screenBackground">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/colorMatrixToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/screenBackground"
+        android:elevation="4dp"
+        app:titleTextColor="@color/app_text_title" />
+
+    <!-- Blank, unwired - same pattern every screen in this catalog carries. -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
+
+    <TextView
+        android:id="@+id/tvColorDetail"
+        style="@style/App.ColorMatrix.DetailStrip"
+        android:text="Tap a swatch to see its name, lumen code, and hex" />
+
+    <ScrollView style="@style/App.PageScroll">
+
+        <LinearLayout style="@style/App.PageContent">
+
+            <!-- ══ Column header row: lumen codes ══════════════════════ -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm">
+
+                <!-- Empty corner cell, same width as the row-header column -->
+                <View
+                    android:layout_width="@dimen/app_color_matrix_row_header_width"
+                    android:layout_height="@dimen/app_color_matrix_header_row_height" />
+
+                <TextView style="@style/App.ColorMatrix.ColumnHeader" android:text="50" />
+                <TextView style="@style/App.ColorMatrix.ColumnHeader" android:text="100" />
+                <TextView style="@style/App.ColorMatrix.ColumnHeader" android:text="300" />
+                <TextView style="@style/App.ColorMatrix.ColumnHeader" android:text="500" />
+                <TextView style="@style/App.ColorMatrix.ColumnHeader" android:text="700" />
+                <TextView style="@style/App.ColorMatrix.ColumnHeader" android:text="800" />
+                <TextView style="@style/App.ColorMatrix.ColumnHeader" android:text="900" />
+            </LinearLayout>
+
+            <!-- ══ 13 rows: color name (row header) + 7 swatches ═══════ -->
+
+            <!-- grey -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="grey" />
+                <View android:id="@+id/swatch_grey_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_grey_cl" android:tag="grey|50|app_grey_cl" />
+                <View android:id="@+id/swatch_grey_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_grey_xl" android:tag="grey|100|app_grey_xl" />
+                <View android:id="@+id/swatch_grey_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_grey_lt" android:tag="grey|300|app_grey_lt" />
+                <View android:id="@+id/swatch_grey_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_grey_nd" android:tag="grey|500|app_grey_nd" />
+                <View android:id="@+id/swatch_grey_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_grey_dk" android:tag="grey|700|app_grey_dk" />
+                <View android:id="@+id/swatch_grey_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_grey_xd" android:tag="grey|800|app_grey_xd" />
+                <View android:id="@+id/swatch_grey_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_grey_cd" android:tag="grey|900|app_grey_cd" />
+            </LinearLayout>
+
+            <!-- red -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="red" />
+                <View android:id="@+id/swatch_red_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_red_cl" android:tag="red|50|app_red_cl" />
+                <View android:id="@+id/swatch_red_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_red_xl" android:tag="red|100|app_red_xl" />
+                <View android:id="@+id/swatch_red_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_red_lt" android:tag="red|300|app_red_lt" />
+                <View android:id="@+id/swatch_red_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_red_nd" android:tag="red|500|app_red_nd" />
+                <View android:id="@+id/swatch_red_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_red_dk" android:tag="red|700|app_red_dk" />
+                <View android:id="@+id/swatch_red_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_red_xd" android:tag="red|800|app_red_xd" />
+                <View android:id="@+id/swatch_red_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_red_cd" android:tag="red|900|app_red_cd" />
+            </LinearLayout>
+
+            <!-- orange -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="orange" />
+                <View android:id="@+id/swatch_orange_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_orange_cl" android:tag="orange|50|app_orange_cl" />
+                <View android:id="@+id/swatch_orange_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_orange_xl" android:tag="orange|100|app_orange_xl" />
+                <View android:id="@+id/swatch_orange_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_orange_lt" android:tag="orange|300|app_orange_lt" />
+                <View android:id="@+id/swatch_orange_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_orange_nd" android:tag="orange|500|app_orange_nd" />
+                <View android:id="@+id/swatch_orange_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_orange_dk" android:tag="orange|700|app_orange_dk" />
+                <View android:id="@+id/swatch_orange_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_orange_xd" android:tag="orange|800|app_orange_xd" />
+                <View android:id="@+id/swatch_orange_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_orange_cd" android:tag="orange|900|app_orange_cd" />
+            </LinearLayout>
+
+            <!-- yellow -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="yellow" />
+                <View android:id="@+id/swatch_yellow_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_yellow_cl" android:tag="yellow|50|app_yellow_cl" />
+                <View android:id="@+id/swatch_yellow_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_yellow_xl" android:tag="yellow|100|app_yellow_xl" />
+                <View android:id="@+id/swatch_yellow_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_yellow_lt" android:tag="yellow|300|app_yellow_lt" />
+                <View android:id="@+id/swatch_yellow_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_yellow_nd" android:tag="yellow|500|app_yellow_nd" />
+                <View android:id="@+id/swatch_yellow_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_yellow_dk" android:tag="yellow|700|app_yellow_dk" />
+                <View android:id="@+id/swatch_yellow_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_yellow_xd" android:tag="yellow|800|app_yellow_xd" />
+                <View android:id="@+id/swatch_yellow_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_yellow_cd" android:tag="yellow|900|app_yellow_cd" />
+            </LinearLayout>
+
+            <!-- lime -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="lime" />
+                <View android:id="@+id/swatch_lime_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_lime_cl" android:tag="lime|50|app_lime_cl" />
+                <View android:id="@+id/swatch_lime_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_lime_xl" android:tag="lime|100|app_lime_xl" />
+                <View android:id="@+id/swatch_lime_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_lime_lt" android:tag="lime|300|app_lime_lt" />
+                <View android:id="@+id/swatch_lime_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_lime_nd" android:tag="lime|500|app_lime_nd" />
+                <View android:id="@+id/swatch_lime_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_lime_dk" android:tag="lime|700|app_lime_dk" />
+                <View android:id="@+id/swatch_lime_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_lime_xd" android:tag="lime|800|app_lime_xd" />
+                <View android:id="@+id/swatch_lime_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_lime_cd" android:tag="lime|900|app_lime_cd" />
+            </LinearLayout>
+
+            <!-- green -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="green" />
+                <View android:id="@+id/swatch_green_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_green_cl" android:tag="green|50|app_green_cl" />
+                <View android:id="@+id/swatch_green_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_green_xl" android:tag="green|100|app_green_xl" />
+                <View android:id="@+id/swatch_green_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_green_lt" android:tag="green|300|app_green_lt" />
+                <View android:id="@+id/swatch_green_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_green_nd" android:tag="green|500|app_green_nd" />
+                <View android:id="@+id/swatch_green_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_green_dk" android:tag="green|700|app_green_dk" />
+                <View android:id="@+id/swatch_green_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_green_xd" android:tag="green|800|app_green_xd" />
+                <View android:id="@+id/swatch_green_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_green_cd" android:tag="green|900|app_green_cd" />
+            </LinearLayout>
+
+            <!-- mint -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="mint" />
+                <View android:id="@+id/swatch_mint_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_mint_cl" android:tag="mint|50|app_mint_cl" />
+                <View android:id="@+id/swatch_mint_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_mint_xl" android:tag="mint|100|app_mint_xl" />
+                <View android:id="@+id/swatch_mint_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_mint_lt" android:tag="mint|300|app_mint_lt" />
+                <View android:id="@+id/swatch_mint_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_mint_nd" android:tag="mint|500|app_mint_nd" />
+                <View android:id="@+id/swatch_mint_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_mint_dk" android:tag="mint|700|app_mint_dk" />
+                <View android:id="@+id/swatch_mint_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_mint_xd" android:tag="mint|800|app_mint_xd" />
+                <View android:id="@+id/swatch_mint_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_mint_cd" android:tag="mint|900|app_mint_cd" />
+            </LinearLayout>
+
+            <!-- cyan -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="cyan" />
+                <View android:id="@+id/swatch_cyan_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_cyan_cl" android:tag="cyan|50|app_cyan_cl" />
+                <View android:id="@+id/swatch_cyan_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_cyan_xl" android:tag="cyan|100|app_cyan_xl" />
+                <View android:id="@+id/swatch_cyan_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_cyan_lt" android:tag="cyan|300|app_cyan_lt" />
+                <View android:id="@+id/swatch_cyan_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_cyan_nd" android:tag="cyan|500|app_cyan_nd" />
+                <View android:id="@+id/swatch_cyan_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_cyan_dk" android:tag="cyan|700|app_cyan_dk" />
+                <View android:id="@+id/swatch_cyan_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_cyan_xd" android:tag="cyan|800|app_cyan_xd" />
+                <View android:id="@+id/swatch_cyan_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_cyan_cd" android:tag="cyan|900|app_cyan_cd" />
+            </LinearLayout>
+
+            <!-- azure -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="azure" />
+                <View android:id="@+id/swatch_azure_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_azure_cl" android:tag="azure|50|app_azure_cl" />
+                <View android:id="@+id/swatch_azure_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_azure_xl" android:tag="azure|100|app_azure_xl" />
+                <View android:id="@+id/swatch_azure_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_azure_lt" android:tag="azure|300|app_azure_lt" />
+                <View android:id="@+id/swatch_azure_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_azure_nd" android:tag="azure|500|app_azure_nd" />
+                <View android:id="@+id/swatch_azure_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_azure_dk" android:tag="azure|700|app_azure_dk" />
+                <View android:id="@+id/swatch_azure_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_azure_xd" android:tag="azure|800|app_azure_xd" />
+                <View android:id="@+id/swatch_azure_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_azure_cd" android:tag="azure|900|app_azure_cd" />
+            </LinearLayout>
+
+            <!-- blue -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="blue" />
+                <View android:id="@+id/swatch_blue_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_blue_cl" android:tag="blue|50|app_blue_cl" />
+                <View android:id="@+id/swatch_blue_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_blue_xl" android:tag="blue|100|app_blue_xl" />
+                <View android:id="@+id/swatch_blue_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_blue_lt" android:tag="blue|300|app_blue_lt" />
+                <View android:id="@+id/swatch_blue_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_blue_nd" android:tag="blue|500|app_blue_nd" />
+                <View android:id="@+id/swatch_blue_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_blue_dk" android:tag="blue|700|app_blue_dk" />
+                <View android:id="@+id/swatch_blue_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_blue_xd" android:tag="blue|800|app_blue_xd" />
+                <View android:id="@+id/swatch_blue_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_blue_cd" android:tag="blue|900|app_blue_cd" />
+            </LinearLayout>
+
+            <!-- violet -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="violet" />
+                <View android:id="@+id/swatch_violet_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_violet_cl" android:tag="violet|50|app_violet_cl" />
+                <View android:id="@+id/swatch_violet_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_violet_xl" android:tag="violet|100|app_violet_xl" />
+                <View android:id="@+id/swatch_violet_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_violet_lt" android:tag="violet|300|app_violet_lt" />
+                <View android:id="@+id/swatch_violet_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_violet_nd" android:tag="violet|500|app_violet_nd" />
+                <View android:id="@+id/swatch_violet_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_violet_dk" android:tag="violet|700|app_violet_dk" />
+                <View android:id="@+id/swatch_violet_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_violet_xd" android:tag="violet|800|app_violet_xd" />
+                <View android:id="@+id/swatch_violet_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_violet_cd" android:tag="violet|900|app_violet_cd" />
+            </LinearLayout>
+
+            <!-- magenta -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="magenta" />
+                <View android:id="@+id/swatch_magenta_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_magenta_cl" android:tag="magenta|50|app_magenta_cl" />
+                <View android:id="@+id/swatch_magenta_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_magenta_xl" android:tag="magenta|100|app_magenta_xl" />
+                <View android:id="@+id/swatch_magenta_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_magenta_lt" android:tag="magenta|300|app_magenta_lt" />
+                <View android:id="@+id/swatch_magenta_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_magenta_nd" android:tag="magenta|500|app_magenta_nd" />
+                <View android:id="@+id/swatch_magenta_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_magenta_dk" android:tag="magenta|700|app_magenta_dk" />
+                <View android:id="@+id/swatch_magenta_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_magenta_xd" android:tag="magenta|800|app_magenta_xd" />
+                <View android:id="@+id/swatch_magenta_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_magenta_cd" android:tag="magenta|900|app_magenta_cd" />
+            </LinearLayout>
+
+            <!-- rose -->
+            <LinearLayout style="@style/App.ColorMatrix.Row"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
+                <TextView style="@style/App.ColorMatrix.RowHeader" android:text="rose" />
+                <View android:id="@+id/swatch_rose_cl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_rose_cl" android:tag="rose|50|app_rose_cl" />
+                <View android:id="@+id/swatch_rose_xl" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_rose_xl" android:tag="rose|100|app_rose_xl" />
+                <View android:id="@+id/swatch_rose_lt" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_rose_lt" android:tag="rose|300|app_rose_lt" />
+                <View android:id="@+id/swatch_rose_nd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_rose_nd" android:tag="rose|500|app_rose_nd" />
+                <View android:id="@+id/swatch_rose_dk" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_rose_dk" android:tag="rose|700|app_rose_dk" />
+                <View android:id="@+id/swatch_rose_xd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_rose_xd" android:tag="rose|800|app_rose_xd" />
+                <View android:id="@+id/swatch_rose_cd" style="@style/App.ColorMatrix.Swatch" android:background="@color/app_rose_cd" android:tag="rose|900|app_rose_cd" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

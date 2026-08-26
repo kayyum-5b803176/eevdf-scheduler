@@ -166,6 +166,22 @@
          ══════════════════════════════════════════════════════════════════ -->
     <dimen name="app_row_spacer_dropdowncard_01">44dp</dimen>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         COLOR MATRIX GRID — dedicated tokens, own namespace
+         ──────────────────────────────────────────────────────────────────
+         13 color-name rows × 7 lumen-code columns. Cell width computed
+         against typical content width (~340dp after page padding) minus
+         a reserved row-header column, divided across 7 columns: ~39dp.
+         The nearest existing scale value is 40dp, but that number is
+         already claimed by app_size_calendar_row (an unrelated calendar
+         row height) — same reasoning as the boundary-rung tokens: kept
+         as its own dedicated token rather than reused by coincidence of
+         number.
+         ══════════════════════════════════════════════════════════════════ -->
+    <dimen name="app_color_matrix_cell_size">40dp</dimen>
+    <dimen name="app_color_matrix_row_header_width">72dp</dimen>
+    <dimen name="app_color_matrix_header_row_height">32dp</dimen>
+
 
     <!-- Horizontal padding inside a row (start + end) -->
     <dimen name="app_row_padding_horizontal">16dp</dimen>
