@@ -1,5 +1,58 @@
 # Changelog
 
+## 5.9.0 — Layout demo gains template/model tabs; global box-model diagram
+
+`versionName` 5.8.0 → **5.9.0** (MINOR). `versionCode` unchanged at 1.
+
+### Added — LayoutDemoActivity's own template/model tabs
+
+Wires up the `TabLayout` that has been present but unwired in
+`activity_layout_demo.xml` since the screen was first built — the first
+screen in the catalog whose own blank extension point gets used, rather
+than shipping empty.
+
+- **template** (default) — the existing 4-card compact demo catalog,
+  content and behavior unchanged, now living under a tab instead of
+  being the page's only content.
+- **model** — new. A single global box-model debug diagram, not one per
+  template, since the metrics it shows are genuinely shared across
+  every closed template class.
+
+### Added — `com.eevdf.app.core.template.ModelDiagramView`
+
+Custom `Canvas`-drawn `View`. Reads every value from the real dimen
+resources at draw time (`app_card_gap`, `app_card_corner_radius`,
+`app_card_padding_lg`) — nothing is hardcoded, so the diagram cannot
+silently go stale relative to `dimens.xml`.
+
+Shows, with real values and their source token names:
+- screen → card edge: `app_card_gap` (10dp)
+- corner radius: `app_card_corner_radius` (12dp)
+- shared inner content padding: `app_card_padding_lg` (20dp) —
+  representing `App.SettingsCard.Body`, used by
+  `ToggleCard`/`ValueCard`/`DropdownCard`. `NavCard`'s own row padding
+  (`app_row_padding_horizontal`/`vertical`, 16dp/14dp) is a genuinely
+  different real number and is deliberately not shown here, by explicit
+  decision, since a single global diagram can only represent the value
+  shared by 3 of 4 templates without contradicting its own premise.
+- the real card-to-card gap: shown explicitly as `10dp + 10dp = 20dp`,
+  not a single collapsed `10dp` — Android does not collapse adjacent
+  margins the way CSS does, so this is the actual rendered distance
+  between two stacked cards, not the token's own value.
+
+### Fixed — density-scaling bug caught before shipping
+
+The diagram's box sizes scale by device density (`dpToVisualPx`), but
+the spacing offsets between elements (label positions, gaps between the
+boxes) were initially hardcoded as raw pixel literals. On any device
+whose density isn't exactly the value assumed at write-time, that
+mismatch would have made labels and boxes drift out of alignment or
+overlap. Fixed by expressing every offset as `<value> * density`,
+consistent with how the box sizes themselves are scaled.
+`onMeasure`'s height budget was also reworked to derive from the same
+density-scaled constants `onDraw` actually uses, rather than an
+independently-guessed formula that could under- or over-allocate space.
+
 ## 5.8.0 — Compact display density, scoped to the Render → Layout demo page
 
 `versionName` 5.7.0 → **5.8.0** (MINOR). `versionCode` unchanged at 1.

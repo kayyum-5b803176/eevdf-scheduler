@@ -13,23 +13,30 @@ import com.eevdf.app.core.template.DropdownCardView
 import com.eevdf.app.core.template.NavCardView
 import com.eevdf.app.core.template.ToggleCardView
 import com.eevdf.app.core.template.ValueCardView
+import com.google.android.material.tabs.TabLayout
 
 /**
  * Layout demo catalog, opened from Display -> render -> "Layout" card.
  *
- * Every demo card below is built through the closed template construction
- * API in com.eevdf.app.core.template — the same classes any real settings
- * screen uses to build its rows. There is no hand-authored demo card XML
- * anywhere in this module; what renders here is not an approximation of
- * production output, it is production output. See TEMPLATE_CATALOG.md for
- * the piece-sequence rules each class enforces structurally.
+ * Two tabs: "template" (default) — every demo card below, built through
+ * the closed template construction API in com.eevdf.app.core.template,
+ * the same classes any real settings screen uses to build its rows —
+ * and "model", a single global box-model diagram (screen-to-card gap,
+ * real card-to-card gap, corner radius, shared inner padding) read from
+ * the real dimen resources, not per-template. There is no hand-authored
+ * demo card XML anywhere in this module; what renders in "template" is
+ * not an approximation of production output, it is production output.
+ * See TEMPLATE_CATALOG.md for the piece-sequence rules each class
+ * enforces structurally.
  *
- * Ships with the same blank/unwired TabLayout pattern every screen in this
- * catalog carries, per convention.
+ * This is the first screen in the catalog whose own previously-blank
+ * TabLayout extension point gets wired up, rather than shipping unused.
  */
 class LayoutDemoActivity : AppCompatActivity() {
 
+    private lateinit var tabLayout: TabLayout
     private lateinit var demoContainer: LinearLayout
+    private lateinit var modelContainer: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,7 +47,23 @@ class LayoutDemoActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Layout"
 
+        tabLayout = findViewById(R.id.tabLayout)
         demoContainer = findViewById(R.id.demoContainer)
+        modelContainer = findViewById(R.id.modelContainer)
+
+        tabLayout.addTab(tabLayout.newTab().setText("template"))
+        tabLayout.addTab(tabLayout.newTab().setText("model"))
+
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val showTemplate = tab.position == 0
+                demoContainer.visibility = if (showTemplate) View.VISIBLE else View.GONE
+                modelContainer.visibility = if (showTemplate) View.GONE else View.VISIBLE
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
+
         buildDemos()
     }
 
