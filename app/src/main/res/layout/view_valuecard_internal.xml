@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Internal to ValueCardView. Never included, inflated, or copied by any
+    page-level layout.
+
+    Piece 2 (slider) and piece 3 (caption row) are visibility-linked as one
+    unit here, matching the public API: ValueCardView exposes a single
+    nullable `slider: SliderConfig?` property that carries both the
+    slider's own range/value AND the caption text. There is no separate
+    property for the caption alone - the illegal shape (0,3), a caption
+    with no slider above it, cannot be expressed by a caller at all,
+    because the caption's own text fields live inside the same object
+    that turns the slider on.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/valueCardRoot"
+        style="@style/App.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/app_card_gap"
+        android:layout_marginEnd="@dimen/app_card_gap"
+        android:layout_marginTop="@dimen/app_card_gap"
+        android:layout_marginBottom="@dimen/app_card_gap">
+
+        <LinearLayout style="@style/App.SettingsCard.Body">
+
+            <!-- Piece 0 [F] - label (reserved slot) + value, always present. -->
+            <LinearLayout style="@style/App.ValueRow">
+                <TextView
+                    android:id="@+id/valueCardLabel"
+                    style="@style/App.ValueRow.Label"
+                    android:layout_width="@dimen/app_label_slot_md"
+                    android:layout_weight="0" />
+                <TextView
+                    android:id="@+id/valueCardValue"
+                    style="@style/App.ValueRow.Value"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <!-- Piece 1 [O] - description. -->
+            <TextView
+                android:id="@+id/valueCardDescription"
+                style="@style/App.SwitchRow.Description"
+                android:layout_marginTop="@dimen/app_spacing_cs"
+                android:layout_marginBottom="@dimen/app_spacing_md"
+                android:visibility="gone" />
+
+            <!-- Piece 2 [O] + Piece 3 [O] - slider and its caption row.
+                 Visibility-linked: both shown together, or both gone. -->
+            <com.google.android.material.slider.Slider
+                android:id="@+id/valueCardSlider"
+                style="@style/App.Slider"
+                android:layout_marginTop="0dp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/valueCardCaptionRow"
+                style="@style/App.Slider.CaptionRow"
+                android:visibility="gone">
+                <TextView
+                    android:id="@+id/valueCardCaptionStart"
+                    style="@style/App.Slider.CaptionStart" />
+                <TextView
+                    android:id="@+id/valueCardCaptionEnd"
+                    style="@style/App.Slider.CaptionEnd" />
+            </LinearLayout>
+
+            <!-- [S] spacer - present only when pieces 1..3 push the card's
+                 total height past what its own [F] piece already covers. -->
+            <View
+                android:id="@+id/valueCardSpacer"
+                style="@style/App.Row.Value.Spacer"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</merge>

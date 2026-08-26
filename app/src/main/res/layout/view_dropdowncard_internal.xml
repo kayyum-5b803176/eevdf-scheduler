@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Internal to DropdownCardView. Never included, inflated, or copied by any
+    page-level layout.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/dropdownCardRoot"
+        style="@style/App.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/app_card_gap"
+        android:layout_marginEnd="@dimen/app_card_gap"
+        android:layout_marginTop="@dimen/app_card_gap"
+        android:layout_marginBottom="@dimen/app_card_gap">
+
+        <LinearLayout style="@style/App.SettingsCard.Body">
+
+            <!-- Piece 0 [F] - title, always present. -->
+            <TextView
+                android:id="@+id/dropdownCardTitle"
+                style="@style/App.SwitchRow"
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+            <!-- Piece 1 [F] - dropdown control, always present even with
+                 an empty option list (shown disabled, never removed). -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/dropdownCardInputLayout"
+                style="@style/App.TextInput.Dropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <AutoCompleteTextView
+                    android:id="@+id/dropdownCardField"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:cursorVisible="false" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Piece 2 [O] - helper action button. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/dropdownCardHelperButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/app_spacing_lg"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:visibility="gone" />
+
+            <!-- [S] spacer -->
+            <View
+                android:id="@+id/dropdownCardSpacer"
+                style="@style/App.Row.Dropdown.Spacer"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</merge>

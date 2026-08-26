@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Internal to NavCardView. Never included, inflated, or copied by any
+    page-level layout — NavCardView.kt is the only sanctioned way a
+    NavCard ever gets built. Piece order (title-row, subtitle, spacer)
+    is fixed here and is not a parameter of the public API; a caller can
+    only choose WHETHER pieces exist (via nullable properties), never
+    their order or their relationship to each other.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/navCardRoot"
+        style="@style/App.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/app_card_gap"
+        android:layout_marginEnd="@dimen/app_card_gap"
+        android:layout_marginTop="@dimen/app_card_gap"
+        android:layout_marginBottom="@dimen/app_card_gap">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Piece 0 [F] - title row. Style swapped between App.Row.Nav
+                 (clickable, chevron) and App.Row.Reserved (not clickable, no
+                 chevron) entirely inside NavCardView.kt based on the single
+                 `clickable` property - a caller never touches this row's
+                 style directly. -->
+            <LinearLayout
+                android:id="@+id/navCardTitleRow"
+                style="@style/App.Row.Nav">
+
+                <LinearLayout style="@style/App.Row.TextBlock">
+                    <TextView
+                        android:id="@+id/navCardTitle"
+                        style="@style/App.Row.Title" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/navCardChevron"
+                    style="@style/App.Text.Chevron"
+                    android:text="&#8250;" />
+
+            </LinearLayout>
+
+            <!-- Piece 1 [O] - subtitle. Visibility toggled entirely by
+                 NavCardView.kt based on whether `subtitle` is null; never a
+                 parameter a caller sets directly. -->
+            <TextView
+                android:id="@+id/navCardSubtitle"
+                style="@style/App.Row.Subtitle"
+                android:layout_width="match_parent"
+                android:layout_marginStart="@dimen/app_row_padding_horizontal"
+                android:layout_marginEnd="@dimen/app_row_padding_horizontal"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
+                android:visibility="gone" />
+
+            <!-- [S] spacer - present only alongside the subtitle piece,
+                 exactly like the subtitle's own visibility. Never settable
+                 independently; there is no public property for it at all. -->
+            <View
+                android:id="@+id/navCardSpacer"
+                style="@style/App.Row.Nav.Spacer"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</merge>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Internal to ToggleCardView. Never included, inflated, or copied by any
+    page-level layout.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/toggleCardRoot"
+        style="@style/App.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/app_card_gap"
+        android:layout_marginEnd="@dimen/app_card_gap"
+        android:layout_marginTop="@dimen/app_card_gap"
+        android:layout_marginBottom="@dimen/app_card_gap">
+
+        <LinearLayout style="@style/App.SettingsCard.Body">
+
+            <!-- Piece 0 [F] - title + switch, always present. -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/toggleCardSwitch"
+                style="@style/App.SwitchRow" />
+
+            <!-- Piece 1 [O] - description. Visibility toggled entirely by
+                 ToggleCardView.kt based on whether `description` is null. -->
+            <TextView
+                android:id="@+id/toggleCardDescription"
+                style="@style/App.SwitchRow.Description"
+                android:visibility="gone" />
+
+            <!-- [S] spacer - present only alongside the description piece. -->
+            <View
+                android:id="@+id/toggleCardSpacer"
+                style="@style/App.Row.Toggle.Spacer"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</merge>

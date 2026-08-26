@@ -28,7 +28,7 @@ fail() { red "  FAIL: $*"; FAILURES=$((FAILURES+1)); }
 LAYOUT_DIR="app/src/main/res/layout"
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[1/5] Raw dp on margin/padding — must come from the spacing/card-padding scale"
+echo "[1/6] Raw dp on margin/padding — must come from the spacing/card-padding scale"
 # ─────────────────────────────────────────────────────────────────────────────
 # Grandfathered: dialog/list-item/toolbar-menu layouts pre-date the settings-row
 # template and are a different component family (single-line picker rows,
@@ -80,7 +80,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[2/5] Raw sp on textSize — must come from the text-size scale"
+echo "[2/6] Raw sp on textSize — must come from the text-size scale"
 # ─────────────────────────────────────────────────────────────────────────────
 GRANDFATHERED_SP="
 dialog_group_picker.xml
@@ -111,7 +111,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[3/5] Legacy text-color tokens — textPrimary/textSecondary/textOnHeader"
+echo "[3/6] Legacy text-color tokens — textPrimary/textSecondary/textOnHeader"
 # ─────────────────────────────────────────────────────────────────────────────
 # These predate the app_text_title / app_text_body / app_text_label family and
 # read identically in light mode but do NOT track values-night the same way,
@@ -145,7 +145,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[4/5] Directional anchoring — no left/right, only start/end"
+echo "[4/6] Directional anchoring — no left/right, only start/end"
 # ─────────────────────────────────────────────────────────────────────────────
 # Zero tolerance, zero grandfather: a left/right anchor silently breaks the
 # moment the app ships an RTL locale, and every screen in the app already
@@ -170,7 +170,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-echo "[5/5] Style implicit-parent resolution — dot-notation inheritance must resolve"
+echo "[5/6] Style implicit-parent resolution — dot-notation inheritance must resolve"
 # ─────────────────────────────────────────────────────────────────────────────
 # Android's dot-notation implicit style inheritance strips the LAST segment
 # of a style name to find its parent when no parent= is given. A style named
@@ -247,6 +247,48 @@ if [ -n "$PY_OUT" ]; then
   ylw "  just because the dotted name looks like it should nest under something."
 else
   grn "  OK — every style's parent (implicit or explicit) resolves"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo "[6/6] XML comment validity — no literal -- inside a comment body"
+# ─────────────────────────────────────────────────────────────────────────────
+# A literal double-hyphen anywhere inside an XML comment's body is invalid
+# per the XML spec (only the opening <!-- and closing --> delimiters may
+# contain it). AAPT fails the whole file on this with a parse error that
+# gives no indication it's a comment-formatting issue. This exact mistake —
+# using "--" as a prose dash separator inside a doc comment — has recurred
+# multiple times across this project's layout and values files. Checked
+# here with an actual comment-body parser, not a naive text search (which
+# false-positives on em-dashes and box-drawing characters that are legal).
+PY_OUT=""
+if [ -d "$LAYOUT_DIR" ] || [ -d "$VALUES_DIR" ]; then
+  PY_OUT=$(python3 - "$LAYOUT_DIR" "$VALUES_DIR" << 'PYEOF'
+import re, sys, glob
+
+dirs = sys.argv[1:]
+problems = []
+for d in dirs:
+    for fpath in glob.glob(f"{d}/*.xml"):
+        content = open(fpath).read()
+        for m in re.finditer(r'<!--(.*?)-->', content, re.DOTALL):
+            if '--' in m.group(1):
+                snippet = m.group(1).strip().replace('\n', ' ')[:60]
+                problems.append(f"{fpath}: \"{snippet}...\"")
+
+for p in problems:
+    print(p)
+PYEOF
+)
+fi
+
+if [ -n "$PY_OUT" ]; then
+  COUNT=$(printf '%s\n' "$PY_OUT" | grep -c .)
+  fail "$COUNT XML file(s) with a literal -- inside a comment body"
+  printf '%s\n' "$PY_OUT" | sed 's/^/  /'
+  ylw "  Use a single hyphen, an em dash, or box-drawing characters instead —"
+  ylw "  a literal double-hyphen anywhere inside a comment's body is invalid XML."
+else
+  grn "  OK — no invalid comment bodies found"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

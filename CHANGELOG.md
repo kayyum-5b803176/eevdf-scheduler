@@ -1,5 +1,66 @@
 # Changelog
 
+## 5.7.0 — Closed template construction API; Layout demo now uses it
+
+`versionName` 5.6.0 → **5.7.0** (MINOR). `versionCode` unchanged at 1.
+
+### Added — com.eevdf.app.core.template
+
+Four closed construction classes — `NavCardView`, `ToggleCardView`,
+`ValueCardView`, `DropdownCardView` — one per fundamental template in
+TEMPLATE_CATALOG.md. These are now the only sanctioned way any of these
+four templates is ever built. Each inflates its own internal `<merge>`
+layout (`view_*card_internal.xml`) that no page-level layout references
+or copies; the class's public API is the entire surface area a caller
+has access to.
+
+This moves the catalog's piece-sequence rules from documentation and a
+CI grep-based linter (both of which depend on someone reading them) to
+the type system: an illegal shape is not flagged after the fact, it is
+not constructible in the first place.
+
+- **Fundamental pieces are required, non-blank, and compile-enforced**
+  via each class's `create(...)` factory — `NavCardView.title`,
+  `ToggleCardView.title`, `ValueCardView.label`/`value`,
+  `DropdownCardView.title`/`options` cannot be omitted from a `create()`
+  call; it does not compile. (The underlying property setters still
+  exist for XML-attribute inflation and additionally `require()` a
+  non-blank value at runtime, but `create()` is the documented
+  recommended path.)
+- **Optional pieces are nullable properties**, each visibility-linked to
+  its own `[S]` spacer with no separate spacer property at all — a
+  caller cannot show a spacer without also showing the piece that earns
+  it, because there is nothing to set independently.
+- **`ValueCardView.SliderConfig` bundles a slider's range/value together
+  with its caption text into one nullable object.** This is the
+  structural proof point: the catalog's legal subsets are (0), (0,1),
+  (0,2,3), (0,1,2,3) — a caption is never legal without a slider above
+  it. There is no separate caption-text property a caller could set
+  without a slider; the illegal (0,3) shape cannot be expressed in this
+  API, not merely discouraged by it.
+
+### Changed — Layout demo screen now runs on the closed API
+
+`activity_layout_demo.xml`'s hand-authored demo card XML is gone.
+`LayoutDemoActivity.kt` now builds every demo by calling
+`NavCardView.create(...)`, `ToggleCardView.create(...)`, etc., directly
+— the same classes any real settings screen would use. What renders in
+Render → Layout is not an approximation of production output; it is
+production output, built through the identical code path.
+
+### Added — scripts/check_ui_geometry.sh, check 6/6
+
+New check: no literal `--` inside an XML comment body anywhere in
+`app/src/main/res/layout` or `app/src/main/res/values`. This exact
+mistake — using a double-hyphen as a prose dash separator inside a doc
+comment, which is invalid per the XML spec and fails AAPT with an
+unhelpful parse error — has now recurred independently across at least
+three separate rounds of edits to this project (`activity_layout_demo.xml`
+in 5.5.0, `activity_color_matrix.xml`/`themes.xml` in 5.6.0, and all four
+new `view_*card_internal.xml` files in this version). Verified by
+injecting the exact violation, confirming the check names the right file
+and snippet, then restoring and confirming a clean pass.
+
 ## 5.6.0 — Color matrix screen under Display → render
 
 `versionName` 5.5.0 → **5.6.0** (MINOR). `versionCode` unchanged at 1.
