@@ -45,27 +45,27 @@ class LayoutDemoActivity : AppCompatActivity() {
     }
 
     private fun buildDemos() {
-        addIntro("Demo instances of each catalog template, built from the same closed construction API real settings pages use. Metric lines show the real computed geometry, not a placeholder.")
+        addIntro("Demo instances of each catalog template, built from the same closed construction API real settings pages use. Rendered in compact mode: minimum padding on this page only, scale-rung alignment intentionally dropped in favor of native content height. Real settings screens are unaffected.")
 
         addLabel("NavCard — (0)")
         demoContainer.addView(
-            NavCardView.create(this, title = "demo title")
+            NavCardView.create(this, title = "demo title", compact = true)
         )
-        addMetric("App.Row.Nav · piece 0 = app_row_min_height (48dp) · already on-scale, no spacer")
+        addMetric("compact: card margin 10dp -> 4dp. Row height stays 48dp (minHeight floor, unaffected by padding).")
         addDivider()
 
         addLabel("NavCard — (0,1)")
         demoContainer.addView(
-            NavCardView.create(this, title = "demo title", subtitle = "demo subtitle text")
+            NavCardView.create(this, title = "demo title", subtitle = "demo subtitle text", compact = true)
         )
-        addMetric("piece 0 (48dp) + piece 1 (18dp) = 66dp -> App.Row.Nav.Spacer +6dp -> app_row_boundary_rung_72")
+        addMetric("compact: piece 0 (48dp) + piece 1 (18dp) = 66dp, native height, spacer dropped (was +6dp to app_row_boundary_rung_72)")
         addDivider()
 
         addLabel("ToggleCard — (0,1)")
         demoContainer.addView(
-            ToggleCardView.create(this, title = "demo toggle", description = "demo description text")
+            ToggleCardView.create(this, title = "demo toggle", description = "demo description text", compact = true)
         )
-        addMetric("piece 0 (~32dp) + piece 1 (~20dp) + card padding (40dp) = 92dp -> App.Row.Toggle.Spacer +4dp -> app_row_boundary_rung_96")
+        addMetric("compact: piece 0 (~32dp) + piece 1 (~20dp) + card padding 16dp (was 40dp) = ~68dp, native height, spacer dropped")
         addDivider()
 
         addLabel("ValueCard — (0,1,2,3)")
@@ -78,17 +78,18 @@ class LayoutDemoActivity : AppCompatActivity() {
                 slider = ValueCardView.SliderConfig(
                     valueFrom = 0f, valueTo = 100f, stepSize = 1f, value = 42f,
                     captionStart = "0", captionEnd = "100"
-                )
+                ),
+                compact = true
             )
         )
-        addMetric("pieces 0+1+2+3 (~104dp) + card padding (40dp) = 144dp -> App.Row.Value.Spacer +16dp -> app_row_boundary_rung_160")
+        addMetric("compact: pieces 0+1+2+3 (~104dp) + card padding 16dp (was 40dp) = ~120dp, native height, spacer dropped")
         addDivider()
 
         addLabel("DropdownCard — (0,1)")
         demoContainer.addView(
-            DropdownCardView.create(this, title = "demo label", options = listOf("demo option"))
+            DropdownCardView.create(this, title = "demo label", options = listOf("demo option"), compact = true)
         )
-        addMetric("piece 0 (~20dp) + piece 1 (~56dp) + card padding (40dp) = 116dp -> App.Row.Dropdown.Spacer +44dp -> app_row_boundary_rung_160 (reused)")
+        addMetric("compact: piece 0 (~20dp) + piece 1 (~56dp) + card padding 16dp (was 40dp) = ~92dp, native height, spacer dropped")
     }
 
     private fun addIntro(text: String) {
@@ -97,9 +98,9 @@ class LayoutDemoActivity : AppCompatActivity() {
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.app_text_size_sm))
         tv.setTextColor(ContextCompat.getColor(this, R.color.app_text_body))
         tv.setPadding(
-            resources.getDimensionPixelSize(R.dimen.app_card_gap), 0,
-            resources.getDimensionPixelSize(R.dimen.app_card_gap),
-            resources.getDimensionPixelSize(R.dimen.app_spacing_lg)
+            resources.getDimensionPixelSize(R.dimen.app_spacing_md), 0,
+            resources.getDimensionPixelSize(R.dimen.app_spacing_md),
+            resources.getDimensionPixelSize(R.dimen.app_spacing_md)
         )
         demoContainer.addView(tv)
     }
@@ -110,7 +111,7 @@ class LayoutDemoActivity : AppCompatActivity() {
         val params = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        val gap = resources.getDimensionPixelSize(R.dimen.app_card_gap)
+        val gap = resources.getDimensionPixelSize(R.dimen.app_spacing_md)
         val small = resources.getDimensionPixelSize(R.dimen.app_spacing_sm)
         params.marginStart = gap
         params.marginEnd = gap
@@ -125,10 +126,11 @@ class LayoutDemoActivity : AppCompatActivity() {
         val params = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        val gap = resources.getDimensionPixelSize(R.dimen.app_card_gap)
+        val gap = resources.getDimensionPixelSize(R.dimen.app_spacing_md)
+        val small = resources.getDimensionPixelSize(R.dimen.app_spacing_sm)
         params.marginStart = gap
         params.marginEnd = gap
-        params.bottomMargin = gap
+        params.bottomMargin = small
         tv.layoutParams = params
         demoContainer.addView(tv)
     }

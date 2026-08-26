@@ -1,5 +1,55 @@
 # Changelog
 
+## 5.8.0 — Compact display density, scoped to the Render → Layout demo page
+
+`versionName` 5.7.0 → **5.8.0** (MINOR). `versionCode` unchanged at 1.
+
+### Added — `compact: Boolean` on all 4 closed template classes
+
+`NavCardView`, `ToggleCardView`, `ValueCardView`, `DropdownCardView` each
+gained a `compact` property (default `false`) and `create(...)` factory
+parameter. This is the mechanism used to scope the padding reduction
+requested for the Render → Layout demo page to that page alone: `compact`
+defaults to `false`, and — verified before shipping — the only call
+sites anywhere in the codebase passing `compact = true` are inside
+`LayoutDemoActivity.kt`. No real settings screen currently constructs
+any of these four classes at all, so this change has zero effect outside
+the one page it targets.
+
+When `compact = true`:
+- Card outer margin: `app_card_gap` (10dp) → `app_spacing_sm` (4dp)
+- `NavCard`'s title-row padding: `app_row_padding_horizontal`/`vertical`
+  (16dp/14dp) → `app_spacing_md`/`app_spacing_sm` (8dp/4dp) — `App.Row.Base`'s
+  `minHeight` (48dp, the accessibility touch-target floor) is never
+  touched, so `NavCard`'s row height is unchanged regardless of density.
+- `ToggleCard`/`ValueCard`/`DropdownCard`'s body padding:
+  `app_card_padding_lg` (20dp) → `app_spacing_md` (8dp)
+
+All values are drawn from the existing spacing scale — no raw dp
+literals were introduced.
+
+### Changed — `[S]` spacers are dropped entirely under `compact`, not resized
+
+Each spacer's fixed size was originally computed to align a card's
+*non-compact* total height to a boundary rung (`app_row_boundary_rung_72`
+etc.). Shrinking padding changes that total, so the old spacer size no
+longer aligns to any correct rung under `compact` mode. Recomputing a
+new rung for the reduced total was considered and rejected: rung
+alignment is a cosmetic preference, and the earlier established rule —
+"if the scale-jump creates conflict, drop the jump requirement" —
+directly covers this case, since a request for minimum space is exactly
+that conflict. Every spacer is fully suppressed (`View.GONE`) under
+`compact`; cards render at their native content-driven height instead.
+
+### Changed — LayoutDemoActivity's own scaffolding spacing reduced
+
+`addIntro`/`addLabel`/`addMetric`'s margins and padding, previously
+using `app_card_gap` (10dp) throughout, now use `app_spacing_md`/`sm`
+(8dp/4dp) — the section labels and metric captions between demo cards
+no longer carry the same margin as the cards themselves. Metric caption
+text was rewritten to state the real compact-mode numbers, including
+that the boundary-rung alignment is intentionally dropped on this page.
+
 ## 5.7.0 — Closed template construction API; Layout demo now uses it
 
 `versionName` 5.6.0 → **5.7.0** (MINOR). `versionCode` unchanged at 1.

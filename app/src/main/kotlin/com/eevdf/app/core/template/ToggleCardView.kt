@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.eevdf.app.R
@@ -16,6 +17,11 @@ import com.google.android.material.switchmaterial.SwitchMaterial
  * Piece 0 [F] — title + switch, always present, required and non-blank.
  * Piece 1 [O] — description. Present iff [description] is non-null.
  * [S] spacer  — present iff piece 1 is present. Not a settable property.
+ *
+ * [compact] is a display-density toggle, defaulting to false — every
+ * existing screen keeps its current spacing unless it opts in. Currently
+ * used only by the Render -> Layout demo screen. Never touches this
+ * card's minHeight.
  */
 class ToggleCardView @JvmOverloads constructor(
     context: Context,
@@ -25,6 +31,8 @@ class ToggleCardView @JvmOverloads constructor(
     private val switchView: SwitchMaterial
     private val descriptionView: TextView
     private val spacerView: View
+    private val cardRoot: View
+    private val bodyView: View
 
     /** Piece 0 [F]. Required, non-blank. */
     var title: String = ""
@@ -56,15 +64,51 @@ class ToggleCardView @JvmOverloads constructor(
 
     var onCheckedChange: ((Boolean) -> Unit)? = null
 
+    /** Display-density toggle. See class doc. */
+    var compact: Boolean = false
+        set(value) {
+            field = value
+            applyDensity(value)
+        }
+
     init {
         LayoutInflater.from(context).inflate(R.layout.view_togglecard_internal, this, true)
         switchView = findViewById(R.id.toggleCardSwitch)
         descriptionView = findViewById(R.id.toggleCardDescription)
         spacerView = findViewById(R.id.toggleCardSpacer)
+        cardRoot = findViewById(R.id.toggleCardRoot)
+        bodyView = findViewById(R.id.toggleCardBody)
         switchView.setOnCheckedChangeListener { _, isChecked ->
             checkedBacking = isChecked
             onCheckedChange?.invoke(isChecked)
         }
+    }
+
+    /**
+     * The [S] spacer exists only to align this card's total height to a
+     * boundary rung — a cosmetic preference dropped entirely in compact
+     * mode, where the card renders at its native content-driven height
+     * instead. No scale-rung recomputation is attempted here; the
+     * spacer is fully suppressed, not resized.
+     */
+    private fun applyDensity(isCompact: Boolean) {
+        val gap = resources.getDimensionPixelSize(
+            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_card_gap
+        )
+        (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
+            lp.topMargin = gap
+            lp.bottomMargin = gap
+            lp.marginStart = gap
+            lp.marginEnd = gap
+            cardRoot.layoutParams = lp
+        }
+        val bodyPad = resources.getDimensionPixelSize(
+            if (isCompact) R.dimen.app_spacing_md else R.dimen.app_card_padding_lg
+        )
+        bodyView.setPadding(bodyPad, bodyPad, bodyPad, bodyPad)
+
+        if (isCompact) spacerView.visibility = View.GONE
+        else spacerView.visibility = if (description != null) View.VISIBLE else View.GONE
     }
 
     companion object {
@@ -81,11 +125,13 @@ class ToggleCardView @JvmOverloads constructor(
             title: String,
             description: String? = null,
             checked: Boolean = false,
+            compact: Boolean = false,
             onCheckedChange: ((Boolean) -> Unit)? = null
         ): ToggleCardView = ToggleCardView(context).apply {
             this.title = title
             this.description = description
             this.checked = checked
+            this.compact = compact
             this.onCheckedChange = onCheckedChange
         }
     }

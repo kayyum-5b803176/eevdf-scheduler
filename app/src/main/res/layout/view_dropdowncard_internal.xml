@@ -16,7 +16,9 @@
         android:layout_marginTop="@dimen/app_card_gap"
         android:layout_marginBottom="@dimen/app_card_gap">
 
-        <LinearLayout style="@style/App.SettingsCard.Body">
+        <LinearLayout
+            android:id="@+id/dropdownCardBody"
+            style="@style/App.SettingsCard.Body">
 
             <!-- Piece 0 [F] - title, always present. -->
             <TextView

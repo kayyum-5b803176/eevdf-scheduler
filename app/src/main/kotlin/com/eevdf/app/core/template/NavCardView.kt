@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.eevdf.app.R
@@ -32,6 +33,13 @@ import com.eevdf.app.R
  * [onNavigate] fires) or the "reserved / coming soon" placeholder row
  * (no chevron, no ripple, not clickable) — never a new template, per
  * TEMPLATE_CATALOG.md's "what is deliberately not a template" section.
+ *
+ * [compact] is a display-density toggle, defaulting to false. It never
+ * changes the piece sequence, only the spacing scale-rung values applied
+ * to margins/padding — and never [App.Row.Base]'s own minHeight, which
+ * stays at the accessibility-recommended touch-target floor regardless.
+ * Every existing call site is unaffected unless it explicitly opts in;
+ * this is currently used only by the Render -> Layout demo screen.
  */
 class NavCardView @JvmOverloads constructor(
     context: Context,
@@ -43,6 +51,19 @@ class NavCardView @JvmOverloads constructor(
     private val chevronView: TextView
     private val spacerView: View
     private val titleRow: View
+    private val cardRoot: View
+
+    /**
+     * Display-density toggle. false (default) = every existing screen's
+     * current spacing, unchanged. true = reduced margins/padding drawn
+     * from the same fixed scale (app_spacing_sm/md), never a raw value —
+     * currently opted into only by the Render -> Layout demo screen.
+     */
+    var compact: Boolean = false
+        set(value) {
+            field = value
+            applyDensity(value)
+        }
 
     /** Piece 0 [F]. Required, non-blank — enforced in the setter. */
     var title: String = ""
@@ -87,7 +108,47 @@ class NavCardView @JvmOverloads constructor(
         chevronView = findViewById(R.id.navCardChevron)
         spacerView = findViewById(R.id.navCardSpacer)
         titleRow = findViewById(R.id.navCardTitleRow)
+        cardRoot = findViewById(R.id.navCardRoot)
         applyClickableState(navigable)
+    }
+
+    /**
+     * Reduces the card's outer margin and the title row's own padding to
+     * the smallest values already on the spacing scale (app_spacing_sm,
+     * app_spacing_md) — never a raw dp literal, never touching
+     * App.Row.Base's minHeight (the accessibility touch-target floor).
+     *
+     * The [S] spacer's fixed size was computed to align this card's
+     * NON-compact total height to a boundary rung — that alignment goes
+     * stale the moment padding shrinks, since the spacer is a fixed
+     * style-driven size, not a recomputed one. Rather than compute a
+     * new (never-verified) rung for the compact total, the spacer is
+     * suppressed entirely here: rung-alignment is a cosmetic preference
+     * that yields under conflict, and "minimum space, no waste" is
+     * exactly that conflict.
+     */
+    private fun applyDensity(isCompact: Boolean) {
+        val gap = resources.getDimensionPixelSize(
+            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_card_gap
+        )
+        (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
+            lp.topMargin = gap
+            lp.bottomMargin = gap
+            lp.marginStart = gap
+            lp.marginEnd = gap
+            cardRoot.layoutParams = lp
+        }
+
+        val hPad = resources.getDimensionPixelSize(
+            if (isCompact) R.dimen.app_spacing_md else R.dimen.app_row_padding_horizontal
+        )
+        val vPad = resources.getDimensionPixelSize(
+            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_row_padding_vertical
+        )
+        titleRow.setPadding(hPad, vPad, hPad, vPad)
+
+        if (isCompact) spacerView.visibility = View.GONE
+        else spacerView.visibility = if (subtitle != null) View.VISIBLE else View.GONE
     }
 
     private fun applyClickableState(enabled: Boolean) {
@@ -117,11 +178,13 @@ class NavCardView @JvmOverloads constructor(
             title: String,
             subtitle: String? = null,
             navigable: Boolean = true,
+            compact: Boolean = false,
             onNavigate: (() -> Unit)? = null
         ): NavCardView = NavCardView(context).apply {
             this.title = title
             this.subtitle = subtitle
             this.navigable = navigable
+            this.compact = compact
             this.onNavigate = onNavigate
         }
     }

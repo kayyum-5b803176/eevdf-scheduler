@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.eevdf.app.R
@@ -54,6 +55,8 @@ class ValueCardView @JvmOverloads constructor(
     private val captionStartView: TextView
     private val captionEndView: TextView
     private val spacerView: View
+    private val cardRoot: View
+    private val bodyView: View
 
     /** Piece 0 [F]. Required, non-blank. */
     var label: String = ""
@@ -109,10 +112,39 @@ class ValueCardView @JvmOverloads constructor(
         captionStartView = findViewById(R.id.valueCardCaptionStart)
         captionEndView = findViewById(R.id.valueCardCaptionEnd)
         spacerView = findViewById(R.id.valueCardSpacer)
+        cardRoot = findViewById(R.id.valueCardRoot)
+        bodyView = findViewById(R.id.valueCardBody)
 
         sliderView.addOnChangeListener { _, newValue, fromUser ->
             if (fromUser) slider?.onValueChange?.invoke(newValue)
         }
+    }
+
+    /** Display-density toggle. See other template classes' doc for the
+     *  same property; default false, currently used only by the
+     *  Render -> Layout demo screen. */
+    var compact: Boolean = false
+        set(value) {
+            field = value
+            applyDensity(value)
+        }
+
+    private fun applyDensity(isCompact: Boolean) {
+        val gap = resources.getDimensionPixelSize(
+            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_card_gap
+        )
+        (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
+            lp.topMargin = gap
+            lp.bottomMargin = gap
+            lp.marginStart = gap
+            lp.marginEnd = gap
+            cardRoot.layoutParams = lp
+        }
+        val bodyPad = resources.getDimensionPixelSize(
+            if (isCompact) R.dimen.app_spacing_md else R.dimen.app_card_padding_lg
+        )
+        bodyView.setPadding(bodyPad, bodyPad, bodyPad, bodyPad)
+        recomputeSpacer()
     }
 
     /**
@@ -121,8 +153,18 @@ class ValueCardView @JvmOverloads constructor(
      * Any pieces beyond 0 being present is the only condition checked;
      * exact sizing comes from the style resource itself
      * (app_row_spacer_valuecard_0123), not from anything computed here.
+     *
+     * Under [compact] mode the spacer is dropped unconditionally: its
+     * fixed size was computed to align this card's non-compact total to
+     * a boundary rung, which goes stale the moment padding shrinks.
+     * Rung-alignment is a cosmetic preference that yields under
+     * conflict; "minimum space, no waste" is exactly that conflict.
      */
     private fun recomputeSpacer() {
+        if (compact) {
+            spacerView.visibility = View.GONE
+            return
+        }
         val anyOptionalPiecePresent = description != null || slider != null
         spacerView.visibility = if (anyOptionalPiecePresent) View.VISIBLE else View.GONE
     }
@@ -138,11 +180,13 @@ class ValueCardView @JvmOverloads constructor(
             label: String,
             value: String,
             description: String? = null,
-            slider: SliderConfig? = null
+            slider: SliderConfig? = null,
+            compact: Boolean = false
         ): ValueCardView = ValueCardView(context).apply {
             this.label = label
             this.value = value
             this.description = description
+            this.compact = compact
             this.slider = slider
         }
     }

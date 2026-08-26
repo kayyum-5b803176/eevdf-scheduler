@@ -24,7 +24,9 @@
         android:layout_marginTop="@dimen/app_card_gap"
         android:layout_marginBottom="@dimen/app_card_gap">
 
-        <LinearLayout style="@style/App.SettingsCard.Body">
+        <LinearLayout
+            android:id="@+id/valueCardBody"
+            style="@style/App.SettingsCard.Body">
 
             <!-- Piece 0 [F] - label (reserved slot) + value, always present. -->
             <LinearLayout style="@style/App.ValueRow">
