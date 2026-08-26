@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Layout demo screen. Reached from Display -> render -> "Layout" card.
+
+    Ships with the same blank/unwired TabLayout pattern DisplaySettingsActivity
+    originally had before its ui/render tabs were wired up - present in the
+    layout, not yet connected to any tab content, an intentional extension
+    point for this screen to grow its own tabs later the same way.
+
+    The content below is the demo config catalog that used to live directly
+    under Display's render tab. Every card is built from the same production
+    styles a real settings screen uses (App.Card, App.Row.Nav, App.SwitchRow,
+    App.ValueRow, App.Slider, App.TextInput.Dropdown, etc.) - never a copy or
+    mock. See TEMPLATE_CATALOG.md for the piece-sequence rules each demo below
+    is required to conform to. Each demo shows its real computed metric -
+    the style names in play and the literal dp total, checked against the
+    boundary-rung scale in dimens.xml - not a placeholder.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/screenBackground">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/layoutDemoToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/screenBackground"
+        android:elevation="4dp"
+        app:titleTextColor="@color/app_text_title" />
+
+    <!-- Blank, unwired - same pattern DisplaySettingsActivity originally
+         shipped with. Not connected to any tab content yet. -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
+
+    <ScrollView style="@style/App.PageScroll">
+
+        <LinearLayout style="@style/App.PageContent">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_lg"
+                android:text="Demo instances of each catalog template, built from the same styles real settings pages use. Metric lines show the real computed geometry, not a placeholder."
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_body"
+                android:lineSpacingMultiplier="1.3" />
+
+            <!-- ══ NavCard — (0) ═══════════════════════════════════════ -->
+            <TextView style="@style/App.Text.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
+                android:text="NavCard — (0)" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <LinearLayout style="@style/App.Row.Nav">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="demo title" />
+                        </LinearLayout>
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView style="@style/App.Render.Metric"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap"
+                android:text="App.Row.Nav · piece 0 = app_row_min_height (48dp) · already on-scale, no spacer" />
+
+            <View style="@style/App.Divider.Section" />
+
+            <!-- ══ NavCard — (0,1) ══════════════════════════════════════ -->
+            <TextView style="@style/App.Text.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
+                android:text="NavCard — (0,1)" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <LinearLayout style="@style/App.Row.Nav">
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="demo title" />
+                        </LinearLayout>
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
+                    </LinearLayout>
+                    <TextView style="@style/App.Row.Subtitle"
+                        android:layout_width="match_parent"
+                        android:layout_marginStart="@dimen/app_row_padding_horizontal"
+                        android:layout_marginEnd="@dimen/app_row_padding_horizontal"
+                        android:layout_marginBottom="@dimen/app_spacing_sm"
+                        android:text="demo subtitle text" />
+                    <View style="@style/App.Row.Nav.Spacer" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView style="@style/App.Render.Metric"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap"
+                android:text="piece 0 (48dp) + piece 1 (18dp) = 66dp -&gt; App.Row.Nav.Spacer +6dp -&gt; app_row_boundary_rung_72" />
+
+            <View style="@style/App.Divider.Section" />
+
+            <!-- ══ ToggleCard — (0,1) ═══════════════════════════════════ -->
+            <TextView style="@style/App.Text.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
+                android:text="ToggleCard — (0,1)" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm">
+                <LinearLayout style="@style/App.SettingsCard.Body">
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        style="@style/App.SwitchRow"
+                        android:text="demo toggle" />
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:text="demo description text" />
+                    <View style="@style/App.Row.Toggle.Spacer" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView style="@style/App.Render.Metric"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap"
+                android:text="piece 0 (~32dp) + piece 1 (~20dp) + card padding (40dp) = 92dp -&gt; App.Row.Toggle.Spacer +4dp -&gt; app_row_boundary_rung_96" />
+
+            <View style="@style/App.Divider.Section" />
+
+            <!-- ══ ValueCard — (0,1,2,3) ════════════════════════════════ -->
+            <TextView style="@style/App.Text.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
+                android:text="ValueCard — (0,1,2,3)" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm">
+                <LinearLayout style="@style/App.SettingsCard.Body">
+                    <LinearLayout style="@style/App.ValueRow">
+                        <TextView style="@style/App.ValueRow.Label"
+                            android:layout_width="@dimen/app_label_slot_md"
+                            android:layout_weight="0"
+                            android:text="demo label" />
+                        <TextView style="@style/App.ValueRow.Value"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="42" />
+                    </LinearLayout>
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:text="demo description text"
+                        android:layout_marginTop="@dimen/app_spacing_cs"
+                        android:layout_marginBottom="@dimen/app_spacing_md" />
+                    <com.google.android.material.slider.Slider
+                        style="@style/App.Slider"
+                        android:layout_marginTop="0dp"
+                        android:valueFrom="0" android:valueTo="100"
+                        android:stepSize="1" android:value="42" />
+                    <LinearLayout style="@style/App.Slider.CaptionRow">
+                        <TextView style="@style/App.Slider.CaptionStart"
+                            android:text="0" />
+                        <TextView style="@style/App.Slider.CaptionEnd"
+                            android:text="100" />
+                    </LinearLayout>
+                    <View style="@style/App.Row.Value.Spacer" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView style="@style/App.Render.Metric"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap"
+                android:text="pieces 0+1+2+3 (~104dp) + card padding (40dp) = 144dp -&gt; App.Row.Value.Spacer +16dp -&gt; app_row_boundary_rung_160" />
+
+            <View style="@style/App.Divider.Section" />
+
+            <!-- ══ DropdownCard — (0,1) ═════════════════════════════════ -->
+            <TextView style="@style/App.Text.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm"
+                android:text="DropdownCard — (0,1)" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_spacing_sm">
+                <LinearLayout style="@style/App.SettingsCard.Body">
+                    <TextView style="@style/App.SwitchRow"
+                        android:text="demo label"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/App.TextInput.Dropdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <AutoCompleteTextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="none"
+                            android:focusable="false"
+                            android:focusableInTouchMode="false"
+                            android:cursorVisible="false"
+                            android:text="demo option" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    <View style="@style/App.Row.Dropdown.Spacer" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView style="@style/App.Render.Metric"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap"
+                android:text="piece 0 (~20dp) + piece 1 (~56dp) + card padding (40dp) = 116dp -&gt; App.Row.Dropdown.Spacer +44dp -&gt; app_row_boundary_rung_160 (reused)" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

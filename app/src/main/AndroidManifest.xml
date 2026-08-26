@@ -123,6 +123,13 @@
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
             android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
 
+        <!-- Layout demo catalog, opened from Display -> render -> "Layout" -->
+        <activity
+            android:name="com.eevdf.app.feature.settings.LayoutDemoActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName="com.eevdf.app.feature.settings.DisplaySettingsActivity" />
+
         <!-- Button Action settings screen -->
         <activity
             android:name="com.eevdf.app.feature.settings.ButtonActionActivity"

@@ -1,5 +1,6 @@
 package com.eevdf.app.feature.settings
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.MenuItem
@@ -72,6 +73,10 @@ class DisplaySettingsActivity : AppCompatActivity() {
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             override fun onTabReselected(tab: TabLayout.Tab) {}
         })
+
+        findViewById<LinearLayout>(R.id.rowLayoutDemo).setOnClickListener {
+            startActivity(Intent(this, LayoutDemoActivity::class.java))
+        }
 
         sliderCardHeight  = findViewById(R.id.sliderCardHeight)
         tvCardHeightValue = findViewById(R.id.tvCardHeightValue)

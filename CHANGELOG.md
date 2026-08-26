@@ -1,5 +1,33 @@
 # Changelog
 
+## 5.5.0 — Render tab becomes a card list; demo catalog moves to Layout screen
+
+`versionName` 5.4.0 → **5.5.0** (MINOR). `versionCode` unchanged at 1.
+
+### Changed — render tab restructured
+
+Display's `render` tab previously held the full demo config catalog
+directly. It's now a card list, same pattern as the main Settings page —
+currently a single `NavCard`, "layout," which navigates to a new screen.
+If this card list is ever empty, the tab shows a genuinely blank content
+area — no placeholder message, no empty-state illustration, consistent
+with the piece-sequence rule that optional content fully vanishes rather
+than reserving dead space.
+
+### Added — LayoutDemoActivity
+
+New screen, opened from Display → render → "layout." Manifest-declared
+with `parentActivityName` pointing back to `DisplaySettingsActivity`.
+Hosts the demo config catalog that used to live directly in the render
+tab (NavCard ×2, ToggleCard, ValueCard, DropdownCard, each with its real
+metric caption) — moved verbatim, not recreated.
+
+Ships with the same blank/unwired `TabLayout` pattern
+`DisplaySettingsActivity` originally had before its own `ui`/`render`
+tabs were wired up: present in the layout, not connected to any tab
+content yet — an intentional extension point for this screen to grow
+its own tabs later, the same way.
+
 ## 5.4.0 — Render tab: ToggleCard/ValueCard/DropdownCard demos + real metrics
 
 `versionName` 5.3.0 → **5.4.0** (MINOR). `versionCode` unchanged at 1.
