@@ -58,6 +58,7 @@ import com.eevdf.contract.control.OverlayController
  *   • [TaskCrudDelegate]    — add / update / delete / revert / complete a task
  *   • [AlarmOverrunDelegate] — overrun counter + restart-after-expire
  *   • [BubbleTapDelegate]   — hover-bubble tap during a call
+ *   • [StartupRecoveryDelegate] — app-kill / startup recovery (called from init{})
  *
  * ── Adding a feature to a domain ─────────────────────────────────────────────
  *
@@ -162,6 +163,7 @@ class TaskViewModel @Inject constructor(
     internal val crud        = TaskCrudDelegate(this)
     internal val alarmOverrun = AlarmOverrunDelegate(this)
     internal val bubbleTap   = BubbleTapDelegate(this)
+    internal val startupRecovery = StartupRecoveryDelegate(this)
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
 
@@ -273,76 +275,8 @@ class TaskViewModel @Inject constructor(
         timerEngine.expiredTask.observeForever(expiredObserver)
 
         // ── Startup / app-kill recovery ────────────────────────────────────────
-        viewModelScope.launch {
-            interrupt.postInterruptTask(repository.getInterruptTask())
-            interrupt.postInterruptTaskB(repository.getInterruptTaskB())
-
-            // Step 1: check if alarm is already ringing (app killed mid-alarm)
-            val ringing = alarms.ringingAlarm()
-            if (ringing != null) {
-                // The alarm fired via AlarmManager (e.g. in Doze / background), so the
-                // in-app onTimerFinished() never ran: the run was never credited and the
-                // task is still flagged running in the DB. Finalize it exactly once here.
-                // Idempotent — getRunningTask() only matches isRunning=1 & startTimeEpoch>0,
-                // so after the reset() below a later reopen will not double-credit.
-                val orphan = repository.getRunningTask()
-                val runState = orphan?.timerState as? TaskTimerState.Running
-                if (orphan != null && runState != null) {
-                    val sliceMs       = orphan.timeSliceSeconds * 1000L
-                    val expiryEpochMs = runState.startTimeEpoch + sliceMs - runState.accumulatedMs
-                    val session = RunSession.Recovered(orphan.id, runState.startTimeEpoch, expiryEpochMs)
-                    if (orphan.taskType != "NOTIFICATION") {
-                        repository.updateVruntimeAfterRun(orphan, session)
-                    }
-                    repository.update(orphan.withTimerState(TaskTimerState.reset()))
-                    refreshSchedule()
-                }
-
-                val elapsedSinceExpiry =
-                    ((System.currentTimeMillis() - ringing.firedEpoch) / 1000L)
-                        .coerceAtLeast(0L)
-                _alarmTaskName.postValue(ringing.taskName)
-                _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
-                startInAppOverrunCounter(ringing.taskName, elapsedSinceExpiry)
-                return@launch
-            }
-
-            // Step 2: check if a task was mid-run when app was killed
-            val running = repository.getRunningTask()
-            if (running != null) {
-                val nowMs       = System.currentTimeMillis()
-                val secondsLeft = TaskTimerState.remainingSecs(
-                    running.timerState, running.timeSliceSeconds, nowMs
-                )
-                if (secondsLeft > 0L) {
-                    val corrected = running.copy(remainingSeconds = secondsLeft)
-                    repository.update(corrected)
-                    _currentTask.postValue(corrected)
-                    _timerSeconds.postValue(secondsLeft)
-                    _timerRunning.postValue(true)
-                    timerEngine.restoreFromDb(corrected)
-                    settings.saveSelectedTaskId(corrected.id)
-                } else {
-                    val state         = running.timerState as TaskTimerState.Running
-                    val expiryEpochMs = state.startTimeEpoch +
-                        running.timeSliceSeconds * 1000L - state.accumulatedMs
-                    val session = RunSession.Recovered(
-                        taskId       = running.id,
-                        startEpochMs = state.startTimeEpoch,
-                        endEpochMs   = expiryEpochMs
-                    )
-                    onTimerFinished(running, session = session)
-                }
-                return@launch
-            }
-
-            // Step 3: nothing was mid-run or ringing — re-seat the last-selected
-            // task on the card so it survives reboot / app re-open in its idle
-            // (Start) state. Whether the card is actually shown is decided by the
-            // persisted manual-hide flag, applied in MainActivity. No-op if no id
-            // is stored or the task was since deleted/completed.
-            restorePersistedSelection()
-        }
+        // See StartupRecoveryDelegate for the actual 3-step decision logic.
+        viewModelScope.launch { startupRecovery.recover() }
 
         // ── Build flat lists (must come after repository + delegates are ready) ─
         listBuilder.setup()
@@ -645,7 +579,7 @@ class TaskViewModel @Inject constructor(
      * _currentTask hasn't been set yet (postValue is asynchronous).
      * [session] == null means vruntime was already applied by the caller.
      */
-    private fun onTimerFinished(
+    internal fun onTimerFinished(
         taskOverride: Task?       = null,
         session:      RunSession? = null
     ) {

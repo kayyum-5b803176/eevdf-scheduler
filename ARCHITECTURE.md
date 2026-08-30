@@ -714,15 +714,31 @@ target for a future pass, not a wholesale restructure.
      `startTimer()`, TaskViewModel's own public surface. All fields needed
      were already `internal` — no visibility promotions this time. Function
      count 76 → 72.
-   - **`BubbleTapDelegate` — done, v5.19.0.** `handleBubbleTap` (the
-     deprecated `toggleCallTaskTimer` stays as a facade forwarding to it, per
-     the no-delete rule — it has zero real callers, only its own
-     declaration, but is kept rather than removed). Same shape as the
+   - **`BubbleTapDelegate` — done, v5.19.0. Build-verified only, not
+     functionally verified** — the test device has no telephony support, so
+     the actual call-switching behavior (Cases A/B/C) couldn't be exercised.
+     The deprecated `toggleCallTaskTimer` stays as a facade forwarding to it, per
+     the no-delete rule — it has zero real callers beyond its own
+     declaration, but is kept rather than removed. Same shape as the
      previous two: calls into not-yet-extracted timer lifecycle only through
      `pauseTimer()`/`startTimer()`. All fields already `internal`/public —
      no visibility promotions.
-   - **Still on `TaskViewModel`:** Timer lifecycle (~350 lines), `init{}`
-     recovery (~115 lines).
+   - **`StartupRecoveryDelegate` — done, v5.20.0.** The 3-step app-kill
+     recovery (ringing-alarm finalization, mid-run task resume/finish,
+     persisted-selection restore) that used to run inline inside `init{}`.
+     The riskiest cluster moved so far — a mistake here means a run is
+     silently mis-credited or double-credited. `init{}` itself couldn't
+     move: Kotlin requires `TaskViewModel`'s own `val` LiveData fields
+     (`allTasks`, `activeTasks`, etc.) to be assigned inside an init block or
+     at declaration, not from an external delegate — but the actual recovery
+     *decision logic* could, and does. `init{}` now just calls
+     `startupRecovery.recover()` inside the same `viewModelScope.launch` it
+     always used. `onTimerFinished` promoted from `private` to `internal` so
+     the delegate can call it for the "task expired while app was dead" path.
+   - **Still on `TaskViewModel`:** Timer lifecycle (~350 lines) — the last
+     and biggest cluster, the actual state machine (`startTimer`/
+     `pauseTimer`/`resetTimer`/`onTimerFinished`/`setCurrentTask`) everything
+     else calls into.
 2. Multibound `BackupContributor` / `SyncContributor` so `BackupManager` stops
    being a file every feature edits.
 3. `build-logic/` convention plugins to stop `compileSdk` drifting across four
