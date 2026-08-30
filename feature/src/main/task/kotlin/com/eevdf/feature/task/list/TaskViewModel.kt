@@ -28,7 +28,6 @@ import com.eevdf.feature.task.timer.InterruptDelegate
 import com.eevdf.feature.task.notice.NoticeStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
 import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.contract.control.AlarmController
 import com.eevdf.contract.control.OverlayController
@@ -58,6 +57,7 @@ import com.eevdf.contract.control.OverlayController
  *   • [SortHelper]          — shared number-extraction sort utility
  *   • [TaskCrudDelegate]    — add / update / delete / revert / complete a task
  *   • [AlarmOverrunDelegate] — overrun counter + restart-after-expire
+ *   • [BubbleTapDelegate]   — hover-bubble tap during a call
  *
  * ── Adding a feature to a domain ─────────────────────────────────────────────
  *
@@ -161,6 +161,7 @@ class TaskViewModel @Inject constructor(
     internal val listBuilder = ListBuilderDelegate(this)
     internal val crud        = TaskCrudDelegate(this)
     internal val alarmOverrun = AlarmOverrunDelegate(this)
+    internal val bubbleTap   = BubbleTapDelegate(this)
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
 
@@ -804,61 +805,10 @@ class TaskViewModel @Inject constructor(
 
     /**
      * Called from [BubbleEventBus.onBubbleTap] when the user taps the hover
-     * bubble during a call.
-     *
-     * Behaviour depends on which task is currently active:
-     *
-     *   Case A — Call-assigned task IS the active timer (bubble dot = green):
-     *     Toggle pause/resume of the call task, same as before.
-     *
-     *   Case B — Another task timer is running (bubble dot = blue):
-     *     Interrupt the current task and switch to the call-assigned task.
-     *     This mirrors what [CallSwitchDelegate.handleCallStarted] does
-     *     automatically, but triggered manually by the user mid-call when they
-     *     forgot to switch (e.g. they were already in a timer when the call came
-     *     in and declined the auto-switch, or the feature fired before they
-     *     picked up).
-     *
-     *   Case C — No timer is running (bubble dot = blue, timer paused):
-     *     Start the call-assigned task timer.
-     *
-     * The [com.eevdf.feature.shared.prefs.AutoSwitchPrefs.getCallTaskId]
-     * value is the single source of truth for "which task is the call task".
+     * bubble during a call. See [BubbleTapDelegate.handleBubbleTap] for the
+     * full case breakdown.
      */
-    fun handleBubbleTap() {
-        val ctx        = getApplication<android.app.Application>()
-        val callTaskId = com.eevdf.feature.shared.prefs.AutoSwitchPrefs.getCallTaskId(ctx)
-
-        // No call task configured — fall back to simple toggle (safe default)
-        if (callTaskId == null) {
-            if (_timerRunning.value == true) pauseTimer() else startTimer()
-            return
-        }
-
-        val current = _currentTask.value
-
-        if (current?.id == callTaskId) {
-            // Case A: call task is already active — toggle pause/resume
-            if (_timerRunning.value == true) pauseTimer() else startTimer()
-        } else {
-            // Case B / C: switch to call task, interrupting whatever is running
-            val callTask = activeTasks.value
-                ?.firstOrNull { it.id == callTaskId && !it.isCompleted }
-                ?: run {
-                    _toastMessage.value = "Call task not found — check Auto Switch settings"
-                    return
-                }
-
-            // Pause the currently running task first (no-op if nothing is running)
-            if (_timerRunning.value == true) pauseTimer()
-
-            // Switch to the call task and start it
-            _currentTask.value  = callTask
-            _timerSeconds.value = callTask.remainingSeconds
-            startTimer()
-            _toastMessage.value = "Switched to \"${callTask.name}\""
-        }
-    }
+    fun handleBubbleTap() = bubbleTap.handleBubbleTap()
 
     /** @deprecated Use [handleBubbleTap] — kept to avoid compile errors during migration. */
     @Deprecated("Replaced by handleBubbleTap", ReplaceWith("handleBubbleTap()"))

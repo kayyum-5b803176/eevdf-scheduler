@@ -714,8 +714,15 @@ target for a future pass, not a wholesale restructure.
      `startTimer()`, TaskViewModel's own public surface. All fields needed
      were already `internal` — no visibility promotions this time. Function
      count 76 → 72.
+   - **`BubbleTapDelegate` — done, v5.19.0.** `handleBubbleTap` (the
+     deprecated `toggleCallTaskTimer` stays as a facade forwarding to it, per
+     the no-delete rule — it has zero real callers, only its own
+     declaration, but is kept rather than removed). Same shape as the
+     previous two: calls into not-yet-extracted timer lifecycle only through
+     `pauseTimer()`/`startTimer()`. All fields already `internal`/public —
+     no visibility promotions.
    - **Still on `TaskViewModel`:** Timer lifecycle (~350 lines), `init{}`
-     recovery (~115 lines), bubble-tap handling (~70 lines).
+     recovery (~115 lines).
 2. Multibound `BackupContributor` / `SyncContributor` so `BackupManager` stops
    being a file every feature edits.
 3. `build-logic/` convention plugins to stop `compileSdk` drifting across four
