@@ -191,20 +191,50 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 echo "[6/7] God-file ceiling"
 # ─────────────────────────────────────────────────────────────────────────────
-# MainActivity (1281) and TaskViewModel (1151) are the known offenders and are
-# grandfathered until Phase 2. Nothing else may join them.
+# MainActivity and TaskViewModel are the known offenders. A raw line-count
+# ratchet was tried here first and was wrong: this project's own philosophy
+# (see guard rail 7, below) already says file length is the wrong metric —
+# splitting one function into nine well-named ones can make a file LONGER
+# while making it strictly better. A line-count ceiling would have blocked
+# exactly that kind of healthy change, and made a real Android requirement
+# (a new lifecycle override, a longer but clearer function) look identical
+# to the actual problem (a new, unrelated capability bolted directly onto the
+# god file instead of getting its own delegate).
+#
+# What actually hurts a team is a NEW RESPONSIBILITY landing here instead of
+# in its own file — which shows up as a new top-level function, not as more
+# lines in an existing one. So the ratchet counts functions, not lines: each
+# file's function count at the time this ratchet was introduced is its
+# ceiling. Growing an existing function, or genuinely needing a new required
+# override, doesn't move this number. Adding a new capability does — and
+# should prompt "does this belong in its own delegate instead?" before the
+# ceiling gets raised to allow it.
+#
+# Raising a ceiling is not blocked, only made visible: it requires editing
+# this script in the same change, which any reviewer will see and can ask
+# about — the goal is a conscious decision, not an impossible wall.
 FAILURES_BEFORE_STEP5=$FAILURES
-GRANDFATHERED="MainActivity.kt TaskViewModel.kt"
 LIMIT=800
+declare -A GOD_FILE_FUNCTION_CEILINGS=(
+  ["MainActivity.kt"]=35
+  ["TaskViewModel.kt"]=76
+)
 while IFS= read -r f; do
-  lines=$(wc -l < "$f" | tr -d ' ')
   base=$(basename "$f")
-  case " $GRANDFATHERED " in *" $base "*) continue;; esac
+  if [ -n "${GOD_FILE_FUNCTION_CEILINGS[$base]:-}" ]; then
+    fn_count=$(grep -cE '^\s*(private |internal |override )?fun ' "$f")
+    ceiling="${GOD_FILE_FUNCTION_CEILINGS[$base]}"
+    if [ "$fn_count" -gt "$ceiling" ]; then
+      fail "$f has $fn_count functions (ceiling $ceiling) — a new function here is a new responsibility; give it its own delegate instead, or raise the ceiling in this script with a reason if it genuinely belongs here"
+    fi
+    continue
+  fi
+  lines=$(wc -l < "$f" | tr -d ' ')
   if [ "$lines" -gt "$LIMIT" ]; then
     fail "$f is $lines lines (limit $LIMIT) — split it before it becomes a shared edit surface"
   fi
 done < <(find app contract core data feature platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
-[ "$FAILURES" -eq "$FAILURES_BEFORE_STEP5" ] && grn "  OK (2 files grandfathered: MainActivity, TaskViewModel)"
+[ "$FAILURES" -eq "$FAILURES_BEFORE_STEP5" ] && grn "  OK (MainActivity <= 35 functions, TaskViewModel <= 76, ratcheted on responsibility count, not lines)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo "[7/7] Long-function ratchet"

@@ -147,8 +147,18 @@ exists at the end — schema validation alone won't catch a migration that
 recreates a table without copying rows.
 
 ### 5. Complexity ratchets
-No new file over 800 lines (`MainActivity`, `TaskViewModel` grandfathered). No
-growth in global mutable state.
+No new file over 800 lines. `MainActivity`/`TaskViewModel` are over that limit
+already, but are no longer exempt from the check. The metric isn't line
+count, though — an early draft of this ratchet tried that and was wrong,
+inconsistent with the long-function ratchet's own point below. It's function
+count: each file's function count at the time this ratchet was introduced
+(`MainActivity` 54, later re-set to 35 after Phase 10's extraction;
+`TaskViewModel` 76) is its ceiling, and the build fails if either grows past
+it. Growing an existing function doesn't move this number; adding a new one
+does — that's the actual signal a new responsibility landed here instead of
+in its own delegate. This was introduced in Phase 10 after the previous full
+filename exemption let both files grow silently (1281→1362, 1151→1176 lines)
+with no guard ever checking. No growth in global mutable state.
 
 **Long-function ratchet** — the metric that actually matters for a team. No
 function may exceed today's worst (199), and the count of functions over the
@@ -586,12 +596,93 @@ Phase 8's `RtPolicy`) which were parked for a future wiring, not removed.
 `com.eevdf.feature.task.timer.TimerEngine` is untouched and remains the one
 timer implementation in the app.
 
-## Phase 10 — next: complexity-ratchet backlog (carried over from Phase 2c)
+## Phase 10 — in progress (v5.16.0): complexity-ratchet backlog (carried over from Phase 2c)
 
-1. Split `MainActivity` (1362 lines) and `TaskViewModel` (1177) into
-   per-feature fragments and ViewModels. **Highest value** — the two files
-   every feature currently edits. Follow the delegate pattern already used
-   here rather than inventing a new one.
+**Item 1 was investigated before touching anything, per the pattern
+established in Phase 8.** Splitting `MainActivity`/`TaskViewModel` is
+categorically different from every phase before it: phases 3–7 were renames
+and moves, provably behavior-preserving by construction; phase 8 had existing
+tested pure logic to lean on; phase 9 was a clean deletion of confirmed-dead
+code. This one has none of that — there's no pre-built decomposition to
+discover, and lifecycle-bound Android UI wiring can't be characterization-
+tested the way pure functions can. A mistake here doesn't fail loudly at
+compile time; it fails as "the timer card doesn't update," discovered later,
+in the running app. `MainActivity` was decomposed anyway, on explicit
+instruction to do the whole file in one pass rather than incrementally — see
+the testing checklist shipped alongside this phase's export for what to
+verify on a real device, since that verification could not happen here.
+
+**The guard-rail metric was wrong on the first attempt, and corrected before
+anything shipped.** The first fix tried was a raw line-count ratchet (each
+file's current line count as a hard ceiling). That was inconsistent with this
+project's own stated philosophy one section up in the same guard
+(`[7/7] Long-function ratchet`): *"File length is deliberately NOT the
+metric... splitting `setupObservers()` into nine functions made the file 65
+lines longer and far easier to work in."* A line-count ceiling would have
+blocked exactly that kind of healthy change, and treated a genuinely-required
+new Android override identically to a new, unrelated capability bolted
+directly onto the god file. **The guard now ratchets on function count
+instead** — the number of top-level functions in `MainActivity.kt`/
+`TaskViewModel.kt` can only go down, never up, without a visible edit to
+`scripts/check_architecture.sh` in the same change. Growing an existing
+function doesn't move this number; adding a new one does, which is the actual
+signal that a new responsibility landed somewhere it shouldn't have.
+
+**What "eliminating the god file" actually means, and what it doesn't:**
+neither file can be deleted — `MainActivity` must exist as a real
+`AppCompatActivity` subclass implementing certain Android-required overrides
+directly (`onCreate`, `onCreateOptionsMenu`, etc.); that's the platform's
+contract, not a design choice. What's achievable is functional elimination —
+the file stops being a shared edit surface where logic accumulates, even
+though it still exists as a thin wiring shell.
+
+**`MainActivity`: 1362 → 588 lines, 54 → 35 functions.** Four concerns were
+extracted into their own delegate classes, all in `feature/task/list/`,
+following the exact `internal class XDelegate(private val activity:
+MainActivity)` pattern `TaskViewModel` already uses for its own 7 delegates
+(fields/functions the delegates need were promoted from `private` to
+`internal`, module-visible, same as every existing delegate/owner pair in
+this codebase):
+
+- **`DisplayScaleDelegate`** — `applyDisplayPrefs`, `updateCompactMode`,
+  `applyCardScaleToView`, `applyFabVisibility` (184 lines)
+- **`TimerCardDelegate`** — `renderTimerCard`, `setupTimerCard` (126 lines)
+- **`MenuSyncDelegate`** — menu inflation/selection logic, `updateSyncIcon`,
+  `updateScheduleNextDot`, the content-description view-tree walk (262 lines).
+  `onCreateOptionsMenu`/`onOptionsItemSelected` themselves stay as thin
+  one-line overrides on `MainActivity` — Android calls those directly on the
+  Activity, they cannot be delegated away — forwarding into
+  `inflateMenu`/`handleItemSelected` here.
+- **`ObserverDelegate`** — `setupObservers` and its 9 `observeX` functions
+  (303 lines), the single largest extraction. Calls into the other three
+  delegates (`activity.timerCardDelegate.renderTimerCard(...)`,
+  `activity.menuSyncDelegate.updateSyncIcon(...)`, etc.) and into what stayed
+  on `MainActivity` (`updateEmptyView`, `updateScheduleRankBadge`,
+  `scrollToTask` — all promoted to `internal` for exactly this reason).
+
+**What stayed on `MainActivity`, deliberately:** every lifecycle override
+(`onCreate` through `onPictureInPictureModeChanged`), view setup
+(`setupToolbar`/`setupViews`/`setupAlarmBanner`/`setupAdapters`/
+`setupRecyclerView`/`setupTabs`/`makeAdapter`), and the handful of small
+helpers (`haptic`, `tickQuotaOnVisibleItems`, `scrollToTask`,
+`updateScheduleRankBadge`, `updateEmptyView`, `showTaskDetail`,
+`confirmDelete`) that either are Android-required overrides or are called
+from multiple delegates and don't belong to any single one of them.
+
+**Total lines across all 5 files grew (1362 → 1463)** — same reasoning as the
+guard-rail fix above: more files, each with their own doc comments and class
+boilerplate, is a fair trade for zero files over ~300 lines and each concern
+having exactly one place it can be edited.
+
+**`TaskViewModel` (1176 lines, 76 functions) was not touched this pass.**
+It's a different-shaped problem — it already composes 7 delegates, so
+whatever logic still lives directly on it (not yet in a delegate) is the
+target for a future pass, not a wholesale restructure.
+
+1. Split `MainActivity` (done, see above) and `TaskViewModel` (1176 lines,
+   **not done**) into delegates / per-feature ViewModels. `TaskViewModel` is
+   next — find what logic still lives directly on it versus its existing 7
+   delegates, following the same investigate-before-touching approach.
 2. Multibound `BackupContributor` / `SyncContributor` so `BackupManager` stops
    being a file every feature edits.
 3. `build-logic/` convention plugins to stop `compileSdk` drifting across four
