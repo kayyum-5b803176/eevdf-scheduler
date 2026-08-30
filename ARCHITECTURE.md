@@ -486,12 +486,63 @@ as a standing checklist item for any future phase that moves or renames
 something with external consumers: grep the *whole repo* for the old
 identifier, not just the tree being restructured.
 
-## Phase 8 — next: `data/scheduler` split
+## Phase 8 — done (v5.14.0): `data/scheduler` split
 
-`RtScheduler.kt` mixes `SharedPreferences` read/write (a `:data` concern) with
-window-activation math (a `:core` concern — pure logic, no reason to depend on
-Android). Split so the policy math moves to `:core`, and `:data` keeps only
-the thin persistence adapter.
+**What this phase was expected to be, per the plan above:** move `RtScheduler`'s
+pure window-activation math out of `:data` into `:core`, leaving `:data` with
+only the `SharedPreferences` adapter.
+
+**What it actually was, once the code was checked before touching anything:**
+that move had already happened — just not by this refactor, and never
+finished. `:core` already contained `RtConfig.isWindowActive()`/
+`secondsUntilClose()` and a whole `RtPolicy` object (`hasActiveRtDescendant`,
+`pickRr`, `advanceRr`, `secondsUntilNextActivation`), all characterization-
+tested, all explicitly documented as "ported from the reference `RtScheduler`."
+None of it was wired to a live caller. `:data`'s `RtScheduler.kt` still ran
+its own independent, duplicate, Calendar-based reimplementation of the exact
+same rules, and every real call site — `ListBuilderDelegate`,
+`SchedulerDelegate`, `TaskAdapter`, `BindHelpers`, `TaskRepository` (5 files,
+~12 call sites) — used that duplicate, not the tested pure version.
+
+**This made the phase materially riskier than every phase before it.**
+Every prior phase (3 through 7) was a rename or a file move — provably
+behavior-preserving by construction. This one could change what the
+scheduler actually decides, so it was treated differently: investigated and
+proposed before any code was touched, rather than executed and corrected
+after a compiler run, per the norm this refactor otherwise followed.
+
+**The fix:** rewrote `RtScheduler.kt`'s internals only — every public
+function keeps its exact original signature, so **zero call sites needed to
+change**. Internally, each function now converts `Task` -> `SchedTask` (via
+`:data`'s existing `toSched()`, the same adapter `SchedulerFacade` already
+uses for EEVDF) and the current instant -> `(dayIndex, secondOfDay,
+prevDayIndex)`, then delegates to `RtPolicy`/`RtConfig`. `DAY_SUN`..`DAY_ALL`
+now delegate to a new `RtConfig` companion (single source of truth).
+
+**Deliberately not migrated:** `pickRrTask`/`advanceRrIndex` — confirmed dead
+code, called by nothing except the equally-unused `RtSchedulerService` DI
+wrapper; no live path exercises FIFO/RR cohort selection today. Migrating
+dead code for symmetry would add risk for zero behavioral benefit.
+`clearRrState` — pure `SharedPreferences` removal with no policy content,
+already a thin adapter as-is. `RtScheduler.kt` and `RtSchedulerService.kt`
+are left in place (per the standing no-delete rule) even though the latter
+is now fully dead weight — nothing outside its own file and the DI module
+that provides it ever calls it.
+
+**A real bug found and fixed, not just a refactor risk avoided:**
+`RtPolicy.hasActiveRtDescendant` in `:core` was missing a self-check that
+`:data`'s original `RtScheduler.hasActiveRtDescendant` has and explicitly
+documents: *"A group with its OWN active RT window counts — without this
+check a RT-class group with only CFS children returns false, breaking the
+upward chain."* `:core`'s port dropped this silently — nothing caught it
+because nothing had ever called the `:core` version with this exact shape
+(a group with its own active window and only non-RT children). Fixed in
+`RtPolicy.kt` directly (not worked around locally in `:data`), with three new
+regression tests added to `RtWindowCharacterizationTest.kt` covering: a
+group's own window counting despite fair-scheduled children, a group with an
+inactive own window and no RT descendants correctly returning false, and a
+grandparent correctly seeing a hoisted RT group through an intermediate fair
+group. `:core` is now actually correct for this case, not just delegated-to.
 
 ## Phase 9 — next: resolve `TimerEngine` duplication
 

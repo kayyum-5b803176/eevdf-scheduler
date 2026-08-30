@@ -1,30 +1,27 @@
 package com.eevdf.data.scheduler
 
 import android.content.SharedPreferences
+import com.eevdf.core.scheduler.model.RtConfig
+import com.eevdf.core.scheduler.rt.RtPolicy
 import com.eevdf.data.task.Task
 import java.util.Calendar
 
 /**
  * RT Scheduler — SCHED_FIFO / SCHED_RR realtime window logic.
  *
- * ── What this class owns ──────────────────────────────────────────────────────
+ * ── Phase 8: thin adapter over :core (this file's window/activation math used
+ * to be a duplicate, Calendar-based reimplementation of the same rules now
+ * proven in [RtConfig]/[RtPolicy] — ported there earlier, characterization-
+ * tested in RtWindowCharacterizationTest, but never wired to any live caller
+ * until this pass. What's below now converts [Task] -> [SchedTask] and the
+ * current instant -> (dayIndex, secondOfDay, prevDayIndex), then delegates. ──
  *
- * Linux rt_sched_class operates at fixed priorities (1–99) and preempts every
- * fair/EEVDF task unconditionally.  This app-level simulation matches that
- * contract with wall-clock activation windows:
- *
- *   • A task is "RT-active" when the current wall-clock time falls inside
- *     [activationTime, activationTime + rtSliceTimeoutSeconds) on a day that
- *     matches the task's rtActiveDays bitmask.
- *
- *   • RT-active tasks are hoisted above all EEVDF tasks on the Schedule tab
- *     but remain below SCHED_DEADLINE tasks (dl_sched_class), matching Linux
- *     scheduler class priority order: stop > deadline > rt > fair > idle.
- *
- *   • When multiple tasks share the same activation time, SCHED_RR rotates
- *     among them round-robin (ordered by descending rtPriority, ties broken
- *     by task id for stability).  SCHED_FIFO never rotates — the highest-
- *     priority task holds until its slice expires.
+ * NOT migrated, deliberately: [pickRrTask], [advanceRrIndex] are dead code —
+ * called by nothing except the equally-unused RtSchedulerService wrapper, no
+ * live caller exercises FIFO/RR cohort selection today. Migrating dead code
+ * for symmetry would add risk for zero behavioral benefit; left as-is.
+ * [clearRrState] is untouched too — it's pure SharedPreferences removal with
+ * no policy content, already a thin adapter in its current form.
  *
  * ── Data model ────────────────────────────────────────────────────────────────
  *
@@ -50,55 +47,30 @@ object RtScheduler {
     private const val RT_RR_INDEX_KEY    = "rt_rr_index"
     private const val RT_RR_COHORT_KEY   = "rt_rr_cohort"   // serialised task-id list
 
-    // ── Day bitmask constants (same as Calendar.DAY_OF_WEEK − 1) ─────────────
+    // ── Day bitmask constants — single source of truth is now RtConfig ───────
+    // Kept here, delegating, so every existing caller (RtScheduler.DAY_SUN
+    // etc.) needed zero changes.
 
-    const val DAY_SUN = 1 shl 0
-    const val DAY_MON = 1 shl 1
-    const val DAY_TUE = 1 shl 2
-    const val DAY_WED = 1 shl 3
-    const val DAY_THU = 1 shl 4
-    const val DAY_FRI = 1 shl 5
-    const val DAY_SAT = 1 shl 6
-    const val DAY_ALL = 0b1111111
+    const val DAY_SUN = RtConfig.DAY_SUN
+    const val DAY_MON = RtConfig.DAY_MON
+    const val DAY_TUE = RtConfig.DAY_TUE
+    const val DAY_WED = RtConfig.DAY_WED
+    const val DAY_THU = RtConfig.DAY_THU
+    const val DAY_FRI = RtConfig.DAY_FRI
+    const val DAY_SAT = RtConfig.DAY_SAT
+    const val DAY_ALL = RtConfig.DAY_ALL
 
     // ── Core window query ─────────────────────────────────────────────────────
 
     /**
      * Returns true when [task] is inside its RT activation window right now.
-     *
-     * A window spans [activationSecondOfDay, activationSecondOfDay + rtSliceTimeoutSecs).
-     * Windows that cross midnight are handled: if activationTime = 23:50 and timeout = 20m,
-     * the window wraps around; the task is active from 23:50 to 00:10 on the *next* day,
-     * and the day check is relaxed to allow the activation day OR the day before.
+     * Delegates to [RtPolicy.isWindowActive] — see that function and
+     * [RtConfig.isWindowActive] for the actual midnight-crossing logic.
      */
     fun isRtWindowActive(task: Task, nowMs: Long = System.currentTimeMillis()): Boolean {
         if (!task.isRtConfigured) return false
-        val cal = Calendar.getInstance().apply { timeInMillis = nowMs }
-        val nowSecOfDay = cal.get(Calendar.HOUR_OF_DAY) * 3600 +
-                          cal.get(Calendar.MINUTE)      *   60 +
-                          cal.get(Calendar.SECOND)
-
-        val activationSec = task.rtActivationSecondOfDay
-        val timeoutSec    = task.rtSliceTimeoutSeconds
-        val windowEnd     = activationSec + timeoutSec   // may exceed 86400
-
-        return if (windowEnd <= 86_400L) {
-            // Window fits within a single day — check current day and time range
-            isDayActive(task.rtActiveDays, cal) &&
-            nowSecOfDay >= activationSec &&
-            nowSecOfDay <  windowEnd
-        } else {
-            // Window crosses midnight
-            val overflow = windowEnd - 86_400L
-            val calYest  = Calendar.getInstance().apply {
-                timeInMillis = nowMs - 86_400_000L   // yesterday
-            }
-            val activationDayMatch  = isDayActive(task.rtActiveDays, cal)
-            val previousDayMatch    = isDayActive(task.rtActiveDays, calYest)
-
-            (activationDayMatch && nowSecOfDay >= activationSec) ||
-            (previousDayMatch   && nowSecOfDay <  overflow)
-        }
+        val (day, sec, prevDay) = wallClockParts(nowMs)
+        return RtPolicy.isWindowActive(task.toSched(), day, sec, prevDay)
     }
 
     /**
@@ -109,32 +81,9 @@ object RtScheduler {
     fun nextActivationMs(task: Task, nowMs: Long = System.currentTimeMillis()): Long {
         if (!task.isRtConfigured) return Long.MAX_VALUE
         if (task.rtActiveDays == 0) return Long.MAX_VALUE
-        if (isRtWindowActive(task, nowMs)) return 0L
-
-        val cal           = Calendar.getInstance().apply { timeInMillis = nowMs }
-        val nowSecOfDay   = cal.get(Calendar.HOUR_OF_DAY) * 3600 +
-                            cal.get(Calendar.MINUTE)      *   60 +
-                            cal.get(Calendar.SECOND)
-        val activationSec = task.rtActivationSecondOfDay
-
-        // Scan up to 8 days ahead to find the next active day + activation time
-        for (daysAhead in 0..7) {
-            val candidate = Calendar.getInstance().apply {
-                timeInMillis = nowMs
-                add(Calendar.DAY_OF_YEAR, daysAhead)
-            }
-            if (!isDayActive(task.rtActiveDays, candidate)) continue
-
-            val secUntilActivation = if (daysAhead == 0) {
-                // Same day: only valid if activation is still in the future
-                if (activationSec > nowSecOfDay) activationSec - nowSecOfDay else continue
-            } else {
-                // Future day: always valid
-                (daysAhead * 86_400L) - nowSecOfDay + activationSec
-            }
-            return secUntilActivation * 1_000L
-        }
-        return Long.MAX_VALUE
+        val (day, sec, prevDay) = wallClockParts(nowMs)
+        val secs = RtPolicy.secondsUntilNextActivation(task.toSched(), day, sec, prevDay)
+        return if (secs == Long.MAX_VALUE) Long.MAX_VALUE else secs * 1_000L
     }
 
     /**
@@ -143,24 +92,8 @@ object RtScheduler {
      */
     fun nextDeactivationMs(task: Task, nowMs: Long = System.currentTimeMillis()): Long {
         if (!isRtWindowActive(task, nowMs)) return 0L
-        val cal           = Calendar.getInstance().apply { timeInMillis = nowMs }
-        val nowSecOfDay   = cal.get(Calendar.HOUR_OF_DAY) * 3600 +
-                            cal.get(Calendar.MINUTE)      *   60 +
-                            cal.get(Calendar.SECOND)
-        val activationSec = task.rtActivationSecondOfDay
-        val windowEnd     = activationSec + task.rtSliceTimeoutSeconds
-
-        val remaining = if (windowEnd <= 86_400L) {
-            windowEnd - nowSecOfDay
-        } else {
-            // Window crossed midnight — compute remaining from wrapped position
-            val overflow = windowEnd - 86_400L
-            if (nowSecOfDay >= activationSec) {
-                windowEnd - nowSecOfDay          // before midnight
-            } else {
-                overflow - nowSecOfDay           // after midnight
-            }
-        }
+        val (_, sec, _) = wallClockParts(nowMs)
+        val remaining = task.toSched().rt?.secondsUntilClose(sec) ?: 0L
         return (remaining * 1_000L).coerceAtLeast(0L)
     }
 
@@ -182,6 +115,9 @@ object RtScheduler {
     }
 
     // ── SCHED_RR round-robin selection ────────────────────────────────────────
+    //
+    // NOT migrated to :core (see class doc). Unchanged Calendar/SharedPreferences
+    // implementation below — dead code today, kept as-is rather than risked.
 
     /**
      * Selects which RT-active task should be at rank #1 for the current moment.
@@ -265,21 +201,15 @@ object RtScheduler {
 
     /**
      * True when [task] is a group containing at least one descendant that is
-     * currently inside its RT activation window.  Mirrors [EEVDFScheduler.hasActiveDlDescendant]
-     * for the RT class.
+     * currently inside its RT activation window. Delegates to
+     * [RtPolicy.hasActiveRtDescendant].
      */
     fun hasActiveRtDescendant(task: Task, allTasks: List<Task>,
                                _nowMs: Long = System.currentTimeMillis()): Boolean {
-        if (!task.isGroup) return isRtWindowActive(task, _nowMs)
-        // A group with its OWN active RT window counts — without this check a
-        // RT-class group with only CFS children returns false, breaking the
-        // upward chain: grandparent groups would never see it as an RT entity.
-        if (isRtWindowActive(task, _nowMs)) return true
-        val children = allTasks.filter { it.parentId == task.id && !it.isCompleted }
-        return children.any { child ->
-            if (child.isGroup) hasActiveRtDescendant(child, allTasks, _nowMs)
-            else isRtWindowActive(child, _nowMs)
-        }
+        val (day, sec, prevDay) = wallClockParts(_nowMs)
+        return RtPolicy.hasActiveRtDescendant(
+            task.toSched(), allTasks.map { it.toSched() }, day, sec, prevDay,
+        )
     }
 
     /**
@@ -295,11 +225,20 @@ object RtScheduler {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
-     * Returns true when the day-of-week in [cal] is set in [daysBitmask].
-     * Calendar.DAY_OF_WEEK: 1 = Sunday … 7 = Saturday; bitmask bit 0 = Sun.
+     * Converts an epoch-ms instant into (dayIndex, secondOfDay, prevDayIndex)
+     * — the wall-clock triple every [RtPolicy]/[RtConfig] query needs.
+     * dayIndex: 0 = Sunday … 6 = Saturday, matching [RtConfig.activeDaysMask]'s
+     * bit convention. Same Calendar computation the original inline math used,
+     * now computed once and fed to the pure :core functions instead of a
+     * second, duplicate reimplementation of the same rules.
      */
-    private fun isDayActive(daysBitmask: Int, cal: Calendar): Boolean {
-        val bit = cal.get(Calendar.DAY_OF_WEEK) - 1   // 0 = Sun, 1 = Mon, …
-        return (daysBitmask and (1 shl bit)) != 0
+    private fun wallClockParts(nowMs: Long): Triple<Int, Long, Int> {
+        val cal = Calendar.getInstance().apply { timeInMillis = nowMs }
+        val day = cal.get(Calendar.DAY_OF_WEEK) - 1   // 0 = Sun, 1 = Mon, …
+        val sec = cal.get(Calendar.HOUR_OF_DAY) * 3600L +
+                  cal.get(Calendar.MINUTE)      *   60L +
+                  cal.get(Calendar.SECOND)
+        val prevDay = (day + 6) % 7
+        return Triple(day, sec, prevDay)
     }
 }

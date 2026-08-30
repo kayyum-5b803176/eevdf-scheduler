@@ -1,6 +1,8 @@
 package com.eevdf.core.scheduler
 
 import com.eevdf.core.scheduler.model.RtConfig
+import com.eevdf.core.scheduler.model.SchedTask
+import com.eevdf.core.scheduler.rt.RtPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -137,5 +139,54 @@ class RtWindowCharacterizationTest {
     @Test fun `KNOWN GAP secondsUntilClose ignores configuration`() {
         val unconfigured = cfg(days = 0, hour = 9, timeout = 3600L)
         assertEquals(1800L, unconfigured.secondsUntilClose(9 * 3600L + 1800L))
+    }
+
+    // ── hasActiveRtDescendant ────────────────────────────────────────────────
+    //
+    // Found missing during Phase 8 (wiring this function to a live caller for
+    // the first time): a group with its OWN active RT window, but only
+    // fair-scheduled (non-RT) children, must still report true — otherwise a
+    // grandparent group's upward hoisting check never sees it as RT-active.
+    // :data's original RtScheduler always had this self-check; :core's port
+    // didn't, because nothing exercised this exact shape before.
+
+    private fun rtTask(id: String, parentId: String?, isGroup: Boolean, rt: RtConfig?) = SchedTask(
+        id = id, parentId = parentId, isGroup = isGroup, isCompleted = false, isRunning = false,
+        priority = 50, timeSliceSeconds = 600L,
+        schedulerClass = if (rt != null) SchedTask.RT else SchedTask.FAIR, rt = rt,
+    )
+
+    @Test fun `group with its own active RT window counts even with only fair children`() {
+        val activeRt = cfg(day(MONDAY), 9, 0, 0, 3600L)
+        val group = rtTask("group", null, isGroup = true, rt = activeRt)
+        val fairChild = rtTask("child", "group", isGroup = false, rt = null)
+        val all = listOf(group, fairChild)
+
+        assertTrue(
+            RtPolicy.hasActiveRtDescendant(group, all, MONDAY, 9 * 3600L + 100L, SUNDAY),
+        )
+    }
+
+    @Test fun `group with inactive own window and no RT descendants is false`() {
+        val inactiveRt = cfg(day(MONDAY), 9, 0, 0, 3600L)
+        val group = rtTask("group", null, isGroup = true, rt = inactiveRt)
+        val fairChild = rtTask("child", "group", isGroup = false, rt = null)
+        val all = listOf(group, fairChild)
+
+        // Noon Monday — well outside the group's own 09:00-10:00 window.
+        assertFalse(
+            RtPolicy.hasActiveRtDescendant(group, all, MONDAY, 12 * 3600L, SUNDAY),
+        )
+    }
+
+    @Test fun `grandparent sees a hoisted RT group through an intermediate fair group`() {
+        val activeRt = cfg(day(MONDAY), 9, 0, 0, 3600L)
+        val grandparent = rtTask("grandparent", null, isGroup = true, rt = null)
+        val middleGroup = rtTask("middle", "grandparent", isGroup = true, rt = activeRt)
+        val all = listOf(grandparent, middleGroup)
+
+        assertTrue(
+            RtPolicy.hasActiveRtDescendant(grandparent, all, MONDAY, 9 * 3600L + 100L, SUNDAY),
+        )
     }
 }

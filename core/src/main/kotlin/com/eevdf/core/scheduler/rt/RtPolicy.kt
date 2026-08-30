@@ -26,11 +26,20 @@ object RtPolicy {
     fun isWindowActive(task: SchedTask, dayIndex: Int, secondOfDay: Long, prevDayIndex: Int): Boolean =
         task.isRtConfigured && task.rt!!.isWindowActive(dayIndex, secondOfDay, prevDayIndex)
 
-    /** True when [task] is a group with any descendant currently inside its RT window. */
+    /**
+     * True when [task] is a group with any descendant currently inside its RT
+     * window. A group with its OWN active RT window counts too — without this
+     * check, an RT-class group with only fair-scheduled (CFS) children would
+     * return false, breaking the upward chain: a grandparent group would never
+     * see it as an RT entity. (Found missing here during the :data migration
+     * that wired this function to a live caller for the first time — :data's
+     * original implementation always had this check.)
+     */
     fun hasActiveRtDescendant(
         task: SchedTask, all: List<SchedTask>, dayIndex: Int, secondOfDay: Long, prevDayIndex: Int,
     ): Boolean {
         if (!task.isGroup) return isWindowActive(task, dayIndex, secondOfDay, prevDayIndex)
+        if (isWindowActive(task, dayIndex, secondOfDay, prevDayIndex)) return true
         return all.filter { it.parentId == task.id && !it.isCompleted }.any { child ->
             if (child.isGroup) hasActiveRtDescendant(child, all, dayIndex, secondOfDay, prevDayIndex)
             else isWindowActive(child, dayIndex, secondOfDay, prevDayIndex)
