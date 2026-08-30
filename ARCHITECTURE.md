@@ -596,10 +596,12 @@ Phase 8's `RtPolicy`) which were parked for a future wiring, not removed.
 `com.eevdf.feature.task.timer.TimerEngine` is untouched and remains the one
 timer implementation in the app.
 
-## Phase 10 — partially done (v5.16.0): complexity-ratchet backlog (carried over from Phase 2c)
+## Phase 10 — item 1 done (v5.21.0): complexity-ratchet backlog (carried over from Phase 2c)
 
-Item 1's `MainActivity` half is done and real-device verified. `TaskViewModel`
-(item 1's other half) and items 2–4 are still open.
+Item 1 — splitting both `MainActivity` and `TaskViewModel` — is done and
+real-device verified (with one caveat: `BubbleTapDelegate`'s functional
+behavior is build-verified only, no telephony on the test device). Items
+2–4 are still open.
 
 **Item 1 was investigated before touching anything, per the pattern
 established in Phase 8.** Splitting `MainActivity`/`TaskViewModel` is
@@ -735,10 +737,33 @@ target for a future pass, not a wholesale restructure.
      `startupRecovery.recover()` inside the same `viewModelScope.launch` it
      always used. `onTimerFinished` promoted from `private` to `internal` so
      the delegate can call it for the "task expired while app was dead" path.
-   - **Still on `TaskViewModel`:** Timer lifecycle (~350 lines) — the last
-     and biggest cluster, the actual state machine (`startTimer`/
-     `pauseTimer`/`resetTimer`/`onTimerFinished`/`setCurrentTask`) everything
-     else calls into.
+   - **`TimerLifecycleDelegate` — done, v5.21.0.** The fifth and last
+     cluster, and the biggest and most central: `startTimer`/
+     `startActualTimer`/`pauseTimer`/`pauseAndDeselect`/`resetTimer`/
+     `resetSlice`/`skipTask`/`setCurrentTask`/`setCardManuallyHidden`/
+     `getCardManuallyHidden`/`restorePersistedSelection`/`cancelNotice`/
+     `stopTimer`/`onTimerFinished`/`applyVruntimeUpdate`. Before writing a
+     line of this one, grepped every function's callers across the whole
+     `feature/` tree — found 11 files depend on this cluster, not just
+     MainActivity: `SchedulerDelegate`, `CallSwitchDelegate`,
+     `InterruptDelegate` (in `feature/task/timer/`), `NoticeStateMachine`
+     (in `feature/task/notice/`), plus every delegate extracted earlier this
+     phase. `NoticeStateMachine.startExecutePhase` calls
+     `vm.startActualTimer(...)` directly — confirming the facade pattern
+     needed to hold across package boundaries within the module, not just
+     within `list/`. Every one of those 11 files needed zero changes,
+     verified by grep after the extraction, because every function kept an
+     identical-signature facade on `TaskViewModel`.
+   - **`TaskViewModel`: 1176 → 629 lines (47% reduction), 76 → 72
+     functions.** All 5 clusters (`TaskCrudDelegate`, `AlarmOverrunDelegate`,
+     `BubbleTapDelegate`, `StartupRecoveryDelegate`, `TimerLifecycleDelegate`)
+     now done. What remains on `TaskViewModel` itself: field/LiveData
+     declarations, the `timerCardAction`/`nextButtonState` cross-delegate
+     `MediatorLiveData` derivations (correctly still here — the class doc's
+     own stated job is "shared mutable state that crosses domain
+     boundaries"), `init{}`'s unavoidable `val` assignments, `onCleared()`,
+     and the already-thin Scheduler/Settings/GroupExpand/Interrupt/CallSwitch
+     facades that were correctly minimal before this phase even started.
 2. Multibound `BackupContributor` / `SyncContributor` so `BackupManager` stops
    being a file every feature edits.
 3. `build-logic/` convention plugins to stop `compileSdk` drifting across four

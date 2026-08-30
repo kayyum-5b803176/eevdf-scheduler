@@ -11,19 +11,13 @@ import com.eevdf.data.task.TaskLoadFactor
 import com.eevdf.feature.shared.AppPreferences
 import com.eevdf.feature.task.notice.NoticePhase
 import com.eevdf.data.runlog.RunSession
-import com.eevdf.feature.task.timer.TimerStartEvent
-import com.eevdf.data.task.timer.TaskTimerState
 import com.eevdf.feature.task.timer.TimerCardAction
 import com.eevdf.feature.task.timer.NextButtonState
-import com.eevdf.data.task.timer.timerState
-import com.eevdf.data.task.timer.withTimerState
 import com.eevdf.data.task.TaskDisplayItem
 import com.eevdf.data.scheduler.SchedulerStats
 import com.eevdf.feature.task.timer.TimerEngine
 import kotlinx.coroutines.launch
 import com.eevdf.data.sync.MultiUserSyncManager
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
 import com.eevdf.feature.task.timer.InterruptDelegate
 import com.eevdf.feature.task.notice.NoticeStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -59,6 +53,7 @@ import com.eevdf.contract.control.OverlayController
  *   • [AlarmOverrunDelegate] — overrun counter + restart-after-expire
  *   • [BubbleTapDelegate]   — hover-bubble tap during a call
  *   • [StartupRecoveryDelegate] — app-kill / startup recovery (called from init{})
+ *   • [TimerLifecycleDelegate] — start / pause / reset / skip / select / expiry
  *
  * ── Adding a feature to a domain ─────────────────────────────────────────────
  *
@@ -164,6 +159,7 @@ class TaskViewModel @Inject constructor(
     internal val alarmOverrun = AlarmOverrunDelegate(this)
     internal val bubbleTap   = BubbleTapDelegate(this)
     internal val startupRecovery = StartupRecoveryDelegate(this)
+    internal val timerLifecycle = TimerLifecycleDelegate(this)
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
 
@@ -311,241 +307,47 @@ class TaskViewModel @Inject constructor(
     fun saveLoadFactor(entry: TaskLoadFactor)     = crud.saveLoadFactor(entry)
 
     // =========================================================================
-    // Timer lifecycle
+    // Timer lifecycle facade
     // =========================================================================
 
-    fun startTimer() {
-        if (_timerRunning.value == true ||
-            notice.isDelayRunning()      ||
-            notice.isWaitRunning()) return
+    fun startTimer() = timerLifecycle.startTimer()
 
-        val task      = _currentTask.value ?: return
-        val remaining = _timerSeconds.value ?: task.remainingSeconds
+    /** Called by the ViewModel directly and by [NoticeStateMachine.startExecutePhase]. */
+    internal fun startActualTimer(task: Task, remaining: Long, alarmSecs: Long = remaining) =
+        timerLifecycle.startActualTimer(task, remaining, alarmSecs)
 
-        if (remaining <= 0) {
-            // Slice already expired — engine's onFinish() never fired (user paused
-            // at 0:00 before CountDownTimer could call back).
-            timerEngine.clear()
-            onTimerFinished(task, session = null)
-            return
-        }
-
-        val delaySecs = if (task.taskType == "NOTIFICATION") task.notificationDelaySeconds else 0L
-
-        notice.initSession(task)
-
-        // Resume-type INITIAL: always restart execute from the full slice (0 elapsed).
-        //
-        // Two things must be corrected, not just the countdown seconds:
-        //   1. effectiveRemaining — pass timeSliceSeconds so the engine countdown
-        //      ticks down from the full duration.
-        //   2. effectiveTask — reset timerState to Idle (accumulatedMs = 0) so
-        //      TimerStartEvent.from() does NOT carry the accumulated 15 s from the
-        //      previous Paused state into the new Running state.  Without this,
-        //      the engine starts with accumulatedMs=15000 and the progress bar /
-        //      remaining display begins at (30s − 15s) = 15 s even when we passed
-        //      secs=30.  Resetting to Idle gives accumulatedMs=0 → full 30 s.
-        //
-        // Only applies to true resumes (Paused state); fresh starts and
-        // pending-wait paths are unaffected.
-        val isInitialResume = task.resumeType == "INITIAL" &&
-            task.timerState is TaskTimerState.Paused &&
-            !notice.hasPendingWait()
-
-        val effectiveTask      = if (isInitialResume) task.withTimerState(TaskTimerState.reset()) else task
-        val effectiveRemaining = if (isInitialResume) task.timeSliceSeconds else remaining
-
-        if (delaySecs > 0) {
-            notice.startDelayPhase(effectiveTask, effectiveRemaining, delaySecs)
-        } else if (task.taskType == "NOTIFICATION") {
-            // Route through resolveAfterDelay so a pending wait-cancel is handled
-            // (timestamp resume or skip to next execute) even when there is no delay.
-            notice.resolveAfterDelay(effectiveTask, effectiveRemaining)
-        } else {
-            startActualTimer(effectiveTask, effectiveRemaining)
-        }
-    }
+    fun pauseTimer() = timerLifecycle.pauseTimer()
 
     /**
-     * Builds a Running state, persists it to DB, then hands off to [timerEngine].
-     * Single entry point for starting an execute countdown — called by the ViewModel
-     * directly and by [NoticeStateMachine.startExecutePhase].
+     * Hold-to-close action (Start/Pause long-press on the timer card). See
+     * [TimerLifecycleDelegate.pauseAndDeselect] for the full behavior.
      */
-    /**
-     * @param remaining  Execute-slice seconds remaining — drives the engine countdown and
-     *                   the notification chronometer.
-     * @param alarmSecs  Total seconds until the AlarmManager should fire.  For NOTIFICATION
-     *                   tasks [NoticeStateMachine.startExecutePhase] passes the pre-computed
-     *                   sum of all remaining (execute + wait) cycles so the alarm is set ONCE
-     *                   and never cancelled mid-cycle.  Defaults to [remaining] for all other
-     *                   task types (alarm fires when the single execute slice expires).
-     */
-    internal fun startActualTimer(task: Task, remaining: Long, alarmSecs: Long = remaining) {
-        val nowMs   = System.currentTimeMillis()
-        val event   = TimerStartEvent.from(task.timerState, nowMs)
-        val running = event.toRunning
-        val updated = task.withTimerState(running)
+    fun pauseAndDeselect() = timerLifecycle.pauseAndDeselect()
 
-        _timerRunning.value = true
-        // Update _currentTask with the Running state so tick observer copies carry
-        // the correct startTimeEpoch (needed for live progressPercent calculation).
-        _currentTask.value = updated
-        // Record which task ran inside each ancestor group so the Queue tab's
-        // global-rotate Next can return to the most recently used task per group.
-        lastRun.update(task, activeTasks.value ?: emptyList())
-        viewModelScope.launch {
-            repository.update(updated)
-            triggerSyncExport()          // notify other users: timer started
-        }
-        alarms.timerStart(task.name, remaining, task.taskType, alarmSecs)
-        timerEngine.start(updated)
-    }
+    fun resetTimer() = timerLifecycle.resetTimer()
 
-    fun pauseTimer() {
-        // Notice-phase cancellations take priority
-        if (notice.isDelayRunning()) { notice.cancelDelayPhase(); return }
-        if (notice.isWaitRunning())  { notice.cancelWaitPhase();  return }
+    /** Resets the timer slice of any task back to its default timeSliceSeconds. */
+    fun resetSlice(task: Task) = timerLifecycle.resetSlice(task)
 
-        stopAlarmSound()
+    fun skipTask() = timerLifecycle.skipTask()
 
-        val nowMs   = System.currentTimeMillis()
-        val result  = timerEngine.pause(nowMs)
-        val session = result?.second   // RunSession.Paused; null if engine was idle
-        _timerRunning.value = false
-
-        val task = _currentTask.value
-        if (result != null) {
-            val paused = result.first
-            _currentTask.value  = paused
-            _timerSeconds.value = paused.remainingSeconds
-            viewModelScope.launch { repository.update(paused) }
-            // Clear the engine so stale activeTask can't overwrite _currentTask on
-            // the next pauseTimer() call (fixes Next-stuck / random-jump bug).
-            timerEngine.clear()
-        }
-
-        if (task != null && task.taskType == "NOTIFICATION") {
-            notice.handlePause(task.id, session?.wallClockSeconds ?: 0L, nowMs)
-        } else if (session != null && session.wallClockSeconds > 0) {
-            applyVruntimeUpdate(session)
-        }
-        alarms.timerPause()
-        triggerSyncExport()               // notify other users: timer paused
-    }
-
-    /**
-     * Hold-to-close action (Start/Pause long-press on the timer card).
-     *
-     * Pauses the running task — crediting the partial session's run time and
-     * persisting the Paused state, so progress is NOT lost — then DESELECTS it by
-     * clearing [_currentTask]. The currentTask observer in MainActivity then closes
-     * the timer card and clears the running highlight in the adapters.
-     *
-     * This is distinct from the manual hide (isCardManuallyHidden), which keeps the
-     * task selected and only hides the card. Here the task is fully deselected; the
-     * task remains Paused (not reset), so reselecting it later resumes where it left
-     * off.
-     */
-    fun pauseAndDeselect() {
-        pauseTimer()
-        _currentTask.value = null
-        clearPersistedSelection()
-    }
-
-    fun resetTimer() {
-        pauseTimer()
-        timerEngine.clear()
-        notice.resetState()
-        val task  = _currentTask.value ?: return
-        val reset = task.withTimerState(TaskTimerState.reset())
-        _timerSeconds.value = reset.remainingSeconds
-        viewModelScope.launch {
-            repository.update(reset)
-            _currentTask.postValue(reset)
-        }
-    }
-
-    /** Resets the timer slice of any task back to its default [timeSliceSeconds]. */
-    fun resetSlice(task: Task) {
-        if (task.id == _currentTask.value?.id) { resetTimer(); return }
-        viewModelScope.launch { repository.update(task.withTimerState(TaskTimerState.reset())) }
-    }
-
-    fun skipTask() {
-        stopAlarmSound()
-        pauseTimer()
-        val task = _currentTask.value ?: return
-        _toastMessage.value = "Skipped \"${task.name}\""
-        _currentTask.value  = null
-        clearPersistedSelection()
-        scheduler.scheduleNext()
-    }
-
-    fun setCurrentTask(task: Task) {
-        pauseTimer()
-        // Bug 1 fix — stale NoticePhase.Expired locking the button:
-        //
-        // After a NOTIFICATION task expires, triggerAlarmExpire() sets
-        // _noticePhase = Expired (sync) then nulls _currentTask via postValue
-        // (async).  By the time the user taps the task row, _currentTask is
-        // already null, so pauseTimer()'s `task != null` guard skips handlePause()
-        // and the Expired phase is never cleared.  On the first re-select the
-        // derive() therefore sees:  task != null  +  phase == Expired
-        // -> TimerCardAction.Unavailable ("-") instead of Start.
-        //
-        // Fix: always reset notice state here, after pauseTimer() has already
-        // handled any truly-running delay/wait/execute phase.  resetState() is
-        // idempotent: if pauseTimer() already transitioned the phase to Idle
-        // (normal cancel/pause paths) this is a harmless no-op.
-        notice.resetState()
-
-        // If an expiry alarm is up when the user selects a (possibly different)
-        // task, clear it synchronously so timerCardAction does not derive Expired
-        // for the freshly-selected task on the next frame.
-        if (_alarmTaskName.value != null) {
-            taskToRestoreAfterExpire = null
-            stopAlarmSound()
-        }
-
-        _currentTask.value  = task
-        _timerSeconds.value = task.remainingSeconds
-
-        // Selecting a task is an explicit "open this card" gesture: clear any
-        // prior manual-hide and persist the selection so it survives reboot.
-        setCardManuallyHidden(false)
-        settings.saveSelectedTaskId(task.id)
-    }
+    fun setCurrentTask(task: Task) = timerLifecycle.setCurrentTask(task)
 
     /**
      * Persists the manual card-hidden flag so a hand-closed card stays closed
      * across app reopen / reboot. Called by MainActivity's key1-hold handler and
      * by [setCurrentTask] (which always reopens the card).
      */
-    fun setCardManuallyHidden(hidden: Boolean) = settings.saveCardManuallyHidden(hidden)
+    fun setCardManuallyHidden(hidden: Boolean) = timerLifecycle.setCardManuallyHidden(hidden)
 
     /** Restored on startup by MainActivity to decide whether to show the card. */
-    fun getCardManuallyHidden(): Boolean = settings.getSavedCardManuallyHidden()
+    fun getCardManuallyHidden(): Boolean = timerLifecycle.getCardManuallyHidden()
 
     /**
-     * Re-seats the persisted last-selected task onto the card on startup, without
-     * the side effects of [setCurrentTask] (no notice reset, no re-persist). Reads
-     * the live row from the DB so paused/reset state is reflected. No-op if no id
-     * is stored or the task no longer exists (e.g. it was deleted/completed).
+     * Re-seats the persisted last-selected task onto the card on startup. See
+     * [TimerLifecycleDelegate.restorePersistedSelection] for the full behavior.
      */
-    fun restorePersistedSelection() {
-        // Don't clobber a task already seated by the mid-run / alarm recovery paths.
-        if (_currentTask.value != null || _alarmTaskName.value != null) return
-        val savedId = settings.getSavedSelectedTaskId() ?: return
-        viewModelScope.launch {
-            val task = repository.getTaskById(savedId)
-            if (task == null || task.isCompleted) {
-                settings.saveSelectedTaskId(null)
-                return@launch
-            }
-            _currentTask.postValue(task)
-            _timerSeconds.postValue(task.remainingSeconds)
-        }
-    }
+    fun restorePersistedSelection() = timerLifecycle.restorePersistedSelection()
 
     /**
      * Clears the timer card's persisted selection. Call from GENUINE deselection
@@ -554,106 +356,19 @@ class TaskViewModel @Inject constructor(
      */
     internal fun clearPersistedSelection() = settings.saveSelectedTaskId(null)
 
-    fun cancelNotice() = notice.cancelNotice()
+    fun cancelNotice() = timerLifecycle.cancelNotice()
 
-    internal fun stopTimer(completed: Boolean) {
-        stopAlarmSound()
-        timerEngine.clear()
-        _timerRunning.value = false
-        if (completed) {
-            val task = _currentTask.value ?: return
-            viewModelScope.launch {
-                repository.markCompleted(task)
-                _currentTask.postValue(null)
-                clearPersistedSelection()
-                _toastMessage.postValue("\"${task.name}\" completed!")
-                refreshSchedule()
-            }
-        }
-    }
+    internal fun stopTimer(completed: Boolean) = timerLifecycle.stopTimer(completed)
 
     /**
-     * Called when the countdown reaches zero.
-     *
-     * [taskOverride] is supplied by the app-killed recovery path in init{} where
-     * _currentTask hasn't been set yet (postValue is asynchronous).
-     * [session] == null means vruntime was already applied by the caller.
+     * Called when the countdown reaches zero. See
+     * [TimerLifecycleDelegate.onTimerFinished] for the full expiry/auto-mode/
+     * notification-task branching.
      */
     internal fun onTimerFinished(
         taskOverride: Task?       = null,
         session:      RunSession? = null
-    ) {
-        val task = taskOverride ?: _currentTask.value ?: return
-
-        val expiryEpochMs      = session?.endEpochMs ?: System.currentTimeMillis()
-        val elapsedSinceExpiry = ((System.currentTimeMillis() - expiryEpochMs) / 1000L)
-            .coerceAtLeast(0L)
-
-        // Clear engine synchronously — before any suspend call — so that a user
-        // interaction arriving before the coroutine runs sees Idle state and avoids
-        // the Paused(sliceMs) → remainingSeconds=0 stuck-at-0:00 bug.
-        timerEngine.clear()
-
-        viewModelScope.launch {
-            // NOTIFICATION tasks: do NOT cancel the alarm here.
-            //
-            // The alarm is now set for the FULL remaining cycle duration in
-            // startExecutePhase (execute + all future wait/execute pairs), so it
-            // cannot collide with CountDownTimer.onFinish() at execute boundaries —
-            // the alarm fires at e.g. 30 s while execute ends at 10 s.
-            //
-            // The only remaining collision point is the FINAL wait phase where
-            // CountDownTimer and AlarmManager both fire at the same epoch.
-            // That race is handled in triggerAlarmExpire(), which cancels the
-            // AlarmManager entry synchronously before starting the in-app expire
-            // path, so onAlarmFired() finds AlarmState==Idle and returns false.
-            if (session != null) {
-                if (task.taskType != "NOTIFICATION") {
-                    repository.updateVruntimeAfterRun(task, session)
-                } else {
-                    notice.accumulateSessionSeconds(session.wallClockSeconds)
-                }
-            }
-            repository.update(task.withTimerState(TaskTimerState.reset()))
-            _toastMessage.postValue("Time slice done for \"${task.name}\"")
-            refreshSchedule()
-
-            if (settings.autoMode.value == true) {
-                val allTasks = activeTasks.value ?: emptyList()
-                val next = scheduler.selectAutoNextTask(task, allTasks)
-                    ?: repository.selectNextTask()
-                if (next != null) {
-                    pendingAutoStart = true
-                    _currentTask.postValue(next)
-                    _timerSeconds.postValue(next.remainingSeconds)
-                    settings.saveSelectedTaskId(next.id)   // card follows the auto task
-                    _toastMessage.postValue("Auto → \"${next.name}\"")
-                } else {
-                    _currentTask.postValue(null)
-                    clearPersistedSelection()
-                    _toastMessage.postValue("Auto: no more active tasks")
-                }
-            } else if (task.taskType == "NOTIFICATION") {
-                notice.handleExpiredNotificationTask(task)
-            } else {
-                alarms.timerExpire(task.name, task.taskType)
-                _alarmTaskName.postValue(task.name)
-                _alarmElapsedSeconds.postValue(elapsedSinceExpiry)
-                startInAppOverrunCounter(task.name, elapsedSinceExpiry)
-                taskToRestoreAfterExpire = task.withTimerState(TaskTimerState.reset())
-                // Requirement #3: do NOT clear the persisted selection on expiry.
-                // The merged card stays seated on the just-expired task (showing the
-                // Expired/alarm state); keep its id stored so a reboot mid-alarm
-                // reopens the card on the same task.
-                settings.saveSelectedTaskId(task.id)
-                _currentTask.postValue(null)
-            }
-        }
-    }
-
-    // =========================================================================
-    // Alarm / overrun counter
-    // =========================================================================
+    ) = timerLifecycle.onTimerFinished(taskOverride, session)
 
     // =========================================================================
     // Alarm / overrun counter facade
@@ -672,13 +387,7 @@ class TaskViewModel @Inject constructor(
     // Vruntime helper
     // =========================================================================
 
-    internal fun applyVruntimeUpdate(session: RunSession) {
-        val task = _currentTask.value ?: return
-        viewModelScope.launch {
-            repository.updateVruntimeAfterRun(task, session)
-            refreshSchedule()
-        }
-    }
+    internal fun applyVruntimeUpdate(session: RunSession) = timerLifecycle.applyVruntimeUpdate(session)
 
     // =========================================================================
     // Scheduler facade
