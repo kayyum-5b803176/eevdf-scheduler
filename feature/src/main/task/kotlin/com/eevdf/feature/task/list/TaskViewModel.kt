@@ -57,6 +57,7 @@ import com.eevdf.contract.control.OverlayController
  *   • [ListBuilderDelegate] — flat Queue / Schedule list construction
  *   • [SortHelper]          — shared number-extraction sort utility
  *   • [TaskCrudDelegate]    — add / update / delete / revert / complete a task
+ *   • [AlarmOverrunDelegate] — overrun counter + restart-after-expire
  *
  * ── Adding a feature to a domain ─────────────────────────────────────────────
  *
@@ -159,6 +160,7 @@ class TaskViewModel @Inject constructor(
     internal val scheduler   = SchedulerDelegate(this)
     internal val listBuilder = ListBuilderDelegate(this)
     internal val crud        = TaskCrudDelegate(this)
+    internal val alarmOverrun = AlarmOverrunDelegate(this)
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
 
@@ -718,90 +720,18 @@ class TaskViewModel @Inject constructor(
     // Alarm / overrun counter
     // =========================================================================
 
-    internal fun startInAppOverrunCounter(_taskName: String, initialElapsedSeconds: Long = 0L) {
-        overrunTimer?.cancel()
-        overrunTimer = object : CountDownTimer(3600_000L, 1000L) {
-            var elapsed = initialElapsedSeconds
-            override fun onTick(millisUntilFinished: Long) {
-                elapsed++
-                _alarmElapsedSeconds.postValue(elapsed)
-            }
-            override fun onFinish() { stopAlarmSound() }
-        }.start()
-    }
+    // =========================================================================
+    // Alarm / overrun counter facade
+    // =========================================================================
 
-    private fun stopOverrunCounter() {
-        overrunTimer?.cancel()
-        overrunTimer = null
-    }
+    internal fun startInAppOverrunCounter(_taskName: String, initialElapsedSeconds: Long = 0L) =
+        alarmOverrun.startInAppOverrunCounter(_taskName, initialElapsedSeconds)
 
-    fun stopAlarmSound() {
-        stopOverrunCounter()
-        _alarmTaskName.postValue(null)
-        _alarmElapsedSeconds.postValue(0L)
-        alarms.stopAlarm()
-        taskToRestoreAfterExpire?.let { resetTask ->
-            // The just-expired task is being re-seated on the card. For a
-            // NOTIFICATION task, triggerAlarmExpire() left _noticePhase == Expired
-            // and never cleared it; without resetting here the timerCardAction
-            // derivation would see (task != null, phase == Expired) and emit
-            // Unavailable ("—") — a dead button — until the user manually
-            // re-selected the task. Reset the notice state to Idle so the button
-            // correctly shows Start. resetState() is idempotent, and this branch
-            // only runs on the alarm-restore path (not on pause/cancel), so it
-            // cannot interfere with an in-flight delay/wait phase.
-            notice.resetState()
-            _currentTask.postValue(resetTask)
-            _timerSeconds.postValue(resetTask.timeSliceSeconds)
-            taskToRestoreAfterExpire = null
-        }
-    }
+    fun stopAlarmSound() = alarmOverrun.stopAlarmSound()
 
-    /**
-     * True while a timer-expiry alarm is ringing.  Used by MainActivity to decide
-     * whether a hardware-key press should be consumed for Stop / Restart
-     * (requirement #4: keys act only during the expire event).
-     */
-    fun isAlarmActive(): Boolean = _alarmTaskName.value != null
+    fun isAlarmActive(): Boolean = alarmOverrun.isAlarmActive()
 
-    /**
-     * "Stop and Start (Restart)" action for hardware keys.
-     *
-     * Restarts the just-expired task on a fresh full slice.  Prefers the
-     * in-memory [taskToRestoreAfterExpire]; if that is gone (e.g. the stop
-     * broadcast already cleared it, or the process was killed and recreated),
-     * falls back to resolving the task by [fallbackName] from the DB.
-     */
-    fun restartAfterExpire(fallbackName: String? = null) {
-        val inMemory = taskToRestoreAfterExpire
-        // Null BEFORE stopAlarmSound() so its restore branch is skipped — otherwise
-        // its queued postValue() would overwrite _currentTask / _timerSeconds with
-        // the idle reset task moments after we start the timer.
-        taskToRestoreAfterExpire = null
-        stopAlarmSound()
-
-        if (inMemory != null) {
-            startFreshSlice(inMemory)
-            return
-        }
-        // Fallback: resolve from DB by name (survives process death / broadcast race).
-        if (!fallbackName.isNullOrBlank()) {
-            viewModelScope.launch {
-                val task = repository.getActiveTaskByName(fallbackName) ?: return@launch
-                startFreshSlice(task)
-            }
-        }
-    }
-
-    /** Seats [task] on the timer card with a full reset slice and starts it. */
-    private fun startFreshSlice(task: Task) {
-        val fresh = task
-            .withTimerState(TaskTimerState.reset())
-            .copy(remainingSeconds = task.timeSliceSeconds)
-        setCurrentTask(fresh)
-        _timerSeconds.value = fresh.timeSliceSeconds
-        startTimer()
-    }
+    fun restartAfterExpire(fallbackName: String? = null) = alarmOverrun.restartAfterExpire(fallbackName)
 
     // =========================================================================
     // Vruntime helper

@@ -707,11 +707,15 @@ target for a future pass, not a wholesale restructure.
      external callers changed** — confirmed by grep across every consumer
      (`MainActivity`, `MenuSyncDelegate`, `ObserverDelegate`,
      `AddTaskActivity`, `LoadFactorSection`, `SaveHandler`).
-   - **Still on `TaskViewModel`, not yet extracted, highest risk first:**
-     Timer lifecycle (~350 lines — `startTimer`/`pauseTimer`/`resetTimer`/
-     `onTimerFinished`/`setCurrentTask`, the core state machine), `init{}`
-     startup/app-kill recovery (~115 lines), Alarm/overrun (~75 lines),
-     bubble-tap handling (~70 lines).
+   - **`AlarmOverrunDelegate` — done, v5.18.0.** `startInAppOverrunCounter`/
+     `stopAlarmSound`/`isAlarmActive`/`restartAfterExpire` + the private
+     `stopOverrunCounter`/`startFreshSlice` they use. Same shape as CRUD: calls
+     into not-yet-extracted timer lifecycle only through `setCurrentTask()`/
+     `startTimer()`, TaskViewModel's own public surface. All fields needed
+     were already `internal` — no visibility promotions this time. Function
+     count 76 → 72.
+   - **Still on `TaskViewModel`:** Timer lifecycle (~350 lines), `init{}`
+     recovery (~115 lines), bubble-tap handling (~70 lines).
 2. Multibound `BackupContributor` / `SyncContributor` so `BackupManager` stops
    being a file every feature edits.
 3. `build-logic/` convention plugins to stop `compileSdk` drifting across four
