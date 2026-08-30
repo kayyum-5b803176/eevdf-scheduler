@@ -544,12 +544,47 @@ inactive own window and no RT descendants correctly returning false, and a
 grandparent correctly seeing a hoisted RT group through an intermediate fair
 group. `:core` is now actually correct for this case, not just delegated-to.
 
-## Phase 9 — next: resolve `TimerEngine` duplication
+## Phase 9 — done (v5.15.0): resolved `TimerEngine` duplication — by deletion
 
-`core.scheduler.timer.TimerEngine` (pure FSM, currently unused) and
-`com.eevdf.feature.task.timer.TimerEngine` (the Android implementation
-actually in use, moved from `app.feature.task.timer` in Phase 7) — carried
-over from Phase 2c, still unresolved.
+**Not the same resolution as Phase 8.** Phase 8's dormant `:core` code
+(`RtPolicy`/`RtConfig`) turned out correct and complete once checked — the
+fix was wiring it up. This one is the opposite: checked before assuming
+anything, and `core.scheduler.timer.TimerEngine` turned out to be an
+**abandoned prototype that never reached feature parity** with what the app
+actually needs, not a finished replacement waiting to be connected.
+
+**What was actually different, not just smaller:** `:core`'s reducer tracked
+remaining time by *accumulating tick deltas* (`accumulatedMs + elapsedMs`) —
+exactly the kind of arithmetic that drifts if a tick is delayed or skipped.
+`com.eevdf.feature.task.timer.TimerEngine` (the live one) does something
+better: it re-derives remaining time from real wall-clock epochs on every
+tick, by design — its own doc comment says CountDownTimer's
+`millisUntilFinished` is "NEVER used for display values" for exactly this
+reason. The live version also does things `:core`'s has no model for at
+all: `restoreFromDb()` recovers correctly if the process was killed mid-timer
+(including detecting expiry-while-dead); `RunSession.Paused`/`Expired`/
+`Recovered` carry real elapsed wall-clock time for accurate vruntime/stats
+crediting across multiple pause/resume cycles; and a documented,
+deliberate fix for a race that used to silently drop run-time crediting.
+
+**`:core`'s own test suite admitted the gap.**
+`TimerEngineCharacterizationTest.kt` had a `KNOWN BUG` test asserting
+`TimerEffect.Expired.ranSeconds` is hardcoded to `0L` — "anything downstream
+that credits run time from this effect... will record zero." Migrating the
+live implementation to this reducer would have been a regression:
+reintroducing exactly the zero-crediting bug the live version exists to
+prevent, while also losing app-kill recovery and race-safety.
+
+**Deleted, not migrated-to:** `core/scheduler/timer/TimerEngine.kt`,
+`platform/scheduler/CountdownTimerDriver.kt` (the tick-source adapter that
+only existed to drive the deleted reducer — dead the moment its one consumer
+is gone), and `TimerEngineCharacterizationTest.kt`. This is the first actual
+deletion in this refactor, as opposed to every prior phase's renames/moves —
+justified because this was confirmed dead *and* confirmed inferior to what
+replaced it, unlike earlier "unwired but correct" cases (`GroupTaskPrefs`,
+Phase 8's `RtPolicy`) which were parked for a future wiring, not removed.
+`com.eevdf.feature.task.timer.TimerEngine` is untouched and remains the one
+timer implementation in the app.
 
 ## Phase 10 — next: complexity-ratchet backlog (carried over from Phase 2c)
 
