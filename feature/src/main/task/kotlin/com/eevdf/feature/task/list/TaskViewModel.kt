@@ -18,7 +18,6 @@ import com.eevdf.feature.task.timer.NextButtonState
 import com.eevdf.data.task.timer.timerState
 import com.eevdf.data.task.timer.withTimerState
 import com.eevdf.data.task.TaskDisplayItem
-import com.eevdf.data.scheduler.EEVDFScheduler
 import com.eevdf.data.scheduler.SchedulerStats
 import com.eevdf.feature.task.timer.TimerEngine
 import kotlinx.coroutines.launch
@@ -57,6 +56,7 @@ import com.eevdf.contract.control.OverlayController
  *   • [SchedulerDelegate]   — rotation, auto-next, schedule-next
  *   • [ListBuilderDelegate] — flat Queue / Schedule list construction
  *   • [SortHelper]          — shared number-extraction sort utility
+ *   • [TaskCrudDelegate]    — add / update / delete / revert / complete a task
  *
  * ── Adding a feature to a domain ─────────────────────────────────────────────
  *
@@ -158,6 +158,7 @@ class TaskViewModel @Inject constructor(
     internal val notice      = NoticeStateMachine(this)
     internal val scheduler   = SchedulerDelegate(this)
     internal val listBuilder = ListBuilderDelegate(this)
+    internal val crud        = TaskCrudDelegate(this)
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
 
@@ -357,91 +358,20 @@ class TaskViewModel @Inject constructor(
     }
 
     // =========================================================================
-    // CRUD
+    // CRUD facade
     // =========================================================================
 
-    /**
-     * After any task mutation the float-pool changes for every sibling.
-     * Re-derives internalWeight for all pinned tasks and batch-persists only
-     * the ones that actually changed.
-     */
-    private suspend fun syncPinnedWeights() {
-        val tasks   = repository.getActiveTasksSync()
-        val changed = EEVDFScheduler.syncPinnedWeights(tasks)
-        if (changed.isNotEmpty()) repository.updateBatch(changed)
-    }
-
-    fun addTask(task: Task) = viewModelScope.launch {
-        repository.insert(task)
-        syncPinnedWeights()
-        refreshSchedule()
-        triggerSyncExport()
-        _toastMessage.postValue("Task \"${task.name}\" added to scheduler")
-    }
-
-    fun updateTask(task: Task) = viewModelScope.launch {
-        repository.update(task)
-        syncPinnedWeights()
-        refreshSchedule()
-        triggerSyncExport()
-    }
-
-    fun deleteTask(task: Task) = viewModelScope.launch {
-        if (task.id == _currentTask.value?.id) {
-            pauseTimer()
-            _currentTask.postValue(null)
-            clearPersistedSelection()
-        }
-        repository.delete(task)
-        syncPinnedWeights()
-        refreshSchedule()
-        triggerSyncExport()
-        _toastMessage.postValue("Task \"${task.name}\" deleted")
-    }
-
-    /** Moves a completed task back to the active queue, restoring its timer slice. */
-    fun revertTask(task: Task) = viewModelScope.launch {
-        val reverted = task.copy(isCompleted = false).withTimerState(TaskTimerState.reset())
-        repository.update(reverted)
-        syncPinnedWeights()
-    }
-
-    fun markCompleted(task: Task) = viewModelScope.launch {
-        triggerSyncExport()               // notify other users: task completed
-        if (task.id == _currentTask.value?.id) stopTimer(completed = true)
-        else repository.markCompleted(task)
-        syncPinnedWeights()
-        refreshSchedule()
-    }
-
-    fun clearCompleted() = viewModelScope.launch { repository.clearCompleted() }
-
-    fun clearToast() { _toastMessage.value = null }
-
-    fun toggleGroupExpanded(group: Task) = viewModelScope.launch {
-        val updated = group.copy(isGroupExpanded = !group.isGroupExpanded)
-        repository.update(updated)
-    }
-
-    /** Direct DB lookup used by AddTaskActivity to reliably load a task for editing. */
-    suspend fun getTaskById(id: String): Task? = repository.getTaskById(id)
-
-    /**
-     * Fetches the [TaskLoadFactor] side table entry for [taskId].
-     * Returns null when the task has never had its load factor configured
-     * (form treats missing row as disabled / midpoint defaults 4,4,4 → 50).
-     */
-    suspend fun getLoadFactor(taskId: String): TaskLoadFactor? =
-        repository.getLoadFactor(taskId)
-
-    /**
-     * Persists a [TaskLoadFactor] side table entry (insert or replace).
-     * Called from [SaveHandler] after the Task row has been written
-     * so the side table always references a valid taskId.
-     */
-    fun saveLoadFactor(entry: TaskLoadFactor) = viewModelScope.launch {
-        repository.saveLoadFactor(entry)
-    }
+    fun addTask(task: Task)                      = crud.addTask(task)
+    fun updateTask(task: Task)                    = crud.updateTask(task)
+    fun deleteTask(task: Task)                    = crud.deleteTask(task)
+    fun revertTask(task: Task)                    = crud.revertTask(task)
+    fun markCompleted(task: Task)                 = crud.markCompleted(task)
+    fun clearCompleted()                          = crud.clearCompleted()
+    fun clearToast()                               = crud.clearToast()
+    fun toggleGroupExpanded(group: Task)          = crud.toggleGroupExpanded(group)
+    suspend fun getTaskById(id: String): Task?    = crud.getTaskById(id)
+    suspend fun getLoadFactor(taskId: String): TaskLoadFactor? = crud.getLoadFactor(taskId)
+    fun saveLoadFactor(entry: TaskLoadFactor)     = crud.saveLoadFactor(entry)
 
     // =========================================================================
     // Timer lifecycle
@@ -685,11 +615,11 @@ class TaskViewModel @Inject constructor(
      * paths (delete, skip, complete, hold-to-deselect) — NOT from the expiry path,
      * where requirement #3 mandates the card stay seated on the just-expired task.
      */
-    private fun clearPersistedSelection() = settings.saveSelectedTaskId(null)
+    internal fun clearPersistedSelection() = settings.saveSelectedTaskId(null)
 
     fun cancelNotice() = notice.cancelNotice()
 
-    private fun stopTimer(completed: Boolean) {
+    internal fun stopTimer(completed: Boolean) {
         stopAlarmSound()
         timerEngine.clear()
         _timerRunning.value = false

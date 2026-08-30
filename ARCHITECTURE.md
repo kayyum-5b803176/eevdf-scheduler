@@ -596,7 +596,10 @@ Phase 8's `RtPolicy`) which were parked for a future wiring, not removed.
 `com.eevdf.feature.task.timer.TimerEngine` is untouched and remains the one
 timer implementation in the app.
 
-## Phase 10 — in progress (v5.16.0): complexity-ratchet backlog (carried over from Phase 2c)
+## Phase 10 — partially done (v5.16.0): complexity-ratchet backlog (carried over from Phase 2c)
+
+Item 1's `MainActivity` half is done and real-device verified. `TaskViewModel`
+(item 1's other half) and items 2–4 are still open.
 
 **Item 1 was investigated before touching anything, per the pattern
 established in Phase 8.** Splitting `MainActivity`/`TaskViewModel` is
@@ -636,7 +639,10 @@ contract, not a design choice. What's achievable is functional elimination —
 the file stops being a shared edit surface where logic accumulates, even
 though it still exists as a thin wiring shell.
 
-**`MainActivity`: 1362 → 588 lines, 54 → 35 functions.** Four concerns were
+**`MainActivity`: 1362 → 588 lines, 54 → 35 functions. Verified working on a
+real device** — every item on the Phase 10 testing checklist (display
+scaling/compact mode/FABs, timer card + buttons, menu/sync icon/schedule-next
+dot, all 9 observers) checked out with no regressions. Four concerns were
 extracted into their own delegate classes, all in `feature/task/list/`,
 following the exact `internal class XDelegate(private val activity:
 MainActivity)` pattern `TaskViewModel` already uses for its own 7 delegates
@@ -680,9 +686,32 @@ whatever logic still lives directly on it (not yet in a delegate) is the
 target for a future pass, not a wholesale restructure.
 
 1. Split `MainActivity` (done, see above) and `TaskViewModel` (1176 lines,
-   **not done**) into delegates / per-feature ViewModels. `TaskViewModel` is
-   next — find what logic still lives directly on it versus its existing 7
-   delegates, following the same investigate-before-touching approach.
+   **in progress, one cluster at a time**) into delegates / per-feature
+   ViewModels. `TaskViewModel` has a different risk shape than `MainActivity`:
+   a mistake in vruntime crediting or app-kill recovery doesn't look wrong —
+   it looks completely normal and silently credits the wrong run time, a
+   much worse class of bug than a visibly-broken UI element. Extracting one
+   cluster at a time, lowest-risk first, each with its own check-in, rather
+   than one pass like `MainActivity`.
+
+   - **`TaskCrudDelegate` — done, v5.17.0.** `addTask`/`updateTask`/
+     `deleteTask`/`revertTask`/`markCompleted`/`clearCompleted`/`clearToast`/
+     `toggleGroupExpanded`/`getTaskById`/`getLoadFactor`/`saveLoadFactor` +
+     the private `syncPinnedWeights` they all trigger. Chosen first because
+     it never touches the timer/alarm state machine directly — it calls
+     `pauseTimer()`/`stopTimer()` through the same internal surface any
+     other caller would, not by reaching into timer internals.
+     `TaskViewModel` keeps every one of these as a one-line facade (`fun
+     addTask(task: Task) = crud.addTask(task)`), matching the existing
+     Interrupt/CallSwitch/Scheduler facade pattern exactly, so **zero
+     external callers changed** — confirmed by grep across every consumer
+     (`MainActivity`, `MenuSyncDelegate`, `ObserverDelegate`,
+     `AddTaskActivity`, `LoadFactorSection`, `SaveHandler`).
+   - **Still on `TaskViewModel`, not yet extracted, highest risk first:**
+     Timer lifecycle (~350 lines — `startTimer`/`pauseTimer`/`resetTimer`/
+     `onTimerFinished`/`setCurrentTask`, the core state machine), `init{}`
+     startup/app-kill recovery (~115 lines), Alarm/overrun (~75 lines),
+     bubble-tap handling (~70 lines).
 2. Multibound `BackupContributor` / `SyncContributor` so `BackupManager` stops
    being a file every feature edits.
 3. `build-logic/` convention plugins to stop `compileSdk` drifting across four
