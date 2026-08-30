@@ -596,12 +596,15 @@ Phase 8's `RtPolicy`) which were parked for a future wiring, not removed.
 `com.eevdf.feature.task.timer.TimerEngine` is untouched and remains the one
 timer implementation in the app.
 
-## Phase 10 — item 1 done (v5.21.0): complexity-ratchet backlog (carried over from Phase 2c)
+## Phase 10 — item 1 done and fully verified (v5.21.0): complexity-ratchet backlog (carried over from Phase 2c)
 
 Item 1 — splitting both `MainActivity` and `TaskViewModel` — is done and
-real-device verified (with one caveat: `BubbleTapDelegate`'s functional
-behavior is build-verified only, no telephony on the test device). Items
-2–4 are still open.
+**every cluster real-device verified**, including `TimerLifecycleDelegate`
+(the biggest and riskiest extraction of the whole refactor: start/pause/
+reset/skip/select/expiry, vruntime crediting across multiple pause-resume
+cycles, all checked and passing). `BubbleTapDelegate`'s functional behavior
+remains build-verified only — no telephony on the test device to exercise
+the actual call-switching cases. Items 2–4 are still open.
 
 **Item 1 was investigated before touching anything, per the pattern
 established in Phase 8.** Splitting `MainActivity`/`TaskViewModel` is
@@ -764,8 +767,28 @@ target for a future pass, not a wholesale restructure.
      boundaries"), `init{}`'s unavoidable `val` assignments, `onCleared()`,
      and the already-thin Scheduler/Settings/GroupExpand/Interrupt/CallSwitch
      facades that were correctly minimal before this phase even started.
-2. Multibound `BackupContributor` / `SyncContributor` so `BackupManager` stops
-   being a file every feature edits.
+2. ~~Multibound `BackupContributor` / `SyncContributor` so `BackupManager`
+   stops being a file every feature edits.~~ **Closed, checked before
+   implementing (v5.21.0).** `BackupManager.taskToJson`/`taskFromJson` is a
+   217-line file that genuinely did grow this way historically — its field
+   list reads like a changelog (EEVDF state, then interrupt slots, then
+   quota, then RT, then load factor, each added by a different feature).
+   But the actual restore path doesn't use it: `DataBackupActivity` copies
+   the raw SQLite `database.db` file into the backup zip and restores from
+   that directly (`tasks.json` is documented as a secondary, "portable /
+   inspectable" export, not the real restore mechanism) — so any side table
+   (`TaskLoadFactor`, etc.) is already captured for free via the raw file
+   copy, no contributor needed. More importantly, the root cause that made
+   this file a recurring shared-edit surface — new features adding new
+   `Task` fields — is already blocked by guard rail #6, the schema freeze
+   (51 columns, `TaskSchemaFreezeTest`, new feature data goes in a side
+   table instead). Building a multibind `Contributor` architecture now would
+   mean one real contributor (`Task`'s now-frozen fields) and no others —
+   machinery for an extensibility need the freeze already made unnecessary.
+   `BackupRoundTripCoverageTest` (guard rail #3) already protects against a
+   silently-missed field regardless. If the schema freeze is ever relaxed,
+   or a side table someday needs its own JSON export path, re-check this
+   reasoning rather than assume it still holds.
 3. `build-logic/` convention plugins to stop `compileSdk` drifting across four
    build files.
 4. `explicitApi()` + `internal` by default.
