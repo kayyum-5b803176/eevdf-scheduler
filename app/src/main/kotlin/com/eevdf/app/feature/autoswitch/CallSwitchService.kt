@@ -26,7 +26,7 @@ import javax.inject.Inject
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import com.eevdf.app.core.signals.BubbleEventBus
 import com.eevdf.app.core.signals.CallEvents
-import com.eevdf.app.core.control.AlarmController
+import com.eevdf.contract.control.AlarmController
 
 /**
  * Background foreground-service that performs call-task switching without

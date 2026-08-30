@@ -3,7 +3,7 @@ package com.eevdf.app.feature.autoswitch
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
-import com.eevdf.app.core.control.OverlayController
+import com.eevdf.contract.control.OverlayController
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import dagger.Binds
 import dagger.Module

@@ -10,7 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.app.R
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.app.core.nav.AppRoutes
+import com.eevdf.contract.nav.AppRoutes
 
 class SettingsActivity : AppCompatActivity() {
 

@@ -1,8 +1,8 @@
 package com.eevdf.app.feature.alarm
 
 import android.content.Context
-import com.eevdf.app.core.control.AlarmController
-import com.eevdf.app.core.control.RingingAlarm
+import com.eevdf.contract.control.AlarmController
+import com.eevdf.contract.control.RingingAlarm
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

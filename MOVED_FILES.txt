@@ -1,41 +1,61 @@
-Files moved in v5.10.0 — delete the OLD path when applying this diff,
-the new path is included in this zip:
+Files moved in v5.11.0 — delete the OLD path when applying this diff,
+the new path is included in this zip. This is the :contract module extraction
+(Phase 4 of ARCHITECTURE.md).
 
-  app/src/main/kotlin/com/eevdf/app/core/prefs/GroupTaskPrefs.kt
-    -> app/src/main/kotlin/com/eevdf/app/feature/task/GroupTaskPrefs.kt
-       (no callers anywhere; parked with its future owner instead of core)
+  app/src/main/kotlin/com/eevdf/app/core/nav/AppRoutes.kt
+    -> contract/src/main/kotlin/com/eevdf/contract/nav/AppRoutes.kt
+       (package com.eevdf.app.core.nav -> com.eevdf.contract.nav)
 
-  app/src/main/kotlin/com/eevdf/app/core/prefs/RecentGroupPrefs.kt
-    -> app/src/main/kotlin/com/eevdf/app/feature/task/RecentGroupPrefs.kt
-       (both callers, GroupPickerDialog and AddTaskGroupSection, already
-       live in feature/task — this was misfiled as shared)
+  app/src/main/kotlin/com/eevdf/app/core/control/AlarmController.kt
+  app/src/main/kotlin/com/eevdf/app/core/control/OverlayController.kt
+  app/src/main/kotlin/com/eevdf/app/core/control/AlarmActions.kt
+    -> contract/src/main/kotlin/com/eevdf/contract/control/*.kt
+       (package com.eevdf.app.core.control -> com.eevdf.contract.control)
 
-  app/src/main/kotlin/com/eevdf/app/core/settings/SettingsPage.kt
-    -> app/src/main/kotlin/com/eevdf/app/feature/settings/SettingsPage.kt
-
-  app/src/main/kotlin/com/eevdf/app/core/settings/SettingsChangeLogger.kt
-    -> app/src/main/kotlin/com/eevdf/app/feature/settings/SettingsChangeLogger.kt
-       (unwired contract pair; only meaningful within feature/settings)
-
-  app/src/main/kotlin/com/eevdf/app/core/template/DropdownCardView.kt
-  app/src/main/kotlin/com/eevdf/app/core/template/ModelDiagramView.kt
-  app/src/main/kotlin/com/eevdf/app/core/template/NavCardView.kt
-  app/src/main/kotlin/com/eevdf/app/core/template/ToggleCardView.kt
-  app/src/main/kotlin/com/eevdf/app/core/template/ValueCardView.kt
-    -> app/src/main/kotlin/com/eevdf/app/ui/*.kt
-       (package com.eevdf.app.core.template -> com.eevdf.app.ui; used only
-       by feature/settings but genuinely a shared design system, not owned
-       by one feature)
+  app/src/test/kotlin/com/eevdf/app/core/nav/AppRoutesTest.kt
+    -> app/src/test/kotlin/com/eevdf/app/contract/AppRoutesTest.kt
+       (stays in :app — needs Activity classes on its test classpath for
+       Class.forName, which :contract deliberately never carries. Package
+       changed to com.eevdf.app.contract; now imports AppRoutes explicitly
+       instead of relying on same-package visibility.)
 
 Old directories now empty and safe to remove once the above are deleted:
-  app/src/main/kotlin/com/eevdf/app/core/settings/
-  app/src/main/kotlin/com/eevdf/app/core/template/
+  app/src/main/kotlin/com/eevdf/app/core/nav/
+  app/src/main/kotlin/com/eevdf/app/core/control/
+  app/src/test/kotlin/com/eevdf/app/core/nav/
+  app/src/test/kotlin/com/eevdf/app/core/ (if nothing else remains under it)
 
-Modified (not moved) — import/package fixups only, no behavior change:
-  app/src/main/kotlin/com/eevdf/app/feature/task/AddTaskGroupSection.kt
-  app/src/main/kotlin/com/eevdf/app/feature/task/GroupPickerDialog.kt
-  app/src/main/kotlin/com/eevdf/app/feature/settings/LayoutDemoActivity.kt
-  app/src/main/res/layout/activity_layout_demo.xml
+New module — add these two lines' worth of wiring if applying by hand instead
+of via this zip's settings.gradle.kts / app/build.gradle.kts / build.gradle.kts:
+  settings.gradle.kts   include(...) gains ":contract"
+  app/build.gradle.kts  dependencies gains implementation(project(":contract"))
+  build.gradle.kts      detekt source set gains "contract/src/main/kotlin"
+
+Modified (import/package fixups only, no behavior change) — 10 files that
+consumed AppRoutes/AlarmController/OverlayController/AlarmActions now import
+from com.eevdf.contract.* instead of com.eevdf.app.core.*:
+  app/src/main/kotlin/com/eevdf/app/feature/autoswitch/CallSwitchService.kt
+  app/src/main/kotlin/com/eevdf/app/feature/autoswitch/BubbleOverlayService.kt
+  app/src/main/kotlin/com/eevdf/app/feature/autoswitch/OverlayControlModule.kt
+  app/src/main/kotlin/com/eevdf/app/feature/task/TaskViewModel.kt
+  app/src/main/kotlin/com/eevdf/app/feature/task/MainActivity.kt
+  app/src/main/kotlin/com/eevdf/app/feature/task/notice/TaskNoticeStateMachine.kt
+  app/src/main/kotlin/com/eevdf/app/feature/alarm/AlarmControlModule.kt
+  app/src/main/kotlin/com/eevdf/app/feature/alarm/AlarmStopReceiver.kt
+  app/src/main/kotlin/com/eevdf/app/feature/alarm/AlarmScheduler.kt
+  app/src/main/kotlin/com/eevdf/app/feature/alarm/AlarmForegroundService.kt
+  app/src/main/kotlin/com/eevdf/app/feature/alarm/AlarmActivity.kt
+  app/src/main/kotlin/com/eevdf/app/feature/settings/SettingsActivity.kt
+
+Also modified (guard rails and docs, no code behavior change):
+  CODEOWNERS                    — added /contract/ ownership rule
+  scripts/check_architecture.sh — god-file + long-function scans now include contract/
+  ARCHITECTURE.md               — :contract flipped to real module, Phase 4 marked done
 
 Version bump:
-  app/build.gradle.kts   versionName 5.9.0 -> 5.10.0 (versionCode unchanged)
+  app/build.gradle.kts   versionName 5.10.0 -> 5.11.0 (versionCode unchanged)
+
+NOT included in this zip, deliberately left untouched:
+  BubbleEventBus / CallEvents (app/core/signals/) — stays put per explicit
+  decision; different shape than the interfaces that moved (concrete
+  StateFlow singleton, not a per-feature-implemented interface).

@@ -31,6 +31,11 @@
 # The pure core. Changes here alter scheduling behaviour app-wide.
 /core/                                                      @your-handle
 
+# Contracts between features. A change here is a promise every implementing
+# feature depends on — breaking it breaks whichever feature binds it, silently,
+# at runtime rather than compile time (interfaces resolved through Hilt).
+/contract/                                                  @your-handle
+
 # Guard rails themselves. Weakening these should never be a quiet change.
 /scripts/                                                   @your-handle
 /config/detekt/                                             @your-handle

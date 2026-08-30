@@ -15,7 +15,7 @@ import com.eevdf.app.R
 import com.eevdf.app.core.media.SoundManager
 import com.eevdf.app.core.prefs.DisplayPrefs
 import com.eevdf.app.core.media.VibrationManager
-import com.eevdf.app.core.nav.AppRoutes
+import com.eevdf.contract.nav.AppRoutes
 
 /**
  * Foreground service that owns the notification UI and alarm sound/wake.

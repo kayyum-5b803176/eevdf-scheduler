@@ -44,8 +44,8 @@ import com.google.android.material.tabs.TabLayout
 import com.eevdf.app.core.media.VibrationManager
 import com.eevdf.app.core.notification.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
-import com.eevdf.app.core.nav.AppRoutes
-import com.eevdf.app.core.control.AlarmActions
+import com.eevdf.contract.nav.AppRoutes
+import com.eevdf.contract.control.AlarmActions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 @AndroidEntryPoint

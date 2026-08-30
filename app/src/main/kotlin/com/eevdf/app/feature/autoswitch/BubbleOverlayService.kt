@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.eevdf.app.core.prefs.AutoSwitchPrefs
 import com.eevdf.app.core.signals.BubbleEventBus
-import com.eevdf.app.core.control.AlarmController
+import com.eevdf.contract.control.AlarmController
 
 /**
  * Foreground service that owns the floating call-state bubble overlay.

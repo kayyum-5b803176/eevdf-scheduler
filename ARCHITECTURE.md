@@ -49,16 +49,15 @@ later phases exist.
 **Current:**
 
 ```
-:app  ──▶ :data ──▶ :core ◀── :platform          :shared ◀── (anyone)
-  └──────────────────┴─────────▶
-```
-
-**Target (Phase 4 onward):**
-
-```
 :app ──▶ :contract          :app ──▶ :data ──▶ :core ◀── :platform
-:app ──▶ :feature ──▶ :contract                 :shared ◀── (anyone)
-:feature ──▶ :core, :data, :shared
+:app ──▶ :core, :data, :platform, :shared       :shared ◀── (anyone)
+```
+
+**Target (Phase 7 onward):**
+
+```
+:app ──▶ :contract, :feature
+:feature ──▶ :contract, :core, :data, :platform, :shared
 ```
 
 | Module      | Kind      | Status | Rule |
@@ -68,7 +67,7 @@ later phases exist.
 | `:platform` | AndroidLib| ✅ real module | Android adapters for `:core` ports (clock, alarms, RR store). Currently thin — `SoundManager`, `VibrationManager`, `NotificationHelper` belong here by the doc's own rule (`platform` = Android APIs) but still live in `app.core.*`. See Phase 5. |
 | `:shared`   | Pure JVM  | ✅ real module | Cross-cutting utilities, feature flags, crash isolation. |
 | `:testing`  | Pure JVM  | ✅ real module | Fakes, plus `:core`'s own unit tests (arguably belongs in `:core` — the doc defines `testing/` as reusable *infrastructure*, not the tests themselves; unresolved, low priority). |
-| `:contract` | —         | 🚧 target, not yet a module | Currently informal: `AppRoutes`, `AlarmController`, `OverlayController`, `AlarmActions` live in `app.core.nav` / `app.core.control`. These are genuine contracts — `AlarmController`/`OverlayController` are interfaces with zero Android imports, implemented inside the feature that owns the behaviour and bound by that feature's own Hilt module. See Phase 4. |
+| `:contract` | AndroidLib| ✅ real module (Phase 4, v5.11.0) | `AppRoutes` (`contract.nav`), `AlarmController`, `OverlayController`, `AlarmActions` (`contract.control`). Deliberately dependency-free — no `:core`, no `:data` — because a contract that needs another module's types has stopped being a contract. `AppRoutesTest` stays in `:app` (needs the Activity classes on its classpath, which `:contract` should never have). |
 | `:feature`  | —         | 🚧 target, not yet a module | Feature packages live under `app/src/main/kotlin/com/eevdf/app/feature/`. Boundary enforced by `scripts/check_architecture.sh`, not the compiler, until Phase 7. |
 | `:app`      | App       | ✅ real module | UI, ViewModels, DI wiring, manifest, resources. Also holds `app/ui/` — a genuinely shared design-system package (`NavCardView`, `ModelDiagramView`, etc.), used only by `feature/settings` today but classified shared rather than feature-owned per the ownership test in `Scalable_Feature-Boundary_Architecture.md` §12: a design-system component isn't owned by the one feature that happens to use it first. |
 
@@ -88,14 +87,14 @@ another feature. Grandfathered edges live in
     v4.4.0   5 edges   (Phase 2a: relocations + AppRoutes)
     v4.5.0   1 edge    (Phase 2b: service-control contracts)
 
-**Cross-feature behaviour goes through a contract in `app.core.control`**, with
-the implementation living inside the feature that owns the behaviour and bound
-by that feature's own Hilt module (`AlarmController` ->
-`feature/alarm/AlarmControlModule`, `OverlayController` ->
-`feature/autoswitch/OverlayControlModule`). The arrow points inward to an
-interface, never sideways to a sibling. **This becomes the real `:contract`
-module in Phase 4** — nothing about the rule changes, only its enforcement
-from script to compiler.
+**Cross-feature behaviour goes through `:contract`** (`AlarmController`,
+`OverlayController`, both in `contract.control`), with the implementation
+living inside the feature that owns the behaviour and bound by that feature's
+own Hilt module (`AlarmController` -> `feature/alarm/AlarmControlModule`,
+`OverlayController` -> `feature/autoswitch/OverlayControlModule`). The arrow
+points inward to an interface, never sideways to a sibling. As of Phase 4
+(v5.11.0) this is a real Gradle module: a feature that reaches for
+`app.core.control` no longer compiles, it has to depend on `:contract`.
 
 **Shared code that is genuinely ownerless lives in `app.core.*`.** Currently:
 `core.prefs` (`AutoSwitchPrefs`, `DisplayPrefs`, `HardwareKeyPrefs`,
@@ -107,10 +106,12 @@ went to `feature/task`, `SettingsPage`/`SettingsChangeLogger` went to
 that sharing must be earned by proven multi-feature use, not assumed from a
 folder name.
 
-**Navigation goes through `AppRoutes`** (`app.core.nav`), which resolves screens
-by class name so no screen holds a compile-time reference to another.
-`AppRoutesTest` validates every route resolves. Moving to `:contract` in
-Phase 4; how `AppRoutesTest` travels with it is an open decision (see Phase 4).
+**Navigation goes through `AppRoutes`** (`contract.nav`, moved from
+`app.core.nav` in Phase 4), which resolves screens by class name so no screen
+holds a compile-time reference to another. `AppRoutesTest` stays in `:app`
+rather than moving with it — it needs the actual Activity classes on its test
+classpath for `Class.forName` to resolve them, which `:app` has and
+`:contract` deliberately never will.
 
 ### 2. Core purity
 `:core` has no Android plugin. Adding `import android.*` there fails to compile.
@@ -211,27 +212,29 @@ actually is a shared design system.
   `feature/settings`, because a design system is infrastructure multiple
   features are expected to draw on, not settings-specific behaviour.
 
-## Phase 4 — next: the `:contract` module
+## Phase 4 — done (v5.11.0): the `:contract` module
 
-Promote `app.core.control` (`AlarmController`, `OverlayController`,
+Promoted `app.core.control` (`AlarmController`, `OverlayController`,
 `AlarmActions`) and `app.core.nav` (`AppRoutes`) into a real `:contract`
-Gradle module. Confirmed as contracts, not platform code: both controller
-interfaces have zero Android imports; their implementations live inside the
-owning feature bound via that feature's own Hilt module — exactly the shape
-`Scalable_Feature-Boundary_Architecture.md` §8 describes.
+Gradle module (`com.eevdf.contract.control`, `com.eevdf.contract.nav`).
+Confirmed as contracts, not platform code: both controller interfaces have
+zero Android imports; their implementations live inside the owning feature
+bound via that feature's own Hilt module — exactly the shape
+`Scalable_Feature-Boundary_Architecture.md` §8 describes. `:contract` takes no
+dependency on `:core`, `:data`, `:platform` or `:shared` — a contract needing
+another module's types has stopped being a contract.
 
-**Open decisions, not yet resolved:**
+**Resolved:**
 
-- `AppRoutesTest` resolves Activity classes via `Class.forName`. If `AppRoutes`
-  moves to `:contract`, does the test move with it (needing Activity classes
-  visible from a module that should stay Android-light), or does `:app` keep a
-  thin runtime check while only the constants live in `:contract`?
-- `core.signals` (`BubbleEventBus`, `CallEvents`) is used across `task` and
-  `autoswitch` — a cross-feature communication channel, which smells like a
-  contract by the ownership test, but it's a concrete `StateFlow` singleton,
-  not an interface implemented per-feature like `AlarmController`. Whether it
-  belongs in `:contract` alongside the interfaces, or stays genuinely-shared
-  infrastructure in `:app`/`:shared`, needs a decision before it moves.
+- `AppRoutesTest` stays in `:app` as `com.eevdf.app.contract.AppRoutesTest`,
+  importing `AppRoutes` from `:contract`. It needs the real Activity classes
+  on its classpath for `Class.forName` — `:app` has them (transitively, until
+  Phase 7), `:contract` should never carry that weight.
+- `core.signals` (`BubbleEventBus`, `CallEvents`) stays in `app.core.signals`
+  for now. It's cross-feature but a concrete `StateFlow` singleton, not an
+  interface implemented per-feature like `AlarmController` — a different
+  enough shape that folding it into `:contract` was deferred rather than
+  assumed. Revisit in a later phase.
 
 ## Phase 5 — next: platform relocation
 

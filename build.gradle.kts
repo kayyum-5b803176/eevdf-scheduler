@@ -24,6 +24,7 @@ detekt {
     source.setFrom(
         files(
             "app/src/main/kotlin",
+            "contract/src/main/kotlin",
             "core/src/main/kotlin",
             "data/src/main/kotlin",
             "platform/src/main/kotlin",

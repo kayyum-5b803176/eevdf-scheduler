@@ -5,7 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.eevdf.app.core.nav.AppRoutes
+import com.eevdf.contract.nav.AppRoutes
 
 /**
  * The ONLY class in the app that is allowed to call AlarmManager or write AlarmState.

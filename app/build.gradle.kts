@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "5.10.0"
+        versionName = "5.11.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -95,6 +95,7 @@ android {
     }
 }
 dependencies {
+    implementation(project(":contract"))
     implementation(project(":core"))
     implementation(project(":data"))
     implementation(project(":platform"))

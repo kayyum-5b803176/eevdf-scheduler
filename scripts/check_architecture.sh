@@ -193,7 +193,7 @@ while IFS= read -r f; do
   if [ "$lines" -gt "$LIMIT" ]; then
     fail "$f is $lines lines (limit $LIMIT) — split it before it becomes a shared edit surface"
   fi
-done < <(find app core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
+done < <(find app contract core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
 [ "$FAILURES" -eq "$FAILURES_BEFORE_STEP5" ] && grn "  OK (2 files grandfathered: MainActivity, TaskViewModel)"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -228,7 +228,7 @@ while IFS= read -r f; do
                   if(n){printf "%d %s\n", NR-s-1, n} n=$0; s=NR
                 } END{ if(n) printf "%d %s\n", NR-s-1, n }' "$f" \
             | sed 's/  */ /g; s/(.*//')
-done < <(find app core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
+done < <(find app contract core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
 
 echo "  longest: $WORST lines (ceiling $CEILING) — $WORST_NAME"
 echo "  over the ${TARGET}-line target: $OVER (debt baseline $DEBT_COUNT)"
