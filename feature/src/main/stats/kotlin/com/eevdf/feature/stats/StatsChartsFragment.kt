@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.data.runlog.RunLogDao
 import com.eevdf.data.task.TaskDao
 import dagger.hilt.android.AndroidEntryPoint
@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
 import com.eevdf.data.scheduler.LoadAverage
 import com.eevdf.data.scheduler.LoadEwmaReconstructor
 import com.github.mikephil.charting.components.LimitLine

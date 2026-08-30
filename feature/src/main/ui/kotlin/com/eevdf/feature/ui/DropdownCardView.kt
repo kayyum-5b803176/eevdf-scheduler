@@ -9,7 +9,7 @@ import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.FrameLayout
 import android.widget.TextView
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButton
 
 /**

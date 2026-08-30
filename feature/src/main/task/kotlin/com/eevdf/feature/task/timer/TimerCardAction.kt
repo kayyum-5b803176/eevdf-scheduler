@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.timer
 
 import androidx.annotation.ColorRes
-import com.eevdf.app.R
+import com.eevdf.feature.R
 
 /**
  * Single source of truth for every button in the timer card.

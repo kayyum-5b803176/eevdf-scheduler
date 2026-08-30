@@ -7,8 +7,8 @@ import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import com.eevdf.app.R
-import com.eevdf.app.core.prefs.HardwareKeyPrefs
+import com.eevdf.feature.R
+import com.eevdf.feature.shared.prefs.HardwareKeyPrefs
 
 /**
  * Per-key action chooser opened from [HardwareKeyActionActivity].

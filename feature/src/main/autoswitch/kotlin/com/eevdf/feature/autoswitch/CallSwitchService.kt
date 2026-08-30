@@ -9,7 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.data.task.timer.TaskTimerState
 import com.eevdf.data.task.timer.timerState
@@ -23,9 +23,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
-import com.eevdf.app.core.signals.BubbleEventBus
-import com.eevdf.app.core.signals.CallEvents
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.feature.shared.signals.BubbleEventBus
+import com.eevdf.feature.shared.signals.CallEvents
 import com.eevdf.contract.control.AlarmController
 
 /**

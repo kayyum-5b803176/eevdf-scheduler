@@ -11,7 +11,7 @@ import com.eevdf.data.task.Task
 import com.eevdf.data.task.timer.TaskTimerState
 import com.eevdf.data.task.timer.timerState
 import com.eevdf.data.task.timer.withTimerState
-import com.eevdf.app.core.media.SoundManager
+import com.eevdf.platform.media.SoundManager
 import kotlinx.coroutines.launch
 import com.eevdf.feature.task.TaskViewModel
 

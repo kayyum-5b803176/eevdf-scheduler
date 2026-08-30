@@ -21,13 +21,13 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.TaskRepository
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import dagger.hilt.android.AndroidEntryPoint
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
 import javax.inject.Inject
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 

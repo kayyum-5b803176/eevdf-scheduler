@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
-import com.eevdf.app.core.signals.CallEvents
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.feature.shared.signals.CallEvents
 
 /**
  * Listens for phone state changes and starts [CallSwitchService] to perform

@@ -7,7 +7,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
-import com.eevdf.app.R
+import com.eevdf.feature.R
 
 class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
     val card:              CardView     = itemView.findViewById(R.id.cardTask)

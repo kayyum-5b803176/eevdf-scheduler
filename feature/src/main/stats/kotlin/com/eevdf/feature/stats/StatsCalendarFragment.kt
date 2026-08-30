@@ -11,7 +11,7 @@ import android.widget.*
 import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.data.task.TaskDao
 import com.eevdf.data.runlog.RunLogDao
 import dagger.hilt.android.AndroidEntryPoint

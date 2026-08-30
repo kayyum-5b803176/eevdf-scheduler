@@ -6,7 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.feature.task.notice.NoticePhase
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.TaskDisplayItem

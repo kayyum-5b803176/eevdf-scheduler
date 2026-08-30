@@ -7,7 +7,7 @@ import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.TextView
-import com.eevdf.app.R
+import com.eevdf.feature.R
 
 /**
  * NavCard — one of the closed set of fundamental templates. See

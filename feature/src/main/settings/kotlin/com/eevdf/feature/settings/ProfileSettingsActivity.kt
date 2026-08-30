@@ -14,12 +14,12 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.slider.Slider
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.app.core.media.SoundManager
-import com.eevdf.app.core.media.VibrationManager
+import com.eevdf.platform.media.SoundManager
+import com.eevdf.platform.media.VibrationManager
 
 class ProfileSettingsActivity : AppCompatActivity() {
 

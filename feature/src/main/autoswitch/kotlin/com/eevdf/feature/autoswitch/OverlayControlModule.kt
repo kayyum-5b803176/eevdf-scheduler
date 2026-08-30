@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.eevdf.contract.control.OverlayController
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

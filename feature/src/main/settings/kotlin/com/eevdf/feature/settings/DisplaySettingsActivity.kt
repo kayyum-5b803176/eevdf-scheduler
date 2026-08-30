@@ -11,12 +11,12 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.cardview.widget.CardView
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.app.core.prefs.DisplayPrefs
+import com.eevdf.feature.shared.prefs.DisplayPrefs
 
 class DisplaySettingsActivity : AppCompatActivity() {
 

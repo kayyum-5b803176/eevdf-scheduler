@@ -6,7 +6,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.data.task.Task
 import com.eevdf.feature.task.TaskViewModel
 import com.google.android.material.button.MaterialButton

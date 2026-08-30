@@ -12,18 +12,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Qualifier
 import javax.inject.Singleton
-import com.eevdf.app.core.notification.NotificationHelper
-
-/**
- * Qualifies the app's primary `SharedPreferences` file ("eevdf_prefs"),
- * distinguishing it from feature-specific preference files (run-log, sync,
- * hardware-key, etc.) so multiple `SharedPreferences` bindings can coexist.
- */
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class AppPreferences
+import com.eevdf.feature.shared.AppPreferences
+import com.eevdf.platform.notification.NotificationHelper
 
 /**
  * Provides Android framework services as injectable dependencies.
@@ -38,6 +29,11 @@ annotation class AppPreferences
  * a `Context` per call — converting those was out of scope (no DI benefit, and
  * the task forbids behavioral change). They can be migrated to inject these
  * handles incrementally.
+ *
+ * @AppPreferences lives in :feature (com.eevdf.feature.shared) rather than
+ * here, since TaskViewModel needs it on an injected parameter and :feature
+ * cannot depend back on :app. The @Provides binding below stays here — Hilt
+ * aggregates modules into one graph regardless of which module declares them.
  */
 @Module
 @InstallIn(SingletonComponent::class)

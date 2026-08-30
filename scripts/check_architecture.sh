@@ -22,10 +22,11 @@ ylw()  { printf '\033[33m%s\033[0m\n' "$*"; }
 fail() { red "  FAIL: $*"; FAILURES=$((FAILURES+1)); }
 
 FEATURE_ROOT="feature/src/main"
-# ui/ is the shared design system inside :feature (colors, dimens, themes, card
-# views) — every feature is expected to import it, so it is deliberately
-# excluded from the "no feature imports another feature" scan below rather than
-# flagged as a violation every feature would otherwise need an allowlist entry for.
+# ui/ and shared/ are buckets inside :feature every feature is expected to
+# import (design system; cross-feature prefs/signals that need Android but
+# don't fit :platform's "implements a :core port" definition) — excluded from
+# the "no feature imports another feature" scan below rather than flagged as
+# a violation every feature would otherwise need an allowlist entry for.
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo "[1/7] Feature isolation — no feature may import another feature"
@@ -42,6 +43,7 @@ if [ -d "$FEATURE_ROOT" ]; then
     [ -d "$sub" ] || continue
     self="$(basename "$sub")"
     [ "$self" = "ui" ] && continue
+    [ "$self" = "shared" ] && continue
     dir="$sub/kotlin"
     [ -d "$dir" ] || continue
     while IFS= read -r hit; do

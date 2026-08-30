@@ -8,7 +8,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.content.ContextCompat
-import com.eevdf.app.R
+import com.eevdf.feature.R
 
 /**
  * Global box-model debug diagram. Reached from Layout demo -> "model" tab.

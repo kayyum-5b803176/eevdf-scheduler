@@ -7,8 +7,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import com.eevdf.app.R
-import com.eevdf.app.core.prefs.HardwareKeyPrefs
+import com.eevdf.feature.R
+import com.eevdf.feature.shared.prefs.HardwareKeyPrefs
 
 /**
  * Lists the three assignable hardware keys (Volume Up / Volume Down / Power).

@@ -24,7 +24,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.data.task.timer.TaskTimerState
@@ -37,8 +37,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
-import com.eevdf.app.core.signals.BubbleEventBus
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.contract.control.AlarmController
 
 /**

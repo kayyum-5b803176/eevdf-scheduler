@@ -8,7 +8,7 @@ import com.eevdf.data.task.TaskDatabase
 import com.eevdf.data.task.TaskRepository
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.TaskLoadFactor
-import com.eevdf.app.di.AppPreferences
+import com.eevdf.feature.shared.AppPreferences
 import com.eevdf.feature.task.notice.NoticePhase
 import com.eevdf.data.runlog.RunSession
 import com.eevdf.feature.task.timer.TimerStartEvent
@@ -30,8 +30,8 @@ import com.eevdf.feature.task.notice.TaskNoticeStateMachine
 import com.eevdf.feature.task.TaskSchedulerDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.eevdf.app.core.prefs.AutoSwitchPrefs
-import com.eevdf.app.core.signals.BubbleEventBus
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.contract.control.AlarmController
 import com.eevdf.contract.control.OverlayController
 
@@ -963,12 +963,12 @@ class TaskViewModel @Inject constructor(
      *   Case C — No timer is running (bubble dot = blue, timer paused):
      *     Start the call-assigned task timer.
      *
-     * The [com.eevdf.app.core.prefs.AutoSwitchPrefs.getCallTaskId]
+     * The [com.eevdf.feature.shared.prefs.AutoSwitchPrefs.getCallTaskId]
      * value is the single source of truth for "which task is the call task".
      */
     fun handleBubbleTap() {
         val ctx        = getApplication<android.app.Application>()
-        val callTaskId = com.eevdf.app.core.prefs.AutoSwitchPrefs.getCallTaskId(ctx)
+        val callTaskId = com.eevdf.feature.shared.prefs.AutoSwitchPrefs.getCallTaskId(ctx)
 
         // No call task configured — fall back to simple toggle (safe default)
         if (callTaskId == null) {

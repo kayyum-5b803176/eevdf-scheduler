@@ -9,7 +9,7 @@ import android.text.style.StyleSpan
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.TaskDisplayItem
 import com.eevdf.data.scheduler.RtScheduler

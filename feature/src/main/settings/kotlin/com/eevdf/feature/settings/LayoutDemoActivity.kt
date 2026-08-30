@@ -8,7 +8,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.eevdf.feature.ui.DropdownCardView
 import com.eevdf.feature.ui.NavCardView
 import com.eevdf.feature.ui.ToggleCardView

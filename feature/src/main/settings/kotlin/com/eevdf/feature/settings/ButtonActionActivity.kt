@@ -7,9 +7,9 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.cardview.widget.CardView
-import com.eevdf.app.R
+import com.eevdf.feature.R
 import com.google.android.material.switchmaterial.SwitchMaterial
-import com.eevdf.app.core.prefs.QuickActionPrefs
+import com.eevdf.feature.shared.prefs.QuickActionPrefs
 
 /**
  * Button Action settings screen.

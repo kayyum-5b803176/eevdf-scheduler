@@ -65,11 +65,11 @@ for now rather than its own module. See Phase 7 for why.
 |-------------|-----------|--------|------|
 | `:core`     | Pure JVM  | ✅ real module | No Android, Room, Hilt or system clock. The Android plugin is deliberately withheld so purity is a **compile error**, not a convention. |
 | `:data`     | AndroidLib| ✅ real module | Room entities, DAOs, repositories, backup/sync, scheduler facades. |
-| `:platform` | AndroidLib| ✅ real module | Android adapters for `:core` ports (clock, alarms, RR store). Currently thin — `SoundManager`, `VibrationManager`, `NotificationHelper` belong here by the doc's own rule (`platform` = Android APIs) but still live in `app.core.*`. See Phase 5. |
+| `:platform` | AndroidLib| ✅ real module | Android adapters for `:core` ports (clock, alarms, RR store), plus `SoundManager`, `VibrationManager` (`platform.media`) and `NotificationHelper` (`platform.notification`) — moved from `app.core.*` during Phase 7's aftermath (see below), completing what Phase 5 had planned. |
 | `:shared`   | Pure JVM  | ✅ real module | Cross-cutting utilities, feature flags, crash isolation. |
 | `:testing`  | Pure JVM  | ✅ real module | Fakes, plus `:core`'s own unit tests (arguably belongs in `:core` — the doc defines `testing/` as reusable *infrastructure*, not the tests themselves; unresolved, low priority). |
 | `:contract` | AndroidLib| ✅ real module (Phase 4, v5.11.0) | `AppRoutes` (`contract.nav`), `AlarmController`, `OverlayController`, `AlarmActions` (`contract.control`). Deliberately dependency-free — no `:core`, no `:data` — because a contract that needs another module's types has stopped being a contract. `AppRoutesTest` stays in `:app` (needs the Activity classes on its classpath, which `:contract` should never have). |
-| `:feature`  | AndroidLib| ✅ real module (Phase 7, v5.12.0) | The unbounded growth surface, one Gradle module. Physically co-located per subfeature — `feature/src/main/task/{kotlin,res}/`, `feature/src/main/settings/{kotlin,res}/`, etc. — rather than scattered into type-based top-level folders, matching the ownership philosophy's "organize by who owns it" rule applied to resources too. One namespace (`com.eevdf.feature`), one manifest, one `R` class; per-feature isolation (task cannot import settings) is still `scripts/check_architecture.sh`'s job, not the compiler's, until a future per-feature-module split. `feature/ui/` holds the design system (5 card views, `colors.xml`/`dimens.xml`/`themes.xml`) — genuinely used by multiple features, physically inside `:feature` for now rather than a dedicated module. See Phase 7. |
+| `:feature`  | AndroidLib| ✅ real module (Phase 7, v5.12.0) | The unbounded growth surface, one Gradle module. Physically co-located per subfeature — `feature/src/main/task/{kotlin,res}/`, `feature/src/main/settings/{kotlin,res}/`, etc. — rather than scattered into type-based top-level folders, matching the ownership philosophy's "organize by who owns it" rule applied to resources too. One namespace (`com.eevdf.feature`), one manifest, one `R` class; per-feature isolation (task cannot import settings) is still `scripts/check_architecture.sh`'s job, not the compiler's, until a future per-feature-module split. Two buckets every feature is allowed to import without tripping the isolation check: `feature/ui/` (design system — 5 card views, `colors.xml`/`dimens.xml`/`themes.xml`) and `feature/shared/` (`AutoSwitchPrefs`, `DisplayPrefs`, `HardwareKeyPrefs`, `QuickActionPrefs`, `BubbleEventBus`, `CallEvents`, the `@AppPreferences` Hilt qualifier — genuinely cross-feature, Android-dependent, but not "an OS adapter for a `:core` port" so `:platform` was the wrong fit either). Both are physically inside `:feature` for now rather than dedicated modules. See Phase 7. |
 | `:app`      | App       | ✅ real module | Composition root only, now that Phase 7 emptied it out: `SchedulerApplication`, DI wiring, a manifest with permissions + the bare `<application>` shell (components merge in from `:feature`'s manifest), and `res/` holding only the launcher icon + `app_name` (everything else moved to `feature/*/res/`). |
 
 ---
@@ -97,16 +97,21 @@ points inward to an interface, never sideways to a sibling. As of Phase 4
 (v5.11.0) this is a real Gradle module: a feature that reaches for
 `app.core.control` no longer compiles, it has to depend on `:contract`.
 
-**Shared code that is genuinely ownerless lives in `app.core.*`.** Currently:
-`core.prefs` (`AutoSwitchPrefs`, `DisplayPrefs`, `HardwareKeyPrefs`,
-`QuickActionPrefs` — each read by 2+ features), `core.media`,
-`core.notification`, `core.signals`. **Single-owner code that only
-looked shared has been moved out** — `RecentGroupPrefs` and `GroupTaskPrefs`
-went to `feature/task`, `SettingsPage`/`SettingsChangeLogger` went to
-`feature/settings` (Phase 3, v5.10.0), and `AppRoutes`/`AlarmController`/
-`OverlayController`/`AlarmActions` went to `:contract` (Phase 4, v5.11.0) —
-per the ownership philosophy's rule that sharing must be earned by proven
-multi-feature use, not assumed from a folder name.
+**Shared code that is genuinely ownerless no longer lives in `app.core.*` at
+all — that package doesn't exist anymore.** What was there moved to one of
+three places, each per the ownership test: single-owner code went to its
+feature (`RecentGroupPrefs`, `GroupTaskPrefs` → `feature/task`;
+`SettingsPage`/`SettingsChangeLogger` → `feature/settings`, Phase 3, v5.10.0);
+genuine cross-feature contracts went to `:contract` (`AppRoutes`,
+`AlarmController`, `OverlayController`, `AlarmActions`, Phase 4, v5.11.0);
+and genuinely-shared-but-Android-dependent code that isn't a `:core`-port
+adapter went to `feature/shared` (`AutoSwitchPrefs`, `DisplayPrefs`,
+`HardwareKeyPrefs`, `QuickActionPrefs`, `BubbleEventBus`, `CallEvents`, the
+`@AppPreferences` qualifier — forced out of `:app` once `:feature` became a
+separate module and could no longer reach back into it). `SoundManager`,
+`VibrationManager`, `NotificationHelper` went to `:platform` for the same
+reason, completing Phase 5 ahead of schedule. Nothing is shared by folder
+name alone anymore — see Phase 7 for the compiler error that forced this.
 
 **Navigation goes through `AppRoutes`** (`contract.nav`, moved from
 `app.core.nav` in Phase 4), which resolves screens by class name so no screen
@@ -232,11 +237,11 @@ another module's types has stopped being a contract.
   importing `AppRoutes` from `:contract`. It needs the real Activity classes
   on its classpath for `Class.forName` — `:app` has them (transitively, until
   Phase 7), `:contract` should never carry that weight.
-- `core.signals` (`BubbleEventBus`, `CallEvents`) stays in `app.core.signals`
-  for now. It's cross-feature but a concrete `StateFlow` singleton, not an
-  interface implemented per-feature like `AlarmController` — a different
-  enough shape that folding it into `:contract` was deferred rather than
-  assumed. Revisit in a later phase.
+- `core.signals` (`BubbleEventBus`, `CallEvents`) stayed in `app.core.signals`
+  at the time — cross-feature but a concrete `StateFlow` singleton, not an
+  interface implemented per-feature like `AlarmController`, so folding it
+  into `:contract` was deferred rather than assumed. It didn't stay there
+  long: see Phase 7's aftermath below for why it had to move again.
 
 ## Phase 7 — done (v5.12.0): promote `feature/` to a real Gradle module
 
@@ -314,12 +319,50 @@ within it. The allowlist and `scripts/check_architecture.sh`'s isolation scan
 still do that job; both were updated for the new physical paths
 (`feature/src/main/<name>/kotlin/...`) rather than removed.
 
-## Phase 5 — next: platform relocation
+### Phase 7 aftermath: what the first real compiler run found
+
+Static analysis (grep-based verification) cleared Phase 7 before it shipped.
+The first actual `:feature:kspDebugKotlin` run did not — it failed on
+`TaskViewModel`'s `@AppPreferences`-qualified constructor parameter resolving
+to `error.NonExistentClass`. Investigating that one error surfaced a category
+of mistake the static checks had missed entirely: **every reference from
+`:feature` back into whatever was still left in `app.core.*` was silently
+broken**, because verification had checked "does anything outside `feature/`
+import `feature/`" and "do the 4 files moving to `:contract` have external
+callers," but never re-checked the *rest* of `app.core.*` against the full
+69-file tree once `:feature` became a module that could no longer reach back
+into `:app`. Four distinct breaks, all the same root cause:
+
+1. **32 files** had `import com.eevdf.app.R` — untouched by the Phase 7
+   package-rename `sed`, since it matches neither `com.eevdf.app.feature.`
+   nor `com.eevdf.app.ui.`. Fixed to `com.eevdf.feature.R`.
+2. **`SoundManager`, `VibrationManager`, `NotificationHelper`** — Phase 5's
+   planned move, done now instead of later since it was the correct fix
+   either way. `app.core.media`/`app.core.notification` → `platform.media`/
+   `platform.notification`.
+3. **`AutoSwitchPrefs`, `DisplayPrefs`, `HardwareKeyPrefs`, `QuickActionPrefs`,
+   `BubbleEventBus`, `CallEvents`** — genuinely shared across 2+ features,
+   need `android.content.SharedPreferences`/`Context` so pure-JVM `:shared`
+   can't hold them, and aren't `:core`-port adapters so `:platform` doesn't
+   fit either. Same shape as the design-token problem Phase 7 already solved
+   for `colors.xml` et al. — moved into a new `feature/shared/` bucket,
+   alongside `feature/ui/`, with the identical caveat: physically inside
+   `:feature` for now, `:designsystem`-style module is the long-term answer.
+4. **`@AppPreferences`** (the Hilt qualifier) moved into `feature/shared`
+   alongside the prefs classes that need it. Its `@Provides` binding stayed
+   in `app/di/PlatformModule.kt` — Hilt aggregates `@InstallIn` modules into
+   one graph regardless of which module declares them; only the annotation
+   *type* needs to resolve wherever it's referenced as a qualifier.
+
+The lesson for future phases: when a module stops being able to reach
+another, re-verify **every remaining reference in the moved code**, not just
+the files that were the direct subject of the move.
+
+## Phase 5 — done (as of Phase 7's aftermath, v5.12.0)
 
 `SoundManager`, `VibrationManager` (`app.core.media`) and `NotificationHelper`
-(`app.core.notification`) are Android API code, not shared app-layer logic —
-the doc's rule is `core = what, platform = how on this OS`. These move to
-`:platform`.
+(`app.core.notification`) moved to `:platform` — see Phase 7 aftermath above
+for why this happened as an emergency fix rather than its own planned phase.
 
 ## Phase 6 — next: `feature/task` internal restructuring
 

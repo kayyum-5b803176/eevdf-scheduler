@@ -26,7 +26,7 @@ android {
             manifest.srcFile("src/main/AndroidManifest.xml")
             val subfeatures = listOf(
                 "task", "alarm", "autoswitch", "backup",
-                "settings", "stats", "sync", "ui",
+                "settings", "stats", "sync", "shared", "ui",
             )
             kotlin.srcDirs(subfeatures.map { "src/main/$it/kotlin" })
             res.srcDirs(subfeatures.map { "src/main/$it/res" })

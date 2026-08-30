@@ -11,10 +11,10 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import com.eevdf.app.R
-import com.eevdf.app.core.media.SoundManager
-import com.eevdf.app.core.prefs.DisplayPrefs
-import com.eevdf.app.core.media.VibrationManager
+import com.eevdf.feature.R
+import com.eevdf.platform.media.SoundManager
+import com.eevdf.feature.shared.prefs.DisplayPrefs
+import com.eevdf.platform.media.VibrationManager
 import com.eevdf.contract.nav.AppRoutes
 
 /**

@@ -42,6 +42,12 @@
 /feature/build.gradle.kts                                   @your-handle
 /feature/src/main/AndroidManifest.xml                       @your-handle
 
+# Buckets inside :feature every feature imports — a change here has the same
+# blast radius as :shared or :contract, just physically inside :feature for
+# now (see ARCHITECTURE.md Phase 7 on why they aren't dedicated modules yet).
+/feature/src/main/ui/                                       @your-handle
+/feature/src/main/shared/                                   @your-handle
+
 # Guard rails themselves. Weakening these should never be a quiet change.
 /scripts/                                                   @your-handle
 /config/detekt/                                             @your-handle

@@ -3,7 +3,7 @@ package com.eevdf.feature.task
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.timer.timerState
 import com.eevdf.feature.task.TaskViewModel
-import com.eevdf.app.core.signals.CallEvents
+import com.eevdf.feature.shared.signals.CallEvents
 
 /**
  * Handles the Auto Switch feature: automatically switches to a designated task
@@ -52,7 +52,7 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
     private var wasTimerRunningBeforeCall: Boolean = false
 
     /**
-     * Called when [com.eevdf.app.core.signals.CallEvents] posts CALL_STARTED.
+     * Called when [com.eevdf.feature.shared.signals.CallEvents] posts CALL_STARTED.
      *
      * If [CallSwitchService] already ran (detected by the call task being Running in DB),
      * we skip pauseTimer()/startTimer() to avoid double-crediting vruntime and
@@ -128,7 +128,7 @@ internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Called when [com.eevdf.app.core.signals.CallEvents] posts CALL_ENDED.
+     * Called when [com.eevdf.feature.shared.signals.CallEvents] posts CALL_ENDED.
      *
      * Same dual-path logic: if [CallSwitchService] already wrote the DB (restored
      * task is Running), skip timer DB writes and only update LiveData.

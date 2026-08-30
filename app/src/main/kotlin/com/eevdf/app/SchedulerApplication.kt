@@ -2,7 +2,7 @@ package com.eevdf.app
 
 import android.app.Application
 import com.eevdf.app.core.LogcatCrashReporter
-import com.eevdf.app.core.prefs.DisplayPrefs
+import com.eevdf.feature.shared.prefs.DisplayPrefs
 import com.eevdf.shared.CrashIsolation
 import dagger.hilt.android.HiltAndroidApp
 
