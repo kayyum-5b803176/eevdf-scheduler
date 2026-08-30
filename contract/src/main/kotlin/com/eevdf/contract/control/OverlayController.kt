@@ -3,7 +3,7 @@ package com.eevdf.contract.control
 /**
  * Contract for the floating call bubble overlay.
  *
- * Removes the `task -> autoswitch` edge: `TaskCallSwitchDelegate` used to build
+ * Removes the `task -> autoswitch` edge: `CallSwitchDelegate` used to build
  * an explicit `Intent` against `BubbleOverlayService` and set one of that
  * class's action constants. Both the class reference and the constants were
  * compile-time dependencies on another feature.

@@ -4,7 +4,7 @@
 
   switchRealtimeShare       — shows/hides layoutRealtimeShareFields
   etPinnedShare             — 0.01–99.99 %; empty = float on priority weight
-  tvPinnedShareWarning      — shown by AddTaskPinnedShareSection.validatePinnedShare()
+  tvPinnedShareWarning      — shown by PinnedShareSection.validatePinnedShare()
                               when total sibling pinned share would exceed 100 %
   layoutRealtimeShareFields — hidden by default; shown when toggle is ON
 -->

@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 import android.text.Editable
 import android.text.TextWatcher
@@ -18,7 +18,7 @@ import com.eevdf.data.task.Task
  *   • [setupTimeSliceField]      — attaches TextWatchers on all three fields;
  *                                  hides badge on any manual edit
  *   • [applyParentTimeSlice]     — fills all three fields + shows badge;
- *                                  called by [AddTaskGroupSection] on parent change
+ *                                  called by [GroupSection] on parent change
  *   • [populateTimeSliceSection] — restores fields + badge from saved task
  *
  * Inheritance rules:

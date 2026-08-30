@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import android.content.SharedPreferences
 import androidx.lifecycle.LiveData
@@ -21,7 +21,7 @@ import androidx.lifecycle.MutableLiveData
  *  3. Add a toggle function.
  *  No other delegate or the ViewModel itself needs to change.
  */
-internal class TaskSettingsDelegate(private val prefs: SharedPreferences) {
+internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
 
     // ── Preference keys ───────────────────────────────────────────────────────
 

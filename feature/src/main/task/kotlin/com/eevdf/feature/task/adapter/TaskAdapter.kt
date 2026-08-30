@@ -24,11 +24,11 @@ import com.eevdf.data.scheduler.RtScheduler
  * Domain-specific logic is in sibling extension files:
  *   • TaskViewHolder.kt            — ViewHolder field declarations
  *   • TaskDiffCallback.kt          — DiffUtil.ItemCallback
- *   • TaskAdapterFormatters.kt     — pure duration / SI format functions
- *   • TaskAdapterUnitFormat.kt     — unitFormatEnabled-aware fmtFloat/Int/Dur
- *   • TaskAdapterDisplayPrefs.kt   — applyCardScale / applyCompactMode / applySimpleMode
- *   • TaskAdapterBindHelpers.kt    — priority label, pill colour, quota bind, bindQuotaOnly
- *   • TaskAdapterNoticeSegments.kt — segmented notice-bar build and fill-update
+ *   • Formatters.kt     — pure duration / SI format functions
+ *   • UnitFormat.kt     — unitFormatEnabled-aware fmtFloat/Int/Dur
+ *   • CardScale.kt   — applyCardScale / applyCompactMode / applySimpleMode
+ *   • BindHelpers.kt    — priority label, pill colour, quota bind, bindQuotaOnly
+ *   • NoticeSegments.kt — segmented notice-bar build and fill-update
  */
 class TaskAdapter(
     private val onTaskClick:        (Task) -> Unit,

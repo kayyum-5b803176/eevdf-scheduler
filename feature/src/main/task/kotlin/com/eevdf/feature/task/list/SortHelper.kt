@@ -1,10 +1,10 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import com.eevdf.data.task.Task
 
 /**
- * Shared sort utility used by [TaskListBuilderDelegate] (Queue list),
- * [TaskSchedulerDelegate] (sibling / global rotation), and
+ * Shared sort utility used by [ListBuilderDelegate] (Queue list),
+ * [SchedulerDelegate] (sibling / global rotation), and
  * [AddTaskActivity] (parent-group spinner).
  *
  * ── Sort order ────────────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ import com.eevdf.data.task.Task
  *  • New emoji or prefix to skip     → edit [findSortAnchor] only.
  *  All call sites pick up changes via [nameComparator] / [taskNameComparator].
  */
-internal object TaskSortHelper {
+internal object SortHelper {
 
     // ── Anchor finder ─────────────────────────────────────────────────────────
 

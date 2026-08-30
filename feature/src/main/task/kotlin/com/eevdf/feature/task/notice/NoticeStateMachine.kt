@@ -13,7 +13,7 @@ import com.eevdf.data.task.timer.timerState
 import com.eevdf.data.task.timer.withTimerState
 import com.eevdf.platform.media.SoundManager
 import kotlinx.coroutines.launch
-import com.eevdf.feature.task.TaskViewModel
+import com.eevdf.feature.task.list.TaskViewModel
 
 /**
  * State machine for NOTIFICATION-type tasks.
@@ -32,7 +32,7 @@ import com.eevdf.feature.task.TaskViewModel
  * with its own multi-phase flow only requires a parallel class — no timer core
  * or scheduler code needs to change.
  */
-internal class TaskNoticeStateMachine(private val vm: TaskViewModel) {
+internal class NoticeStateMachine(private val vm: TaskViewModel) {
 
     // ── Phase LiveData ─────────────────────────────────────────────────────────
 

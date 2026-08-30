@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import android.os.Handler
 import android.os.Looper
@@ -16,14 +16,14 @@ import com.eevdf.data.scheduler.RtScheduler
  *
  * Each list is a [MediatorLiveData] that rebuilds automatically when any of its
  * source inputs change (task list, groups-enabled flag, or expand trigger).
- * Both lists use the expand state from [TaskGroupExpandDelegate] independently.
+ * Both lists use the expand state from [GroupExpandDelegate] independently.
  *
  * Adding a new display list (e.g. a Completed tab with different grouping):
  *  1. Add a new MediatorLiveData + private buildXxxList() method here.
  *  2. Wire up its sources in [setup].
  *  No other class needs to change.
  */
-internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
+internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
     lateinit var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>>
     lateinit var flatScheduleOrder: MediatorLiveData<List<TaskDisplayItem>>
@@ -151,7 +151,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
         if (!groupsEnabled) {
             return tasks
                 .filter { !it.isGroup }
-                .sortedWith(TaskSortHelper.taskNameComparator)
+                .sortedWith(SortHelper.taskNameComparator)
                 .mapIndexed { index, it ->
                     val (descGroups, descTasks) = countDescendants(it.id, tasks)
                     TaskDisplayItem(it, 0,
@@ -168,7 +168,7 @@ internal class TaskListBuilderDelegate(private val vm: TaskViewModel) {
                      parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
             val children = tasks
                 .filter { it.parentId == parentId }
-                .sortedWith(TaskSortHelper.taskNameComparator)
+                .sortedWith(SortHelper.taskNameComparator)
             children.forEachIndexed { index, task ->
                 val dc             = tasks.filter { it.parentId == task.id }
                 val quotaExceeded  = parentQuotaExceeded || task.isQuotaExceeded

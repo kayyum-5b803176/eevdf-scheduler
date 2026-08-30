@@ -33,7 +33,7 @@ import android.content.Intent
  */
 object AppRoutes {
 
-    const val MAIN        = "com.eevdf.feature.task.MainActivity"
+    const val MAIN        = "com.eevdf.feature.task.list.MainActivity"
     const val STATS       = "com.eevdf.feature.stats.StatsActivity"
     const val SETTINGS    = "com.eevdf.feature.settings.SettingsActivity"
     const val BACKUP      = "com.eevdf.feature.backup.DataBackupActivity"

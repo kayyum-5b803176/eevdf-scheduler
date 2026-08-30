@@ -1,8 +1,7 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.timer.timerState
-import com.eevdf.feature.task.TaskViewModel
 import com.eevdf.feature.shared.signals.CallEvents
 
 /**
@@ -34,7 +33,7 @@ import com.eevdf.feature.shared.signals.CallEvents
  *       ↓ handleCallEnded()
  *   callInProgress = false  → restored to savedTaskBeforeCall
  */
-internal class TaskCallSwitchDelegate(private val vm: TaskViewModel) {
+internal class CallSwitchDelegate(private val vm: TaskViewModel) {
 
     /**
      * True while a call is in progress.  Separate from [savedTaskBeforeCall]

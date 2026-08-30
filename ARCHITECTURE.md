@@ -364,16 +364,127 @@ the files that were the direct subject of the move.
 (`app.core.notification`) moved to `:platform` — see Phase 7 aftermath above
 for why this happened as an emergency fix rather than its own planned phase.
 
-## Phase 6 — next: `feature/task` internal restructuring
+## Phase 6 — done (v5.13.0): `feature/task` internal restructuring
 
-`feature/task` is flat with ~30 top-level files (in
-`feature/src/main/task/kotlin/com/eevdf/feature/task/`, since Phase 7) while
-`adapter/`, `notice/`, `timer/` already exist as subfolders — the "grow
-downward" rule applies. Planned subfolders: `list/`, `addtask/`, `group/`.
-Includes full renames (files, classes, and Activities) — Activity renames
-require touching `feature/src/main/AndroidManifest.xml` and `AppRoutes` (in
-`:contract`) in the same commit, per your instruction to rename everything
-including Activities.
+`feature/task` was flat with ~30 top-level files while `adapter/`, `notice/`,
+`timer/` already existed as subfolders — the "grow downward" rule applied.
+Added `list/`, `addtask/`, `group/`, and renamed every file/class that had
+been carrying a now-redundant `Task`/`AddTask`/`Group` prefix now that the
+owning folder says the same thing.
+
+**The split, based on actual coupling, not the first guess.** Tracing real
+usage moved `TaskGroupExpandDelegate` into `list/` rather than the originally
+planned `group/` — it's tightly coupled to `ListBuilderDelegate`/`SortHelper`
+(building the rendered list), not to `PickerDialog` (a standalone picker
+dialog). `group/` ended up holding only the picker dialog and its two prefs
+classes.
+
+- **`list/`**: `MainActivity`, `TaskViewModel` (kept — not verbose, and
+  `TaskViewModel` is genuinely the authoritative state holder, unlike the
+  delegates below it), `ListBuilderDelegate`, `SortHelper`, `SchedulerDelegate`,
+  `CallSwitchDelegate`, `GroupExpandDelegate`, `QueueLastRunDelegate` (kept,
+  no prefix to drop), `ListTogglesDelegate` (renamed from
+  `TaskSettingsDelegate` — it owns list-view toggles: Groups mode, Global
+  Rotate, Allow Edit, Auto Scroll; plain `SettingsDelegate` would've read as
+  the unrelated `feature/settings` feature).
+- **`addtask/`**: `AddTaskActivity` (kept — entry Activity), `SaveHandler`,
+  and 10 `*Section.kt` files, all extension functions on `AddTaskActivity`
+  (`internal fun AddTaskActivity.setupQuotaSection()`), so these were pure
+  file renames — no class identifier to update, no reference-site changes.
+- **`group/`**: `PickerDialog` (renamed from `GroupPickerDialog`),
+  `RecentGroupPrefs`, `GroupTaskPrefs` (both kept as-is — "Group" isn't a
+  leading prefix matching the folder name the way `Task`/`AddTask` were
+  elsewhere, so the mechanical drop-rule didn't apply).
+- **`adapter/`**: unchanged location, five files renamed (`BindHelpers`,
+  `CardScale`, `Formatters`, `NoticeSegments`, `UnitFormat`); `TaskAdapter`,
+  `TaskDiffCallback`, `TaskViewHolder` kept — framework-shaped names
+  (`RecyclerView.Adapter`, `DiffUtil.ItemCallback`, `RecyclerView.ViewHolder`
+  subclasses) are idiomatic as-is.
+- **`notice/`, `timer/`**: unchanged location, `TaskNoticeStateMachine` →
+  `NoticeStateMachine`, `TaskInterruptDelegate` → `InterruptDelegate`;
+  `NoticePhase`, `TimerCardAction`, `TimerEngine`, `TimerStartEvent` kept.
+
+**Two names deliberately deviate from the mechanical prefix-drop rule**,
+because the drop would have created misleading collisions:
+`TaskAdapterDisplayPrefs.kt` isn't preferences at all — it's the
+`applyCardScale` function — becoming plain `DisplayPrefs` would've collided
+in meaning (not compilation — different packages — but in a global symbol
+search) with the unrelated `feature/shared/prefs/DisplayPrefs.kt`. Renamed to
+`CardScale.kt`, matching what the code does. `TaskSettingsDelegate` → the
+`ListTogglesDelegate` naming above, same reasoning against `feature/settings`.
+
+**The `Delegate` suffix stays**, deliberately, even though the ownership
+philosophy's "drop redundant labels" instinct might suggest cutting it.
+Checked against the actual code first: `TaskViewModel` still literally
+instantiates every one of these
+(`internal val groupExpand = TaskGroupExpandDelegate(prefs, this)`) and each
+takes `vm: TaskViewModel` as a constructor parameter to act back on it — the
+delegation relationship is real, today, not just a naming leftover. Phase 6
+is a pure rename with no behavior or structure change, so removing "Delegate"
+now would make the name less accurate, not more. Revisit when Phase 10
+actually eliminates `MainActivity`/`TaskViewModel` as the composing god
+objects — if `ListBuilderDelegate` becomes its own fragment/ViewModel that
+nothing delegates *to* it from, that's when the name should change too.
+
+**The lesson repeated from Phase 7, this time inside one feature instead of
+across a module boundary:** splitting one flat package into subpackages
+means every cross-subpackage reference that previously worked for free
+(same package, no import needed) needs an explicit `import` now. Static
+verification caught this systematically — cross-checking every declared
+identifier against every file that used it, outside its own new subpackage —
+and found real gaps beyond the obvious ones: `MainActivity.kt` needed a new
+`import` for `AddTaskActivity` it never needed before (same package until
+this phase); three files (`AddTaskActivity.kt`, `NoticeStateMachine.kt`,
+`InterruptDelegate.kt`) had a *stale* import at the old top-level
+`com.eevdf.feature.task.TaskViewModel` path (correct before this phase,
+since `notice/`/`timer/`/`addtask` were already subpackages — now wrong since
+`TaskViewModel` moved into `list/`); several `list/*.kt` files had *redundant*
+same-package imports left over from before the split. All three shapes of
+mistake — missing, stale, redundant — are easy to introduce and easy to miss
+without checking every declared type against every consumer, not just the
+files that were the direct subject of a move.
+
+**Also fixed as part of this phase** (doc-comment accuracy, no code impact):
+stale mentions of the old names in `:core`, `:data`, `:contract`, and
+`feature/autoswitch` (cross-feature doc comments describing the relationship
+to these classes), plus an orphaned, never-applied `AppTheme.GroupPickerDialog`
+style renamed to `AppTheme.PickerDialog` for consistency — same "unwired
+things still get a proper name" rule applied throughout this refactor.
+
+`MainActivity`'s and `AddTaskActivity`'s package changes required updating
+`feature/src/main/AndroidManifest.xml` (both `android:name` and
+`android:parentActivityName` attributes) and `AppRoutes.MAIN` (in
+`:contract`) in the same commit — exactly the Activity-rename cost flagged
+back in the original renaming-scope decision.
+
+### Phase 6 aftermath: the same lesson, one scope wider
+
+The first real `:feature:compileDebugKotlin` run found two more gaps, both
+one level outside what Phase 6's own verification checked:
+
+1. **`feature/backup/DataBackupActivity.kt`** imported `TaskViewModel` at its
+   old top-level path. This is the one deliberately-tolerated cross-feature
+   edge in `scripts/feature_import_allowlist.txt` (`backup -> task`,
+   documented there with its own removal criteria) — not an architecture
+   violation, just a stale import from a feature Phase 6's verification never
+   looked at, because that verification only checked references *within*
+   `feature/task/`. The lesson from Phase 7's aftermath ("re-check every
+   remaining reference, not just the files that were the direct subject of
+   the move") applied one scope wider than it was applied here: within-module
+   renames need the *whole module* re-checked for consumers, not just the
+   package being restructured.
+2. **`PickerDialog.kt`** referenced `R.style.AppTheme_GroupPickerDialog` —
+   the *generated* Kotlin-side identifier for the `AppTheme.GroupPickerDialog`
+   style renamed during this phase. Plain-text search for the dotted XML form
+   doesn't catch the underscored generated form actual code uses; anything
+   that renames an Android resource needs to grep for both forms.
+
+Both are one-line fixes. Recorded here because the pattern (check the
+direct-subject files exhaustively, miss a consumer one hop away) is now the
+second time it's caused a compile failure in this refactor — worth treating
+as a standing checklist item for any future phase that moves or renames
+something with external consumers: grep the *whole repo* for the old
+identifier, not just the tree being restructured.
 
 ## Phase 8 — next: `data/scheduler` split
 

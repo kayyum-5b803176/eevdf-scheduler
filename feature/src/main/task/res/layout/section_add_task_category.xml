@@ -2,7 +2,7 @@
 <!--
   Category card — searchable autocomplete text input.
   Suggestions drawn live from TaskDao.getDistinctCategories().
-  Wired in AddTaskCategoryPrioritySection.kt :: setupCategoryInput().
+  Wired in CategoryPrioritySection.kt :: setupCategoryInput().
 -->
 <com.google.android.material.card.MaterialCardView
     style="@style/App.Card"

@@ -42,7 +42,7 @@ class TaskRepository @Inject constructor(
 
     /**
      * Persists a [TaskLoadFactor] entry (insert or replace).
-     * Called from [AddTaskSaveHandler] after the [Task] row is written.
+     * Called from [SaveHandler] after the [Task] row is written.
      */
     suspend fun saveLoadFactor(entry: TaskLoadFactor) = withContext(Dispatchers.IO) {
         loadFactorDao.upsert(entry)
@@ -106,7 +106,7 @@ class TaskRepository @Inject constructor(
      *
      * This is the single source of truth for "which slider values should an
      * auto-inherited task display / store?"  Both the propagation path (repository)
-     * and the UI population path (AddTaskLoadFactorSection) use this logic so they
+     * and the UI population path (LoadFactorSection) use this logic so they
      * always agree, regardless of how deeply auto tasks are nested.
      */
     private suspend fun findNearestEnabledLoadFactor(taskId: String): TaskLoadFactor? {

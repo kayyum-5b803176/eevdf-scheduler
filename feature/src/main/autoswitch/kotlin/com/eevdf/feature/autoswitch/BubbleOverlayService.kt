@@ -45,7 +45,7 @@ import com.eevdf.contract.control.AlarmController
  * Foreground service that owns the floating call-state bubble overlay.
  *
  * Lifecycle:
- *   Start  — [TaskCallSwitchDelegate] sends [ACTION_CALL_STARTED] when a call begins.
+ *   Start  — [CallSwitchDelegate] sends [ACTION_CALL_STARTED] when a call begins.
  *            Also sent by MainActivity when a call arrives and any timer is running
  *            (new mechanism: show bubble even before the call task is running).
  *   Poll   — every [POLL_MS] ms, checks the foreground package via UsageStats;

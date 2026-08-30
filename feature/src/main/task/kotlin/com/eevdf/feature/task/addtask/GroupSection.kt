@@ -1,7 +1,9 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 import android.view.View
 import com.eevdf.data.task.Task
+import com.eevdf.feature.task.group.PickerDialog
+import com.eevdf.feature.task.list.SortHelper
 
 /**
  * Parent group picker section for [AddTaskActivity].
@@ -30,7 +32,7 @@ internal fun AddTaskActivity.setupGroupSection() {
 
         val filteredSorted = groups
             .filter { it.id != existingTaskId }
-            .sortedWith(TaskSortHelper.taskNameComparator)
+            .sortedWith(SortHelper.taskNameComparator)
         groupsList.addAll(filteredSorted)
 
         selectedParentId?.let { pid ->
@@ -40,7 +42,7 @@ internal fun AddTaskActivity.setupGroupSection() {
     }
 
     actvParentGroup.setOnClickListener {
-        val dialog = GroupPickerDialog().apply {
+        val dialog = PickerDialog().apply {
             allGroups      = groupsList.filterNotNull()
             currentGroupId = selectedParentId
             onGroupSelected = { chosen ->

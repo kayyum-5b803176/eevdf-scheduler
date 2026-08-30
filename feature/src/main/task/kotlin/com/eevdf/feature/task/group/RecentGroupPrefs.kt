@@ -1,10 +1,10 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.group
 
 import android.content.Context
 
 /**
  * Persists the last [MAX] parent-group IDs the user selected in the Add/Edit
- * Task form.  Used by [GroupPickerDialog] to populate the "Recent" section.
+ * Task form.  Used by [PickerDialog] to populate the "Recent" section.
  *
  * Storage: "recent_group_prefs" SharedPreferences, single key "recent_ids"
  * holding a comma-joined list (most-recent first).

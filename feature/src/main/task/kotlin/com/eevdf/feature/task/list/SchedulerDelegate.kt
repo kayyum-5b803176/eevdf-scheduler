@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import androidx.lifecycle.viewModelScope
 import com.eevdf.data.task.Task
@@ -6,8 +6,6 @@ import com.eevdf.data.task.TaskDisplayItem
 import com.eevdf.data.scheduler.EEVDFScheduler
 import com.eevdf.data.scheduler.RtScheduler
 import kotlinx.coroutines.launch
-import com.eevdf.feature.task.TaskViewModel
-import com.eevdf.feature.task.TaskSortHelper
 
 /**
  * Owns all task-navigation and scheduler-selection logic:
@@ -23,7 +21,7 @@ import com.eevdf.feature.task.TaskSortHelper
  *  2. Wire it through [nextSibling] or a new public entry point.
  *  No timer, CRUD, or notice-state code needs to change.
  */
-internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
+internal class SchedulerDelegate(private val vm: TaskViewModel) {
 
     // ── Public entry points ───────────────────────────────────────────────────
 
@@ -182,7 +180,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
         //               every level; filtering it by parentId retains that ordering
         //               without any re-sort.
         val siblings = if (onQueueTab) {
-            base.sortedWith(TaskSortHelper.taskNameComparator)
+            base.sortedWith(SortHelper.taskNameComparator)
         } else {
             flatItems
                 .map { it.task }
@@ -224,7 +222,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
      * depth state anywhere.
      *
      * On the Schedule tab, [firstLeafOf] uses the same DL → RT → EEVDF tier sort
-     * as [TaskListBuilderDelegate.buildScheduleList] so the representative leaf
+     * as [ListBuilderDelegate.buildScheduleList] so the representative leaf
      * matches rank #1 within its group.
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
@@ -301,7 +299,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
      *
      * [scheduleSort] = true (Schedule tab):
      *   Children at each level are sorted with the same DL → RT → EEVDF tier
-     *   order that [TaskListBuilderDelegate.buildScheduleList] applies, so the
+     *   order that [ListBuilderDelegate.buildScheduleList] applies, so the
      *   leaf returned matches what the user sees at rank #1 in the UI — even
      *   for collapsed groups whose children are absent from the flat display list.
      *
@@ -329,7 +327,7 @@ internal class TaskSchedulerDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Mirrors the per-level sort applied by [TaskListBuilderDelegate.buildScheduleList]
+     * Mirrors the per-level sort applied by [ListBuilderDelegate.buildScheduleList]
      * so that [firstLeafOf] and [rotateSiblings] produce the same ordering the user
      * sees on the Schedule tab:
      *

@@ -13,7 +13,7 @@ package com.eevdf.feature.task.adapter
  *   • [siDur]             — SI duration, top-2 non-zero units (TRT column)
  *
  * The three adapter-state-aware wrappers [fmtFloat], [fmtInt], [fmtDur] that
- * branch on [TaskAdapter.unitFormatEnabled] live in TaskAdapterUnitFormat.kt.
+ * branch on [TaskAdapter.unitFormatEnabled] live in UnitFormat.kt.
  */
 
 /**

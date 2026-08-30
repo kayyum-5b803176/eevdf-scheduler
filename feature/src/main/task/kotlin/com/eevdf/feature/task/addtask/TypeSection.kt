@@ -1,9 +1,9 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 /**
  * Task type constants and pure utility functions shared across sections.
  *
- * Setup, populate, and notice-field wiring moved to [AddTaskConfigSection].
+ * Setup, populate, and notice-field wiring moved to [ConfigSection].
  *
  * Domain:
  *   • [taskTypeLabels] / [taskTypeValues]      — task profile dropdown entries

@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import android.content.SharedPreferences
 import androidx.lifecycle.MutableLiveData
@@ -9,14 +9,14 @@ import com.eevdf.data.task.Task
  *
  * Each tab has an independent [MutableMap] backed by [SharedPreferences] so
  * the state survives process death.  A [MutableLiveData] trigger is bumped
- * on every change so [TaskListBuilderDelegate] can rebuild the flat list.
+ * on every change so [ListBuilderDelegate] can rebuild the flat list.
  *
  * Adding a new tab with its own expand state:
  *  1. Add a new expandState map + trigger pair.
  *  2. Add toggle / deepToggle / toggleAll methods following the existing pattern.
  *  No other class needs to change.
  */
-internal class TaskGroupExpandDelegate(
+internal class GroupExpandDelegate(
     private val prefs: SharedPreferences,
     private val vm: TaskViewModel
 ) {
@@ -211,7 +211,7 @@ internal class TaskGroupExpandDelegate(
 
     /**
      * Recursively collects IDs of every descendant group of [parentId].
-     * Internal but exposed so [TaskListBuilderDelegate] can traverse the tree.
+     * Internal but exposed so [ListBuilderDelegate] can traverse the tree.
      */
     internal fun collectDescendantGroupIds(parentId: String, allTasks: List<Task>): List<String> {
         val result = mutableListOf<String>()

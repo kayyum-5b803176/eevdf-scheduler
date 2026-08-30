@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import android.app.Application
 import android.content.SharedPreferences
@@ -25,9 +25,8 @@ import kotlinx.coroutines.launch
 import com.eevdf.data.sync.MultiUserSyncManager
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import com.eevdf.feature.task.timer.TaskInterruptDelegate
-import com.eevdf.feature.task.notice.TaskNoticeStateMachine
-import com.eevdf.feature.task.TaskSchedulerDelegate
+import com.eevdf.feature.task.timer.InterruptDelegate
+import com.eevdf.feature.task.notice.NoticeStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
@@ -50,14 +49,14 @@ import com.eevdf.contract.control.OverlayController
  *   • Public API facade — thin delegation to domain delegates.
  *
  *  Each domain lives in its own file:
- *   • [TaskSettingsDelegate]    — settings toggles + tab persistence
- *   • [TaskGroupExpandDelegate] — per-tab group expand / collapse state
- *   • [TaskInterruptDelegate]   — INT-A / INT-B slot logic
- *   • [TaskCallSwitchDelegate]  — phone-call auto-switch
- *   • [TaskNoticeStateMachine]  — NOTIFICATION task phase state machine
- *   • [TaskSchedulerDelegate]   — rotation, auto-next, schedule-next
- *   • [TaskListBuilderDelegate] — flat Queue / Schedule list construction
- *   • [TaskSortHelper]          — shared number-extraction sort utility
+ *   • [ListTogglesDelegate]    — settings toggles + tab persistence
+ *   • [GroupExpandDelegate] — per-tab group expand / collapse state
+ *   • [InterruptDelegate]   — INT-A / INT-B slot logic
+ *   • [CallSwitchDelegate]  — phone-call auto-switch
+ *   • [NoticeStateMachine]  — NOTIFICATION task phase state machine
+ *   • [SchedulerDelegate]   — rotation, auto-next, schedule-next
+ *   • [ListBuilderDelegate] — flat Queue / Schedule list construction
+ *   • [SortHelper]          — shared number-extraction sort utility
  *
  * ── Adding a feature to a domain ─────────────────────────────────────────────
  *
@@ -151,14 +150,14 @@ class TaskViewModel @Inject constructor(
 
     // ── Domain delegates ──────────────────────────────────────────────────────
 
-    internal val settings    = TaskSettingsDelegate(prefs)
-    internal val groupExpand = TaskGroupExpandDelegate(prefs, this)
+    internal val settings    = ListTogglesDelegate(prefs)
+    internal val groupExpand = GroupExpandDelegate(prefs, this)
     internal val lastRun     = QueueLastRunDelegate(prefs)
-    internal val interrupt   = TaskInterruptDelegate(this)
-    internal val callSwitch  = TaskCallSwitchDelegate(this)
-    internal val notice      = TaskNoticeStateMachine(this)
-    internal val scheduler   = TaskSchedulerDelegate(this)
-    internal val listBuilder = TaskListBuilderDelegate(this)
+    internal val interrupt   = InterruptDelegate(this)
+    internal val callSwitch  = CallSwitchDelegate(this)
+    internal val notice      = NoticeStateMachine(this)
+    internal val scheduler   = SchedulerDelegate(this)
+    internal val listBuilder = ListBuilderDelegate(this)
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
 
@@ -437,7 +436,7 @@ class TaskViewModel @Inject constructor(
 
     /**
      * Persists a [TaskLoadFactor] side table entry (insert or replace).
-     * Called from [AddTaskSaveHandler] after the Task row has been written
+     * Called from [SaveHandler] after the Task row has been written
      * so the side table always references a valid taskId.
      */
     fun saveLoadFactor(entry: TaskLoadFactor) = viewModelScope.launch {
@@ -503,13 +502,13 @@ class TaskViewModel @Inject constructor(
     /**
      * Builds a Running state, persists it to DB, then hands off to [timerEngine].
      * Single entry point for starting an execute countdown — called by the ViewModel
-     * directly and by [TaskNoticeStateMachine.startExecutePhase].
+     * directly and by [NoticeStateMachine.startExecutePhase].
      */
     /**
      * @param remaining  Execute-slice seconds remaining — drives the engine countdown and
      *                   the notification chronometer.
      * @param alarmSecs  Total seconds until the AlarmManager should fire.  For NOTIFICATION
-     *                   tasks [TaskNoticeStateMachine.startExecutePhase] passes the pre-computed
+     *                   tasks [NoticeStateMachine.startExecutePhase] passes the pre-computed
      *                   sum of all remaining (execute + wait) cycles so the alarm is set ONCE
      *                   and never cancelled mid-cycle.  Defaults to [remaining] for all other
      *                   task types (alarm fires when the single execute slice expires).
@@ -954,7 +953,7 @@ class TaskViewModel @Inject constructor(
      *
      *   Case B — Another task timer is running (bubble dot = blue):
      *     Interrupt the current task and switch to the call-assigned task.
-     *     This mirrors what [TaskCallSwitchDelegate.handleCallStarted] does
+     *     This mirrors what [CallSwitchDelegate.handleCallStarted] does
      *     automatically, but triggered manually by the user mid-call when they
      *     forgot to switch (e.g. they were already in a timer when the call came
      *     in and declined the auto-switch, or the feature fired before they

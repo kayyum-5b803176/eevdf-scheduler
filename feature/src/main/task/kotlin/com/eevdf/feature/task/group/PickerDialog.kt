@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.group
 
 import android.app.Dialog
 import android.os.Bundle
@@ -37,7 +37,7 @@ import com.google.android.material.textfield.TextInputEditText
  * Caller wires [onGroupSelected] before showing; receives the chosen [Task]
  * (null = "None / root level").
  */
-class GroupPickerDialog : DialogFragment() {
+class PickerDialog : DialogFragment() {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ class GroupPickerDialog : DialogFragment() {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        return Dialog(requireContext(), R.style.AppTheme_GroupPickerDialog)
+        return Dialog(requireContext(), R.style.AppTheme_PickerDialog)
     }
 
     override fun onCreateView(

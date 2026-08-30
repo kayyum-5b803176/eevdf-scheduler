@@ -36,7 +36,7 @@ import com.eevdf.contract.control.AlarmController
  *
  * The original flow was:
  *   CallStateReceiver → CallEvents.postValue() → MainActivity observer
- *   → TaskCallSwitchDelegate → pauseTimer() / startTimer()
+ *   → CallSwitchDelegate → pauseTimer() / startTimer()
  *
  * This chain has two failure modes:
  *   1. MainActivity is dead (app backgrounded, process cached) — LiveData

@@ -9,7 +9,7 @@ package com.eevdf.contract.control
  * used to do it by calling static methods on `AlarmForegroundService` directly,
  * which meant three feature packages were welded together at compile time:
  *
- *     task       -> alarm      (TaskViewModel, TaskNoticeStateMachine)
+ *     task       -> alarm      (TaskViewModel, NoticeStateMachine)
  *     autoswitch -> alarm      (CallSwitchService, BubbleOverlayService)
  *
  * Those edges are the last thing standing between the feature packages and

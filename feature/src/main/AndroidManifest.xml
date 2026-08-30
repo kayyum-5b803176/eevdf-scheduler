@@ -4,7 +4,7 @@
     <application>
 
         <activity
-            android:name="com.eevdf.feature.task.MainActivity"
+            android:name="com.eevdf.feature.task.list.MainActivity"
             android:exported="true"
             android:resizeableActivity="true"
             android:windowSoftInputMode="adjustResize"
@@ -16,22 +16,22 @@
         </activity>
 
         <activity
-            android:name="com.eevdf.feature.task.AddTaskActivity"
+            android:name="com.eevdf.feature.task.addtask.AddTaskActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.task.MainActivity" />
+            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
 
         <activity
             android:name="com.eevdf.feature.stats.StatsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.task.MainActivity" />
+            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
 
         <activity
             android:name="com.eevdf.feature.settings.SettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.task.MainActivity" />
+            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
 
         <activity
             android:name="com.eevdf.feature.backup.DataBackupActivity"
@@ -154,7 +154,7 @@
 
         <!--
             Hover bubble: foreground service that shows the floating call-state
-            overlay.  Started by TaskCallSwitchDelegate on call begin; stopped on
+            overlay.  Started by CallSwitchDelegate on call begin; stopped on
             call end.  dataSync type satisfies the API 34 foreground-service-type
             requirement without requiring dangerous permissions.
         -->

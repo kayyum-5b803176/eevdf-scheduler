@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 import android.text.Editable
 import android.text.TextWatcher
@@ -35,7 +35,7 @@ import com.eevdf.data.task.Task
  *     list and attaches it to [AddTaskActivity.etCategoryInput].
  *  2. Sets [completionThreshold] to 1 so suggestions appear after the first keystroke.
  *  3. Keeps [AddTaskActivity.selectedCategory] in sync via [TextWatcher] so
- *     [AddTaskSaveHandler] can read it without changes.
+ *     [SaveHandler] can read it without changes.
  *  4. Pre-fills the field with the current [AddTaskActivity.selectedCategory] (default
  *     "General" for new tasks; overwritten by [populateCategoryPrioritySection] for
  *     edits).
@@ -57,7 +57,7 @@ internal fun AddTaskActivity.setupCategoryInput() {
     // this writes the default "General"; the edit path overwrites it afterward).
     etCategoryInput.setText(if (selectedCategory == "None") "" else selectedCategory, false)
 
-    // Keep selectedCategory in sync so AddTaskSaveHandler reads the correct value.
+    // Keep selectedCategory in sync so SaveHandler reads the correct value.
     etCategoryInput.addTextChangedListener(object : TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}

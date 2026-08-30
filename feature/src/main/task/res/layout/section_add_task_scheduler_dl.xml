@@ -5,11 +5,11 @@
 
   This layout is included inside section_add_task_scheduler.xml.
   The root LinearLayout carries android:id="@+id/layoutDlFields" so
-  AddTaskSchedulerSection.kt can show/hide it when dl_sched_class is selected.
+  SchedulerSection.kt can show/hide it when dl_sched_class is selected.
 
   All three duration fields use the NdNhNmNs format parsed by parseQuotaInput().
   Validation rules (runtime ≤ deadline; period defaults to deadline when empty)
-  live in AddTaskSaveHandler.kt.
+  live in SaveHandler.kt.
 
   RT Sync row:
     • tvDlRtSyncLabel    — section label

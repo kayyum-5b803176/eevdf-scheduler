@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 import android.view.View
 import com.eevdf.data.task.Task
@@ -16,7 +16,7 @@ import com.eevdf.data.task.Task
  *   • [AddTaskActivity.populateQuotaSection] — restores fields from existing task
  *
  * Both [parseQuotaInput] and [formatQuotaDuration] are package-level so they can
- * be called directly from [AddTaskSaveHandler] without an activity receiver.
+ * be called directly from [SaveHandler] without an activity receiver.
  */
 
 internal fun AddTaskActivity.setupQuotaSection() {

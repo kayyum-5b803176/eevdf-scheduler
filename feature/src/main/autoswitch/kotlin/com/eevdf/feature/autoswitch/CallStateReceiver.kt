@@ -32,7 +32,7 @@ import com.eevdf.feature.shared.signals.CallEvents
  *   • Call arrives while app is in foreground → CallSwitchService does the
  *     DB work AND posts to CallEvents; ViewModel receives both paths (service
  *     posts first, then its CALL_STARTED post is consumed and ignored by the
- *     guard in TaskCallSwitchDelegate because callInProgress is already true
+ *     guard in CallSwitchDelegate because callInProgress is already true
  *     from the service's DB write being reflected on the next DB read).
  *
  * ── "Open once" ───────────────────────────────────────────────────────────────

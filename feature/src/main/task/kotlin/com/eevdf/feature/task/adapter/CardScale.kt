@@ -11,7 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
  * rows) can be made without touching the main adapter binding logic.
  *
  * Domain boundary: anything that adjusts *how big* or *how collapsed* a card
- * is lives here. What the card *shows* lives in TaskAdapterBindHelpers.kt.
+ * is lives here. What the card *shows* lives in BindHelpers.kt.
  */
 
 /**

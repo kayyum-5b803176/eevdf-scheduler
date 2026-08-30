@@ -9,7 +9,7 @@ import com.eevdf.core.scheduler.rt.RtPolicy
  * The single entry point for "what runs next" and "what order is the queue in".
  *
  * In the reference app this decision was smeared across `TaskRepository`,
- * `TaskListBuilderDelegate`, and `TaskSchedulerDelegate`, each re-deriving class
+ * `ListBuilderDelegate`, and `SchedulerDelegate`, each re-deriving class
  * precedence and re-querying the clock. Here it is one cohesive, pure use-case:
  * sample the world once ([Now]), pass it in, get a deterministic answer.
  *

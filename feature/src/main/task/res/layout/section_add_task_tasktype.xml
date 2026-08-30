@@ -2,11 +2,11 @@
 <!--
   Task Type card — group/interrupt toggles only.
 
-  groupTypeSection    — hidden by default; AddTaskGroupSection.kt shows it when
+  groupTypeSection    — hidden by default; GroupSection.kt shows it when
                         groups mode is enabled in settings.
   interruptSection    — single "Assign as interrupt" toggle; when ON reveals a
                         slot picker dropdown (INT-A / INT-B) and a single
-                        conflict-owner text.  Managed by AddTaskInterruptSection.kt.
+                        conflict-owner text.  Managed by InterruptSection.kt.
 
   Task profile, resume type, and notice fields live in section_add_task_taskconfig.xml.
 -->
@@ -36,7 +36,7 @@
             android:textColor="@color/app_text_label"
             android:layout_marginBottom="@dimen/app_spacing_lg" />
 
-        <!-- Group option — hidden when groups disabled (controlled by AddTaskGroupSection.kt) -->
+        <!-- Group option — hidden when groups disabled (controlled by GroupSection.kt) -->
         <LinearLayout
             android:id="@+id/groupTypeSection"
             android:layout_width="match_parent"

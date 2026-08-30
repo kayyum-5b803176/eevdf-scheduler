@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.eevdf.feature.task.timer.IntButtonState
 import com.eevdf.data.task.Task
 import kotlinx.coroutines.launch
-import com.eevdf.feature.task.TaskViewModel
+import com.eevdf.feature.task.list.TaskViewModel
 
 /**
  * Owns INT-A / INT-B interrupt slot assignment, navigation, and the derived
@@ -20,7 +20,7 @@ import com.eevdf.feature.task.TaskViewModel
  *  3. Update [intButtonState] to include the new slot.
  *  No timer logic, CRUD, or scheduler code is touched.
  */
-internal class TaskInterruptDelegate(private val vm: TaskViewModel) {
+internal class InterruptDelegate(private val vm: TaskViewModel) {
 
     // ── Active slot ───────────────────────────────────────────────────────────
 

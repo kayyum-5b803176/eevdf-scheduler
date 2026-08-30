@@ -7,7 +7,7 @@
     section_add_task_scheduler_rt.xml  — SCHED_FIFO/RR fields  (layoutRtFields)
 
   Both sub-sections are hidden by default.
-  AddTaskSchedulerSection.kt shows the relevant one when the spinner selection
+  SchedulerSection.kt shows the relevant one when the spinner selection
   changes to dl_sched_class or rt_sched_class.
 -->
 <com.google.android.material.card.MaterialCardView

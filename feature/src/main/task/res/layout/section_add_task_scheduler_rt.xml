@@ -5,7 +5,7 @@
 
   This layout is included inside section_add_task_scheduler.xml.
   The root LinearLayout carries android:id="@+id/layoutRtFields" so
-  AddTaskSchedulerSection.kt can show/hide it when rt_sched_class is selected.
+  SchedulerSection.kt can show/hide it when rt_sched_class is selected.
 
   Active-days bitmask: bits are defined as DAY_SUN … DAY_SAT in RtScheduler.kt.
   Slice-timeout format: NdNhNmNs, parsed by parseQuotaInput(); required field.

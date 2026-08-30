@@ -2,11 +2,11 @@
 <!--
   Task Detail card — task name, description, parent group picker.
 
-  groupSection LinearLayout is hidden by default; AddTaskGroupSection.kt sets
+  groupSection LinearLayout is hidden by default; GroupSection.kt sets
   it VISIBLE when groups mode is enabled in settings.
 
   spinnerParentGroup (plain Spinner) has been replaced by btnParentGroupPicker,
-  a styled TextView that opens GroupPickerDialog on tap.  The dialog provides:
+  a styled TextView that opens PickerDialog on tap.  The dialog provides:
     • pattern-match search (same contains() logic as category autocomplete)
     • "Recent" section showing the last 8 selected group IDs
     • "All Groups" full sorted list

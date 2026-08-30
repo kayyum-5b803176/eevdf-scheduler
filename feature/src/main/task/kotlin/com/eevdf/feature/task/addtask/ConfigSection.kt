@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 import android.view.View
 import android.widget.ArrayAdapter
@@ -12,7 +12,7 @@ import android.widget.TextView
  * Owns the task profile dropdown, the notice-only sub-fields that expand when
  * "Notice" is selected, and the global resume type dropdown.
  *
- * Moved here from AddTaskTypeSection.kt so that each card in the form has its
+ * Moved here from TypeSection.kt so that each card in the form has its
  * own dedicated section file.
  *
  * Domain:

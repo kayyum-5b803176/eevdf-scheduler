@@ -261,7 +261,7 @@ object RtScheduler {
             .apply()
     }
 
-    // ── Hoisting helpers (used by TaskListBuilderDelegate) ────────────────────
+    // ── Hoisting helpers (used by ListBuilderDelegate) ────────────────────
 
     /**
      * True when [task] is a group containing at least one descendant that is

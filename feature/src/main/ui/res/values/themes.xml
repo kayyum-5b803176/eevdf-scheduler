@@ -21,7 +21,7 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <style name="AppTheme.GroupPickerDialog"
+    <style name="AppTheme.PickerDialog"
         parent="Theme.MaterialComponents.DayNight.Dialog.MinWidth" />
 
     <!-- ── Shape ───────────────────────────────────────────────────────────── -->

@@ -19,7 +19,7 @@ import androidx.room.Query
  *   ("schedule", "A")   ("schedule", "B")
  *
  * Only NON-interrupt tasks are ever stored here (an INT task can never become the
- * return-to target of another INT slot — see TaskInterruptDelegate).
+ * return-to target of another INT slot — see InterruptDelegate).
  *
  * The primary key is the composite "tab|slot" string so an upsert simply overwrites
  * the single row for that cell.

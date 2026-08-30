@@ -2,8 +2,8 @@
 <!--
   Schedule Priority card — 1–7 integer slider with live band description.
 
-  tvPriorityLabel  — updated by AddTaskCategoryPrioritySection.updatePriorityDisplay()
-  tvPriorityInfo   — updated by AddTaskCategoryPrioritySection.updatePriorityDisplay();
+  tvPriorityLabel  — updated by CategoryPrioritySection.updatePriorityDisplay()
+  tvPriorityInfo   — updated by CategoryPrioritySection.updatePriorityDisplay();
                      shows override text when pinned share is active.
 -->
 <com.google.android.material.card.MaterialCardView

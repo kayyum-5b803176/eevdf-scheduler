@@ -5,7 +5,7 @@
   switchQuotaEnabled — shows/hides layoutQuotaFields
   layoutQuotaFields  — hidden by default
   etQuota            — NdNhNmNs format; parsed by parseQuotaInput()
-  tvQuotaPreview     — live formatted display updated by AddTaskQuotaSection
+  tvQuotaPreview     — live formatted display updated by QuotaSection
   etPeriod           — rolling window duration; default value "1d"
   tvPeriodPreview    — live formatted display
   tvQuotaError       — inline validation message shown by saveTask()

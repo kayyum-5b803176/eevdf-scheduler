@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.list
 
 import android.content.SharedPreferences
 import com.eevdf.data.task.Task
@@ -65,7 +65,7 @@ internal class QueueLastRunDelegate(
      *   task is a sub-group      → recurse into that sub-group
      *
      * Any null at any hop terminates immediately and drops the group from
-     * [TaskSchedulerDelegate.rotateGlobal]'s representatives list.
+     * [SchedulerDelegate.rotateGlobal]'s representatives list.
      * Stale preference entries are never cleaned up — they either get bypassed
      * because the chain detours around them, or they produce null here.
      */

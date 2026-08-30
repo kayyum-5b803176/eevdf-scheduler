@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 import android.os.Bundle
 import android.widget.*
@@ -8,7 +8,7 @@ import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.feature.R
 import com.eevdf.data.task.Task
-import com.eevdf.feature.task.TaskViewModel
+import com.eevdf.feature.task.list.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import android.widget.AutoCompleteTextView
 import com.google.android.material.slider.Slider
@@ -29,14 +29,14 @@ import dagger.hilt.android.AndroidEntryPoint
  *   • [onSupportNavigateUp]
  *
  * Section-specific setup, populate, parse, and format logic lives in sibling files:
- *   • AddTaskCategoryPrioritySection.kt  — category chips + priority slider
- *   • AddTaskGroupSection.kt             — parent group spinner
- *   • AddTaskInterruptSection.kt         — interrupt A/B switches
- *   • AddTaskPinnedShareSection.kt       — realtime / pinned share + weight calc
- *   • AddTaskTypeSection.kt              — task type spinner + notice delay fields
- *   • AddTaskQuotaSection.kt             — quota limit switch + duration fields
- *   • AddTaskSchedulerSection.kt         — scheduler class, DL, and RT sub-sections
- *   • AddTaskSaveHandler.kt              — full saveTask() validation + persistence
+ *   • CategoryPrioritySection.kt  — category chips + priority slider
+ *   • GroupSection.kt             — parent group spinner
+ *   • InterruptSection.kt         — interrupt A/B switches
+ *   • PinnedShareSection.kt       — realtime / pinned share + weight calc
+ *   • TypeSection.kt              — task type spinner + notice delay fields
+ *   • QuotaSection.kt             — quota limit switch + duration fields
+ *   • SchedulerSection.kt         — scheduler class, DL, and RT sub-sections
+ *   • SaveHandler.kt              — full saveTask() validation + persistence
  */
 @AndroidEntryPoint
 class AddTaskActivity : AppCompatActivity() {

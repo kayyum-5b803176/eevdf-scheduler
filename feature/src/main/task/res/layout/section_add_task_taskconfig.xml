@@ -6,12 +6,12 @@
 
   actvTaskType        — task profile dropdown (Default/Notice/Alert/Custom).
                         Floating hint label; no separate TextView above it.
-  layoutNotifDelay    — notice-only sub-fields; AddTaskConfigSection.kt shows
+  layoutNotifDelay    — notice-only sub-fields; ConfigSection.kt shows
                         this when actvTaskType selection is NOTIFICATION.
   actvResumeType      — global resume behaviour; always visible for every type.
                         Floating hint label; no separate TextView above it.
 
-  Notice sub-field ownership (AddTaskConfigSection.kt):
+  Notice sub-field ownership (ConfigSection.kt):
     etNotifDelay / tvNotifDelayPreview    — delay before execute starts
     etNoticeRest / tvNoticeRestPreview    — wait countdown after execute expires
     etNoticeRepeat                        — extra execute/wait cycles (0-12)

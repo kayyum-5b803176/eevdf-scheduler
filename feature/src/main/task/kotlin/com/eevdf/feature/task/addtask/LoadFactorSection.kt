@@ -1,4 +1,4 @@
-package com.eevdf.feature.task
+package com.eevdf.feature.task.addtask
 
 import android.view.View
 import androidx.lifecycle.lifecycleScope
@@ -141,7 +141,7 @@ private suspend fun AddTaskActivity.resolveEffectiveSliders(
 }
 
 /**
- * Called by [AddTaskGroupSection] when a parent group is selected.
+ * Called by [GroupSection] when a parent group is selected.
  *
  * Resolves the effective inherited slider values by walking up the ancestor
  * chain via [resolveEffectiveSliders] — so if the immediate parent is also
@@ -166,7 +166,7 @@ internal fun AddTaskActivity.applyParentLoadFactor(parentTask: Task) {
 }
 
 /**
- * Called by [AddTaskGroupSection] when the parent group is deselected while
+ * Called by [GroupSection] when the parent group is deselected while
  * [isLoadFactorInherited] is true.  Resets to mid-point defaults with
  * toggle OFF so subsequent parent picks can inherit again cleanly.
  */
