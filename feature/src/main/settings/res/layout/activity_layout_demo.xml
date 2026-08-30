@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Layout demo screen. Reached from Display -> render -> "Layout" card.
+
+    Two tabs: "template" (default) and "model". This is the first screen
+    in the catalog whose own previously-blank TabLayout extension point
+    gets wired up, rather than shipping unused.
+
+    demoContainer (template tab) is intentionally empty in this file.
+    Every demo card is built at runtime by LayoutDemoActivity.kt through
+    the closed template construction API (com.eevdf.feature.ui.*)
+    - there is no hand-authored demo card XML here to copy or drift from.
+
+    modelContainer (model tab) hosts a single ModelDiagramView, a custom
+    Canvas-drawn box-model diagram representing the metrics genuinely
+    shared across every closed template - screen-to-card gap, real
+    card-to-card gap, corner radius, and shared inner content padding.
+    Not one diagram per card type - these values are global.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/screenBackground">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/layoutDemoToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/screenBackground"
+        android:elevation="4dp"
+        app:titleTextColor="@color/app_text_title" />
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
+
+    <ScrollView style="@style/App.PageScroll">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- TAB: template (default) -->
+            <LinearLayout
+                android:id="@+id/demoContainer"
+                style="@style/App.PageContent"
+                android:visibility="visible" />
+
+            <!-- TAB: model -->
+            <LinearLayout
+                android:id="@+id/modelContainer"
+                style="@style/App.PageContent"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_spacing_md"
+                    android:layout_marginEnd="@dimen/app_spacing_md"
+                    android:layout_marginBottom="@dimen/app_spacing_md"
+                    android:text="Global box-model metrics, read from the real dimen resources — not per-template, since these values are shared across every closed template class."
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_body"
+                    android:lineSpacingMultiplier="1.3" />
+
+                <com.eevdf.feature.ui.ModelDiagramView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

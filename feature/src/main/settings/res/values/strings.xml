@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Moved from the app-level strings.xml (Phase 7 :feature extraction). Unwired —
+         no About screen currently exists anywhere in feature/settings. Placed here on
+         the convention that "about" strings belong with settings, but this is the
+         lowest-confidence placement in the whole move; verify before relying on it. -->
+    <string name="about_eevdf">About EEVDF</string>
+</resources>

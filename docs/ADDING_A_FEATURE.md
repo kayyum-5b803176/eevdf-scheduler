@@ -13,8 +13,9 @@ below is in service of that one line.
 
 Copy this into the PR description.
 
-- [ ] Lives in its own package under `feature/` (Phase 2: its own Gradle module)
-- [ ] Does **not** import from another `feature/` package — `scripts/check_architecture.sh` enforces this
+- [ ] Lives in its own package under `feature/src/main/<name>/kotlin/com/eevdf/feature/<name>/` — `:feature` is a real Gradle module (Phase 7); physical resources for the feature go in the sibling `feature/src/main/<name>/res/`, not a shared top-level `res/`
+- [ ] A brand-new subfeature adds its `kotlin`/`res` pair to the `subfeatures` list in `feature/build.gradle.kts`, or its files won't be picked up
+- [ ] Does **not** import from another `feature/<name>/` package (importing `feature/ui/`, the shared design system, is fine) — `scripts/check_architecture.sh` enforces this
 - [ ] Persisted data is in **its own table**, not new columns on `tasks`
       (`tasks` is frozen — `TaskSchemaFreezeTest` fails the build if it grows)
 - [ ] Decided explicitly whether the new table needs to sync (backup is automatic; sync is not)

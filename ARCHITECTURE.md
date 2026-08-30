@@ -49,16 +49,17 @@ later phases exist.
 **Current:**
 
 ```
-:app ──▶ :contract          :app ──▶ :data ──▶ :core ◀── :platform
-:app ──▶ :core, :data, :platform, :shared       :shared ◀── (anyone)
-```
-
-**Target (Phase 7 onward):**
-
-```
-:app ──▶ :contract, :feature
+:app ──▶ :contract, :feature, :core, :data, :platform, :shared
 :feature ──▶ :contract, :core, :data, :platform, :shared
 ```
+
+All eight conceptual roots now have a real home: six as Gradle modules
+(`:core`, `:data`, `:platform`, `:shared`, `:testing`, `:contract`), one as
+the newest module (`:feature`), and `:app` as the composition root. What's
+left is internal reorganization within already-correct boundaries — see
+Phases 5, 6, 8, 9, 10 below — plus one still-informal piece: `:feature`'s
+own `ui/` subfolder is a genuine design system, physically inside `:feature`
+for now rather than its own module. See Phase 7 for why.
 
 | Module      | Kind      | Status | Rule |
 |-------------|-----------|--------|------|
@@ -68,8 +69,8 @@ later phases exist.
 | `:shared`   | Pure JVM  | ✅ real module | Cross-cutting utilities, feature flags, crash isolation. |
 | `:testing`  | Pure JVM  | ✅ real module | Fakes, plus `:core`'s own unit tests (arguably belongs in `:core` — the doc defines `testing/` as reusable *infrastructure*, not the tests themselves; unresolved, low priority). |
 | `:contract` | AndroidLib| ✅ real module (Phase 4, v5.11.0) | `AppRoutes` (`contract.nav`), `AlarmController`, `OverlayController`, `AlarmActions` (`contract.control`). Deliberately dependency-free — no `:core`, no `:data` — because a contract that needs another module's types has stopped being a contract. `AppRoutesTest` stays in `:app` (needs the Activity classes on its classpath, which `:contract` should never have). |
-| `:feature`  | —         | 🚧 target, not yet a module | Feature packages live under `app/src/main/kotlin/com/eevdf/app/feature/`. Boundary enforced by `scripts/check_architecture.sh`, not the compiler, until Phase 7. |
-| `:app`      | App       | ✅ real module | UI, ViewModels, DI wiring, manifest, resources. Also holds `app/ui/` — a genuinely shared design-system package (`NavCardView`, `ModelDiagramView`, etc.), used only by `feature/settings` today but classified shared rather than feature-owned per the ownership test in `Scalable_Feature-Boundary_Architecture.md` §12: a design-system component isn't owned by the one feature that happens to use it first. |
+| `:feature`  | AndroidLib| ✅ real module (Phase 7, v5.12.0) | The unbounded growth surface, one Gradle module. Physically co-located per subfeature — `feature/src/main/task/{kotlin,res}/`, `feature/src/main/settings/{kotlin,res}/`, etc. — rather than scattered into type-based top-level folders, matching the ownership philosophy's "organize by who owns it" rule applied to resources too. One namespace (`com.eevdf.feature`), one manifest, one `R` class; per-feature isolation (task cannot import settings) is still `scripts/check_architecture.sh`'s job, not the compiler's, until a future per-feature-module split. `feature/ui/` holds the design system (5 card views, `colors.xml`/`dimens.xml`/`themes.xml`) — genuinely used by multiple features, physically inside `:feature` for now rather than a dedicated module. See Phase 7. |
+| `:app`      | App       | ✅ real module | Composition root only, now that Phase 7 emptied it out: `SchedulerApplication`, DI wiring, a manifest with permissions + the bare `<application>` shell (components merge in from `:feature`'s manifest), and `res/` holding only the launcher icon + `app_name` (everything else moved to `feature/*/res/`). |
 
 ---
 
@@ -99,12 +100,13 @@ points inward to an interface, never sideways to a sibling. As of Phase 4
 **Shared code that is genuinely ownerless lives in `app.core.*`.** Currently:
 `core.prefs` (`AutoSwitchPrefs`, `DisplayPrefs`, `HardwareKeyPrefs`,
 `QuickActionPrefs` — each read by 2+ features), `core.media`,
-`core.notification`, `core.signals`, `core.nav`. **Single-owner code that only
+`core.notification`, `core.signals`. **Single-owner code that only
 looked shared has been moved out** — `RecentGroupPrefs` and `GroupTaskPrefs`
 went to `feature/task`, `SettingsPage`/`SettingsChangeLogger` went to
-`feature/settings` (Phase 3, v5.10.0) — per the ownership philosophy's rule
-that sharing must be earned by proven multi-feature use, not assumed from a
-folder name.
+`feature/settings` (Phase 3, v5.10.0), and `AppRoutes`/`AlarmController`/
+`OverlayController`/`AlarmActions` went to `:contract` (Phase 4, v5.11.0) —
+per the ownership philosophy's rule that sharing must be earned by proven
+multi-feature use, not assumed from a folder name.
 
 **Navigation goes through `AppRoutes`** (`contract.nav`, moved from
 `app.core.nav` in Phase 4), which resolves screens by class name so no screen
@@ -236,6 +238,82 @@ another module's types has stopped being a contract.
   enough shape that folding it into `:contract` was deferred rather than
   assumed. Revisit in a later phase.
 
+## Phase 7 — done (v5.12.0): promote `feature/` to a real Gradle module
+
+**Done out of order, ahead of Phase 5 and 6.** The original plan sequenced
+this after platform relocation and the `feature/task` internal restructuring.
+It moved first instead because the ownership trace found `feature/` had zero
+external callers into it — nothing outside the tree depended on its internals
+— making it the cleanest, lowest-risk extraction available, independent of
+Phase 5/6's unrelated work. Phase 5 and 6 are still pending, just no longer
+prerequisites.
+
+**What moved:** all 69 feature files (`task`, `alarm`, `autoswitch`, `backup`,
+`settings`, `stats`, `sync`) plus the `app/ui` design system (5 card views),
+from `app.feature.*`/`app.ui` into one new `:feature` Gradle module,
+`com.eevdf.feature.*`. `AppRoutes`'s constants (in `:contract`) and
+`AppRoutesTest`'s package-prefix filter were updated to match — anything
+still saying `com.eevdf.app.feature.*` after this phase is stale.
+
+**Physical layout, not just package rename:** rather than one flat
+`feature/src/main/{kotlin,res}/`, each subfeature is physically co-located —
+`feature/src/main/task/kotlin/` sits next to `feature/src/main/task/res/`,
+same for every other subfeature, plus `feature/src/main/ui/` for the shared
+design system. `feature/build.gradle.kts` wires all of them into one
+`sourceSets` block (`subfeatures.map { "src/main/$it/kotlin" }`), so it
+remains a single module — one namespace, one `R` class — with resources
+organized by owner instead of scattered into type-based folders (`layout/`,
+`drawable/`, `values/` as one shared bucket for the whole app). This is the
+ownership philosophy applied to resources, not just Kotlin packages.
+
+**The resource-ownership trace** (every layout, drawable, string traced to
+its consuming Activity/Fragment) found:
+
+- Every layout/menu/drawable except the launcher icon has exactly one owning
+  feature — moved cleanly, e.g. `item_task.xml` → `feature/task/res/layout/`.
+- Two drawables (`ic_sync_dot`, `outline_skip_next_24`) are genuinely used by
+  two different features (task's menu, autoswitch's bubble/services) →
+  `feature/ui/res/drawable/`, the shared bucket, same test as any other
+  shared code.
+- `colors.xml`/`dimens.xml`/`themes.xml`/`values-night/colors.xml` (166 + 64
+  + 244 + 61 entries) went to `feature/ui/res/values/` as units rather than
+  split entry-by-entry — they're design tokens, used pervasively across every
+  feature by nature, and tracing 500+ individual entries to a single owner
+  each would manufacture ownership that doesn't exist. `:app` itself touches
+  zero of them directly (confirmed — `SchedulerApplication`/`di/*` reference
+  no `R.*` at all), so nothing was lost by not keeping a copy there.
+- `strings.xml`'s 16 entries were **entirely unwired** — none referenced
+  anywhere in code except `app_name` (via the manifest, not code). 15 moved
+  to their name-matched feature (14 → `feature/task`, 1 → `feature/settings`,
+  the lowest-confidence placement in this phase since no About screen
+  actually exists yet) per the same "unwired code still gets a plausible
+  future owner" rule applied earlier to `GroupTaskPrefs`. `app_name` stayed
+  with `:app` — genuine app-identity, not feature content.
+- `:app`'s own `res/` is now just the launcher icon assets (`mipmap-*/`,
+  `drawable/ic_launcher_{background,foreground}.xml`,
+  `values/ic_launcher_background.xml`) and a one-string `strings.xml`.
+
+**Resolved:** whether `feature/ui/` deserves its own module (`:designsystem`,
+sibling to `:contract`/`:shared`) was raised explicitly and deferred —
+correct destination long-term, but adding a fifth new module in the same
+session as `:contract` and `:feature`, none of which had a real compiler
+signal yet, was assessed as unnecessary risk for this phase. `:shared` was
+considered and rejected as the interim home: it's pure JVM by design (no
+Android plugin), and that purity is the entire reason `DurationFormat`/
+`FeatureFlag`/`SafeRun` are trustworthy without an emulator — bolting Android
+resources onto it would blur the one-sentence purpose every subsystem here
+is supposed to have. Revisit `:designsystem` once `:contract` and `:feature`
+are both build-verified.
+
+**Not done, despite the original plan:** `scripts/feature_import_allowlist.txt`
+was *not* deleted. The original Phase 7 description assumed promoting
+`feature/` would let the compiler replace the isolation script entirely, but
+that was only true for per-feature *modules* — one `:feature` module gives
+compiler enforcement of `app → feature` direction, not of `task ↛ settings`
+within it. The allowlist and `scripts/check_architecture.sh`'s isolation scan
+still do that job; both were updated for the new physical paths
+(`feature/src/main/<name>/kotlin/...`) rather than removed.
+
 ## Phase 5 — next: platform relocation
 
 `SoundManager`, `VibrationManager` (`app.core.media`) and `NotificationHelper`
@@ -245,18 +323,14 @@ the doc's rule is `core = what, platform = how on this OS`. These move to
 
 ## Phase 6 — next: `feature/task` internal restructuring
 
-`feature/task` is flat with 22 top-level files while `adapter/`, `notice/`,
-`timer/` already exist as subfolders — the "grow downward" rule applies.
-Planned subfolders: `list/`, `addtask/`, `group/`. Includes full renames
-(files, classes, and Activities) — Activity renames require touching
-`AndroidManifest.xml` and `AppRoutes` (or `:contract`, if Phase 4 lands
-first) in the same commit, per your instruction to rename everything
+`feature/task` is flat with ~30 top-level files (in
+`feature/src/main/task/kotlin/com/eevdf/feature/task/`, since Phase 7) while
+`adapter/`, `notice/`, `timer/` already exist as subfolders — the "grow
+downward" rule applies. Planned subfolders: `list/`, `addtask/`, `group/`.
+Includes full renames (files, classes, and Activities) — Activity renames
+require touching `feature/src/main/AndroidManifest.xml` and `AppRoutes` (in
+`:contract`) in the same commit, per your instruction to rename everything
 including Activities.
-
-## Phase 7 — next: promote `feature/` to a real Gradle module
-
-Deletes `scripts/feature_import_allowlist.txt` entirely — the compiler
-enforces what the script currently checks.
 
 ## Phase 8 — next: `data/scheduler` split
 
@@ -268,8 +342,9 @@ the thin persistence adapter.
 ## Phase 9 — next: resolve `TimerEngine` duplication
 
 `core.scheduler.timer.TimerEngine` (pure FSM, currently unused) and
-`app.feature.task.timer.TimerEngine` (the Android implementation actually in
-use) — carried over from Phase 2c, still unresolved.
+`com.eevdf.feature.task.timer.TimerEngine` (the Android implementation
+actually in use, moved from `app.feature.task.timer` in Phase 7) — carried
+over from Phase 2c, still unresolved.
 
 ## Phase 10 — next: complexity-ratchet backlog (carried over from Phase 2c)
 

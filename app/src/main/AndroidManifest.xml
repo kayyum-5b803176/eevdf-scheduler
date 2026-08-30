@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissions stay at the :app level regardless of which module declares the
+         component that uses them — a permission describes what the whole APK needs,
+         not which module owns a screen. See feature/src/main/AndroidManifest.xml for
+         the Activities/Services/Receivers themselves (moved there in Phase 7). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -36,7 +40,7 @@
         tools:ignore="QueryAllPackagesPermission" />
     <!-- Hover bubble: foreground service type (API 34) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    
+
     <application
         android:name="com.eevdf.app.SchedulerApplication"
         android:allowBackup="true"
@@ -46,181 +50,13 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <activity
-            android:name="com.eevdf.app.feature.task.MainActivity"
-            android:exported="true"
-            android:resizeableActivity="true"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name="com.eevdf.app.feature.task.AddTaskActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.task.MainActivity" />
-
-        <!--
-            Full-screen alarm activity — shown over lock screen when timer expires.
-            showWhenLocked + turnScreenOn handled in code for API 26 compat.
-        -->
-        <!--
-            Settings screen — import / export data backup.
-        -->
-        <activity
-            android:name="com.eevdf.app.feature.stats.StatsActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.task.MainActivity" />
-
-        <activity
-            android:name="com.eevdf.app.feature.settings.SettingsActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.task.MainActivity" />
-
-        <activity
-            android:name="com.eevdf.app.feature.backup.DataBackupActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
-
-        <activity
-            android:name="com.eevdf.app.feature.settings.ProfileSettingsActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.SoundVibrationActivity" />
-
-        <activity
-            android:name="com.eevdf.app.feature.settings.SoundVibrationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
-
-        <!-- Multi-user live sync settings screen -->
-        <activity
-            android:name="com.eevdf.app.feature.sync.MultiUserSyncActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
-
-        <!-- Auto Switch settings screen -->
-        <activity
-            android:name="com.eevdf.app.feature.autoswitch.AutoSwitchActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
-
-        <!-- Display settings screen -->
-        <activity
-            android:name="com.eevdf.app.feature.settings.DisplaySettingsActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
-            android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
-
-        <!-- Layout demo catalog, opened from Display -> render -> "Layout" -->
-        <activity
-            android:name="com.eevdf.app.feature.settings.LayoutDemoActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.DisplaySettingsActivity" />
-
-        <!-- Color matrix, opened from Display -> render -> "color" -->
-        <activity
-            android:name="com.eevdf.app.feature.settings.ColorMatrixActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.DisplaySettingsActivity" />
-
-        <!-- Button Action settings screen -->
-        <activity
-            android:name="com.eevdf.app.feature.settings.ButtonActionActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.app.feature.settings.SettingsActivity" />
-
-        <!-- Hardware Keys: list of assignable keys -->
-        <activity
-            android:name="com.eevdf.app.feature.settings.HardwareKeyActionActivity"
-            android:exported="false"
-            android:parentActivityName="com.eevdf.app.feature.settings.ButtonActionActivity" />
-
-        <!-- Hardware Keys: per-key action chooser -->
-        <activity
-            android:name="com.eevdf.app.feature.settings.HardwareKeyOptionActivity"
-            android:exported="false"
-            android:parentActivityName="com.eevdf.app.feature.settings.HardwareKeyActionActivity" />
-
-        <!-- Auto Switch: phone call state receiver.
-             exported=true is required for system broadcast PHONE_STATE on API 26+. -->
-        <receiver
-            android:name="com.eevdf.app.feature.autoswitch.CallStateReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!--
-            Full-screen alarm activity — shown over lock screen when timer expires.
-            showWhenLocked + turnScreenOn handled in code for API 26 compat.
-        -->
-        <activity
-            android:name="com.eevdf.app.feature.alarm.AlarmActivity"
-            android:exported="false"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            android:excludeFromRecents="true"
-            android:launchMode="singleInstance" />
-
-        <!-- Receives the Stop action from the expired-timer notification -->        <receiver
-            android:name="com.eevdf.app.feature.alarm.AlarmStopReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Receives AlarmManager.setAlarmClock() callback — Doze-immune timer trigger -->
-        <receiver
-            android:name="com.eevdf.app.feature.alarm.TimerAlarmReceiver"
-            android:exported="false" />
-
-        <!--
-            Foreground service that holds WakeLock and launches AlarmActivity.
-            Uses media_playback type which is allowed to start activities from background
-            on Android 12+ without special permissions.
-        -->
-        <service
-            android:name="com.eevdf.app.feature.alarm.AlarmForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
-
-        <!--
-            Hover bubble: foreground service that shows the floating call-state
-            overlay.  Started by TaskCallSwitchDelegate on call begin; stopped on
-            call end.  dataSync type satisfies the API 34 foreground-service-type
-            requirement without requiring dangerous permissions.
-        -->
-        <service
-            android:name="com.eevdf.app.feature.autoswitch.BubbleOverlayService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!--
-            Call-task switcher: foreground service that performs the pause/resume
-            DB writes when a call arrives or ends, without requiring MainActivity.
-            dataSync type covers the brief DB read+write window.
-        -->
-        <service
-            android:name="com.eevdf.app.feature.autoswitch.CallSwitchService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+        <!-- No components declared here. Every Activity/Service/Receiver lives in
+             feature/src/main/AndroidManifest.xml and merges into this <application>
+             block at build time via AGP's manifest merger — that's why :app can
+             reference @style/AppTheme (feature/ui/res/values/themes.xml) and
+             @mipmap/ic_launcher (this module's own res/) in the same tag even
+             though they're defined in different modules: :app depends on :feature,
+             so :feature's resources are part of :app's final merged resource table. -->
 
     </application>
 

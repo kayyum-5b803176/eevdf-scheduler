@@ -48,7 +48,7 @@ class AppRoutesTest {
         val declared = AppRoutes::class.java.declaredFields
             .filter { it.type == String::class.java }
             .mapNotNull { it.isAccessible = true; it.get(AppRoutes) as? String }
-            .filter { it.startsWith("com.eevdf.app.feature.") }
+            .filter { it.startsWith("com.eevdf.feature.") }
             .toSet()
         val forgotten = declared - AppRoutes.ALL_ROUTES.toSet()
         assertTrue("route constant(s) missing from ALL_ROUTES: $forgotten", forgotten.isEmpty())

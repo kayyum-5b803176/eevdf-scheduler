@@ -17,7 +17,7 @@ package com.eevdf.contract.control
  * allowed to depend on.
  *
  * Now callers depend on this interface. The implementation lives inside the
- * alarm feature and is bound by [com.eevdf.app.feature.alarm.AlarmControlModule],
+ * alarm feature and is bound by [com.eevdf.feature.alarm.AlarmControlModule],
  * so the dependency arrow points *inward* to a contract rather than sideways to
  * another feature. When `:feature:alarm` becomes a module, it provides the
  * binding and nothing else changes.

@@ -2,9 +2,9 @@
 #
 # Architecture guard for EEVDF Scheduler.
 #
-# The feature packages under app/src/main/kotlin/com/eevdf/app/feature/ are not
-# yet real Gradle modules, so the Kotlin compiler cannot stop one feature from
-# reaching into another. This script enforces that boundary in CI in the
+# The feature packages under feature/src/main/*/kotlin/com/eevdf/feature/ are one
+# Gradle module (:feature, since Phase 7), but the Kotlin compiler still cannot
+# stop one feature from reaching into another's internals within that module. This script enforces that boundary in CI in the
 # meantime, and also catches the database-versioning mistakes that two people
 # working in parallel will otherwise make.
 #
@@ -21,7 +21,11 @@ grn()  { printf '\033[32m%s\033[0m\n' "$*"; }
 ylw()  { printf '\033[33m%s\033[0m\n' "$*"; }
 fail() { red "  FAIL: $*"; FAILURES=$((FAILURES+1)); }
 
-FEATURE_ROOT="app/src/main/kotlin/com/eevdf/app/feature"
+FEATURE_ROOT="feature/src/main"
+# ui/ is the shared design system inside :feature (colors, dimens, themes, card
+# views) — every feature is expected to import it, so it is deliberately
+# excluded from the "no feature imports another feature" scan below rather than
+# flagged as a violation every feature would otherwise need an allowlist entry for.
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo "[1/7] Feature isolation — no feature may import another feature"
@@ -34,20 +38,24 @@ touch "$ALLOWLIST_FILE"
 
 if [ -d "$FEATURE_ROOT" ]; then
   VIOLATIONS=""
-  for dir in "$FEATURE_ROOT"/*/; do
+  for sub in "$FEATURE_ROOT"/*/; do
+    [ -d "$sub" ] || continue
+    self="$(basename "$sub")"
+    [ "$self" = "ui" ] && continue
+    dir="$sub/kotlin"
     [ -d "$dir" ] || continue
-    self="$(basename "$dir")"
     while IFS= read -r hit; do
       [ -z "$hit" ] && continue
       file="${hit%%:*}"
       line="${hit#*:}"
-      other="$(printf '%s' "$line" | sed -n 's/.*com\.eevdf\.app\.feature\.\([a-zA-Z0-9_]*\).*/\1/p')"
+      other="$(printf '%s' "$line" | sed -n 's/.*com\.eevdf\.feature\.\([a-zA-Z0-9_]*\).*/\1/p')"
       [ "$other" = "$self" ] && continue
+      [ "$other" = "ui" ] && continue
       [ -z "$other" ] && continue
       entry="$self -> $other"
       grep -qxF "$entry" "$ALLOWLIST_FILE" && continue
       VIOLATIONS+="  $entry"$'\n'"    ${file#./}"$'\n'"    ${line# }"$'\n'
-    done < <(grep -rn "^import com\.eevdf\.app\.feature\." "$dir" --include=*.kt 2>/dev/null)
+    done < <(grep -rn "^import com\.eevdf\.feature\." "$dir" --include=*.kt 2>/dev/null)
   done
 
   if [ -n "$VIOLATIONS" ]; then
@@ -193,7 +201,7 @@ while IFS= read -r f; do
   if [ "$lines" -gt "$LIMIT" ]; then
     fail "$f is $lines lines (limit $LIMIT) — split it before it becomes a shared edit surface"
   fi
-done < <(find app contract core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
+done < <(find app contract core data feature platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
 [ "$FAILURES" -eq "$FAILURES_BEFORE_STEP5" ] && grn "  OK (2 files grandfathered: MainActivity, TaskViewModel)"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -228,7 +236,7 @@ while IFS= read -r f; do
                   if(n){printf "%d %s\n", NR-s-1, n} n=$0; s=NR
                 } END{ if(n) printf "%d %s\n", NR-s-1, n }' "$f" \
             | sed 's/  */ /g; s/(.*//')
-done < <(find app contract core data platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
+done < <(find app contract core data feature platform shared -name '*.kt' -path '*/src/main/*' 2>/dev/null)
 
 echo "  longest: $WORST lines (ceiling $CEILING) — $WORST_NAME"
 echo "  over the ${TARGET}-line target: $OVER (debt baseline $DEBT_COUNT)"

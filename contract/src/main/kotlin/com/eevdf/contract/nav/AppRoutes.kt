@@ -33,12 +33,12 @@ import android.content.Intent
  */
 object AppRoutes {
 
-    const val MAIN        = "com.eevdf.app.feature.task.MainActivity"
-    const val STATS       = "com.eevdf.app.feature.stats.StatsActivity"
-    const val SETTINGS    = "com.eevdf.app.feature.settings.SettingsActivity"
-    const val BACKUP      = "com.eevdf.app.feature.backup.DataBackupActivity"
-    const val AUTO_SWITCH = "com.eevdf.app.feature.autoswitch.AutoSwitchActivity"
-    const val SYNC        = "com.eevdf.app.feature.sync.MultiUserSyncActivity"
+    const val MAIN        = "com.eevdf.feature.task.MainActivity"
+    const val STATS       = "com.eevdf.feature.stats.StatsActivity"
+    const val SETTINGS    = "com.eevdf.feature.settings.SettingsActivity"
+    const val BACKUP      = "com.eevdf.feature.backup.DataBackupActivity"
+    const val AUTO_SWITCH = "com.eevdf.feature.autoswitch.AutoSwitchActivity"
+    const val SYNC        = "com.eevdf.feature.sync.MultiUserSyncActivity"
 
     /** Every route, for the resolution test. Keep in step with the constants. */
     val ALL_ROUTES: List<String> = listOf(MAIN, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC)

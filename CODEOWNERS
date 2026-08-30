@@ -36,6 +36,12 @@
 # at runtime rather than compile time (interfaces resolved through Hilt).
 /contract/                                                  @your-handle
 
+# :feature's build file and manifest are shared surfaces even though the
+# module holds every feature's code — the sourceSet wiring (which subfeature
+# dirs exist) and the merged manifest both affect every feature at once.
+/feature/build.gradle.kts                                   @your-handle
+/feature/src/main/AndroidManifest.xml                       @your-handle
+
 # Guard rails themselves. Weakening these should never be a quiet change.
 /scripts/                                                   @your-handle
 /config/detekt/                                             @your-handle

@@ -17,7 +17,7 @@ object AlarmActions {
     /**
      * Broadcast locally when the alarm is stopped, so any screen showing alarm
      * UI can dismiss itself. Sent by
-     * [com.eevdf.app.feature.alarm.AlarmStopReceiver].
+     * [com.eevdf.feature.alarm.AlarmStopReceiver].
      */
     const val ACTION_STOP_ALARM = "com.eevdf.scheduler.ACTION_STOP_ALARM"
 }
