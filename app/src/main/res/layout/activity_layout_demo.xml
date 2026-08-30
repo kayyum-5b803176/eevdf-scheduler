@@ -8,7 +8,7 @@
 
     demoContainer (template tab) is intentionally empty in this file.
     Every demo card is built at runtime by LayoutDemoActivity.kt through
-    the closed template construction API (com.eevdf.app.core.template.*)
+    the closed template construction API (com.eevdf.app.ui.*)
     - there is no hand-authored demo card XML here to copy or drift from.
 
     modelContainer (model tab) hosts a single ModelDiagramView, a custom
@@ -73,7 +73,7 @@
                     android:textColor="@color/app_text_body"
                     android:lineSpacingMultiplier="1.3" />
 
-                <com.eevdf.app.core.template.ModelDiagramView
+                <com.eevdf.app.ui.ModelDiagramView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 

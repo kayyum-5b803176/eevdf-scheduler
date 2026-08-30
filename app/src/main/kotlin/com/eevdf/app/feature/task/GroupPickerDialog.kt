@@ -15,7 +15,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.app.R
 import com.eevdf.data.task.Task
 import com.google.android.material.textfield.TextInputEditText
-import com.eevdf.app.core.prefs.RecentGroupPrefs
 
 /**
  * A full-screen-ish DialogFragment that replaces the plain [Spinner] for

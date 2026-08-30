@@ -9,17 +9,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.app.R
-import com.eevdf.app.core.template.DropdownCardView
-import com.eevdf.app.core.template.NavCardView
-import com.eevdf.app.core.template.ToggleCardView
-import com.eevdf.app.core.template.ValueCardView
+import com.eevdf.app.ui.DropdownCardView
+import com.eevdf.app.ui.NavCardView
+import com.eevdf.app.ui.ToggleCardView
+import com.eevdf.app.ui.ValueCardView
 import com.google.android.material.tabs.TabLayout
 
 /**
  * Layout demo catalog, opened from Display -> render -> "Layout" card.
  *
  * Two tabs: "template" (default) — every demo card below, built through
- * the closed template construction API in com.eevdf.app.core.template,
+ * the closed template construction API in com.eevdf.app.ui,
  * the same classes any real settings screen uses to build its rows —
  * and "model", a single global box-model diagram (screen-to-card gap,
  * real card-to-card gap, corner radius, shared inner padding) read from

@@ -1,0 +1,41 @@
+Files moved in v5.10.0 — delete the OLD path when applying this diff,
+the new path is included in this zip:
+
+  app/src/main/kotlin/com/eevdf/app/core/prefs/GroupTaskPrefs.kt
+    -> app/src/main/kotlin/com/eevdf/app/feature/task/GroupTaskPrefs.kt
+       (no callers anywhere; parked with its future owner instead of core)
+
+  app/src/main/kotlin/com/eevdf/app/core/prefs/RecentGroupPrefs.kt
+    -> app/src/main/kotlin/com/eevdf/app/feature/task/RecentGroupPrefs.kt
+       (both callers, GroupPickerDialog and AddTaskGroupSection, already
+       live in feature/task — this was misfiled as shared)
+
+  app/src/main/kotlin/com/eevdf/app/core/settings/SettingsPage.kt
+    -> app/src/main/kotlin/com/eevdf/app/feature/settings/SettingsPage.kt
+
+  app/src/main/kotlin/com/eevdf/app/core/settings/SettingsChangeLogger.kt
+    -> app/src/main/kotlin/com/eevdf/app/feature/settings/SettingsChangeLogger.kt
+       (unwired contract pair; only meaningful within feature/settings)
+
+  app/src/main/kotlin/com/eevdf/app/core/template/DropdownCardView.kt
+  app/src/main/kotlin/com/eevdf/app/core/template/ModelDiagramView.kt
+  app/src/main/kotlin/com/eevdf/app/core/template/NavCardView.kt
+  app/src/main/kotlin/com/eevdf/app/core/template/ToggleCardView.kt
+  app/src/main/kotlin/com/eevdf/app/core/template/ValueCardView.kt
+    -> app/src/main/kotlin/com/eevdf/app/ui/*.kt
+       (package com.eevdf.app.core.template -> com.eevdf.app.ui; used only
+       by feature/settings but genuinely a shared design system, not owned
+       by one feature)
+
+Old directories now empty and safe to remove once the above are deleted:
+  app/src/main/kotlin/com/eevdf/app/core/settings/
+  app/src/main/kotlin/com/eevdf/app/core/template/
+
+Modified (not moved) — import/package fixups only, no behavior change:
+  app/src/main/kotlin/com/eevdf/app/feature/task/AddTaskGroupSection.kt
+  app/src/main/kotlin/com/eevdf/app/feature/task/GroupPickerDialog.kt
+  app/src/main/kotlin/com/eevdf/app/feature/settings/LayoutDemoActivity.kt
+  app/src/main/res/layout/activity_layout_demo.xml
+
+Version bump:
+  app/build.gradle.kts   versionName 5.9.0 -> 5.10.0 (versionCode unchanged)
