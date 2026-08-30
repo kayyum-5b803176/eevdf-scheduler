@@ -1,18 +1,11 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    id("com.eevdf.android-library-convention")
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
 android {
     namespace = "com.eevdf.feature"
-    compileSdk = 34
     defaultConfig { minSdk = 31 }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions { jvmTarget = "17" }
 
     // Deliberately NOT one flat src/main/{kotlin,res}/. Each subfeature is
     // physically co-located — its own kotlin/ and res/ side by side — instead of

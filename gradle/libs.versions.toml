@@ -28,6 +28,12 @@ json = "20240303"
 detekt = "1.23.6"
 
 [libraries]
+# Build-logic only: the actual plugin JARs, needed by build-logic/convention's
+# precompiled script plugin to apply and configure AGP/Kotlin programmatically.
+# Same version refs as the [plugins] aliases below — one number to change, not two.
+android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+
 # AndroidX core
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }

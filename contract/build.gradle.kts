@@ -1,16 +1,9 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    id("com.eevdf.android-library-convention")
 }
 android {
     namespace = "com.eevdf.contract"
-    compileSdk = 34
     defaultConfig { minSdk = 26 }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
     // INTENTIONALLY minimal. A contract is a promise between features, not a
