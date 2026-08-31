@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.LinearLayout
 import com.eevdf.feature.shared.prefs.DisplayPrefs
 import com.eevdf.feature.shared.prefs.QuickActionPrefs
+import com.eevdf.feature.ui.DesignTokens
 
 /**
  * Reads Display-settings prefs and card-scale/compact-mode/FAB-visibility rules,
@@ -123,8 +124,15 @@ internal class DisplayScaleDelegate(private val activity: MainActivity) {
      * The same scale table used in `TaskAdapter.applyCardScale` — keeps all
      * card types visually consistent.
      */
+    /**
+     * Scales the padding of a card content [LinearLayout] to match [scale].
+     * Delegates to [DesignTokens.paddingDpFor] — the canonical table, shared
+     * with [com.eevdf.feature.task.adapter.applyCardScale] (task rows). See
+     * [DesignTokens]'s class doc for why this consolidation shifted this
+     * card's own padding slightly from its prior independent table.
+     */
     fun applyCardScaleToView(layout: LinearLayout, scale: Int, density: Float) {
-        val paddingDp = when (scale) { 5 -> 16f; 4 -> 13f; 3 -> 10f; 2 -> 7f; else -> 5f }
+        val paddingDp = DesignTokens.paddingDpFor(scale)
         val p = (paddingDp * density + 0.5f).toInt()
         layout.setPadding(p, p, p, p)
     }

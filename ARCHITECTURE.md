@@ -953,3 +953,43 @@ tables — replacing those with calls into the new model is Phase 2, done
 separately so each wiring change gets its own visual check-in rather than
 bundling "introduce the model" with "change what the app looks like" into
 one unverifiable step.
+
+### Phase 2 — done (v5.25.0): named scale + wiring the two existing call sites
+
+**The model itself was rebuilt before wiring anything.** Phase 1's
+`DesignTokens` preserved every existing table's exact pixel values —
+consolidated, but still five independent lookup tables sitting in one file.
+Rebuilt on one actual named scale instead: `SpacingStep` (`XS=4dp, SM=8dp,
+MD=12dp, LG=16dp, XL=20dp` — a 4dp grid, matching Material Design's own
+spacing baseline) plus `TextScaleStep` for the one non-dp dimension. Every
+spacing role (padding, margin-top/bottom, row gap, button gap, corner radius)
+is now a declared *tier offset* from that one scale (`SpacingTier` — padding
+is tier 0, margin-top/corner-radius/button-gap share tier 1, margin-bottom is
+tier 2, row gap is tier 3), not its own number. Adding a new spacing need
+later means picking a tier, not inventing a sixth table.
+
+**This deliberately changes real pixel values, not just where they live.**
+At the default scale (5), content padding moves from `CardScale.kt`'s
+original 14dp to 20dp (+43%) — a genuinely bigger, more noticeable shift than
+Phase 1's own "canonical value" reconciliation. Approved explicitly, in
+exchange for a scale that's actually extensible rather than five tables that
+happen to be consolidated into one file. Full before/after table:
+
+| Scale | Padding | Margin-top | Margin-bottom | Row gap | Button gap | Corner |
+|---|---|---|---|---|---|---|
+| 1 | 4 | 4 | 4 | 4 | 4 | 0 |
+| 2 | 8 | 4 | 4 | 4 | 4 | 4 |
+| 3 | 12 | 8 | 4 | 4 | 8 | 8 |
+| 4 | 16 | 12 | 8 | 4 | 12 | 12 |
+| 5 (default) | 20 | 16 | 12 | 8 | 16 | 16 |
+
+**Wired:** `DisplayScaleDelegate.applyCardScaleToView` (the fixed timer/alarm
+cards) and `CardScale.kt`'s `applyCardScale` (every task row — the higher-
+visibility of the two) both now call `DesignTokens.paddingDpFor`/
+`marginTopDpFor`/etc. directly instead of their own `when` tables.
+`progressTopDp` (task-row progress bar top margin) turned out to already be
+numerically identical to `marginTopDp` in the original code — not two
+things, two names for one value — so it now literally reuses
+`marginTopDpFor`, one fewer thing to keep in sync. **Needs a real-device
+visual check** — unlike Phase 1, this phase changes what's actually on
+screen.

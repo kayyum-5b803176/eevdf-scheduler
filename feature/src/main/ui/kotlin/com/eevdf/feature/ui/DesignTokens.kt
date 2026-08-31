@@ -1,6 +1,58 @@
 package com.eevdf.feature.ui
 
 /**
+ * The one spacing scale every spacing-based token in this file derives its
+ * value from — a 4dp grid, matching Material Design's own spacing baseline.
+ * No dimension below defines its own independent raw dp number; each is
+ * expressed as a position on this one scale (see [SpacingTier]), so a new
+ * spacing need later picks an existing tier instead of inventing a sixth
+ * arbitrary table — the exact problem this whole file exists to fix (see
+ * class doc on [DesignTokens] for the three tables this replaced).
+ */
+public enum class SpacingStep(public val dp: Float) {
+    XS(4f), SM(8f), MD(12f), LG(16f), XL(20f);
+
+    public companion object {
+        /** [scale] is 1..5 (this app's existing convention); index 0 = XS. */
+        public fun at(scale: Int, tierOffset: Int = 0): SpacingStep {
+            val index = (scale - 1 - tierOffset).coerceIn(0, entries.lastIndex)
+            return entries[index]
+        }
+    }
+}
+
+/**
+ * Same naming convention as [SpacingStep], for the one token dimension that
+ * isn't a dp spacing value — a unitless multiplier on top of a view's own
+ * base text size. Kept as its own small scale rather than folded into
+ * [SpacingStep] because dp and "times the existing size" are different units;
+ * a shared name (XS..XL) still makes both scales read the same way.
+ */
+public enum class TextScaleStep(public val multiplier: Float) {
+    XS(0.85f), SM(0.925f), MD(1.0f), LG(1.075f), XL(1.15f);
+
+    public companion object {
+        public fun at(scale: Int): TextScaleStep = entries[(scale - 1).coerceIn(0, entries.lastIndex)]
+    }
+}
+
+/**
+ * How far below the "primary" tier (offset 0, whatever the current
+ * [DesignTokens.paddingScale]/[DesignTokens.marginScale] resolves to) each
+ * spacing role sits. Centralized here so the relationship between roles
+ * ("padding is the most generous, row gaps are the tightest") is declared
+ * once, not re-derived at each call site.
+ */
+private object SpacingTier {
+    const val PADDING = 0          // the most generous spacing in a card
+    const val MARGIN_TOP = 1
+    const val CORNER_RADIUS = 1    // same visual "weight" as margin-top
+    const val BUTTON_ROW_GAP = 1
+    const val MARGIN_BOTTOM = 2
+    const val ROW_GAP = 3          // the tightest — space within one card
+}
+
+/**
  * The single source of truth for "given a 1-5 scale level, what's the actual
  * dp/sp value." Before this file, the same kind of scale-to-dimension mapping
  * existed independently in three places, already diverged from each other:
@@ -14,12 +66,15 @@ package com.eevdf.feature.ui
  *     `NavCardView`/`DropdownCardView`/etc. card views, with no runtime
  *     scale-awareness at all.
  *
- * None of the three agreed with each other, and none was reusable by a screen
- * that didn't already have its own hand-written version. This file is that
- * reusable version. It does not yet replace any of the three above — wiring
- * existing call sites onto this is later phases of the layout-unification
- * work, done incrementally so each wiring change gets its own visual
- * check-in, not bundled into introducing the model itself.
+ * NOT a preserve-every-pixel migration. Every value below is now a position
+ * on [SpacingStep] (see [SpacingTier]), which shifts several numbers away
+ * from their old hand-tuned values — accepted deliberately in exchange for a
+ * system where a future spacing need reuses an existing tier instead of a
+ * sixth arbitrary table. Concretely, at the default/max scale (5): content
+ * padding moves from CardScale.kt's original 14dp to 20dp; margins and gaps
+ * shift by roughly similar amounts. This is a real, visible change to task
+ * row spacing once a screen is wired onto this model (not yet — see the
+ * phase note in ARCHITECTURE.md for what's actually wired today).
  *
  * Four independently-controllable scale dimensions, each 1 (smallest) to 5
  * (largest/default), matching the existing `DisplayPrefs` card-height-scale
@@ -45,74 +100,54 @@ public data class DesignTokens(
         require(cornerRadiusScale in 1..5) { "cornerRadiusScale must be 1..5, was $cornerRadiusScale" }
     }
 
-    /** Inner content padding, in dp, for [paddingScale]. */
-    public val contentPaddingDp: Float get() = paddingFor(paddingScale)
-
-    /** Outer top margin between stacked elements, in dp, for [marginScale]. */
-    public val outerMarginTopDp: Float get() = marginTopFor(marginScale)
-
-    /** Outer bottom margin between stacked elements, in dp, for [marginScale]. */
-    public val outerMarginBottomDp: Float get() = marginBottomFor(marginScale)
-
-    /** Gap between rows within one card/section, in dp, for [marginScale]. */
-    public val rowGapDp: Float get() = rowGapFor(marginScale)
-
-    /**
-     * Multiplier applied on top of a view's own base `textSize` — e.g.
-     * `view.textSize = view.textSize * tokens.textSizeMultiplier`. Never an
-     * absolute sp value: this preserves the relative size difference between
-     * (say) a card title and a caption at every scale level.
-     */
+    public val contentPaddingDp: Float get() = paddingDpFor(paddingScale)
+    public val outerMarginTopDp: Float get() = marginTopDpFor(marginScale)
+    public val outerMarginBottomDp: Float get() = marginBottomDpFor(marginScale)
+    public val rowGapDp: Float get() = rowGapDpFor(marginScale)
+    public val buttonRowGapDp: Float get() = buttonRowGapDpFor(marginScale)
     public val textSizeMultiplier: Float get() = textScaleMultiplierFor(textScale)
-
-    /** Corner radius, in dp, for [cornerRadiusScale]. 0 = square corners. */
-    public val cornerRadiusDp: Float get() = cornerRadiusFor(cornerRadiusScale)
+    public val cornerRadiusDp: Float get() = cornerRadiusDpFor(cornerRadiusScale)
 
     public companion object {
 
-        /** [DEFAULT] matches every screen's current hardcoded appearance —
-         * adopting this model changes nothing visually until a preference is
-         * changed away from these defaults. */
+        /** Matches this model's own tiering, not any prior file's hardcoded
+         * numbers — see the class doc's "NOT a preserve-every-pixel migration"
+         * note. Adopting this model at these defaults is still a real,
+         * visible spacing change once a screen is wired onto it. */
         public val DEFAULT: DesignTokens = DesignTokens(
             paddingScale = 5,
             marginScale = 5,
-            textScale = 3,       // 3 is the neutral/unscaled midpoint — see textScaleMultiplierFor
+            textScale = 3,
             cornerRadiusScale = 3,
         )
 
-        // ── Padding (dp) — carries forward DisplayScaleDelegate's existing table,
-        // the one already live in production for the timer/alarm cards. ────────
-        private fun paddingFor(scale: Int): Float = when (scale) {
-            5 -> 16f; 4 -> 13f; 3 -> 10f; 2 -> 7f; else -> 5f
-        }
+        // Every resolver below is a lookup into SpacingStep/TextScaleStep at a
+        // declared tier — none defines its own independent number. Exposed as
+        // public functions, not just DesignTokens properties, because existing
+        // call sites (DisplayScaleDelegate, CardScale.kt) work with a single
+        // scale Int today, not a full 4-dimension token set.
 
-        // ── Margins (dp) — carries forward CardScale.kt's existing card
-        // top/bottom margin table, the one already live for task rows. ─────────
-        private fun marginTopFor(scale: Int): Float = when (scale) {
-            5 -> 8f; 4 -> 6f; 3 -> 5f; 2 -> 3f; else -> 2f
-        }
-        private fun marginBottomFor(scale: Int): Float = when (scale) {
-            5 -> 4f; 4 -> 3f; 3 -> 2f; 2 -> 1f; else -> 1f
-        }
-        private fun rowGapFor(scale: Int): Float = when (scale) {
-            5 -> 4f; 4 -> 3f; 3 -> 2f; 2 -> 1f; else -> 0f
-        }
+        public fun paddingDpFor(scale: Int): Float =
+            SpacingStep.at(scale, SpacingTier.PADDING).dp
 
-        // ── Text scale multiplier — NEW dimension, nothing to carry forward.
-        // 3 (midpoint) = 1.0x = unscaled, matching every screen's current text
-        // size exactly. 1 = 0.85x, 5 = 1.15x — deliberately narrow range: this
-        // controls the WHOLE app's text at once, so a wide range risks making
-        // some screen's longest label overflow its container. ──────────────────
-        private fun textScaleMultiplierFor(scale: Int): Float = when (scale) {
-            5 -> 1.15f; 4 -> 1.075f; 3 -> 1.0f; 2 -> 0.925f; else -> 0.85f
-        }
+        public fun marginTopDpFor(scale: Int): Float =
+            SpacingStep.at(scale, SpacingTier.MARGIN_TOP).dp
 
-        // ── Corner radius (dp) — NEW dimension. 3 (midpoint) matches Material's
-        // default card corner radius already baked into feature/ui's static
-        // theme resources, so adopting this at the default level changes
-        // nothing. ───────────────────────────────────────────────────────────
-        private fun cornerRadiusFor(scale: Int): Float = when (scale) {
-            5 -> 16f; 4 -> 12f; 3 -> 8f; 2 -> 4f; else -> 0f
-        }
+        public fun marginBottomDpFor(scale: Int): Float =
+            SpacingStep.at(scale, SpacingTier.MARGIN_BOTTOM).dp
+
+        public fun rowGapDpFor(scale: Int): Float =
+            SpacingStep.at(scale, SpacingTier.ROW_GAP).dp
+
+        public fun buttonRowGapDpFor(scale: Int): Float =
+            SpacingStep.at(scale, SpacingTier.BUTTON_ROW_GAP).dp
+
+        public fun textScaleMultiplierFor(scale: Int): Float =
+            TextScaleStep.at(scale).multiplier
+
+        /** Scale 1 is a special case (square corners, 0dp) — every other level
+         * is [SpacingTier.CORNER_RADIUS]'s tier on the same shared scale. */
+        public fun cornerRadiusDpFor(scale: Int): Float =
+            if (scale <= 1) 0f else SpacingStep.at(scale, SpacingTier.CORNER_RADIUS).dp
     }
 }
