@@ -879,3 +879,26 @@ target for a future pass, not a wholesale restructure.
    `:data`, `:platform`, `:feature` remain out of scope (2601 of the 2652
    declarations) — a future session's call whether the audit is worth it at
    that scale.
+
+---
+
+## Status: paused (v5.23.0)
+
+Every phase above is either done-and-verified or closed with a documented
+reason. Nothing below is forgotten — each was identified during this refactor
+and deliberately left for a later pass rather than pulled into this one:
+
+- **`:designsystem` module** — `feature/ui/` (design system) and
+  `feature/shared/` (cross-feature prefs/signals) are still physically inside
+  `:feature` rather than their own module. Flagged in Phase 7 as "revisit once
+  `:contract`/`:feature` are build-verified" — that precondition is now met.
+- **`explicitApi()` on `:core`/`:data`/`:platform`/`:feature`** — 2601 of 2652
+  total declarations, scoped out of Phase 10 item 4 as disproportionate to a
+  risk with no track record here. Worth re-examining if the team grows.
+- **`BubbleTapDelegate`** — build-verified only; the actual call-switching
+  behavior has never been exercised on a real call (test device has no
+  telephony).
+- **Confirmed-dead code, kept per the standing no-deletion-mid-refactor
+  rule**: `RtScheduler.pickRrTask`/`advanceRrIndex`/`minRtUrgency`,
+  `RtSchedulerService.kt`, and `core.scheduler.SchedulerService` — all
+  unreachable from any live path, none deleted yet.
