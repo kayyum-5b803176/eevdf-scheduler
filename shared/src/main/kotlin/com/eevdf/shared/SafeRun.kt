@@ -16,8 +16,15 @@ package com.eevdf.shared
  *     override fun onReceive(context: Context, intent: Intent) = safeFeature("call-state") {
  *         handleCallState(context, intent)
  *     }
+ *
+ * [safeFeature]/[safeFeatureOr] are `internal`, not `public`: checked during
+ * the Phase 10 explicitApi() audit — nothing outside :shared calls either
+ * today. Kept rather than deleted (unwired code still gets a plausible future
+ * owner), but visibility reflects the actual caller set. [CrashIsolation]
+ * stays public — :app genuinely installs a [CrashIsolation.Reporter] and
+ * calls [CrashIsolation.install] from outside this module.
  */
-inline fun safeFeature(
+internal inline fun safeFeature(
     feature: String,
     onError: (Throwable) -> Unit = {},
     block: () -> Unit,
@@ -33,7 +40,7 @@ inline fun safeFeature(
 }
 
 /** As [safeFeature], but for code that produces a value; returns [fallback] on failure. */
-inline fun <T> safeFeatureOr(feature: String, fallback: T, block: () -> T): T =
+internal inline fun <T> safeFeatureOr(feature: String, fallback: T, block: () -> T): T =
     try {
         block()
     } catch (e: Throwable) {
@@ -47,18 +54,18 @@ inline fun <T> safeFeatureOr(feature: String, fallback: T, block: () -> T): T =
  * Logcat and, once you add one, to Crashlytics/Sentry as a NON-fatal - a
  * contained crash you never see is a bug you never fix.
  */
-object CrashIsolation {
+public object CrashIsolation {
 
-    fun interface Reporter {
-        fun onContainedFailure(feature: String, error: Throwable)
+    public fun interface Reporter {
+        public fun onContainedFailure(feature: String, error: Throwable)
     }
 
     @Volatile
     private var reporter: Reporter? = null
 
-    fun install(r: Reporter) { reporter = r }
+    public fun install(r: Reporter) { reporter = r }
 
-    fun report(feature: String, error: Throwable) {
+    public fun report(feature: String, error: Throwable) {
         try {
             reporter?.onContainedFailure(feature, error)
         } catch (_: Throwable) {

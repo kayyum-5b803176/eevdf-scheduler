@@ -29,7 +29,7 @@ package com.eevdf.contract.control
  * implementation is a `@Singleton` holding the application context, so callers
  * just express intent.
  */
-interface AlarmController {
+public interface AlarmController {
 
     /**
      * Timer started or resumed: schedules the alarm and shows the countdown
@@ -40,7 +40,7 @@ interface AlarmController {
      *   [remainingSecs] only for NOTICE-type tasks, where the alarm is set once
      *   for the whole cycle instead of being re-armed on every phase change.
      */
-    fun timerStart(
+    public fun timerStart(
         taskName: String,
         remainingSecs: Long,
         taskType: String = "DEFAULT",
@@ -48,7 +48,7 @@ interface AlarmController {
     )
 
     /** Timer paused: cancels the pending alarm and clears the notification. */
-    fun timerPause()
+    public fun timerPause()
 
     /**
      * Drives the service into its Ringing state (sound + wake lock).
@@ -56,19 +56,19 @@ interface AlarmController {
      * Do NOT call this to *make* a timer expire — it bypasses the ghost-alarm
      * guard. It is for the receiver path after the alarm has genuinely fired.
      */
-    fun timerExpire(taskName: String, taskType: String = "DEFAULT")
+    public fun timerExpire(taskName: String, taskType: String = "DEFAULT")
 
     /** User stopped a ringing alarm. Ringing -> Idle, service stops. */
-    fun stopAlarm()
+    public fun stopAlarm()
 
     /**
      * Cancels the pending alarm but leaves the notification service running.
      * Used by the notice state machine between phases.
      */
-    fun cancelScheduledAlarm()
+    public fun cancelScheduledAlarm()
 
     /** Shows the pre-countdown "delay" notification for a NOTICE task. */
-    fun delayStart(taskName: String, delaySecs: Long)
+    public fun delayStart(taskName: String, delaySecs: Long)
 
     /**
      * The currently ringing alarm, or null if nothing is ringing.
@@ -83,10 +83,10 @@ interface AlarmController {
      * [RingingAlarm.firedEpoch] to reconstruct how long the alarm has been
      * overrunning.
      */
-    fun ringingAlarm(): RingingAlarm?
+    public fun ringingAlarm(): RingingAlarm?
 
     /** Convenience for callers that only need to know whether it is ringing. */
-    fun isRinging(): Boolean = ringingAlarm() != null
+    public fun isRinging(): Boolean = ringingAlarm() != null
 }
 
 /**
@@ -97,8 +97,8 @@ interface AlarmController {
  *   Overrun = now - firedEpoch, recomputed on every app reopen so it survives
  *   process death.
  */
-data class RingingAlarm(
-    val taskName: String,
-    val taskType: String,
-    val firedEpoch: Long,
+public data class RingingAlarm(
+    public val taskName: String,
+    public val taskType: String,
+    public val firedEpoch: Long,
 )

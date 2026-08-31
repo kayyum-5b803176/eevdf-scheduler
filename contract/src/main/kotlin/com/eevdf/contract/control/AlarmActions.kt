@@ -12,12 +12,12 @@ package com.eevdf.contract.control
  * backward compatibility, so existing call sites inside that feature are
  * unaffected.
  */
-object AlarmActions {
+public object AlarmActions {
 
     /**
      * Broadcast locally when the alarm is stopped, so any screen showing alarm
      * UI can dismiss itself. Sent by
      * [com.eevdf.feature.alarm.AlarmStopReceiver].
      */
-    const val ACTION_STOP_ALARM = "com.eevdf.scheduler.ACTION_STOP_ALARM"
+    public const val ACTION_STOP_ALARM: String = "com.eevdf.scheduler.ACTION_STOP_ALARM"
 }

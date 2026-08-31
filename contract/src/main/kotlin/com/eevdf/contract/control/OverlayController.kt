@@ -13,7 +13,7 @@ package com.eevdf.contract.control
  * `startForegroundService` or a plain `startService`. Callers only say what
  * happened.
  */
-interface OverlayController {
+public interface OverlayController {
 
     /**
      * A call started. Shows the bubble if the user has it enabled.
@@ -21,8 +21,8 @@ interface OverlayController {
      * The enablement check lives in the implementation, so callers do not need
      * to read autoswitch preferences to decide whether to call this.
      */
-    fun onCallStarted()
+    public fun onCallStarted()
 
     /** A call ended. Hides the bubble and stops the overlay service. */
-    fun onCallEnded()
+    public fun onCallEnded()
 }

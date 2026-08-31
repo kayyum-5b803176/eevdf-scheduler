@@ -14,10 +14,10 @@ package com.eevdf.shared
  *  - DELETE the flag once the feature has been stable for one full release.
  *    Long-lived flags create 2^n combinations that nobody tests.
  */
-enum class FeatureFlag(
-    val key: String,
-    val defaultEnabled: Boolean,
-    val description: String,
+public enum class FeatureFlag(
+    public val key: String,
+    public val defaultEnabled: Boolean,
+    public val description: String,
 ) {
     AUTO_SWITCH_BUBBLE(
         key = "ff_autoswitch_bubble",
@@ -41,8 +41,8 @@ enum class FeatureFlag(
     ),
     ;
 
-    companion object {
-        fun fromKey(key: String): FeatureFlag? = entries.firstOrNull { it.key == key }
+    public companion object {
+        public fun fromKey(key: String): FeatureFlag? = entries.firstOrNull { it.key == key }
     }
 }
 
@@ -51,15 +51,15 @@ enum class FeatureFlag(
  * Kept as an interface here so :core and feature code can depend on the concept
  * without depending on Android.
  */
-interface FeatureFlags {
-    fun isEnabled(flag: FeatureFlag): Boolean
+public interface FeatureFlags {
+    public fun isEnabled(flag: FeatureFlag): Boolean
 
     /** Runs [block] only when [flag] is on, returning null otherwise. */
-    fun <T> whenEnabled(flag: FeatureFlag, block: () -> T): T? =
+    public fun <T> whenEnabled(flag: FeatureFlag, block: () -> T): T? =
         if (isEnabled(flag)) block() else null
 
     /** All flags on. Useful as a test default and as a safe fallback. */
-    object AllEnabled : FeatureFlags {
+    public object AllEnabled : FeatureFlags {
         override fun isEnabled(flag: FeatureFlag): Boolean = true
     }
 }

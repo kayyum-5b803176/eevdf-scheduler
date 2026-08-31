@@ -31,17 +31,17 @@ import android.content.Intent
  * Add a constant, add an `Intent` factory, add it to [ALL_ROUTES]. That is the
  * only shared file a new screen touches.
  */
-object AppRoutes {
+public object AppRoutes {
 
-    const val MAIN        = "com.eevdf.feature.task.list.MainActivity"
-    const val STATS       = "com.eevdf.feature.stats.StatsActivity"
-    const val SETTINGS    = "com.eevdf.feature.settings.SettingsActivity"
-    const val BACKUP      = "com.eevdf.feature.backup.DataBackupActivity"
-    const val AUTO_SWITCH = "com.eevdf.feature.autoswitch.AutoSwitchActivity"
-    const val SYNC        = "com.eevdf.feature.sync.MultiUserSyncActivity"
+    public const val MAIN: String        = "com.eevdf.feature.task.list.MainActivity"
+    public const val STATS: String       = "com.eevdf.feature.stats.StatsActivity"
+    public const val SETTINGS: String    = "com.eevdf.feature.settings.SettingsActivity"
+    public const val BACKUP: String      = "com.eevdf.feature.backup.DataBackupActivity"
+    public const val AUTO_SWITCH: String = "com.eevdf.feature.autoswitch.AutoSwitchActivity"
+    public const val SYNC: String        = "com.eevdf.feature.sync.MultiUserSyncActivity"
 
     /** Every route, for the resolution test. Keep in step with the constants. */
-    val ALL_ROUTES: List<String> = listOf(MAIN, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC)
+    public val ALL_ROUTES: List<String> = listOf(MAIN, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC)
 
     /**
      * Builds an explicit Intent for [className] within this application.
@@ -49,13 +49,13 @@ object AppRoutes {
      * Explicit — `setClassName` with the app's own package — so this is not an
      * implicit intent and cannot be intercepted by another app.
      */
-    fun intent(context: Context, className: String): Intent =
+    public fun intent(context: Context, className: String): Intent =
         Intent().setClassName(context.packageName, className)
 
-    fun main(context: Context): Intent = intent(context, MAIN)
-    fun stats(context: Context): Intent = intent(context, STATS)
-    fun settings(context: Context): Intent = intent(context, SETTINGS)
-    fun backup(context: Context): Intent = intent(context, BACKUP)
-    fun autoSwitch(context: Context): Intent = intent(context, AUTO_SWITCH)
-    fun sync(context: Context): Intent = intent(context, SYNC)
+    public fun main(context: Context): Intent = intent(context, MAIN)
+    public fun stats(context: Context): Intent = intent(context, STATS)
+    public fun settings(context: Context): Intent = intent(context, SETTINGS)
+    public fun backup(context: Context): Intent = intent(context, BACKUP)
+    public fun autoSwitch(context: Context): Intent = intent(context, AUTO_SWITCH)
+    public fun sync(context: Context): Intent = intent(context, SYNC)
 }

@@ -4,8 +4,14 @@ package com.eevdf.shared
  * Pure formatting helpers shared across features. Depends on nothing; nothing
  * about presentation logic should be duplicated across screens (the reference
  * had several near-identical time formatters in the adapter and stats packages).
+ *
+ * `internal`, not `public`: checked during the Phase 10 explicitApi() audit —
+ * nothing outside :shared calls either function today. Kept rather than
+ * deleted (unwired code still gets a plausible future owner, per this
+ * refactor's standing rule), but visibility reflects the actual, current
+ * caller set rather than assuming external use that doesn't exist.
  */
-object DurationFormat {
+internal object DurationFormat {
 
     /** "1h 05m 09s" style, omitting leading zero units. */
     fun hms(totalSeconds: Long): String {
