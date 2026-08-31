@@ -1283,3 +1283,53 @@ a future field is added to what `recalculate` touches. Instead:
    this sandbox has neither, so it has not been executed; only written and
    verified for correctness against the actual API surface (constructor
    signatures, DAO methods) it calls.
+
+### Phase 8 — done (v5.32.0): uniform gap — fixing double-counted margins
+
+A real requirement, not a style preference: screen-edge-to-content and
+card-to-card gaps must be the exact same distance, in either orientation,
+with a 10dp minimum. Checked first (not assumed) whether a horizontal card
+arrangement actually exists anywhere in the app — confirmed yes,
+`fragment_stats_overview.xml`'s "Overview Tiles" row, which turned out to
+have the identical bug, compounded (a horizontal row with its own
+`marginStart`/`marginEnd`, containing cards that ALSO have their own
+`marginStart`/`marginEnd` — double-counted at the row's edges on top of the
+already-doubled card-to-card gap). That page is out of scope for this
+phase (still on static dimens, unmigrated); noted for whenever "universal
+adoption" reaches it.
+
+**The actual bug, present before this phase in the vertical case too:**
+Android does not collapse adjacent margins. Two cards each carrying the
+*full* `DesignTokens.outerMarginDp` on their touching sides render a real
+gap of *double* the target — already caught and documented (but not yet
+fixed) in `ModelDiagramView`'s own debug label: "10dp + 10dp = 20dp real."
+Screen-edge-to-first-card had the same problem from a different source:
+`App.PageContent`'s static XML padding plus the first card's own margin,
+stacking instead of summing to the target.
+
+**The fix: split the target gap in half, symmetrically.** `CardDensity.applyOuterGap`
+now applies `outerMarginDp / 2` per card (not the full value) — verified
+numerically at every scale level (10/14/18/22/26dp target → 5/7/9/11/13dp
+per side → exactly the target when two halves meet, at every position, not
+just the middle ones). `LayoutDemoActivity` applies the matching other half
+as its own containers' padding, set **programmatically in `onCreate`**, not
+via the shared `App.PageContent` XML style — deliberately, so this stays
+scoped to the Layout demo page only and doesn't ripple to any other screen
+still using that style. Re-applied on every scale-slider change alongside
+the existing template rebuild, since margin is one of the four live
+sliders.
+
+**Why halving is correct for first/last edges too, not just the middle:**
+every touching pair — screen-edge-to-first-card, card-to-card, last-card-
+to-screen-edge — is structurally the same "half meets half" pattern; the
+container's own edge padding acts as if it were the other half of an
+invisible card at the boundary. This makes uniform spacing a consequence of
+the arithmetic, not something that has to be separately verified for edge
+positions versus middle ones.
+
+**Scope, explicitly limited to what was asked:** only `CardDensity.kt` (the
+4 shared card views' shared mechanism) and `LayoutDemoActivity.kt` (this
+one page's own container padding) were touched. `fragment_stats_overview.xml`
+and every other screen still using `App.PageContent`'s original static
+padding are unaffected — confirmed by not touching that shared style at
+all.

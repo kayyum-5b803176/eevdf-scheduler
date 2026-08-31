@@ -103,6 +103,31 @@ class LayoutDemoActivity : AppCompatActivity() {
 
         buildScaleControls()
         buildTemplateDemo()
+        applyPageEdgeMargins()
+    }
+
+    /**
+     * This page's own screen-edge padding — set programmatically here,
+     * NOT via the shared `App.PageContent` XML style every other page also
+     * uses, so this stays scoped to the Layout demo page only. Half of
+     * [DesignTokens.outerMarginDp], on all three tab containers, matching
+     * exactly what [CardDensity.applyOuterGap] now applies to each card's
+     * own margin — one half plus one half sums to the full target gap,
+     * uniformly, at every edge and between every card. See
+     * ARCHITECTURE.md for the full reasoning.
+     *
+     * Re-applied on every scale-slider change (see [scaleSlider]), not just
+     * once in onCreate — the margin scale is one of the four live sliders,
+     * so this needs to track it the same way the template previews do.
+     */
+    private fun applyPageEdgeMargins() {
+        val halfMarginPx = (
+            LayoutTokenPrefs.current(this).outerMarginDp / 2f *
+                resources.displayMetrics.density + 0.5f
+        ).toInt()
+        for (container in listOf(demoContainer, scaleContainer, modelContainer)) {
+            container.setPadding(halfMarginPx, halfMarginPx, halfMarginPx, halfMarginPx)
+        }
     }
 
     override fun onDestroy() {
@@ -169,6 +194,7 @@ class LayoutDemoActivity : AppCompatActivity() {
                     val scale = newValue.toInt()
                     onChange(scale)
                     this.value = scale.toString()
+                    applyPageEdgeMargins()
                     buildTemplateDemo()
                     if (modelContainer.visibility == View.VISIBLE) modelDiagram.refresh()
                 }

@@ -37,9 +37,23 @@ import com.google.android.material.card.MaterialCardView
  */
 public object CardDensity {
 
+    /**
+     * Half the target gap, not the full value. Android does not collapse
+     * adjacent margins — two cards each carrying the FULL [DesignTokens.outerMarginDp]
+     * on their touching sides would produce a real, rendered gap of DOUBLE
+     * the target (confirmed and documented as a real, un-fixed bug in
+     * ModelDiagramView's own debug label before this change: "10dp + 10dp =
+     * 20dp real"). Applying exactly half here — paired with the hosting
+     * screen applying the same half as its own edge padding — makes every
+     * touching pair of halves sum to exactly the target, uniformly: screen-
+     * edge-to-first-card, card-to-card, and last-card-to-screen-edge all
+     * become the identical, correct distance, in either orientation. See
+     * ARCHITECTURE.md for the full reasoning — this was found and fixed as
+     * a specific requirement, not a style preference.
+     */
     public fun applyOuterGap(cardRoot: View, context: Context, isCompact: Boolean) {
         val tokens = tokensFor(context, isCompact)
-        val gapPx = dp(context, tokens.outerMarginDp)
+        val gapPx = dp(context, tokens.outerMarginDp / 2f)
         (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
             lp.topMargin = gapPx
             lp.bottomMargin = gapPx
