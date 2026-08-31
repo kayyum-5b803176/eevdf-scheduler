@@ -16,16 +16,18 @@ import com.eevdf.feature.R
  * Draws the box-model metrics shared across every closed template class —
  * screen-to-card gap, the REAL rendered card-to-card gap (two stacked
  * margins, not one), corner radius, and the inner content padding shared
- * by ToggleCard/ValueCard/DropdownCard's App.SettingsCard.Body. Every
- * value is read from the real dimen resources at draw time via
- * [Context.resources] — this diagram cannot silently go stale relative
- * to dimens.xml, because it never hardcodes a number, only a resource id.
+ * by all four card templates. Every value is read from [LayoutTokenPrefs]
+ * at draw time — this diagram cannot silently go stale relative to what
+ * the cards actually render, because it never hardcodes a number, only
+ * reads the same live token source [CardDensity] does.
  *
- * NavCard's own row padding (app_row_padding_horizontal/vertical, 16dp/
- * 14dp) differs from the 20dp shown here and is deliberately NOT
- * represented — this diagram is scoped to the metrics genuinely shared
- * across all four templates, per an explicit decision that showing both
- * real numbers would contradict the "one global diagram" premise.
+ * NavCard's own row padding used to differ from the other three templates
+ * (16dp/14dp horizontal/vertical vs. their shared 20dp) and was deliberately
+ * excluded from this diagram for that reason. That's no longer true: Phase 3
+ * of the UI-unification work folded NavCard's title-row padding into the
+ * same symmetric [DesignTokens.contentPaddingDp] the other three use, so all
+ * four are now genuinely one value, and this diagram represents all of them
+ * without exception.
  */
 class ModelDiagramView @JvmOverloads constructor(
     context: Context,
@@ -71,10 +73,11 @@ class ModelDiagramView @JvmOverloads constructor(
 
     init {
         val res = context.resources
-        screenGapDp = pxToDp(res.getDimension(R.dimen.app_card_gap))
-        cardGapDp = pxToDp(res.getDimension(R.dimen.app_card_gap))
-        cornerRadiusDp = pxToDp(res.getDimension(R.dimen.app_card_corner_radius))
-        innerPaddingDp = pxToDp(res.getDimension(R.dimen.app_card_padding_lg))
+        val tokens = LayoutTokenPrefs.current(context)
+        screenGapDp = tokens.outerMarginTopDp
+        cardGapDp = tokens.outerMarginTopDp
+        cornerRadiusDp = tokens.cornerRadiusDp
+        innerPaddingDp = tokens.contentPaddingDp
 
         boxPaintScreen.color = ContextCompat.getColor(context, R.color.app_text_hint)
         boxPaintCard.color = ContextCompat.getColor(context, R.color.app_text_label)
@@ -88,7 +91,6 @@ class ModelDiagramView @JvmOverloads constructor(
         valuePaint.textSize = labelSizePx
     }
 
-    private fun pxToDp(px: Float): Float = px / density
     private fun dpToVisualPx(dp: Float): Float = dp * visualScale * density
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -138,7 +140,7 @@ class ModelDiagramView @JvmOverloads constructor(
         canvas.drawRoundRect(screenRect, edgeInset, edgeInset, boxPaintScreen)
         canvas.drawText("screen", screenRect.left + 12f * density, screenRect.top + labelGap1, labelPaint)
         canvas.drawText(
-            "app_card_gap = ${screenGapDp.toInt()}dp",
+            "outer margin = ${screenGapDp.toInt()}dp (DesignTokens.outerMarginTopDp)",
             screenRect.left + 12f * density, screenRect.top + labelGap2, valuePaint
         )
 
@@ -149,7 +151,7 @@ class ModelDiagramView @JvmOverloads constructor(
         )
         canvas.drawRoundRect(cardRect, cornerPx, cornerPx, boxPaintCard)
         canvas.drawText(
-            "card · corner radius ${cornerRadiusDp.toInt()}dp (app_card_corner_radius)",
+            "card · corner radius ${cornerRadiusDp.toInt()}dp (DesignTokens.cornerRadiusDp)",
             cardRect.left + 12f * density, cardRect.top + labelGap1, labelPaint
         )
 
@@ -160,7 +162,7 @@ class ModelDiagramView @JvmOverloads constructor(
         )
         canvas.drawRoundRect(paddingRect, edgeInset, edgeInset, boxPaintPadding)
         canvas.drawText(
-            "inner padding ${innerPaddingDp.toInt()}dp (app_card_padding_lg — shared by ToggleCard/ValueCard/DropdownCard)",
+            "inner padding ${innerPaddingDp.toInt()}dp (DesignTokens.contentPaddingDp — shared by all 4 card templates)",
             paddingRect.left, paddingRect.top - paddingLabelOffset, labelPaint
         )
 
@@ -174,7 +176,7 @@ class ModelDiagramView @JvmOverloads constructor(
         val gapPx = dpToVisualPx(cardGapDp)
         canvas.drawText(
             "card -> card gap: ${cardGapDp.toInt()}dp + ${cardGapDp.toInt()}dp = ${(cardGapDp * 2).toInt()}dp real " +
-                "(two stacked app_card_gap margins — Android does not collapse margins)",
+                "(two stacked DesignTokens.outerMarginTopDp margins — Android does not collapse margins)",
             8f * density, gapY, labelPaint
         )
         // small two-box illustration beneath the label

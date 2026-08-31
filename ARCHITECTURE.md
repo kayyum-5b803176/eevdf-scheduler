@@ -993,3 +993,70 @@ things, two names for one value — so it now literally reuses
 `marginTopDpFor`, one fewer thing to keep in sync. **Needs a real-device
 visual check** — unlike Phase 1, this phase changes what's actually on
 screen.
+
+### Phase 3 — done (v5.26.0): the systemic mechanism, and an unfinished parallel system found along the way
+
+Item 2 from the original request: not just consolidated *data*, but a way
+for a screen to get consistent styling *without writing its own wiring code*
+— the actual gap Phase 2 hadn't closed (`DisplayScaleDelegate`/`CardScale.kt`
+still each had their own hand-written function calling into the model).
+
+**Found before writing anything, and stopped to ask about it:**
+`feature/ui/`'s four card views (`NavCardView`, `DropdownCardView`,
+`ToggleCardView`, `ValueCardView`) already had their own density mechanism —
+a `compact: Boolean` toggle reading a **fourth**, independent, static-XML
+spacing scheme (`app_spacing_sm`/`app_card_gap`/`app_card_padding_lg`), tied
+to `TEMPLATE_CATALOG.md` — a document explicitly marked, at its own top,
+**"a proposal to review before anything is applied to the codebase,"** with
+an explicit unresolved "audit every settings screen" item at the bottom.
+This is a different kind of scale than `DesignTokens` (structural row-
+composition rules vs. user-adjustable global density) and was never finished
+being rolled out. Asked how to handle it rather than guessing: confirmed —
+make these four views respond to the new user-adjustable scale, layered on
+top of their existing structural rules, not instead of them.
+
+**The systemic mechanism itself:** `CardDensity.kt` — one shared
+implementation (`applyOuterGap`, `applyBodyPadding`, `applyCornerRadius`),
+replacing what was three duplicated (and, for the gap logic, byte-identical)
+copies of the same function across the four card views. `cardRoot`'s
+declared type widened from `View` to `MaterialCardView` in all four — needed
+for `applyCornerRadius`, and simply correct (that's what it actually is).
+
+**Corner radius is a genuinely new capability**, not a migration — none of
+the four views varied it before (static 12dp from the `App.Card` style,
+never touched in Kotlin). While wiring it, found Phase 1's assumption about
+which scale level matches the current 12dp was wrong (assumed scale 3/8dp;
+actually scale 4/12dp) — corrected `DesignTokens.DEFAULT.cornerRadiusScale`
+from 3 to 4 so adopting the model doesn't silently shift every card's
+corners on first use.
+
+**A real bug found while wiring, not present before:** `applyDensity()` was
+previously only invoked from the `compact` property's setter — since
+`compact` defaults to `false` via a property *initializer*, not a setter
+call, `applyDensity` never ran at all unless something explicitly touched
+`.compact` after construction. The static XML values were an acceptable
+fallback for that gap before (nothing dynamic to miss). Now that these views
+read live preferences, silently skipping this call would mean the whole
+mechanism never activates for any real screen. Fixed by calling
+`applyDensity(compact)` unconditionally at the end of `init{}` in all four
+views.
+
+**A stale-documentation side effect, fixed in the same phase:**
+`ModelDiagramView` (the Layout-demo diagnostic diagram) reads box-model
+values to *display* them, and its own doc comment states its entire purpose
+is "cannot silently go stale" relative to what the cards actually render.
+Wiring the four cards onto live tokens would have broken exactly that
+invariant if left alone — its displayed numbers would describe a system the
+cards no longer used. Updated to read `LayoutTokenPrefs.current(context)`
+instead of the static dimens, and its doc comment's claim that NavCard's
+padding "differs... and is deliberately NOT represented" is now false (this
+phase unified NavCard's padding with the other three) — corrected rather
+than left as a wrong claim about the current codebase.
+
+**Not done yet:** dozens of *other* screens (every settings page, every
+add-task section, sync, backup, stats) have their own independent,
+hand-authored layouts that never used `NavCardView`/etc. at all — confirmed
+by grep, they reference the old static dimens directly, completely bypassing
+the shared component system. This is expected, not a gap this phase should
+have closed: migrating those screens onto the shared components is item 4,
+"universal adoption," a separate and much larger phase.

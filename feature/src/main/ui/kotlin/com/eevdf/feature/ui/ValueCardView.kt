@@ -4,10 +4,10 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.eevdf.feature.R
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.slider.Slider
 
 /**
@@ -55,7 +55,7 @@ class ValueCardView @JvmOverloads constructor(
     private val captionStartView: TextView
     private val captionEndView: TextView
     private val spacerView: View
-    private val cardRoot: View
+    private val cardRoot: MaterialCardView
     private val bodyView: View
 
     /** Piece 0 [F]. Required, non-blank. */
@@ -118,6 +118,8 @@ class ValueCardView @JvmOverloads constructor(
         sliderView.addOnChangeListener { _, newValue, fromUser ->
             if (fromUser) slider?.onValueChange?.invoke(newValue)
         }
+        // Must run unconditionally — see NavCardView.kt's init{} for why.
+        applyDensity(compact)
     }
 
     /** Display-density toggle. See other template classes' doc for the
@@ -130,20 +132,9 @@ class ValueCardView @JvmOverloads constructor(
         }
 
     private fun applyDensity(isCompact: Boolean) {
-        val gap = resources.getDimensionPixelSize(
-            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_card_gap
-        )
-        (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
-            lp.topMargin = gap
-            lp.bottomMargin = gap
-            lp.marginStart = gap
-            lp.marginEnd = gap
-            cardRoot.layoutParams = lp
-        }
-        val bodyPad = resources.getDimensionPixelSize(
-            if (isCompact) R.dimen.app_spacing_md else R.dimen.app_card_padding_lg
-        )
-        bodyView.setPadding(bodyPad, bodyPad, bodyPad, bodyPad)
+        CardDensity.applyOuterGap(cardRoot, context, isCompact)
+        CardDensity.applyBodyPadding(bodyView, context, isCompact)
+        CardDensity.applyCornerRadius(cardRoot, context, isCompact)
         recomputeSpacer()
     }
 

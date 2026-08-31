@@ -4,10 +4,10 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.eevdf.feature.R
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 /**
@@ -31,7 +31,7 @@ class ToggleCardView @JvmOverloads constructor(
     private val switchView: SwitchMaterial
     private val descriptionView: TextView
     private val spacerView: View
-    private val cardRoot: View
+    private val cardRoot: MaterialCardView
     private val bodyView: View
 
     /** Piece 0 [F]. Required, non-blank. */
@@ -82,6 +82,8 @@ class ToggleCardView @JvmOverloads constructor(
             checkedBacking = isChecked
             onCheckedChange?.invoke(isChecked)
         }
+        // Must run unconditionally — see NavCardView.kt's init{} for why.
+        applyDensity(compact)
     }
 
     /**
@@ -92,20 +94,9 @@ class ToggleCardView @JvmOverloads constructor(
      * spacer is fully suppressed, not resized.
      */
     private fun applyDensity(isCompact: Boolean) {
-        val gap = resources.getDimensionPixelSize(
-            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_card_gap
-        )
-        (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
-            lp.topMargin = gap
-            lp.bottomMargin = gap
-            lp.marginStart = gap
-            lp.marginEnd = gap
-            cardRoot.layoutParams = lp
-        }
-        val bodyPad = resources.getDimensionPixelSize(
-            if (isCompact) R.dimen.app_spacing_md else R.dimen.app_card_padding_lg
-        )
-        bodyView.setPadding(bodyPad, bodyPad, bodyPad, bodyPad)
+        CardDensity.applyOuterGap(cardRoot, context, isCompact)
+        CardDensity.applyBodyPadding(bodyView, context, isCompact)
+        CardDensity.applyCornerRadius(cardRoot, context, isCompact)
 
         if (isCompact) spacerView.visibility = View.GONE
         else spacerView.visibility = if (description != null) View.VISIBLE else View.GONE

@@ -113,12 +113,17 @@ public data class DesignTokens(
         /** Matches this model's own tiering, not any prior file's hardcoded
          * numbers — see the class doc's "NOT a preserve-every-pixel migration"
          * note. Adopting this model at these defaults is still a real,
-         * visible spacing change once a screen is wired onto it. */
+         * visible spacing change once a screen is wired onto it.
+         * cornerRadiusScale=4 is the one exception: checked against the
+         * actual card views while wiring them (Phase 3) — their existing
+         * `app_card_corner_radius` is 12dp, which is tier-1's value at
+         * scale 4, not scale 3 as originally assumed in Phase 1 without
+         * checking. Corrected here rather than left wrong. */
         public val DEFAULT: DesignTokens = DesignTokens(
             paddingScale = 5,
             marginScale = 5,
             textScale = 3,
-            cornerRadiusScale = 3,
+            cornerRadiusScale = 4,
         )
 
         // Every resolver below is a lookup into SpacingStep/TextScaleStep at a

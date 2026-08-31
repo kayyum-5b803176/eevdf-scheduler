@@ -4,10 +4,10 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.eevdf.feature.R
+import com.google.android.material.card.MaterialCardView
 
 /**
  * NavCard — one of the closed set of fundamental templates. See
@@ -51,13 +51,17 @@ class NavCardView @JvmOverloads constructor(
     private val chevronView: TextView
     private val spacerView: View
     private val titleRow: View
-    private val cardRoot: View
+    private val cardRoot: MaterialCardView
 
     /**
-     * Display-density toggle. false (default) = every existing screen's
-     * current spacing, unchanged. true = reduced margins/padding drawn
-     * from the same fixed scale (app_spacing_sm/md), never a raw value —
-     * currently opted into only by the Render -> Layout demo screen.
+     * Display-density toggle. false (default, real usage) = the live,
+     * user-adjustable [DesignTokens] scale from Display settings — this
+     * used to mean "every existing screen's current static spacing,
+     * unchanged"; now it means "whatever the user's current scale resolves
+     * to," which changes as they adjust it. true = forces the smallest
+     * token rung regardless of the user's actual setting, matching this
+     * property's original always-most-compact behavior exactly — currently
+     * opted into only by the Render -> Layout demo screen.
      */
     var compact: Boolean = false
         set(value) {
@@ -110,13 +114,23 @@ class NavCardView @JvmOverloads constructor(
         titleRow = findViewById(R.id.navCardTitleRow)
         cardRoot = findViewById(R.id.navCardRoot)
         applyClickableState(navigable)
+        // Must run unconditionally here: applyDensity previously only fired
+        // from the `compact` setter, which most callers never touch (compact
+        // defaults to false via a property INITIALIZER, not a setter call).
+        // Static XML values were an acceptable fallback before this class
+        // read anything dynamically; now that it reads the live user scale,
+        // skipping this call would silently mean every real screen never
+        // picks up the token system at all.
+        applyDensity(compact)
     }
 
     /**
-     * Reduces the card's outer margin and the title row's own padding to
-     * the smallest values already on the spacing scale (app_spacing_sm,
-     * app_spacing_md) — never a raw dp literal, never touching
-     * App.Row.Base's minHeight (the accessibility touch-target floor).
+     * Applies the current density — either the live user-adjustable
+     * [DesignTokens] scale (normal case) or the smallest rung, forced
+     * (compact override, demo screen only) — via the shared [CardDensity]
+     * mechanism. Never a raw dp literal here; never touching App.Row.Base's
+     * minHeight (the accessibility touch-target floor), which is fixed in
+     * the internal layout's style and untouched by this function.
      *
      * The [S] spacer's fixed size was computed to align this card's
      * NON-compact total height to a boundary rung — that alignment goes
@@ -128,24 +142,9 @@ class NavCardView @JvmOverloads constructor(
      * exactly that conflict.
      */
     private fun applyDensity(isCompact: Boolean) {
-        val gap = resources.getDimensionPixelSize(
-            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_card_gap
-        )
-        (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
-            lp.topMargin = gap
-            lp.bottomMargin = gap
-            lp.marginStart = gap
-            lp.marginEnd = gap
-            cardRoot.layoutParams = lp
-        }
-
-        val hPad = resources.getDimensionPixelSize(
-            if (isCompact) R.dimen.app_spacing_md else R.dimen.app_row_padding_horizontal
-        )
-        val vPad = resources.getDimensionPixelSize(
-            if (isCompact) R.dimen.app_spacing_sm else R.dimen.app_row_padding_vertical
-        )
-        titleRow.setPadding(hPad, vPad, hPad, vPad)
+        CardDensity.applyOuterGap(cardRoot, context, isCompact)
+        CardDensity.applyBodyPadding(titleRow, context, isCompact)
+        CardDensity.applyCornerRadius(cardRoot, context, isCompact)
 
         if (isCompact) spacerView.visibility = View.GONE
         else spacerView.visibility = if (subtitle != null) View.VISIBLE else View.GONE
