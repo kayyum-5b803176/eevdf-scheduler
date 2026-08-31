@@ -284,7 +284,27 @@ class TaskRepository @Inject constructor(
      *   1. Caller passed task.timeSliceSeconds instead of actual elapsed → vruntime over-credited.
      *   2. RunLog start was approximated as (now - secondsRan*1000) → off by any pause delay.
      */
-    suspend fun updateVruntimeAfterRun(task: Task, session: RunSession) = withContext(Dispatchers.IO) {
+    /**
+     * Accounts a completed run (vruntime, quota, DL, load) and propagates
+     * runtime credit up the ancestor chain.
+     *
+     * Returns the authoritative, fully up-to-date [Task] — callers MUST use
+     * this returned value for anything persisted afterward, not their own
+     * [task] parameter. This is not a style preference: [task].vruntime is
+     * mutated in place by [EEVDFScheduler.updateVruntime] above (so it
+     * happens to stay correct on the caller's own reference), but
+     * `virtualDeadline`/`eligibleTime`/`lag` are only recalculated on the
+     * freshly-queried [allActive] list a few lines below — a *different*
+     * set of object instances. A caller that keeps using its own [task]
+     * reference after this function returns is holding a permanently stale
+     * `virtualDeadline`, and the next time it persists anything derived from
+     * that reference, it silently reverts the DB's correct value back to
+     * stale. This exact bug shipped and was found via a real user report —
+     * see ARCHITECTURE.md for the full trace. The return value exists
+     * specifically so this can't happen again by a future caller forgetting
+     * to know that history: the correct object is handed over explicitly.
+     */
+    suspend fun updateVruntimeAfterRun(task: Task, session: RunSession): Task = withContext(Dispatchers.IO) {
         val secondsRan = session.wallClockSeconds
 
         EEVDFScheduler.updateVruntime(task, secondsRan)
@@ -330,6 +350,13 @@ class TaskRepository @Inject constructor(
         val allActive = dao.getActiveTasksSync()
         EEVDFScheduler.recalculate(allActive)
         allActive.forEach { dao.update(it) }
+
+        // The authoritative post-recalculation object. Falls back to `task`
+        // only if it's no longer in the active set (e.g. completed/deleted
+        // concurrently) — should not happen on the normal pause/expire paths
+        // this function is called from, but a caller receiving its own input
+        // back unchanged is safer than a crash.
+        allActive.find { it.id == task.id } ?: task
     }
 
     /**

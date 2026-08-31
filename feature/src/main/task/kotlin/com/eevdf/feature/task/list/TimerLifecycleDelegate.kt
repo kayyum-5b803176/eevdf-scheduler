@@ -315,14 +315,25 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             // That race is handled in triggerAlarmExpire(), which cancels the
             // AlarmManager entry synchronously before starting the in-app expire
             // path, so onAlarmFired() finds AlarmState==Idle and returns false.
-            if (session != null) {
+            // `freshTask` is what actually gets persisted/passed onward from here —
+            // NOT `task`. updateVruntimeAfterRun recalculates virtualDeadline/
+            // eligibleTime/lag on a separately-queried object, not on `task`
+            // itself; continuing to use `task` after this call would silently
+            // revert those fields back to stale values on the next write. See
+            // TaskRepository.updateVruntimeAfterRun's doc comment and
+            // ARCHITECTURE.md for the full history — this exact bug shipped
+            // and was found via a real user report.
+            val freshTask = if (session != null) {
                 if (task.taskType != "NOTIFICATION") {
                     vm.repository.updateVruntimeAfterRun(task, session)
                 } else {
                     vm.notice.accumulateSessionSeconds(session.wallClockSeconds)
+                    task
                 }
+            } else {
+                task
             }
-            vm.repository.update(task.withTimerState(TaskTimerState.reset()))
+            vm.repository.update(freshTask.withTimerState(TaskTimerState.reset()))
             vm._toastMessage.postValue("Time slice done for \"${task.name}\"")
             vm.refreshSchedule()
 
@@ -332,13 +343,17 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             // triggered only by tapping the Next/Auto button while it's
             // armed to "Auto" — never automatically on timer expiry.
             if (task.taskType == "NOTIFICATION") {
-                vm.notice.handleExpiredNotificationTask(task)
+                vm.notice.handleExpiredNotificationTask(freshTask)
             } else {
                 vm.alarms.timerExpire(task.name, task.taskType)
                 vm._alarmTaskName.postValue(task.name)
                 vm._alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 vm.startInAppOverrunCounter(task.name, elapsedSinceExpiry)
-                vm.taskToRestoreAfterExpire = task.withTimerState(TaskTimerState.reset())
+                // freshTask, not task — this is exactly what gets persisted the
+                // next time the user restarts (via AlarmOverrunDelegate), so it
+                // must carry the correct post-run virtualDeadline forward, not
+                // the stale pre-run one. See the comment on `freshTask` above.
+                vm.taskToRestoreAfterExpire = freshTask.withTimerState(TaskTimerState.reset())
                 // Requirement #3: do NOT clear the persisted selection on expiry.
                 // The merged card stays seated on the just-expired task (showing the
                 // Expired/alarm state); keep its id stored so a reboot mid-alarm
@@ -352,7 +367,20 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
     fun applyVruntimeUpdate(session: RunSession) {
         val task = vm._currentTask.value ?: return
         vm.viewModelScope.launch {
-            vm.repository.updateVruntimeAfterRun(task, session)
+            val freshTask = vm.repository.updateVruntimeAfterRun(task, session)
+            // Reassign _currentTask to the authoritative post-run object —
+            // otherwise it keeps holding a stale virtualDeadline forever, and
+            // the next time the user taps Start, the code persists that stale
+            // value right back over the DB's correct one. See
+            // TaskRepository.updateVruntimeAfterRun's doc comment for the full
+            // history — this exact bug shipped and was found via a real user
+            // report. Guarded on the id still matching: if the user has
+            // already switched to a different task while this write was in
+            // flight, don't stomp on their current selection with this one's
+            // stale-by-comparison data.
+            if (vm._currentTask.value?.id == freshTask.id) {
+                vm._currentTask.postValue(freshTask)
+            }
             vm.refreshSchedule()
         }
     }

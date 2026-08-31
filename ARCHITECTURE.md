@@ -1211,3 +1211,75 @@ group — same rule, no special case). Falls back to the existing global
 still flips which label is showing (Next ↔ Auto), tap still performs
 whichever action is currently armed. Only the meaning of "Auto" changed:
 from "enable a background mode" to "perform this one jump right now."
+
+### Phase 7 — done (v5.31.0): critical fix — virtualDeadline reverting to a stale value
+
+Not part of the UI-unification work — a correctness bug in the core
+scheduler, reported by a real user, predating this session's refactor
+entirely (confirmed: the two-coroutine race in `pauseTimer` that was the
+original, wrong hypothesis existed unchanged in v5.29.0 too — this bug is
+older and unrelated to anything touched in Phases 1-6).
+
+**Exact reported symptom:** vruntime=10, virtualDeadline=10 → run 5s →
+pause → briefly correct in the DB (vrt=15, vdl=15) → start again → vrt
+stays correct (15) but **virtualDeadline silently reverts to the stale
+pre-run value (10)**.
+
+**Root cause, traced to one function:** `TaskRepository.updateVruntimeAfterRun`
+mutates `vruntime` in place directly on the `task` parameter the caller
+passed in (so that field happens to stay correct on the caller's own
+reference — pure luck of `Task` being a mutable-`var`-field class). But
+`virtualDeadline`/`eligibleTime`/`lag` are recalculated several lines later,
+on a **separately-queried list** (`dao.getActiveTasksSync()` — a fresh
+DB read, different object instances entirely) via `EEVDFScheduler.recalculate`.
+That recalculation writes the correct value to the DB, but the caller's own
+`task` reference is never told about it. The next time that caller persists
+anything derived from `task` (exactly what "start the task again" does —
+`.withTimerState(...)` copies from the stale reference), it silently
+overwrites the DB's correct value back to stale.
+
+**Four confirmed call sites had this bug, not the two initially found** —
+found by auditing every caller of `updateVruntimeAfterRun` in the codebase,
+not just the one the user's report pointed at:
+- `TimerLifecycleDelegate.onTimerFinished` — natural timer expiry
+- `TimerLifecycleDelegate.pauseTimer` (via `applyVruntimeUpdate`) — manual pause
+- `StartupRecoveryDelegate` — app-kill recovery for an orphaned running task
+- `NoticeStateMachine` — NOTIFICATION-type task expiry
+
+Four other call sites (`CallSwitchService` x2, `BubbleOverlayService` x2)
+were checked and confirmed safe — none of them reuse the passed-in
+reference for anything persisted afterward, so they were left untouched.
+
+**The fix, deliberately more than a one-line patch.** A minimal fix
+(manually copying the 3 named fields back onto `task` inside
+`updateVruntimeAfterRun`) was considered and rejected: it would have fixed
+today's symptom while leaving the same structural fragility in place —
+reliant on remembering a manual field list, silently wrong again the moment
+a future field is added to what `recalculate` touches. Instead:
+
+1. `updateVruntimeAfterRun` now **returns** the authoritative,
+   post-recalculation `Task` — found directly in the already-fresh
+   `allActive` list, not reconstructed field-by-field. Whatever
+   `EEVDFScheduler.recalculate` mutates, present or future, is included
+   automatically, because the return value *is* one of the already-correct
+   objects, not a manually-assembled copy.
+2. All four buggy call sites were changed to capture and use this
+   returned value for everything persisted afterward — including, in
+   `onTimerFinished`, the `taskToRestoreAfterExpire` object, which is
+   exactly what gets persisted the next time the user restarts after a
+   natural expiry (the precise mechanism of the original bug report).
+   `pauseTimer`'s fix additionally reassigns `_currentTask.value` to the
+   fresh object, guarded on the task id still matching in case the user
+   switched to a different task while the write was in flight.
+3. **A permanent, automated guard rail**: `VruntimeStalenessRegressionTest`
+   (`data/src/androidTest/`) reproduces the exact reported scenario end to
+   end against a real in-memory Room database — pause, assert both fields
+   correct, simulate starting again, re-read from the database with a
+   completely fresh query, assert `virtualDeadline` is still correct. If
+   this exact bug class is ever reintroduced, by any future change, to any
+   caller, this test fails immediately — the same guard-rail philosophy as
+   `BackupRoundTripCoverageTest`. Needs
+   `./gradlew :data:connectedDebugAndroidTest` (a device/emulator) to run —
+   this sandbox has neither, so it has not been executed; only written and
+   verified for correctness against the actual API surface (constructor
+   signatures, DAO methods) it calls.

@@ -425,7 +425,13 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         noticeSessionSeconds = 0L
 
         vm.viewModelScope.launch {
-            if (sessionSecs > 0) {
+            // freshTask, not task — updateVruntimeAfterRun recalculates
+            // virtualDeadline on a separately-queried object; persisting from
+            // `task` afterward would revert it back to stale. See
+            // TaskRepository.updateVruntimeAfterRun's doc comment for the
+            // full history — this exact bug shipped and was found via a real
+            // user report.
+            val freshTask = if (sessionSecs > 0) {
                 val nowMs = System.currentTimeMillis()
                 vm.repository.updateVruntimeAfterRun(task, RunSession.NoticeSession(
                     taskId         = task.id,
@@ -433,8 +439,10 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                     endEpochMs     = nowMs,
                     totalPhaseSecs = sessionSecs
                 ))
+            } else {
+                task
             }
-            vm.repository.update(task.withTimerState(TaskTimerState.reset()))
+            vm.repository.update(freshTask.withTimerState(TaskTimerState.reset()))
             vm.refreshSchedule()
         }
 

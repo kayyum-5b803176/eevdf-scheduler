@@ -47,10 +47,16 @@ internal class StartupRecoveryDelegate(private val vm: TaskViewModel) {
                 val sliceMs       = orphan.timeSliceSeconds * 1000L
                 val expiryEpochMs = runState.startTimeEpoch + sliceMs - runState.accumulatedMs
                 val session = RunSession.Recovered(orphan.id, runState.startTimeEpoch, expiryEpochMs)
-                if (orphan.taskType != "NOTIFICATION") {
+                // freshOrphan, not orphan — updateVruntimeAfterRun recalculates
+                // virtualDeadline on a separately-queried object; continuing to
+                // persist from `orphan` here would revert it back to stale. See
+                // TaskRepository.updateVruntimeAfterRun's doc comment.
+                val freshOrphan = if (orphan.taskType != "NOTIFICATION") {
                     vm.repository.updateVruntimeAfterRun(orphan, session)
+                } else {
+                    orphan
                 }
-                vm.repository.update(orphan.withTimerState(TaskTimerState.reset()))
+                vm.repository.update(freshOrphan.withTimerState(TaskTimerState.reset()))
                 vm.refreshSchedule()
             }
 
