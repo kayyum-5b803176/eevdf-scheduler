@@ -98,11 +98,22 @@ class TaskAdapter(
      * components (CardDensity) and the timer/alarm cards (DisplayScaleDelegate)
      * already do, so a single shared "scale" int here can't represent padding
      * and margin moving independently, which they now do.
+     *
+     * ALWAYS rebinds now, not only when [compact] itself changes. Found and
+     * fixed as a direct consequence of the above: since padding/margin are no
+     * longer tracked here, this adapter has no local way to know whether
+     * either one changed since the last call — only that [compact] did or
+     * didn't. Before this fix, adjusting a scale slider on the Layout demo
+     * page correctly updated that page instantly, but the main task list
+     * only picked it up after a full app restart, because nothing ever told
+     * its already-bound rows to rebind. This function already runs on every
+     * `onResume` (not a hot path), so an unconditional rebind here is cheap —
+     * the cost this guarded against no longer applies once the thing being
+     * guarded no longer changes state this class can observe.
      */
     fun setCompactMode(compact: Boolean) {
-        val changed = compact != hideNonEssentialStats
         hideNonEssentialStats = compact
-        if (changed) notifyDataSetChanged()
+        notifyDataSetChanged()
     }
 
     /**

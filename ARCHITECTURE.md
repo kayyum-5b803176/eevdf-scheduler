@@ -1431,3 +1431,18 @@ does the right thing without it: `DesignTokens.DEFAULT` (4 for every scale,
 since Phase 9) is the fallback used only when a key has genuinely never been
 written — a fresh install, or data explicitly cleared — and a value the user
 has actually set, however it got there, is never touched again.
+
+**Patch, v5.33.2 — main task list not picking up slider changes until app restart.**
+`CardScale.applyCardScale` reads live tokens correctly (Phase 9), but
+`TaskAdapter.setCompactMode` only called `notifyDataSetChanged()` when the
+compact flag itself changed — a leftover from when this function also
+tracked `cardHeightScale` and could tell whether *that* had changed too.
+Once padding/margin scale stopped being adapter-tracked state, the adapter
+lost any local way to know a rebind was needed unless compact specifically
+flipped, so already-bound rows kept their stale padding/margin until
+something else forced a fresh bind (a full app restart, which rebuilds
+everything). Fixed by making `setCompactMode` unconditionally rebind — it
+already runs on every `onResume`, so this is a low-frequency, low-cost call,
+not a hot path. Navigating back to the main task list after adjusting a
+scale slider anywhere now reflects the change immediately, no restart
+needed.
