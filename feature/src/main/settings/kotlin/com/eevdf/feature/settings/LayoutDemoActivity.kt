@@ -137,6 +137,11 @@ class LayoutDemoActivity : AppCompatActivity() {
      * demo rebuild on change so the effect is immediately visible on the
      * "template" tab.
      */
+    /** The four slider cards, kept alive rather than rebuilt — see
+     * [ValueCardView.refreshDensity]'s doc comment for why they need
+     * explicit refreshing that the demo cards below don't. */
+    private val scaleSliderViews = mutableListOf<ValueCardView>()
+
     private fun buildScaleControls() {
         addIntro(
             scaleContainer,
@@ -145,26 +150,43 @@ class LayoutDemoActivity : AppCompatActivity() {
             "the same as any other setting."
         )
 
-        scaleContainer.addView(scaleSlider(
+        scaleSliderViews += scaleSlider(
             label = "Padding scale",
             initial = initialTokens.padding,
             onChange = { LayoutTokenPrefs.setPaddingScale(this, it) },
-        ))
-        scaleContainer.addView(scaleSlider(
+        )
+        scaleSliderViews += scaleSlider(
             label = "Margin scale",
             initial = initialTokens.margin,
             onChange = { LayoutTokenPrefs.setMarginScale(this, it) },
-        ))
-        scaleContainer.addView(scaleSlider(
+        )
+        scaleSliderViews += scaleSlider(
             label = "Corner radius scale",
             initial = initialTokens.corner,
             onChange = { LayoutTokenPrefs.setCornerRadiusScale(this, it) },
-        ))
-        scaleContainer.addView(scaleSlider(
+        )
+        scaleSliderViews += scaleSlider(
             label = "Text scale",
             initial = initialTokens.text,
             onChange = { LayoutTokenPrefs.setTextScale(this, it) },
-        ))
+        )
+        scaleSliderViews.forEach { scaleContainer.addView(it) }
+    }
+
+    /**
+     * Re-applies live tokens to the four slider cards themselves. Found
+     * missing while checking the "does everything refresh live" requirement
+     * end to end: `buildTemplateDemo()` below fully reconstructs its cards
+     * on every change, so they naturally pick up fresh tokens at
+     * construction — these four are built once in [buildScaleControls] and
+     * kept alive for the whole time this page is open, so nothing was ever
+     * telling them to re-read the tokens they'd just changed. Each card's
+     * own [ValueCardView.refreshDensity] only touches its padding/margin/
+     * corner radius, never the `Slider` widget inside it, so this is safe
+     * to call even for the card whose own slider is mid-drag.
+     */
+    private fun refreshScaleSliderDensity() {
+        scaleSliderViews.forEach { it.refreshDensity() }
     }
 
     private fun scaleSlider(label: String, initial: Int, onChange: (Int) -> Unit): ValueCardView =
@@ -183,6 +205,7 @@ class LayoutDemoActivity : AppCompatActivity() {
                     onChange(scale)
                     this.value = scale.toString()
                     applyPageEdgeMargins()
+                    refreshScaleSliderDensity()
                     buildTemplateDemo()
                     if (modelContainer.visibility == View.VISIBLE) modelDiagram.refresh()
                 }

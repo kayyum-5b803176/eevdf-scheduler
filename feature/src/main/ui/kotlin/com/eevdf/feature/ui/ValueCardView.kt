@@ -138,6 +138,20 @@ class ValueCardView @JvmOverloads constructor(
             applyDensity(value)
         }
 
+    /**
+     * Re-applies the current live token values without recreating the view —
+     * needed for any card built once and kept alive rather than rebuilt on
+     * every token change (the Layout demo page's own scale sliders are
+     * exactly this case: they're `ValueCardView` instances themselves, and
+     * were found to keep their construction-time padding/margin/corner-radius
+     * forever, unlike the demo template cards below them which get fully
+     * rebuilt — and therefore naturally pick up fresh tokens — on every
+     * slider change). Safe to call mid-drag: this only touches the card's
+     * own padding/margin/corner radius, never the `Slider` widget inside it
+     * or its active touch state.
+     */
+    public fun refreshDensity() { applyDensity(compact) }
+
     private fun applyDensity(isCompact: Boolean) {
         CardDensity.applyOuterGap(cardRoot, context, isCompact)
         CardDensity.applyBodyPadding(bodyView, context, isCompact)

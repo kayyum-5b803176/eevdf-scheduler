@@ -141,6 +141,14 @@ class NavCardView @JvmOverloads constructor(
      * that yields under conflict, and "minimum space, no waste" is
      * exactly that conflict.
      */
+    /**
+     * Re-applies the current live token values without recreating the view.
+     * See `ValueCardView.refreshDensity`'s doc comment for the full
+     * reasoning — this is the same capability, added consistently across
+     * all four card views since they all share `CardDensity`.
+     */
+    public fun refreshDensity() { applyDensity(compact) }
+
     private fun applyDensity(isCompact: Boolean) {
         CardDensity.applyOuterGap(cardRoot, context, isCompact)
         CardDensity.applyBodyPadding(titleRow, context, isCompact)

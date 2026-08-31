@@ -1446,3 +1446,28 @@ already runs on every `onResume`, so this is a low-frequency, low-cost call,
 not a hot path. Navigating back to the main task list after adjusting a
 scale slider anywhere now reflects the change immediately, no restart
 needed.
+
+**Patch, v5.33.3 — the scale sliders' own cards not refreshing live.**
+Different bug from v5.33.2's, found while checking "does everything refresh
+live" more thoroughly, not the same fix applied twice. `buildTemplateDemo()`
+fully reconstructs its 5 demo cards on every slider change, so they
+naturally pick up fresh tokens at construction time — but the four slider
+cards themselves (`Padding scale`, `Margin scale`, etc.) are `ValueCardView`
+instances built once in `buildScaleControls()` and kept alive for the whole
+time the page is open. Nothing was ever telling them to re-read the tokens
+they'd just been used to change, so their own padding/margin/corner radius
+stayed frozen at whatever they were on page-open, even as every other card
+on the page updated correctly.
+
+Added `refreshDensity()` to all four shared card views (`NavCardView`,
+`ToggleCardView`, `DropdownCardView`, `ValueCardView`) — a public method
+that re-invokes each card's own existing `applyDensity` logic without
+recreating the view, added consistently across all four even though only
+`ValueCardView` was strictly needed for this bug, since they all share
+`CardDensity` and the same capability gap could recur anywhere one of them
+is kept alive rather than rebuilt. Confirmed safe to call even on the
+specific card whose own `Slider` is mid-drag: `refreshDensity()` only
+touches the card's own padding/margin/corner radius, never the `Slider`
+widget or its active touch state. `LayoutDemoActivity` now keeps references
+to its four slider instances and refreshes all of them on every change,
+alongside the existing demo-card rebuild.
