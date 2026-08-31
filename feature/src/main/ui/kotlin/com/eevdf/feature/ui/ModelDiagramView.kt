@@ -97,8 +97,8 @@ class ModelDiagramView @JvmOverloads constructor(
      */
     fun refresh() {
         val tokens = LayoutTokenPrefs.current(context)
-        screenGapDp = tokens.outerMarginTopDp
-        cardGapDp = tokens.outerMarginTopDp
+        screenGapDp = tokens.outerMarginDp
+        cardGapDp = tokens.outerMarginDp
         cornerRadiusDp = tokens.cornerRadiusDp
         innerPaddingDp = tokens.contentPaddingDp
         requestLayout()
@@ -154,7 +154,7 @@ class ModelDiagramView @JvmOverloads constructor(
         canvas.drawRoundRect(screenRect, edgeInset, edgeInset, boxPaintScreen)
         canvas.drawText("screen", screenRect.left + 12f * density, screenRect.top + labelGap1, labelPaint)
         canvas.drawText(
-            "outer margin = ${screenGapDp.toInt()}dp (DesignTokens.outerMarginTopDp)",
+            "outer margin = ${screenGapDp.toInt()}dp (DesignTokens.outerMarginDp)",
             screenRect.left + 12f * density, screenRect.top + labelGap2, valuePaint
         )
 
@@ -190,7 +190,7 @@ class ModelDiagramView @JvmOverloads constructor(
         val gapPx = dpToVisualPx(cardGapDp)
         canvas.drawText(
             "card -> card gap: ${cardGapDp.toInt()}dp + ${cardGapDp.toInt()}dp = ${(cardGapDp * 2).toInt()}dp real " +
-                "(two stacked DesignTokens.outerMarginTopDp margins — Android does not collapse margins)",
+                "(two stacked DesignTokens.outerMarginDp margins — Android does not collapse margins)",
             8f * density, gapY, labelPaint
         )
         // small two-box illustration beneath the label

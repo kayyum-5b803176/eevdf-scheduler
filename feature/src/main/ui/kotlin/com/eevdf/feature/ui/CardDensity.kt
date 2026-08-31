@@ -27,16 +27,19 @@ import com.google.android.material.card.MaterialCardView
  *
  * [isCompact] is each view's own existing manual override (used only by the
  * Render -> Layout demo screen today, never by any real production screen).
- * [COMPACT_OVERRIDE] was chosen specifically because it reproduces the old
- * static compact values EXACTLY (gap 4dp = old `app_spacing_sm`, padding
- * 8dp = old `app_spacing_md`) — confirmed by checking both old constants
- * against this scale before picking the override, not assumed to match.
+ * [COMPACT_OVERRIDE]'s padding (8dp, scale 2) still matches the old static
+ * `app_spacing_md` exactly. Its margin no longer matches the old
+ * `app_spacing_sm` (4dp) — margin gained its own dedicated [MarginStep]
+ * scale with a 10dp floor no other dimension shares, so even the smallest
+ * margin scale now resolves to 10dp, never 4dp. Accepted deliberately: the
+ * floor is a hard rule, not one this override should bypass, and nothing in
+ * production ever exercised the old 4dp value anyway.
  */
 public object CardDensity {
 
     public fun applyOuterGap(cardRoot: View, context: Context, isCompact: Boolean) {
         val tokens = tokensFor(context, isCompact)
-        val gapPx = dp(context, tokens.outerMarginTopDp)
+        val gapPx = dp(context, tokens.outerMarginDp)
         (cardRoot.layoutParams as? MarginLayoutParams)?.let { lp ->
             lp.topMargin = gapPx
             lp.bottomMargin = gapPx

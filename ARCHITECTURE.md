@@ -1131,3 +1131,33 @@ needed the real compiler. Fixed by calling `applyDensity(false)` instead,
 checked the other three views' declaration order explicitly rather than
 assuming this pattern was safe everywhere just because it worked in three
 of the four files.
+
+### Phase 5 — done (v5.29.0): a dedicated margin scale, and separating scale controls from template previews
+
+Two improvements, both to the demo page's design rather than adding new
+screens.
+
+**Margin gets its own scale, not a tier on `SpacingStep`.** The original
+design (Phase 2) put margin at tier 1 of the shared 4/8/12/16/20 grid, which
+meant the two smallest scale levels resolved to 4dp — too tight to read as
+"a margin" rather than "touching the neighbor." Rather than clamp the
+existing scale at a 10dp floor (which would have collapsed 3 of 5 levels to
+the same value, losing most of the slider's range), added `MarginStep`: its
+own 5-value scale starting at the required 10dp (`10/14/18/22/26`, still a
+clean 4dp grid, just 6dp higher). Every level stays distinct.
+
+**Margin is now one symmetric value, not top/bottom-specific.** `outerMarginTopDp`/
+`outerMarginBottomDp` (two different values, a deliberate asymmetry from the
+original hand-tuned tables) became one `outerMarginDp`, applied to all four
+sides everywhere it's used — `CardDensity` (the four shared card views) and
+`CardScale.kt` (task rows, which previously had different top vs. bottom
+margins). Task rows' top/bottom margins are now identical; this is a real,
+visible change once `CardScale.kt`'s consumer is checked, on explicit
+instruction that "margin" means outer margin in all directions.
+
+**The four scale sliders moved to their own "scale" tab.** Previously mixed
+into the top of "template," now separated: "template" shows only the demo
+cards, "scale" holds the four `ValueCardView` sliders, "model" is unchanged.
+Simplified the implementation along the way — the nested `previewContainer`
+indirection from Phase 4 (needed only because controls and previews shared
+one container) is gone; `demoContainer` is now cleared and rebuilt directly.

@@ -43,6 +43,12 @@
         app:tabIndicatorColor="@color/app_text_label"
         app:tabTextColor="@color/app_text_body" />
 
+    <!--
+        Three tabs: "template" (default), "scale", "model". The four live
+        scale sliders used to live at the top of "template", mixed in with
+        the demo cards — moved to their own tab so template previews and
+        scale controls don't share one scrolling section.
+    -->
     <ScrollView style="@style/App.PageScroll">
 
         <LinearLayout
@@ -55,6 +61,12 @@
                 android:id="@+id/demoContainer"
                 style="@style/App.PageContent"
                 android:visibility="visible" />
+
+            <!-- TAB: scale -->
+            <LinearLayout
+                android:id="@+id/scaleContainer"
+                style="@style/App.PageContent"
+                android:visibility="gone" />
 
             <!-- TAB: model -->
             <LinearLayout

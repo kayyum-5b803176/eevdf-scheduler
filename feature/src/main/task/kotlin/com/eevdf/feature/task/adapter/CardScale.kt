@@ -24,18 +24,19 @@ import com.eevdf.feature.ui.DesignTokens
  * Every dp value below comes from [DesignTokens] — this function used to
  * carry its own independent 6-value table, one of three that existed
  * independently before [DesignTokens] consolidated them (see its class doc).
- * `progressTopDp` reuses [DesignTokens.marginTopDpFor] directly: the original
- * table's numbers for progress-bar top margin and card top margin were
- * already numerically identical, so this was never two things, just two
- * names for one value.
+ * `cardTopDp`/`cardBottomDp` used to be two different values (a deliberate
+ * asymmetry — more space above a card than below it); margin is now one
+ * symmetric [DesignTokens.marginDpFor] value applied to both, matching every
+ * other consumer of outer margin in this design system. `progressTopDp`
+ * reuses the same value directly: the original table's numbers for
+ * progress-bar top margin and card top margin were already numerically
+ * identical, so this was never two things, just two names for one value.
  */
 internal fun applyCardScale(holder: TaskViewHolder, scale: Int, density: Float) {
     val contentPaddingDp = DesignTokens.paddingDpFor(scale)
-    val cardTopDp        = DesignTokens.marginTopDpFor(scale)
-    val cardBottomDp     = DesignTokens.marginBottomDpFor(scale)
+    val cardMarginDp     = DesignTokens.marginDpFor(scale)
     val rowGapDp         = DesignTokens.rowGapDpFor(scale)
     val btnGapDp         = DesignTokens.buttonRowGapDpFor(scale)
-    val progressTopDp    = DesignTokens.marginTopDpFor(scale)
 
     val px = { dp: Float -> (dp * density + 0.5f).toInt() }
 
@@ -43,21 +44,21 @@ internal fun applyCardScale(holder: TaskViewHolder, scale: Int, density: Float) 
     val p = px(contentPaddingDp)
     holder.layoutCardContent.setPadding(p, p, p, p)
 
-    // Card outer vertical margins (preserve depth marginStart set just before)
+    // Card outer margin — symmetric on all sides (preserve depth marginStart set just before)
     val cardLp = holder.itemView.layoutParams as? RecyclerView.LayoutParams
     cardLp?.let {
-        it.topMargin    = px(cardTopDp)
-        it.bottomMargin = px(cardBottomDp)
+        it.topMargin    = px(cardMarginDp)
+        it.bottomMargin = px(cardMarginDp)
         holder.itemView.layoutParams = it
     }
 
     // ProgressBar top margin (both default and notice segmented bar get the same spacing)
     (holder.progressBar.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
-        lp.topMargin = px(progressTopDp)
+        lp.topMargin = px(cardMarginDp)
         holder.progressBar.layoutParams = lp
     }
     (holder.progressNotice.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
-        lp.topMargin = px(progressTopDp)
+        lp.topMargin = px(cardMarginDp)
         holder.progressNotice.layoutParams = lp
     }
 

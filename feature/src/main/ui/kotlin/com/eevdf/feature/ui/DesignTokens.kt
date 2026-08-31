@@ -37,6 +37,25 @@ public enum class TextScaleStep(public val multiplier: Float) {
 }
 
 /**
+ * The outer-margin scale — a card/row's spacing from its neighbors and the
+ * screen edge, applied symmetrically on all four sides (not top/bottom-
+ * specific values; a card's outer margin is one number, in every direction).
+ *
+ * Its own dedicated scale, not a tier on [SpacingStep]: outer margin has a
+ * hard floor (10dp) that no other spacing role shares — below that, a card
+ * starts to feel like it's touching its neighbors or the screen edge
+ * regardless of how small the user wants everything else. Still a clean 4dp
+ * grid, same philosophy as [SpacingStep], just starting 6dp higher.
+ */
+public enum class MarginStep(public val dp: Float) {
+    XS(10f), SM(14f), MD(18f), LG(22f), XL(26f);
+
+    public companion object {
+        public fun at(scale: Int): MarginStep = entries[(scale - 1).coerceIn(0, entries.lastIndex)]
+    }
+}
+
+/**
  * How far below the "primary" tier (offset 0, whatever the current
  * [DesignTokens.paddingScale]/[DesignTokens.marginScale] resolves to) each
  * spacing role sits. Centralized here so the relationship between roles
@@ -45,10 +64,8 @@ public enum class TextScaleStep(public val multiplier: Float) {
  */
 private object SpacingTier {
     const val PADDING = 0          // the most generous spacing in a card
-    const val MARGIN_TOP = 1
-    const val CORNER_RADIUS = 1    // same visual "weight" as margin-top
+    const val CORNER_RADIUS = 1
     const val BUTTON_ROW_GAP = 1
-    const val MARGIN_BOTTOM = 2
     const val ROW_GAP = 3          // the tightest — space within one card
 }
 
@@ -81,7 +98,9 @@ private object SpacingTier {
  * convention users are already familiar with from Display settings:
  *
  *   - [paddingScale]      inner content padding within a card/row
- *   - [marginScale]       outer spacing between cards/rows and their neighbors
+ *   - [marginScale]       outer margin around a card, applied symmetrically
+ *                         on all four sides — see [MarginStep] for why this
+ *                         has a 10dp floor no other dimension shares
  *   - [textScale]         a multiplier applied on top of each view's base
  *                         text size (never replaces it — a heading and a
  *                         caption stay visually distinct at every scale)
@@ -101,8 +120,7 @@ public data class DesignTokens(
     }
 
     public val contentPaddingDp: Float get() = paddingDpFor(paddingScale)
-    public val outerMarginTopDp: Float get() = marginTopDpFor(marginScale)
-    public val outerMarginBottomDp: Float get() = marginBottomDpFor(marginScale)
+    public val outerMarginDp: Float get() = marginDpFor(marginScale)
     public val rowGapDp: Float get() = rowGapDpFor(marginScale)
     public val buttonRowGapDp: Float get() = buttonRowGapDpFor(marginScale)
     public val textSizeMultiplier: Float get() = textScaleMultiplierFor(textScale)
@@ -135,11 +153,8 @@ public data class DesignTokens(
         public fun paddingDpFor(scale: Int): Float =
             SpacingStep.at(scale, SpacingTier.PADDING).dp
 
-        public fun marginTopDpFor(scale: Int): Float =
-            SpacingStep.at(scale, SpacingTier.MARGIN_TOP).dp
-
-        public fun marginBottomDpFor(scale: Int): Float =
-            SpacingStep.at(scale, SpacingTier.MARGIN_BOTTOM).dp
+        public fun marginDpFor(scale: Int): Float =
+            MarginStep.at(scale).dp
 
         public fun rowGapDpFor(scale: Int): Float =
             SpacingStep.at(scale, SpacingTier.ROW_GAP).dp
