@@ -40,10 +40,10 @@ class ModelDiagramView @JvmOverloads constructor(
     // resource.
     private val visualScale = 5f
 
-    private val screenGapDp: Float
-    private val cardGapDp: Float // single margin value, real per-card
-    private val cornerRadiusDp: Float
-    private val innerPaddingDp: Float
+    private var screenGapDp: Float = 0f
+    private var cardGapDp: Float = 0f
+    private var cornerRadiusDp: Float = 0f
+    private var innerPaddingDp: Float = 0f
 
     private val density = context.resources.displayMetrics.density
 
@@ -73,11 +73,7 @@ class ModelDiagramView @JvmOverloads constructor(
 
     init {
         val res = context.resources
-        val tokens = LayoutTokenPrefs.current(context)
-        screenGapDp = tokens.outerMarginTopDp
-        cardGapDp = tokens.outerMarginTopDp
-        cornerRadiusDp = tokens.cornerRadiusDp
-        innerPaddingDp = tokens.contentPaddingDp
+        refresh()
 
         boxPaintScreen.color = ContextCompat.getColor(context, R.color.app_text_hint)
         boxPaintCard.color = ContextCompat.getColor(context, R.color.app_text_label)
@@ -89,6 +85,24 @@ class ModelDiagramView @JvmOverloads constructor(
         val labelSizePx = res.getDimension(R.dimen.app_text_size_xs)
         labelPaint.textSize = labelSizePx
         valuePaint.textSize = labelSizePx
+    }
+
+    /**
+     * Re-reads [LayoutTokenPrefs] and redraws. Needed because this view only
+     * read tokens once, at construction, before the Render -> Template page
+     * added live slider controls (Phase 4 of the UI-unification work) — a
+     * single static instance placed in XML has no other way to learn that
+     * the tokens it originally read are now stale. Call after any token
+     * change, and when the "model" tab becomes visible.
+     */
+    fun refresh() {
+        val tokens = LayoutTokenPrefs.current(context)
+        screenGapDp = tokens.outerMarginTopDp
+        cardGapDp = tokens.outerMarginTopDp
+        cornerRadiusDp = tokens.cornerRadiusDp
+        innerPaddingDp = tokens.contentPaddingDp
+        requestLayout()
+        invalidate()
     }
 
     private fun dpToVisualPx(dp: Float): Float = dp * visualScale * density

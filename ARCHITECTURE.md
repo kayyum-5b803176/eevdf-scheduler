@@ -914,6 +914,11 @@ margin, text size, corner radius, and (eventually) theme. Phased the same
 way, with the same discipline: each phase gets its own version bump and
 verification before the next starts.
 
+**Versioning convention from here on:** a new phase bumps MINOR
+(5.27.0 → 5.28.0). A bug fix to a phase already shipped bumps PATCH instead
+(5.27.0 → 5.27.1) — the v5.28.0 label on the `ValueCardView` init-order fix
+below was corrected to 5.27.1 for exactly this reason once pointed out.
+
 ### Phase 1 — done (v5.24.0): the design-token model
 
 Purely additive — two new files in `feature/ui/`, nothing existing touched,
@@ -1060,3 +1065,69 @@ by grep, they reference the old static dimens directly, completely bypassing
 the shared component system. This is expected, not a gap this phase should
 have closed: migrating those screens onto the shared components is item 4,
 "universal adoption," a separate and much larger phase.
+
+### Phase 4 — done (v5.27.0): item 5, completed on the demo page as a sandboxed testing ground
+
+Before touching any real settings screen, closed the last gap in the token
+system itself: `paddingScale` had a real UI control (Display settings' card-
+height slider) since before this work started; `marginScale`/`textScale`/
+`cornerRadiusScale` had preference storage (`LayoutTokenPrefs`, Phase 1) but
+**no way for a user, or a developer verifying this work, to actually change
+them.** Rather than add that control to a real settings page immediately —
+risking shipping four new sliders to real users before confirming the whole
+system round-trips correctly — added them to the Render -> Template demo
+page instead, explicitly as a verification tool, on explicit instruction to
+scope this to the demo page only.
+
+**Two things had to be fixed for this page to actually prove anything,**
+found by checking the existing code rather than assuming it would just work:
+
+1. Every demo card on this page used `compact = true` unconditionally — the
+   fixed "smallest" override, never the live-token path. Sliders controlling
+   a value nothing on screen actually read would have proven nothing.
+   Changed all five demo cards to `compact = false`, the same default every
+   real screen uses.
+2. `ModelDiagramView` reads tokens once, in its constructor — a static XML
+   instance has no way to learn a slider changed after it was created.
+   Added a `refresh()` method (re-reads `LayoutTokenPrefs`, calls
+   `requestLayout()` + `invalidate()`), called after every slider change and
+   whenever the "model" tab is selected.
+
+**Sandboxed, not permanent, on explicit instruction.** The four new
+`ValueCardView` sliders (Padding/Margin/Text/Corner-radius scale, 1-5 each —
+built with the template system's own component, testing itself) write to
+the **real** `LayoutTokenPrefs`/`DisplayPrefs` — the same preferences
+`CardDensity` reads everywhere else — so this page genuinely exercises the
+production code path, not a fake preview. `onCreate` captures whatever was
+actually set before the page touched anything; `onDestroy` restores it
+unconditionally. Leaving this page undoes every change made while visiting.
+A real settings page exposing these controls permanently (a later phase)
+will not have this restore step.
+
+**Rebuild-on-change, not live-observing.** None of the four card views have
+a mechanism to notice a preference changed after construction (each only
+reads tokens once, in `init{}` — the same shape of gap `ModelDiagramView`
+had). The simplest correct fix for a demo page showing five small views:
+clear and fully reconstruct the preview section on every slider move, rather
+than teach five component classes to observe preference changes for a
+capability only this one debug page needs today.
+
+**A duplicate-view bug caught before shipping:** the original plan
+constructed a fresh `ModelDiagramView` and inserted it into `modelContainer`
+programmatically, without noticing the XML layout already declares one
+statically. That would have stacked two diagrams. Fixed by giving the
+existing XML instance an id and `findViewById`-ing it instead of
+constructing a second one.
+
+**A property-initialization-order bug found by the real compiler, v5.27.1**
+(patch bump — a bug fix to Phase 4's own work, not a new phase):
+`ValueCardView` declares `compact` *after* its `init{}` block — the other
+three views declare it before. Kotlin initializes a class top-to-bottom, so
+`applyDensity(compact)` inside `init{}` tried to read `compact` before its
+own declaration point was reached, failing with "Variable 'compact' must be
+initialized." Not caught by any static check in this sandbox — genuinely
+needed the real compiler. Fixed by calling `applyDensity(false)` instead,
+`false` being `compact`'s actual default value, so behavior is identical;
+checked the other three views' declaration order explicitly rather than
+assuming this pattern was safe everywhere just because it worked in three
+of the four files.

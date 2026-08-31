@@ -119,7 +119,14 @@ class ValueCardView @JvmOverloads constructor(
             if (fromUser) slider?.onValueChange?.invoke(newValue)
         }
         // Must run unconditionally — see NavCardView.kt's init{} for why.
-        applyDensity(compact)
+        // Uses the literal `false` rather than the `compact` property: in
+        // this file (unlike the other three views), `compact` is declared
+        // AFTER init{}, so reading it here would fail to compile ("Variable
+        // 'compact' must be initialized") — Kotlin initializes properties
+        // top-to-bottom, and init{} runs at its own position in that order.
+        // `false` is compact's actual default value, so this is identical
+        // in behavior to what was intended.
+        applyDensity(false)
     }
 
     /** Display-density toggle. See other template classes' doc for the
