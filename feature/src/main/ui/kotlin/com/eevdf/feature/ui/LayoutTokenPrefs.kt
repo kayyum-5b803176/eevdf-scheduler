@@ -23,6 +23,14 @@ public object LayoutTokenPrefs {
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /**
+     * Each getter's fallback (used only when the key has never been written —
+     * a fresh install, or data explicitly cleared) is [DesignTokens.DEFAULT],
+     * currently 4 for every scale. A value the user has actually set, however
+     * it got there, is never overwritten — this is the same "remember what's
+     * stored, default only when truly absent" behavior every other
+     * preference in this app already has.
+     */
     public fun getPaddingScale(ctx: Context): Int =
         prefs(ctx).getInt(KEY_PADDING_SCALE, DesignTokens.DEFAULT.paddingScale).coerceIn(1, 7)
 

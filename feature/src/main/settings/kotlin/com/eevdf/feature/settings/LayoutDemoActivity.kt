@@ -33,15 +33,15 @@ import com.google.android.material.tabs.TabLayout
  * TEMPLATE_CATALOG.md for the piece-sequence rules each class enforces
  * structurally.
  *
- * SANDBOXED, NOT PERMANENT (Phase 4 of the UI-unification work): the four
- * sliders on the "scale" tab write to the real [LayoutTokenPrefs]/
- * [DisplayPrefs] — the same preferences [com.eevdf.feature.ui.CardDensity]
- * reads everywhere else — so this page genuinely proves the round-trip
- * works, not a fake preview. [savedTokens] captures whatever was actually
- * set before this Activity touched anything, and [onDestroy] restores it,
- * so leaving this page undoes every change made while visiting. Real
- * settings pages that expose these controls for real (a later phase) will
- * not have this restore step.
+ * PERSISTENT, NOT SANDBOXED: the four sliders on the "scale" tab write to the
+ * real [LayoutTokenPrefs] — the same preferences [com.eevdf.feature.ui.CardDensity]
+ * and the main task list read everywhere else — and those changes stick
+ * after leaving this page, the same as any other real settings control.
+ * Earlier versions of this page reverted every change on exit ("sandboxed");
+ * that behavior is gone — a value the user sets here is a value they set,
+ * remembered the same way any other preference in this app is remembered.
+ * [initialTokens] exists only to seed the four sliders' starting positions
+ * when the page opens, not to restore anything afterward.
  *
  * This is the first screen in the catalog whose own previously-blank
  * TabLayout extension point gets wired up, rather than shipping unused.
@@ -54,17 +54,17 @@ class LayoutDemoActivity : AppCompatActivity() {
     private lateinit var modelContainer: LinearLayout
     private lateinit var modelDiagram: ModelDiagramView
 
-    /** Captured in [onCreate], restored in [onDestroy] — see class doc. */
-    private data class SavedTokens(
+    /** Seeds the four sliders' starting positions on open — not restored on exit, see class doc. */
+    private data class InitialTokens(
         val padding: Int, val margin: Int, val text: Int, val corner: Int
     )
-    private lateinit var savedTokens: SavedTokens
+    private lateinit var initialTokens: InitialTokens
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_layout_demo)
 
-        savedTokens = SavedTokens(
+        initialTokens = InitialTokens(
             padding = LayoutTokenPrefs.getPaddingScale(this),
             margin = LayoutTokenPrefs.getMarginScale(this),
             text = LayoutTokenPrefs.getTextScale(this),
@@ -130,18 +130,6 @@ class LayoutDemoActivity : AppCompatActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        // Undo everything this screen changed — see class doc's "SANDBOXED,
-        // NOT PERMANENT" note. Always runs, even if the Activity is being
-        // destroyed by a configuration change, not just Back — acceptable
-        // here since this is a debug/demo screen, not a real settings page.
-        LayoutTokenPrefs.setPaddingScale(this, savedTokens.padding)
-        LayoutTokenPrefs.setMarginScale(this, savedTokens.margin)
-        LayoutTokenPrefs.setTextScale(this, savedTokens.text)
-        LayoutTokenPrefs.setCornerRadiusScale(this, savedTokens.corner)
-    }
-
     /**
      * The four live scale controls, on their own tab. Built with
      * [ValueCardView] itself — the template system testing itself — each
@@ -152,29 +140,29 @@ class LayoutDemoActivity : AppCompatActivity() {
     private fun buildScaleControls() {
         addIntro(
             scaleContainer,
-            "Changes here are temporary — they write to the same preferences " +
-            "every real screen using these components would read, but are " +
-            "undone automatically when you leave this page."
+            "These write to the same preferences every real screen using " +
+            "these components reads — changes here are real and persist, " +
+            "the same as any other setting."
         )
 
         scaleContainer.addView(scaleSlider(
             label = "Padding scale",
-            initial = savedTokens.padding,
+            initial = initialTokens.padding,
             onChange = { LayoutTokenPrefs.setPaddingScale(this, it) },
         ))
         scaleContainer.addView(scaleSlider(
             label = "Margin scale",
-            initial = savedTokens.margin,
+            initial = initialTokens.margin,
             onChange = { LayoutTokenPrefs.setMarginScale(this, it) },
         ))
         scaleContainer.addView(scaleSlider(
             label = "Corner radius scale",
-            initial = savedTokens.corner,
+            initial = initialTokens.corner,
             onChange = { LayoutTokenPrefs.setCornerRadiusScale(this, it) },
         ))
         scaleContainer.addView(scaleSlider(
             label = "Text scale",
-            initial = savedTokens.text,
+            initial = initialTokens.text,
             onChange = { LayoutTokenPrefs.setTextScale(this, it) },
         ))
     }

@@ -1411,3 +1411,23 @@ value symmetrically per card — the same double-counted-gap problem Phase 8
 fixed elsewhere still exists here, now wired to a live value instead of a
 static one. Flagged, not silently left unfixed or silently fixed without
 being asked.
+
+**Patch, v5.33.1 — sandboxing removed, changes now persist.** Phase 4's
+"revert everything on exit" behavior on `LayoutDemoActivity` — appropriate
+while this was purely a verification tool with no real consumer — is gone
+now that Phase 9 wired the main task list to the same live tokens. Reverting
+on exit no longer made sense once leaving the page was supposed to leave the
+real app in the state you set. `onDestroy()`'s restore logic removed
+entirely; `savedTokens`/`SavedTokens` renamed to `initialTokens`/
+`InitialTokens` to reflect their real, narrower purpose now — seeding the
+four sliders' starting position when the page opens, nothing more.
+
+A one-time forced reset to the new defaults was drafted and then explicitly
+rejected on reflection: it would have overwritten whatever the user had
+already set the moment they next opened the app, which is the exact
+opposite of "remember their value." No such mechanism was added —
+`SharedPreferences.getInt(key, default)`'s own built-in behavior already
+does the right thing without it: `DesignTokens.DEFAULT` (4 for every scale,
+since Phase 9) is the fallback used only when a key has genuinely never been
+written — a fresh install, or data explicitly cleared — and a value the user
+has actually set, however it got there, is never touched again.
