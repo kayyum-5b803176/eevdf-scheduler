@@ -902,3 +902,54 @@ and deliberately left for a later pass rather than pulled into this one:
   rule**: `RtScheduler.pickRrTask`/`advanceRrIndex`/`minRtUrgency`,
   `RtSchedulerService.kt`, and `core.scheduler.SchedulerService` — all
   unreachable from any live path, none deleted yet.
+
+---
+
+## UI Unification — a separate initiative, tracked here for consistency
+
+Not part of the ownership-boundary refactor above — a distinct goal: make
+every screen look and feel like the same app, with layout controllable from
+one Settings page, the way card-height scale already works but extended to
+margin, text size, corner radius, and (eventually) theme. Phased the same
+way, with the same discipline: each phase gets its own version bump and
+verification before the next starts.
+
+### Phase 1 — done (v5.24.0): the design-token model
+
+Purely additive — two new files in `feature/ui/`, nothing existing touched,
+so nothing to visually verify yet; only that it compiles.
+
+**Found while investigating, before writing anything:** the scale-to-dimension
+mapping that makes card-height scale work today existed independently in
+**three places**, already diverged from each other — `DisplayScaleDelegate`'s
+one-dimension padding table (fixed timer/alarm cards only),
+`feature/task/adapter/CardScale.kt`'s six-dimension table (task rows only,
+different numbers for the same concept), and `feature/ui/res/values/dimens.xml`
+(static, no runtime scale-awareness at all). None of the three was reusable
+by a screen that didn't already have its own hand-written version — this is
+the concrete version of "what's missing for a unified layout" from the
+original request.
+
+**What was added:** `DesignTokens.kt` — a pure value model (data class, four
+independent 1-5 scales: `paddingScale`, `marginScale`, `textScale`,
+`cornerRadiusScale`, each resolving to actual dp/sp values) with zero Android
+dependency, mirroring the exact "pure model + adapter" pattern `:core`/`:data`
+already use elsewhere in this codebase. `LayoutTokenPrefs.kt` — the Android-
+dependent adapter: preference storage for the two genuinely-new dimensions
+(margin, corner radius) plus text scale, and a `current(ctx)` factory that
+resolves all four. Deliberately reuses the *existing*
+`DisplayPrefs.getCardHeightScale` for `paddingScale` rather than introducing
+a second, competing padding preference — doing that would recreate the exact
+divergence this model exists to fix.
+
+`DesignTokens.DEFAULT` (padding=5, margin=5, text=3, corner=3) is calibrated
+to match every screen's current hardcoded appearance exactly — adopting this
+model changes nothing visually until a later phase actually wires a screen
+onto it and a preference is moved away from these defaults.
+
+**Not done yet, by design:** nothing consumes `DesignTokens` yet.
+`DisplayScaleDelegate` and `CardScale.kt` still have their own independent
+tables — replacing those with calls into the new model is Phase 2, done
+separately so each wiring change gets its own visual check-in rather than
+bundling "introduce the model" with "change what the app looks like" into
+one unverifiable step.
