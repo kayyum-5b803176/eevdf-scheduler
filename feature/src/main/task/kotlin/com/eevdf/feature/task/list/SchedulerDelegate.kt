@@ -115,32 +115,65 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Selects the next task for Auto mode using the parent group's taskType.
+     * "Auto" tap — a one-shot manual jump, exactly like [nextSibling] but
+     * with a different selection rule. Never triggered automatically; the
+     * only caller is the Next/Auto button's click handler when it's
+     * currently armed to "Auto" (see [com.eevdf.feature.task.list.ListTogglesDelegate.toggleNextButtonMode]).
      *
-     * | Parent taskType | Strategy                                           |
-     * |-----------------|----------------------------------------------------|\
-     * | DEFAULT         | Next sibling by VDL, looping back to first         |
-     * | NOTIFICATION    | Sibling with lowest virtual deadline               |
-     * | ALERT / CUSTOM  | null → caller falls back to global selectNextTask  |
-     * | no parent group | null → caller falls back to global selectNextTask  |
+     * No card open → falls back to [jumpToFirst], same as [nextSibling] does.
+     */
+    fun triggerAutoJump(onQueueTab: Boolean = false) {
+        vm.pauseTimer()
+        val current = vm._currentTask.value
+        if (current == null) {
+            jumpToFirst(onQueueTab)
+            return
+        }
+        val allTasks = vm.activeTasks.value ?: emptyList()
+        val next = selectAutoNextTask(current, allTasks) ?: run {
+            vm._toastMessage.value = "No tasks available"
+            return
+        }
+        vm._currentTask.value  = next
+        vm._timerSeconds.value = next.remainingSeconds
+        vm._toastMessage.value = "Auto → \"${next.name}\""
+    }
+
+    /**
+     * Selects the highest-priority leaf task within [task]'s parent group,
+     * escalating to successively higher ancestor groups if the current one
+     * has no runnable leaf children. "Highest-priority" is read directly
+     * from [ListBuilderDelegate.flatScheduleOrder] — the list the Schedule
+     * tab itself displays, already correctly hoisted DL > RT > EEVDF — not
+     * re-derived from raw virtualDeadline here. Re-deriving it would silently
+     * ignore DL/RT class priority, which the schedule builder already gets
+     * right; this function's only job is to pick the first entry from that
+     * already-correct list that belongs to the target group, escalating
+     * outward until one exists.
+     *
+     * Root-level tasks (no parent group) are treated as belonging to an
+     * implicit top-level group: the search starts by looking for the
+     * highest-priority root-level leaf (parentId == null) directly, the same
+     * rule as every other level, not a special case.
+     *
+     * Returns null only when no leaf task exists anywhere in the ancestor
+     * chain up to and including the root — the caller falls back to the
+     * global [com.eevdf.data.task.TaskRepository.selectNextTask] in that case.
      */
     fun selectAutoNextTask(task: Task, allTasks: List<Task>): Task? {
-        val parentId = task.parentId ?: return null
-        val parent   = allTasks.find { it.id == parentId } ?: return null
+        val orderedLeaves = vm.listBuilder.flatScheduleOrder.value
+            ?.map { it.task }
+            ?.filter { !it.isGroup && !it.isCompleted && !it.isInterrupt }
+            ?: return null
 
-        val siblings = allTasks
-            .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
-            .sortedBy { it.virtualDeadline }
-
-        if (siblings.isEmpty()) return null
-
-        return when (parent.taskType) {
-            "DEFAULT" -> {
-                val idx = siblings.indexOfFirst { it.id == task.id }
-                siblings[(idx + 1) % siblings.size]
-            }
-            "NOTIFICATION" -> siblings.first()
-            else            -> null
+        var groupId: String? = task.parentId
+        val visited = mutableSetOf<String>()  // guards against a corrupt/cyclic parentId chain
+        while (true) {
+            val candidate = orderedLeaves.firstOrNull { it.parentId == groupId }
+            if (candidate != null) return candidate
+            if (groupId == null) return null
+            if (!visited.add(groupId)) return null
+            groupId = allTasks.find { it.id == groupId }?.parentId
         }
     }
 

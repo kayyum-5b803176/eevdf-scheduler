@@ -129,12 +129,8 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
                 true
             }
             R.id.action_toggle_global_rotate -> {
-                if (activity.viewModel.autoMode.value == true) {
-                    Toast.makeText(activity, "Global Rotate is managed by Auto mode", Toast.LENGTH_SHORT).show()
-                } else {
-                    activity.viewModel.toggleGlobalRotate()
-                    item.isChecked = activity.viewModel.globalRotateEnabled.value ?: false
-                }
+                activity.viewModel.toggleGlobalRotate()
+                item.isChecked = activity.viewModel.globalRotateEnabled.value ?: false
                 true
             }
             R.id.action_allow_edit -> {

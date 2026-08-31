@@ -326,22 +326,12 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             vm._toastMessage.postValue("Time slice done for \"${task.name}\"")
             vm.refreshSchedule()
 
-            if (vm.settings.autoMode.value == true) {
-                val allTasks = vm.activeTasks.value ?: emptyList()
-                val next = vm.scheduler.selectAutoNextTask(task, allTasks)
-                    ?: vm.repository.selectNextTask()
-                if (next != null) {
-                    vm.pendingAutoStart = true
-                    vm._currentTask.postValue(next)
-                    vm._timerSeconds.postValue(next.remainingSeconds)
-                    vm.settings.saveSelectedTaskId(next.id)   // card follows the auto task
-                    vm._toastMessage.postValue("Auto → \"${next.name}\"")
-                } else {
-                    vm._currentTask.postValue(null)
-                    vm.clearPersistedSelection()
-                    vm._toastMessage.postValue("Auto: no more active tasks")
-                }
-            } else if (task.taskType == "NOTIFICATION") {
+            // Auto mode used to auto-select and start the next task here,
+            // driven by a persistent settings flag. Removed: Auto is now a
+            // manual, one-shot action (see SchedulerDelegate.triggerAutoJump),
+            // triggered only by tapping the Next/Auto button while it's
+            // armed to "Auto" — never automatically on timer expiry.
+            if (task.taskType == "NOTIFICATION") {
                 vm.notice.handleExpiredNotificationTask(task)
             } else {
                 vm.alarms.timerExpire(task.name, task.taskType)

@@ -29,8 +29,7 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
     private val KEY_GLOBAL_ROTATE             = "global_rotate_enabled"
     private val KEY_ALLOW_EDIT                = "allow_edit_enabled"
     private val KEY_AUTO_SCROLL               = "auto_scroll_enabled"
-    private val KEY_AUTO_MODE                 = "auto_mode"
-    private val KEY_GLOBAL_ROTATE_BEFORE_AUTO = "global_rotate_before_auto"
+    private val KEY_NEXT_BUTTON_SHOWS_AUTO    = "next_button_shows_auto"
     private val KEY_LAST_TAB                  = "last_tab"
     private val KEY_SELECTED_TASK_ID          = "selected_timer_task_id"
     private val KEY_CARD_MANUALLY_HIDDEN      = "timer_card_manually_hidden"
@@ -51,12 +50,6 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
     private val _globalRotateEnabled =
         MutableLiveData<Boolean>(prefs.getBoolean(KEY_GLOBAL_ROTATE, false))
     val globalRotateEnabled: LiveData<Boolean> = _globalRotateEnabled
-
-    /**
-     * Direct mutable access used only by [toggleAutoMode] inside this class
-     * and by [TaskViewModel] to wire the [nextButtonState] mediator source.
-     */
-    internal val mutableGlobalRotate: MutableLiveData<Boolean> get() = _globalRotateEnabled
 
     fun toggleGlobalRotate() {
         val next = !(_globalRotateEnabled.value ?: false)
@@ -88,49 +81,29 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
         _autoScrollEnabled.value = next
     }
 
-    // ── Auto Mode ─────────────────────────────────────────────────────────────
+    // ── Next/Auto button arm state ───────────────────────────────────────────
     //
-    //  ON  → saves current Global Rotate state, forces it OFF.
-    //  OFF → restores the previously saved Global Rotate state.
-    //
-    //  savedGlobalRotateBeforeAuto is persisted so that if the app is killed
-    //  while Auto mode is active, the original Global Rotate value survives
-    //  the restart and can be correctly restored when Auto mode is turned off.
+    // Purely which label the Next/Auto button currently shows — NOT a
+    // scheduling mode. Previously ("Auto mode") this was a persistent
+    // background flag that auto-advanced to a new task the instant a timer
+    // expired, and had a side effect on Global Rotate (forced it off, restored
+    // it when Auto mode turned off again). Both removed: Auto is now a
+    // manual, one-shot action, triggered only by tapping the button while
+    // armed to "Auto" (see SchedulerDelegate.triggerAutoJump) — never
+    // automatically on timer expiry. Global Rotate is now a fully independent
+    // preference, same as any other toggle in this class.
 
-    private val _autoMode =
-        MutableLiveData<Boolean>(prefs.getBoolean(KEY_AUTO_MODE, false))
-    val autoMode: LiveData<Boolean> = _autoMode
+    private val _nextButtonShowsAuto =
+        MutableLiveData<Boolean>(prefs.getBoolean(KEY_NEXT_BUTTON_SHOWS_AUTO, false))
+    val nextButtonShowsAuto: LiveData<Boolean> = _nextButtonShowsAuto
 
-    private var savedGlobalRotateBeforeAuto: Boolean =
-        prefs.getBoolean(KEY_GLOBAL_ROTATE_BEFORE_AUTO, false)
-
-    /**
-     * Toggles Auto mode on/off.
-     * @return Toast message for the ViewModel to post.
-     */
-    fun toggleAutoMode(): String {
-        val next = !(_autoMode.value ?: false)
-        if (next) {
-            savedGlobalRotateBeforeAuto = _globalRotateEnabled.value ?: false
-            prefs.edit()
-                .putBoolean(KEY_GLOBAL_ROTATE_BEFORE_AUTO, savedGlobalRotateBeforeAuto)
-                .putBoolean(KEY_GLOBAL_ROTATE, false)
-                .putBoolean(KEY_AUTO_MODE, next)
-                .apply()
-            _globalRotateEnabled.value = false
-            _autoMode.value = next
-            return "Auto mode ON — Global Rotate disabled"
-        } else {
-            prefs.edit()
-                .putBoolean(KEY_GLOBAL_ROTATE, savedGlobalRotateBeforeAuto)
-                .remove(KEY_GLOBAL_ROTATE_BEFORE_AUTO)
-                .putBoolean(KEY_AUTO_MODE, next)
-                .apply()
-            _globalRotateEnabled.value = savedGlobalRotateBeforeAuto
-            savedGlobalRotateBeforeAuto = false
-            _autoMode.value = next
-            return "Auto mode OFF — Global Rotate restored"
-        }
+    /** Hold gesture on the Next/Auto button — flips which label is armed for
+     * the next tap. No side effects, no persistence of scheduling behavior,
+     * just which action a tap will perform next. */
+    fun toggleNextButtonMode() {
+        val next = !(_nextButtonShowsAuto.value ?: false)
+        prefs.edit().putBoolean(KEY_NEXT_BUTTON_SHOWS_AUTO, next).apply()
+        _nextButtonShowsAuto.value = next
     }
 
     // ── Tab persistence ───────────────────────────────────────────────────────

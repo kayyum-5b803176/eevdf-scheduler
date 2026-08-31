@@ -1161,3 +1161,53 @@ cards, "scale" holds the four `ValueCardView` sliders, "model" is unchanged.
 Simplified the implementation along the way — the nested `previewContainer`
 indirection from Phase 4 (needed only because controls and previews shared
 one container) is gone; `demoContainer` is now cleared and rebuilt directly.
+
+### Phase 6 — done (v5.30.0): Auto mode redesigned as a manual, group-locked jump
+
+Not a UI/design-token change — a scheduling-behavior change to the timer
+card's Next/Auto button, done as its own phase with the same investigate-
+then-confirm discipline as the riskier UI phases, since this touches real
+scheduling decisions.
+
+**What changed, in one sentence:** "Auto" used to be a persistent background
+mode that automatically advanced to a new task the instant a timer expired
+(with a side effect — it force-disabled Global Rotate while active). It is
+now a one-shot manual action, exactly like "Next," triggered only by tapping
+the button while it's armed to "Auto" — never automatically, and with no
+side effect on any other preference.
+
+**The new selection rule**, in `SchedulerDelegate.selectAutoNextTask`: pick
+the highest-priority leaf task among the *current parent group's direct
+children* — read from `flatScheduleOrder`, the Schedule tab's own already-
+correctly-hoisted list (DL > RT > EEVDF), not re-derived from raw
+`virtualDeadline` here. Re-deriving it would have silently ignored DL/RT
+class priority, which the schedule builder already gets right — this
+function's only job is picking the first entry belonging to the target group
+from that already-correct list. If the current group has no runnable leaf
+children, escalate to its parent group and repeat, all the way to the root
+if needed (root-level tasks are treated as belonging to an implicit top
+group — same rule, no special case). Falls back to the existing global
+`selectNextTask()` only if nothing is found anywhere in the ancestor chain.
+
+**Removed as a direct consequence, not left as orphaned dead code:**
+- `ListTogglesDelegate`'s persistent `autoMode` flag, its `KEY_AUTO_MODE`/
+  `KEY_GLOBAL_ROTATE_BEFORE_AUTO` preference keys, and `toggleAutoMode()`'s
+  entire Global-Rotate save/restore side effect — replaced with
+  `nextButtonShowsAuto`, a plain UI toggle with no side effects at all.
+- `mutableGlobalRotate` — existed solely to give `toggleAutoMode()` mutable
+  access to force Global Rotate off; had zero other callers once that
+  function was gone, confirmed by grep before removing.
+- `TaskViewModel.pendingAutoStart`/`consumePendingAutoStart()` — existed
+  solely to signal "the timer that was just auto-selected should also
+  auto-start"; the auto-select-on-expiry behavior it served no longer
+  exists. Its one read site in `ObserverDelegate` removed too.
+- The Global-Rotate-menu-item-disabled-while-Auto-active observer, and the
+  toast blocking manual Global Rotate toggling while Auto was on — both in
+  service of the old mode/side-effect coupling; Global Rotate is now a
+  fully independent preference, confirmed by removing every check against
+  the old `autoMode` value anywhere it was read.
+
+**The button's existing tap/hold mechanic is otherwise unchanged** — hold
+still flips which label is showing (Next ↔ Auto), tap still performs
+whichever action is currently armed. Only the meaning of "Auto" changed:
+from "enable a background mode" to "perform this one jump right now."

@@ -105,8 +105,6 @@ internal class ObserverDelegate(private val activity: MainActivity) {
                 activity.activeAdapter.setRunningTask(task.id)
                 activity.scheduleAdapter.setRunningTask(task.id)
                 if (activity.viewModel.autoScrollEnabled.value == true) activity.scrollToTask(task.id)
-                // Auto mode: onTimerFinished queued the next task — start it immediately
-                if (activity.viewModel.consumePendingAutoStart()) activity.viewModel.startTimer()
             } else {
                 activity.activeAdapter.setRunningTask(null)
                 activity.scheduleAdapter.setRunningTask(null)
@@ -279,10 +277,9 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         activity.viewModel.nextButtonState.observe(activity) { state ->
             activity.btnScheduleNext.text = state.label
         }
-        // Lock Global Rotate menu item while Auto mode is active
-        activity.viewModel.autoMode.observe(activity) { auto ->
-            activity.globalRotateMenuItem?.isEnabled = !auto
-        }
+        // Global Rotate is a fully independent preference — no longer locked
+        // by anything Auto-related, since Auto is now a one-shot manual
+        // action, not a persistent mode it used to conflict with.
 
         // ── INT button ────────────────────────────────────────────────────────
         //

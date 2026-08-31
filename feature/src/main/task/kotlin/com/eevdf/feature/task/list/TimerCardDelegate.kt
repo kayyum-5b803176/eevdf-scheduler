@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.view.View
 import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
+import com.eevdf.feature.task.timer.NextButtonState
 import com.eevdf.feature.task.timer.TimerCardAction
 import com.eevdf.platform.notification.NotificationHelper
 
@@ -120,7 +121,19 @@ internal class TimerCardDelegate(private val activity: MainActivity) {
         activity.btnInt.setOnLongClickListener  { activity.haptic(it); activity.viewModel.toggleInterruptSlot(); true }
 
         // ── Next / Auto button ────────────────────────────────────────────────
-        activity.btnScheduleNext.setOnClickListener    { activity.haptic(it); activity.viewModel.nextSibling(onQueueTab = activity.currentTab == 0) }
-        activity.btnScheduleNext.setOnLongClickListener { activity.haptic(it); activity.viewModel.toggleAutoMode(); true }
+        // Tap performs whichever action is currently armed (see nextButtonState);
+        // hold flips which one is armed for the next tap. Auto is now a
+        // one-shot manual jump — see SchedulerDelegate.triggerAutoJump — never
+        // triggered by anything other than this tap.
+        activity.btnScheduleNext.setOnClickListener {
+            activity.haptic(it)
+            when (activity.viewModel.nextButtonState.value) {
+                is NextButtonState.Auto ->
+                    activity.viewModel.triggerAutoJump(onQueueTab = activity.currentTab == 0)
+                else ->
+                    activity.viewModel.nextSibling(onQueueTab = activity.currentTab == 0)
+            }
+        }
+        activity.btnScheduleNext.setOnLongClickListener { activity.haptic(it); activity.viewModel.toggleNextButtonMode(); true }
     }
 }

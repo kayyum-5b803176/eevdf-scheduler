@@ -124,7 +124,8 @@ class TaskViewModel @Inject constructor(
     var activeTab: Int = 0
 
     /** Set by onTimerFinished when auto mode queues the next task; consumed by MainActivity. */
-    internal var pendingAutoStart = false
+    // pendingAutoStart removed: it existed only to support Auto mode's old
+    // automatic-advance-on-timer-completion behavior, which no longer exists.
 
     /**
      * Holds the reset-state task while the expire card is visible.
@@ -235,10 +236,10 @@ class TaskViewModel @Inject constructor(
     val nextButtonState: MediatorLiveData<NextButtonState> =
         MediatorLiveData<NextButtonState>().apply {
             fun derive() {
-                value = if (settings.autoMode.value == true) NextButtonState.Auto
+                value = if (settings.nextButtonShowsAuto.value == true) NextButtonState.Auto
                         else NextButtonState.Next
             }
-            addSource(settings.autoMode) { derive() }
+            addSource(settings.nextButtonShowsAuto) { derive() }
         }
 
     // ── init ──────────────────────────────────────────────────────────────────
@@ -411,7 +412,6 @@ class TaskViewModel @Inject constructor(
     val globalRotateEnabled: LiveData<Boolean> get() = settings.globalRotateEnabled
     val allowEditEnabled:    LiveData<Boolean> get() = settings.allowEditEnabled
     val autoScrollEnabled:   LiveData<Boolean> get() = settings.autoScrollEnabled
-    val autoMode:            LiveData<Boolean> get() = settings.autoMode
 
     // ── Toggle methods ────────────────────────────────────────────────────────
     fun toggleGroupsEnabled()  = settings.toggleGroupsEnabled()
@@ -419,15 +419,15 @@ class TaskViewModel @Inject constructor(
     fun toggleAllowEdit()      = settings.toggleAllowEdit()
     fun toggleAutoScroll()     = settings.toggleAutoScroll()
 
-    fun toggleAutoMode() {
-        _toastMessage.value = settings.toggleAutoMode()
-    }
+    /** Hold gesture on the Next/Auto button — flips which label is armed. */
+    fun toggleNextButtonMode() = settings.toggleNextButtonMode()
 
-    fun consumePendingAutoStart(): Boolean {
-        val v = pendingAutoStart
-        pendingAutoStart = false
-        return v
-    }
+    /**
+     * "Auto" tap. See [SchedulerDelegate.triggerAutoJump] for the actual
+     * group-locked selection — this is a one-shot manual jump, never
+     * triggered automatically by anything.
+     */
+    fun triggerAutoJump(onQueueTab: Boolean = false) = scheduler.triggerAutoJump(onQueueTab)
 
     fun saveTab(tab: Int)   = settings.saveTab(tab)
     fun getSavedTab(): Int  = settings.getSavedTab()
