@@ -81,16 +81,25 @@ internal fun applyPillColor(tv: TextView, context: android.content.Context, @and
 
 /**
  * Adjusts the gap between the task-progress bar and the quota bar based on
- * [cardHeightScale] and whether both bars are currently visible.
+ * the live [com.eevdf.feature.ui.LayoutTokenPrefs] margin scale and whether
+ * both bars are currently visible.
+ *
+ * Found and fixed while wiring the main task list onto the real design-token
+ * system: this function read `TaskAdapter.cardHeightScale`, a property
+ * removed in that same change — a fourth independent scale-to-dp table that
+ * existed alongside the three [com.eevdf.feature.ui.DesignTokens]'s own class
+ * doc already describes consolidating, undiscovered until this specific
+ * function stopped compiling. [com.eevdf.feature.ui.DesignTokens.rowGapDp]
+ * (tighter, both bars visible) and [com.eevdf.feature.ui.DesignTokens.buttonRowGapDp]
+ * (looser, single bar) are the closest existing token concepts — reused
+ * rather than adding a fifth table, per this file's own "numbers may shift
+ * to fit the shared scale" precedent.
  */
 internal fun TaskAdapter.setQuotaBarTopMargin(holder: TaskViewHolder, bothBarsVisible: Boolean) {
     val lp    = holder.progressQuota.layoutParams as? LinearLayout.LayoutParams ?: return
     val density = holder.progressQuota.context.resources.displayMetrics.density
-    val gapDp = if (bothBarsVisible) {
-        when (cardHeightScale) { 5 -> 3f; 4 -> 2f; 3 -> 2f; 2 -> 1f; else -> 1f }
-    } else {
-        when (cardHeightScale) { 5 -> 8f; 4 -> 6f; 3 -> 5f; 2 -> 3f; else -> 2f }
-    }
+    val tokens = com.eevdf.feature.ui.LayoutTokenPrefs.current(holder.progressQuota.context)
+    val gapDp = if (bothBarsVisible) tokens.rowGapDp else tokens.buttonRowGapDp
     lp.topMargin = (gapDp * density + 0.5f).toInt()
     holder.progressQuota.layoutParams = lp
 }

@@ -206,57 +206,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ══ CARD HEIGHT ══════════════════════════════════════════════ -->
-            <View style="@style/App.Divider.Section" />
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-
-                <LinearLayout style="@style/App.SettingsCard.Body">
-
-                    <LinearLayout style="@style/App.ValueRow">
-                        <TextView style="@style/App.ValueRow.Label"
-                            android:layout_width="@dimen/app_label_slot_md"
-                            android:layout_weight="0"
-                            android:text="Card Height" />
-                        <TextView
-                            android:id="@+id/tvCardHeightValue"
-                            style="@style/App.ValueRow.Value"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:text="5 (Default)" />
-                    </LinearLayout>
-
-                    <TextView style="@style/App.SwitchRow.Description"
-                        android:text="Adjusts card padding. Font size unchanged."
-                        android:layout_marginTop="@dimen/app_spacing_cs"
-                        android:layout_marginBottom="@dimen/app_spacing_md" />
-
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderCardHeight"
-                        style="@style/App.Slider"
-                        android:layout_marginTop="0dp"
-                        android:valueFrom="1"
-                        android:valueTo="5"
-                        android:stepSize="1"
-                        android:value="5" />
-
-                    <LinearLayout style="@style/App.Slider.CaptionRow">
-                        <TextView style="@style/App.Slider.CaptionStart"
-                            android:text="Compact" />
-                        <TextView style="@style/App.Slider.CaptionEnd"
-                            android:text="Default" />
-                    </LinearLayout>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
             <!-- ══ WINDOW CALIBRATE ═════════════════════════════════════════ -->
             <View style="@style/App.Divider.Section" />
 

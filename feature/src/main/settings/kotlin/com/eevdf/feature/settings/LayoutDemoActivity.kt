@@ -9,7 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
-import com.eevdf.feature.shared.prefs.DisplayPrefs
+import com.eevdf.feature.ui.DesignTokens
 import com.eevdf.feature.ui.DropdownCardView
 import com.eevdf.feature.ui.LayoutTokenPrefs
 import com.eevdf.feature.ui.ModelDiagramView
@@ -65,7 +65,7 @@ class LayoutDemoActivity : AppCompatActivity() {
         setContentView(R.layout.activity_layout_demo)
 
         savedTokens = SavedTokens(
-            padding = DisplayPrefs.getCardHeightScale(this),
+            padding = LayoutTokenPrefs.getPaddingScale(this),
             margin = LayoutTokenPrefs.getMarginScale(this),
             text = LayoutTokenPrefs.getTextScale(this),
             corner = LayoutTokenPrefs.getCornerRadiusScale(this),
@@ -136,7 +136,7 @@ class LayoutDemoActivity : AppCompatActivity() {
         // NOT PERMANENT" note. Always runs, even if the Activity is being
         // destroyed by a configuration change, not just Back — acceptable
         // here since this is a debug/demo screen, not a real settings page.
-        DisplayPrefs.setCardHeightScale(this, savedTokens.padding)
+        LayoutTokenPrefs.setPaddingScale(this, savedTokens.padding)
         LayoutTokenPrefs.setMarginScale(this, savedTokens.margin)
         LayoutTokenPrefs.setTextScale(this, savedTokens.text)
         LayoutTokenPrefs.setCornerRadiusScale(this, savedTokens.corner)
@@ -160,7 +160,7 @@ class LayoutDemoActivity : AppCompatActivity() {
         scaleContainer.addView(scaleSlider(
             label = "Padding scale",
             initial = savedTokens.padding,
-            onChange = { DisplayPrefs.setCardHeightScale(this, it) },
+            onChange = { LayoutTokenPrefs.setPaddingScale(this, it) },
         ))
         scaleContainer.addView(scaleSlider(
             label = "Margin scale",
@@ -168,14 +168,14 @@ class LayoutDemoActivity : AppCompatActivity() {
             onChange = { LayoutTokenPrefs.setMarginScale(this, it) },
         ))
         scaleContainer.addView(scaleSlider(
-            label = "Text scale",
-            initial = savedTokens.text,
-            onChange = { LayoutTokenPrefs.setTextScale(this, it) },
-        ))
-        scaleContainer.addView(scaleSlider(
             label = "Corner radius scale",
             initial = savedTokens.corner,
             onChange = { LayoutTokenPrefs.setCornerRadiusScale(this, it) },
+        ))
+        scaleContainer.addView(scaleSlider(
+            label = "Text scale",
+            initial = savedTokens.text,
+            onChange = { LayoutTokenPrefs.setTextScale(this, it) },
         ))
     }
 
@@ -185,8 +185,8 @@ class LayoutDemoActivity : AppCompatActivity() {
             label = label,
             value = initial.toString(),
             slider = ValueCardView.SliderConfig(
-                valueFrom = 1f, valueTo = 5f, stepSize = 1f, value = initial.toFloat(),
-                captionStart = "1 (smallest)", captionEnd = "5 (largest)",
+                valueFrom = 1f, valueTo = DesignTokens.SCALE_POINTS.toFloat(), stepSize = 1f, value = initial.toFloat(),
+                captionStart = "1 (smallest)", captionEnd = "${DesignTokens.SCALE_POINTS} (largest)",
             ),
         ).apply {
             slider = slider?.copy(

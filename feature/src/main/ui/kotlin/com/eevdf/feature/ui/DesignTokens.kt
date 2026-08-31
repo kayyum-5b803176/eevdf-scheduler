@@ -8,12 +8,18 @@ package com.eevdf.feature.ui
  * spacing need later picks an existing tier instead of inventing a sixth
  * arbitrary table — the exact problem this whole file exists to fix (see
  * class doc on [DesignTokens] for the three tables this replaced).
+ *
+ * 7 points, not 5 — widened so the default (position 4, the exact midpoint)
+ * has real room to move in both directions, not just up. The first 5
+ * positions are numerically identical to the original 5-point scale (4, 8,
+ * 12, 16, 20); two more were appended on the same 4dp grid, not inserted
+ * or renumbered, so nothing that already read a low position changed value.
  */
 public enum class SpacingStep(public val dp: Float) {
-    XS(4f), SM(8f), MD(12f), LG(16f), XL(20f);
+    XS(4f), SM(8f), MD(12f), LG(16f), XL(20f), XXL(24f), XXXL(28f);
 
     public companion object {
-        /** [scale] is 1..5 (this app's existing convention); index 0 = XS. */
+        /** [scale] is 1..7; index 0 = XS. */
         public fun at(scale: Int, tierOffset: Int = 0): SpacingStep {
             val index = (scale - 1 - tierOffset).coerceIn(0, entries.lastIndex)
             return entries[index]
@@ -26,10 +32,14 @@ public enum class SpacingStep(public val dp: Float) {
  * isn't a dp spacing value — a unitless multiplier on top of a view's own
  * base text size. Kept as its own small scale rather than folded into
  * [SpacingStep] because dp and "times the existing size" are different units;
- * a shared name (XS..XL) still makes both scales read the same way.
+ * a shared name still makes both scales read the same way.
+ *
+ * 7 points, 0.05 per step, centered exactly on 1.0x (position 4, unscaled) —
+ * same overall 0.85x-1.15x range as the original 5-point version, just
+ * divided into finer steps.
  */
 public enum class TextScaleStep(public val multiplier: Float) {
-    XS(0.85f), SM(0.925f), MD(1.0f), LG(1.075f), XL(1.15f);
+    XS(0.85f), SM(0.90f), MD(0.95f), MDD(1.00f), LG(1.05f), XL(1.10f), XXL(1.15f);
 
     public companion object {
         public fun at(scale: Int): TextScaleStep = entries[(scale - 1).coerceIn(0, entries.lastIndex)]
@@ -46,9 +56,12 @@ public enum class TextScaleStep(public val multiplier: Float) {
  * starts to feel like it's touching its neighbors or the screen edge
  * regardless of how small the user wants everything else. Still a clean 4dp
  * grid, same philosophy as [SpacingStep], just starting 6dp higher.
+ *
+ * 7 points: the first 5 (10/14/18/22/26) are numerically identical to the
+ * original 5-point version; two more appended on the same grid (30, 34).
  */
 public enum class MarginStep(public val dp: Float) {
-    XS(10f), SM(14f), MD(18f), LG(22f), XL(26f);
+    XS(10f), SM(14f), MD(18f), LG(22f), XL(26f), XXL(30f), XXXL(34f);
 
     public companion object {
         public fun at(scale: Int): MarginStep = entries[(scale - 1).coerceIn(0, entries.lastIndex)]
@@ -70,7 +83,7 @@ private object SpacingTier {
 }
 
 /**
- * The single source of truth for "given a 1-5 scale level, what's the actual
+ * The single source of truth for "given a 1-7 scale level, what's the actual
  * dp/sp value." Before this file, the same kind of scale-to-dimension mapping
  * existed independently in three places, already diverged from each other:
  *
@@ -83,19 +96,18 @@ private object SpacingTier {
  *     `NavCardView`/`DropdownCardView`/etc. card views, with no runtime
  *     scale-awareness at all.
  *
- * NOT a preserve-every-pixel migration. Every value below is now a position
- * on [SpacingStep] (see [SpacingTier]), which shifts several numbers away
- * from their old hand-tuned values — accepted deliberately in exchange for a
- * system where a future spacing need reuses an existing tier instead of a
- * sixth arbitrary table. Concretely, at the default/max scale (5): content
- * padding moves from CardScale.kt's original 14dp to 20dp; margins and gaps
- * shift by roughly similar amounts. This is a real, visible change to task
- * row spacing once a screen is wired onto this model (not yet — see the
- * phase note in ARCHITECTURE.md for what's actually wired today).
+ * NOT a preserve-every-pixel migration. Every value below is a position on
+ * [SpacingStep]/[MarginStep]/[TextScaleStep] (see [SpacingTier]), not its own
+ * independent number — a future spacing need reuses an existing tier instead
+ * of a new arbitrary table.
  *
- * Four independently-controllable scale dimensions, each 1 (smallest) to 5
- * (largest/default), matching the existing `DisplayPrefs` card-height-scale
- * convention users are already familiar with from Display settings:
+ * Widened from 5 to 7 scale points, default moved from the top of the range
+ * (5) to the exact midpoint (4): with only 5 points and a max default, the
+ * slider could only ever go down from what shipped, never up. 7 points with
+ * a midpoint default gives real room in both directions.
+ *
+ * Four independently-controllable scale dimensions, each 1 (smallest) to 7
+ * (largest), default 4 (the midpoint):
  *
  *   - [paddingScale]      inner content padding within a card/row
  *   - [marginScale]       outer margin around a card, applied symmetrically
@@ -113,10 +125,10 @@ public data class DesignTokens(
     public val cornerRadiusScale: Int,
 ) {
     init {
-        require(paddingScale in 1..5)      { "paddingScale must be 1..5, was $paddingScale" }
-        require(marginScale in 1..5)       { "marginScale must be 1..5, was $marginScale" }
-        require(textScale in 1..5)         { "textScale must be 1..5, was $textScale" }
-        require(cornerRadiusScale in 1..5) { "cornerRadiusScale must be 1..5, was $cornerRadiusScale" }
+        require(paddingScale in 1..7)      { "paddingScale must be 1..7, was $paddingScale" }
+        require(marginScale in 1..7)       { "marginScale must be 1..7, was $marginScale" }
+        require(textScale in 1..7)         { "textScale must be 1..7, was $textScale" }
+        require(cornerRadiusScale in 1..7) { "cornerRadiusScale must be 1..7, was $cornerRadiusScale" }
     }
 
     public val contentPaddingDp: Float get() = paddingDpFor(paddingScale)
@@ -128,27 +140,43 @@ public data class DesignTokens(
 
     public companion object {
 
-        /** Matches this model's own tiering, not any prior file's hardcoded
-         * numbers — see the class doc's "NOT a preserve-every-pixel migration"
-         * note. Adopting this model at these defaults is still a real,
-         * visible spacing change once a screen is wired onto it.
-         * cornerRadiusScale=4 is the one exception: checked against the
-         * actual card views while wiring them (Phase 3) — their existing
-         * `app_card_corner_radius` is 12dp, which is tier-1's value at
-         * scale 4, not scale 3 as originally assumed in Phase 1 without
-         * checking. Corrected here rather than left wrong. */
+        /**
+         * How many points every scale in this file has — 7 today. Derived
+         * from [SpacingStep]'s own entry count, not a separately-maintained
+         * literal: any UI control building a slider for one of these scales
+         * (see `LayoutDemoActivity`) should read this instead of hardcoding
+         * a number, so the slider can never silently drift out of sync with
+         * the model the way it already did once — the sliders shipped
+         * hardcoded to a 5-point range for a full phase after the model
+         * itself moved to 7 points, caught only when explicitly checked.
+         * [SpacingStep]/[MarginStep]/[TextScaleStep] are kept at the same
+         * entry count deliberately so this one constant is valid for all
+         * four scale dimensions, not just three of them.
+         */
+        public val SCALE_POINTS: Int = SpacingStep.entries.size
+
+        init {
+            check(MarginStep.entries.size == SCALE_POINTS && TextScaleStep.entries.size == SCALE_POINTS) {
+                "SpacingStep/MarginStep/TextScaleStep must all have the same " +
+                    "entry count — SCALE_POINTS assumes it, and so does any UI " +
+                    "control that reads it for a single shared slider range."
+            }
+        }
+
+        /** Position 4 of 7 — the exact midpoint — for every dimension. */
         public val DEFAULT: DesignTokens = DesignTokens(
-            paddingScale = 5,
-            marginScale = 5,
-            textScale = 3,
+            paddingScale = 4,
+            marginScale = 4,
+            textScale = 4,
             cornerRadiusScale = 4,
         )
 
-        // Every resolver below is a lookup into SpacingStep/TextScaleStep at a
-        // declared tier — none defines its own independent number. Exposed as
-        // public functions, not just DesignTokens properties, because existing
-        // call sites (DisplayScaleDelegate, CardScale.kt) work with a single
-        // scale Int today, not a full 4-dimension token set.
+        // Every resolver below is a lookup into SpacingStep/MarginStep/
+        // TextScaleStep at a declared tier — none defines its own independent
+        // number. Exposed as public functions, not just DesignTokens
+        // properties, because existing call sites (DisplayScaleDelegate,
+        // CardScale.kt) work with a single scale Int today, not a full
+        // 4-dimension token set.
 
         public fun paddingDpFor(scale: Int): Float =
             SpacingStep.at(scale, SpacingTier.PADDING).dp

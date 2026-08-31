@@ -13,7 +13,6 @@ import androidx.appcompat.widget.Toolbar
 import androidx.cardview.widget.CardView
 import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButtonToggleGroup
-import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.tabs.TabLayout
 import com.eevdf.feature.shared.prefs.DisplayPrefs
@@ -26,8 +25,7 @@ class DisplaySettingsActivity : AppCompatActivity() {
 
     private lateinit var darkModeToggleGroup: MaterialButtonToggleGroup
 
-    private lateinit var sliderCardHeight:   Slider
-    private lateinit var tvCardHeightValue:  TextView
+
     private lateinit var switchAutoAdjust:   SwitchMaterial
     private lateinit var switchSimpleMode:   SwitchMaterial
     private lateinit var switchUnitFormat:   SwitchMaterial
@@ -82,8 +80,6 @@ class DisplaySettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, ColorMatrixActivity::class.java))
         }
 
-        sliderCardHeight  = findViewById(R.id.sliderCardHeight)
-        tvCardHeightValue = findViewById(R.id.tvCardHeightValue)
         switchAutoAdjust  = findViewById(R.id.switchAutoAdjust)
         switchSimpleMode  = findViewById(R.id.switchSimpleMode)
         switchUnitFormat  = findViewById(R.id.switchUnitFormat)
@@ -121,9 +117,6 @@ class DisplaySettingsActivity : AppCompatActivity() {
         tvCalMiniDims     = findViewById(R.id.tvCalMiniDims)
 
         // ── Load saved prefs ──────────────────────────────────────────────────
-        val savedScale = DisplayPrefs.getCardHeightScale(this)
-        sliderCardHeight.value  = savedScale.toFloat()
-        updateScaleLabel(savedScale)
         switchAutoAdjust.isChecked = DisplayPrefs.isAutoAdjustEnabled(this)
         switchSimpleMode.isChecked = DisplayPrefs.isSimpleModeEnabled(this)
         switchUnitFormat.isChecked = DisplayPrefs.isUnitFormatEnabled(this)
@@ -132,13 +125,6 @@ class DisplaySettingsActivity : AppCompatActivity() {
         switchOverlayIntentLockOnly.isChecked = DisplayPrefs.isOverlayIntentLockOnly(this)
         refreshOverlayIntentAppsSummary()
         updateOverlayIntentRowState(switchOverlayIntent.isChecked)
-
-        // ── Card height slider ────────────────────────────────────────────────
-        sliderCardHeight.addOnChangeListener { _, value, _ ->
-            val scale = value.toInt()
-            updateScaleLabel(scale)
-            DisplayPrefs.setCardHeightScale(this, scale)
-        }
 
         // ── Switches ─────────────────────────────────────────────────────────
         switchAutoAdjust.setOnCheckedChangeListener { _, isChecked ->
@@ -262,12 +248,6 @@ class DisplaySettingsActivity : AppCompatActivity() {
         DisplayPrefs.CalibrateProfile.FLOAT  -> tvCalFloatDims
         DisplayPrefs.CalibrateProfile.NORMAL -> tvCalNormalDims
         DisplayPrefs.CalibrateProfile.MINI   -> tvCalMiniDims
-    }
-
-    private fun updateScaleLabel(scale: Int) {
-        tvCardHeightValue.text =
-            if (scale == DisplayPrefs.DEFAULT_CARD_HEIGHT_SCALE) "$scale (Default)"
-            else "$scale"
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

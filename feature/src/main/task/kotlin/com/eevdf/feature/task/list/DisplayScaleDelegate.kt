@@ -5,6 +5,7 @@ import android.widget.LinearLayout
 import com.eevdf.feature.shared.prefs.DisplayPrefs
 import com.eevdf.feature.shared.prefs.QuickActionPrefs
 import com.eevdf.feature.ui.DesignTokens
+import com.eevdf.feature.ui.LayoutTokenPrefs
 
 /**
  * Reads Display-settings prefs and card-scale/compact-mode/FAB-visibility rules,
@@ -19,8 +20,11 @@ import com.eevdf.feature.ui.DesignTokens
 internal class DisplayScaleDelegate(private val activity: MainActivity) {
 
     /**
-     * Reads card height scale and auto-adjust preference from [DisplayPrefs]
-     * and pushes them to all three adapters and the fixed timer / alarm cards.
+     * Reads padding scale (from [LayoutTokenPrefs], not [DisplayPrefs] — the
+     * old "Card Height" preference was consolidated into the layout-token
+     * system, one padding scale instead of two that happened to agree) and
+     * auto-adjust preference, pushing them to all three adapters and the
+     * fixed timer / alarm cards.
      *
      * Called on `onResume` so changes made in DisplaySettingsActivity are picked
      * up immediately when the user navigates back.
@@ -35,7 +39,7 @@ internal class DisplayScaleDelegate(private val activity: MainActivity) {
      * restored so normal-mode list updates keep their default feel.
      */
     fun applyDisplayPrefs() {
-        val scale      = DisplayPrefs.getCardHeightScale(activity)
+        val scale      = LayoutTokenPrefs.getPaddingScale(activity)
         val autoAdj    = DisplayPrefs.isAutoAdjustEnabled(activity)
         val simpleMode = DisplayPrefs.isSimpleModeEnabled(activity)
         val unitFormat = DisplayPrefs.isUnitFormatEnabled(activity)
@@ -89,9 +93,9 @@ internal class DisplayScaleDelegate(private val activity: MainActivity) {
 
         activity.isCompactModeActive = shouldBeCompact
 
-        activity.activeAdapter.setDisplayPrefs(scale, shouldBeCompact)
-        activity.scheduleAdapter.setDisplayPrefs(scale, shouldBeCompact)
-        activity.completedAdapter.setDisplayPrefs(scale, shouldBeCompact)
+        activity.activeAdapter.setCompactMode(shouldBeCompact)
+        activity.scheduleAdapter.setCompactMode(shouldBeCompact)
+        activity.completedAdapter.setCompactMode(shouldBeCompact)
 
         // ── Float-mode banner hiding ──────────────────────────────────────────
         // When the window matches the FLOAT calibration profile, hide:
@@ -119,11 +123,6 @@ internal class DisplayScaleDelegate(private val activity: MainActivity) {
         applyCardScaleToView(activity.layoutAlarmContent, scale, density)
     }
 
-    /**
-     * Scales the padding of a card content [LinearLayout] to match [scale].
-     * The same scale table used in `TaskAdapter.applyCardScale` — keeps all
-     * card types visually consistent.
-     */
     /**
      * Scales the padding of a card content [LinearLayout] to match [scale].
      * Delegates to [DesignTokens.paddingDpFor] — the canonical table, shared

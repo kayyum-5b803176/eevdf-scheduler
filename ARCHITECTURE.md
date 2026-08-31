@@ -1333,3 +1333,81 @@ one page's own container padding) were touched. `fragment_stats_overview.xml`
 and every other screen still using `App.PageContent`'s original static
 padding are unaffected — confirmed by not touching that shared style at
 all.
+
+### Phase 9 — done (v5.33.0): one padding scale, the main task list genuinely wired to the real system
+
+The biggest scope expansion of the UI-unification work so far, done in stages
+with confirmation at each turn rather than assumed: the token system now
+controls the actual, primary, most-viewed screen in the app — the main task
+list — not just the Layout demo page's own preview.
+
+**Widened from 5 to 7 scale points, default moved to the midpoint.** With
+only 5 points and a max default, every slider could only ever move down from
+what shipped, never up. `SpacingStep`/`MarginStep`/`TextScaleStep` each grew
+two more entries on the same 4dp grid (the first 5 positions in each are
+numerically identical to before — nothing that already read a low position
+changed value), and `DesignTokens.DEFAULT` moved from position 5 (the top)
+to position 4 (the exact midpoint) for all four dimensions.
+
+**One padding scale, not two that happened to agree.** `paddingScale` used
+to delegate to `DisplayPrefs.getCardHeightScale` — the pre-existing "Card
+Height" slider on Display Settings, kept in sync deliberately since Phase 1.
+That slider is now deleted entirely (XML section, Kotlin wiring, the
+underlying `DisplayPrefs` functions and keys — all removed, not just hidden)
+and `paddingScale` became its own preference in `LayoutTokenPrefs`, the same
+way margin/text/corner-radius already were. One control, one owner, instead
+of two independently-adjustable UI surfaces for what was supposed to be the
+same value.
+
+**The main task list wired to the real token system — the actual point of
+this phase.** `CardScale.applyCardScale` used to take a single shared
+`scale: Int` for padding, margin, row-gap, and button-gap all at once — a
+shape that couldn't represent padding and margin moving independently, which
+they now do (four separately-adjustable sliders, not one shared value). It
+now reads `LayoutTokenPrefs.current(context)` directly, the same live source
+`CardDensity` (the four shared card-view components) and `DisplayScaleDelegate`
+(the timer/alarm cards) already read — using `contentPaddingDp` and
+`outerMarginDp` independently. `TaskAdapter.cardHeightScale` (the old
+adapter-tracked scale property) is gone; `setDisplayPrefs(scale, compact)`
+is now `setCompactMode(compact)`.
+
+**A fourth independent scale table, found only because it stopped
+compiling.** `BindHelpers.kt`'s `setQuotaBarTopMargin` read
+`TaskAdapter.cardHeightScale` for its own, entirely separate quota-bar-gap
+lookup table — a fourth instance of the exact duplication `DesignTokens`
+was built to consolidate (see Phase 1's class doc for the first three),
+undiscovered until removing `cardHeightScale` broke it. Fixed by reusing
+`rowGapDp`/`buttonRowGapDp` instead of adding a fifth table.
+
+**Sliders derive their range from the model, not a hardcoded literal —
+after finding they'd already drifted.** The four sliders shipped with
+`valueTo = 5f` hardcoded, unchanged through the entire 7-point redesign
+earlier in this same phase — caught only by explicitly checking, not
+automatically. Added `DesignTokens.SCALE_POINTS` (`SpacingStep.entries.size`,
+with a runtime check that `MarginStep`/`TextScaleStep` stay at the same
+count) as the one place this number lives now; `LayoutDemoActivity`'s
+sliders read it instead of repeating "7" a second time.
+
+**The Room-backed persistence path was drafted, then explicitly paused.**
+A `LayoutTokenEntity`/`LayoutTokenDao` side table (matching the
+`TaskLoadFactor` side-table convention, with an in-memory-cache bridge for
+synchronous access from View `init{}` blocks, and an explicit race guard for
+a setter firing mid-load — the same class of bug fixed in
+`TaskRepository.updateVruntimeAfterRun` earlier this session) was fully
+designed and written, then put on hold in favor of persistent
+SharedPreferences for now. The design is preserved here rather than
+discarded: if Room-backed persistence is revisited, this is the shape to
+pick back up, not a fresh one.
+
+**Text-scale slider reordered**, not removed — now appears after Corner
+Radius rather than before it, per explicit instruction; the slider and the
+underlying `textScale` dimension are otherwise untouched.
+
+**Known gap, explicitly not addressed in this phase:** Phase 8's "halve the
+margin so adjacent gaps sum to the target instead of doubling" fix was
+scoped to the four shared card-view components only. The main task list's
+`CardScale.kt` now reads live margin tokens but still applies the *full*
+value symmetrically per card — the same double-counted-gap problem Phase 8
+fixed elsewhere still exists here, now wired to a live value instead of a
+static one. Flagged, not silently left unfixed or silently fixed without
+being asked.

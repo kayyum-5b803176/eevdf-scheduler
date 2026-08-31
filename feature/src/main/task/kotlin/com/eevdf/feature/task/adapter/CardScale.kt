@@ -3,7 +3,7 @@ package com.eevdf.feature.task.adapter
 import android.view.View
 import android.widget.LinearLayout
 import androidx.recyclerview.widget.RecyclerView
-import com.eevdf.feature.ui.DesignTokens
+import com.eevdf.feature.ui.LayoutTokenPrefs
 
 /**
  * UI-customization layout helpers for [TaskAdapter].
@@ -16,27 +16,34 @@ import com.eevdf.feature.ui.DesignTokens
  */
 
 /**
- * Scales the card's inner padding, outer margins, and row spacing based on
- * [scale] (1 = most compact, 5 = default). Font sizes are never changed by
- * this function specifically — text scale is a separate [DesignTokens]
+ * Scales the card's inner padding, outer margins, and row spacing to match
+ * the live [LayoutTokenPrefs] settings. Font sizes are never changed by this
+ * function specifically — text scale is a separate [com.eevdf.feature.ui.DesignTokens]
  * dimension, applied elsewhere once wired in.
  *
- * Every dp value below comes from [DesignTokens] — this function used to
- * carry its own independent 6-value table, one of three that existed
- * independently before [DesignTokens] consolidated them (see its class doc).
- * `cardTopDp`/`cardBottomDp` used to be two different values (a deliberate
- * asymmetry — more space above a card than below it); margin is now one
- * symmetric [DesignTokens.marginDpFor] value applied to both, matching every
- * other consumer of outer margin in this design system. `progressTopDp`
- * reuses the same value directly: the original table's numbers for
- * progress-bar top margin and card top margin were already numerically
- * identical, so this was never two things, just two names for one value.
+ * Reads [LayoutTokenPrefs.current] directly — the same live token source
+ * `CardDensity` (the shared card-view components) and `DisplayScaleDelegate`
+ * (the timer/alarm cards) already read — rather than taking a single shared
+ * `scale: Int` parameter the way this function used to. That old shape
+ * couldn't represent padding and margin moving independently, which they now
+ * do (four separately-adjustable sliders, not one). This is the main task
+ * list — the primary, most-viewed screen in the app — genuinely wired onto
+ * the same design-token system the Layout demo page's "scale" tab controls,
+ * not a separate isolated preview of it.
+ *
+ * `cardTopDp`/`cardBottomDp` are one symmetric [com.eevdf.feature.ui.DesignTokens.outerMarginDp]
+ * value applied to both — not two independently-tuned numbers. `progressTopDp`
+ * reuses the same margin value directly: the original hand-tuned table's
+ * numbers for progress-bar top margin and card top margin were already
+ * numerically identical, so this was never two things, just two names for
+ * one value.
  */
-internal fun applyCardScale(holder: TaskViewHolder, scale: Int, density: Float) {
-    val contentPaddingDp = DesignTokens.paddingDpFor(scale)
-    val cardMarginDp     = DesignTokens.marginDpFor(scale)
-    val rowGapDp         = DesignTokens.rowGapDpFor(scale)
-    val btnGapDp         = DesignTokens.buttonRowGapDpFor(scale)
+internal fun applyCardScale(holder: TaskViewHolder, density: Float) {
+    val tokens = LayoutTokenPrefs.current(holder.itemView.context)
+    val contentPaddingDp = tokens.contentPaddingDp
+    val cardMarginDp     = tokens.outerMarginDp
+    val rowGapDp         = tokens.rowGapDp
+    val btnGapDp         = tokens.buttonRowGapDp
 
     val px = { dp: Float -> (dp * density + 0.5f).toInt() }
 

@@ -59,10 +59,6 @@ class TaskAdapter(
     internal val persistedPhaseByTask = mutableMapOf<String, NoticePhase>()
 
     // ── UI Customization state ────────────────────────────────────────────────
-    /** Card height scale: 1 (smallest / most compact) … 5 (default full size). */
-    var cardHeightScale: Int = 5
-        internal set
-
     /**
      * When true, hides non-essential EEVDF stats (VRT, VDL, RS, Runs, TRT) to
      * save space in floating / PiP window mode.
@@ -95,12 +91,16 @@ class TaskAdapter(
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Apply a new display configuration and trigger a full rebind so all visible
-     * items reflect the updated scale and compact mode immediately.
+     * Apply a new compact-mode configuration and trigger a full rebind so all
+     * visible items reflect it immediately. Padding/margin scale is no longer
+     * adapter-tracked state — CardScale.applyCardScale reads the live
+     * LayoutTokenPrefs directly at bind time, the same way the shared card-view
+     * components (CardDensity) and the timer/alarm cards (DisplayScaleDelegate)
+     * already do, so a single shared "scale" int here can't represent padding
+     * and margin moving independently, which they now do.
      */
-    fun setDisplayPrefs(scale: Int, compact: Boolean) {
-        val changed = scale != cardHeightScale || compact != hideNonEssentialStats
-        cardHeightScale       = scale.coerceIn(1, 5)
+    fun setCompactMode(compact: Boolean) {
+        val changed = compact != hideNonEssentialStats
         hideNonEssentialStats = compact
         if (changed) notifyDataSetChanged()
     }
@@ -242,7 +242,7 @@ class TaskAdapter(
         holder.itemView.layoutParams = params
 
         // ── UI Customization: card height scale ───────────────────────────────
-        applyCardScale(holder, cardHeightScale, density)
+        applyCardScale(holder, density)
 
         // ── Common fields ──────────────────────────────────────────────────────
         holder.tvName.text     = task.name
