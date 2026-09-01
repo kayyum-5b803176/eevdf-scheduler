@@ -34,6 +34,7 @@ import android.content.Intent
 public object AppRoutes {
 
     public const val MAIN: String        = "com.eevdf.feature.task.list.MainActivity"
+    public const val ADD_TASK: String    = "com.eevdf.feature.task.addtask.AddTaskActivity"
     public const val STATS: String       = "com.eevdf.feature.stats.StatsActivity"
     public const val SETTINGS: String    = "com.eevdf.feature.settings.SettingsActivity"
     public const val BACKUP: String      = "com.eevdf.feature.backup.DataBackupActivity"
@@ -41,7 +42,7 @@ public object AppRoutes {
     public const val SYNC: String        = "com.eevdf.feature.sync.MultiUserSyncActivity"
 
     /** Every route, for the resolution test. Keep in step with the constants. */
-    public val ALL_ROUTES: List<String> = listOf(MAIN, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC)
+    public val ALL_ROUTES: List<String> = listOf(MAIN, ADD_TASK, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC)
 
     /**
      * Builds an explicit Intent for [className] within this application.
@@ -53,6 +54,7 @@ public object AppRoutes {
         Intent().setClassName(context.packageName, className)
 
     public fun main(context: Context): Intent = intent(context, MAIN)
+    public fun addTask(context: Context): Intent = intent(context, ADD_TASK)
     public fun stats(context: Context): Intent = intent(context, STATS)
     public fun settings(context: Context): Intent = intent(context, SETTINGS)
     public fun backup(context: Context): Intent = intent(context, BACKUP)

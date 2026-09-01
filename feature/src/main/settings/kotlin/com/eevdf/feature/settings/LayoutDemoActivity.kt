@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
+import com.eevdf.contract.nav.AppRoutes
 import com.eevdf.feature.R
 import com.eevdf.feature.ui.DesignTokens
 import com.eevdf.feature.ui.DropdownCardView
@@ -248,6 +249,21 @@ class LayoutDemoActivity : AppCompatActivity() {
             "construction API real settings pages use, rendered at whatever scale " +
             "the \"scale\" tab is currently set to."
         )
+
+        addLabel(demoContainer, "Jump to a real screen")
+        demoContainer.addView(NavCardView.create(
+            this, title = "Main task list",
+            onNavigate = { startActivity(AppRoutes.main(this)) },
+        ))
+        demoContainer.addView(NavCardView.create(
+            this, title = "Add / edit task",
+            onNavigate = { startActivity(AppRoutes.addTask(this)) },
+        ))
+        demoContainer.addView(NavCardView.create(
+            this, title = "Statistics",
+            onNavigate = { startActivity(AppRoutes.stats(this)) },
+        ))
+        addDivider(demoContainer)
 
         addLabel(demoContainer, "NavCard — (0)")
         demoContainer.addView(NavCardView.create(this, title = "demo title"))

@@ -1523,3 +1523,47 @@ dedicated scale added earlier (see the padding-improvement discussion) was
 accidentally dropped from the `SCALE_POINTS` entry-count consistency check
 partway through this phase's edits — restored before shipping, not left as
 a silent gap in validation.
+
+### Phase 11 — done (v5.35.0): jump-to-screen buttons, and a real feature-isolation conflict found and resolved by changing approach
+
+**What was originally asked:** a full replica of the real task card (with the
+quota progress bar) added to the Layout demo page's template tab, matching
+this page's own stated philosophy of using genuinely real production
+components rather than approximations.
+
+**What was found instead:** doing that faithfully would mean embedding the
+real `TaskAdapter`/`TaskViewHolder` (owned by the `task` subfeature) inside
+`LayoutDemoActivity` (owned by `settings`) — a new `settings -> task` cross-
+feature edge. `feature_import_allowlist.txt` currently has exactly one
+allowlisted edge (`backup -> task`), and its own header is explicit: "never
+add one to make a build go green." Presented this conflict rather than
+picking a side unilaterally — three real options (allowlist a new edge,
+move the page into `task`, or build an approximation instead of the real
+component), each trading off something already cared about elsewhere in
+this work (isolation discipline vs. production fidelity).
+
+**Resolution: dropped the replica-card request, replaced with something
+that achieves the same underlying goal without the conflict.** Rather than
+show what a real task card *looks like* inside the demo page, jump directly
+to the *actual* real screen. Three `NavCardView` instances added to the top
+of the "template" tab — "Main task list," "Add / edit task," "Statistics" —
+each navigating via `AppRoutes`, the same string-based, allowlist-free
+mechanism every other cross-screen navigation in this app already uses.
+Zero new cross-feature coupling: `AppRoutes` lives in `:contract`, not in
+any feature, and `com.eevdf.contract.*` imports were never subject to the
+feature-isolation check in the first place — confirmed by precedent
+(`DisplayScaleDelegate`/`MenuSyncDelegate` in the `task` subfeature already
+import it today with no allowlist entry).
+
+**One real gap found and closed along the way:** `AppRoutes` had no route
+for `AddTaskActivity` at all — every real "Add Task" launch in the app used
+a direct `Intent(this, AddTaskActivity::class.java)` constructor instead,
+bypassing the whole point of `AppRoutes` (this exact class's own doc
+comment explains why: a direct class reference is the compile-time
+dependency that blocks a feature from ever becoming its own Gradle module).
+Added `ADD_TASK` as a proper constant + `Intent` factory, following the
+class's own documented "add a constant, add a factory, add it to
+ALL_ROUTES" pattern exactly. `AppRoutesTest` — which resolves every entry in
+`ALL_ROUTES` via `Class.forName` and separately checks for a declared
+constant that was never added to that list — validates the new route
+automatically, with zero changes to the test itself needed.
