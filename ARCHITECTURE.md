@@ -1471,3 +1471,55 @@ touches the card's own padding/margin/corner radius, never the `Slider`
 widget or its active touch state. `LayoutDemoActivity` now keeps references
 to its four slider instances and refreshes all of them on every change,
 alongside the existing demo-card rebuild.
+
+### Phase 10 — done (v5.34.0): dedicated row-gap and column-gap scales, purely internal
+
+Investigated before building anything: why couldn't the new token system
+reach the same "everything touching" look the old card-height slider could
+at its smallest setting, even though padding matched at 4dp on both? Traced
+to two different floors, one intentional and one accidental — row gap was
+still deriving from `MarginStep` (shared with the outer-margin slider),
+which has a deliberate 10dp floor from an earlier explicit requirement.
+Internal row spacing was never supposed to share that floor; it just did,
+as a side effect of not having had its own scale yet.
+
+**Two new dedicated scales, both explicitly internal-only — confirmed with
+the user before implementing, since this must never touch a card's own
+outer margin or edge padding.** `RowGapStep` (vertical gap between stacked
+rows within one card — title row to stats row, stats row to the action-
+button row) and `ColumnGapStep` (horizontal gap between items placed side
+by side within one row) — both 0-based, 0/1/2/3/4/6/8dp, scale 1 truly 0dp,
+matching what the old pre-token-system card could reach. `DesignTokens`
+grew from 4 fields to 6; `SpacingTier.ROW_GAP`/`BUTTON_ROW_GAP` (the old
+`SpacingStep` tiers row gap used to derive from) removed, since row gap now
+has its own scale rather than borrowing margin's.
+
+**Column gap is a genuinely new capability, not a fix** — found while
+tracing the button row's XML: the action buttons (Revert/ResetSlice/
+GroupToggle/Run/Complete/Delete) had *no spacing mechanism between them at
+all* before this phase, at any scale. `CardScale.applyColumnGap` is new,
+applying gap only between currently-VISIBLE buttons (which vary by task
+state) — the first visible button gets no leading margin, since this is a
+gap *between* buttons, not a gap before every button including the first.
+
+**A real sequencing bug caught before shipping, not after:** `applyCardScale`
+runs before button visibility is set for the current bind (a leftover
+ViewHolder recycling detail — visibility reflects whatever task this holder
+previously showed until the bind logic updates it). Computing "which
+buttons are visible" inside `applyCardScale` would have read stale
+visibility. Fixed by keeping `applyColumnGap` as its own function, called
+separately, explicitly after the visibility-setting block finishes for that
+bind — confirmed by checking `TaskAdapter.kt`'s actual bind order before
+writing the function, not assumed.
+
+Two sliders added to the "scale" tab: "Row gap scale" and "Column gap
+scale", after "Text scale". `DesignTokens.DEFAULT`/`SCALE_POINTS`'s
+consistency check, and every existing `DesignTokens(...)` constructor call
+site (`CardDensity.COMPACT_OVERRIDE`, `LayoutTokenPrefs.current`) updated
+for the two new required fields.
+
+**A mistake caught and fixed within the same phase**: the `PaddingStep`
+dedicated scale added earlier (see the padding-improvement discussion) was
+accidentally dropped from the `SCALE_POINTS` entry-count consistency check
+partway through this phase's edits — restored before shipping, not left as
+a silent gap in validation.

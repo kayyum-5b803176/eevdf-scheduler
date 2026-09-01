@@ -54,9 +54,10 @@ class LayoutDemoActivity : AppCompatActivity() {
     private lateinit var modelContainer: LinearLayout
     private lateinit var modelDiagram: ModelDiagramView
 
-    /** Seeds the four sliders' starting positions on open — not restored on exit, see class doc. */
+    /** Seeds the six sliders' starting positions on open — not restored on exit, see class doc. */
     private data class InitialTokens(
-        val padding: Int, val margin: Int, val text: Int, val corner: Int
+        val padding: Int, val margin: Int, val text: Int, val corner: Int,
+        val rowGap: Int, val columnGap: Int,
     )
     private lateinit var initialTokens: InitialTokens
 
@@ -69,6 +70,8 @@ class LayoutDemoActivity : AppCompatActivity() {
             margin = LayoutTokenPrefs.getMarginScale(this),
             text = LayoutTokenPrefs.getTextScale(this),
             corner = LayoutTokenPrefs.getCornerRadiusScale(this),
+            rowGap = LayoutTokenPrefs.getRowGapScale(this),
+            columnGap = LayoutTokenPrefs.getColumnGapScale(this),
         )
 
         val toolbar = findViewById<Toolbar>(R.id.layoutDemoToolbar)
@@ -169,6 +172,16 @@ class LayoutDemoActivity : AppCompatActivity() {
             label = "Text scale",
             initial = initialTokens.text,
             onChange = { LayoutTokenPrefs.setTextScale(this, it) },
+        )
+        scaleSliderViews += scaleSlider(
+            label = "Row gap scale",
+            initial = initialTokens.rowGap,
+            onChange = { LayoutTokenPrefs.setRowGapScale(this, it) },
+        )
+        scaleSliderViews += scaleSlider(
+            label = "Column gap scale",
+            initial = initialTokens.columnGap,
+            onChange = { LayoutTokenPrefs.setColumnGapScale(this, it) },
         )
         scaleSliderViews.forEach { scaleContainer.addView(it) }
     }

@@ -89,6 +89,43 @@ internal fun applyCardScale(holder: TaskViewHolder, density: Float) {
 }
 
 /**
+ * Applies horizontal gap between the action-row buttons that are currently
+ * VISIBLE (Revert/ResetSlice/GroupToggle/Run/Complete/Delete — which of
+ * these are visible varies by task state). A genuinely new capability, not
+ * a fix: these buttons previously had no spacing mechanism between them at
+ * all in `item_task.xml`.
+ *
+ * Called SEPARATELY from [applyCardScale], and specifically AFTER button
+ * visibility is finalized for this bind — `applyCardScale` runs earlier in
+ * the bind sequence, before visibility is set for the current task, so
+ * computing "which buttons are visible" there would read stale visibility
+ * left over from whatever task this recycled ViewHolder held previously.
+ *
+ * The first VISIBLE button in the row gets no leading margin — this is a
+ * gap BETWEEN buttons, not a gap before every button including the first.
+ */
+internal fun applyColumnGap(holder: TaskViewHolder, density: Float) {
+    val tokens = LayoutTokenPrefs.current(holder.itemView.context)
+    val gapPx = (tokens.columnGapDp * density + 0.5f).toInt()
+
+    val buttonsInOrder = listOf(
+        holder.btnRevert, holder.btnResetSlice, holder.btnGroupToggle,
+        holder.btnRun, holder.btnComplete, holder.btnDelete,
+    )
+    var seenFirstVisible = false
+    for (button in buttonsInOrder) {
+        val lp = button.layoutParams as? LinearLayout.LayoutParams ?: continue
+        if (button.visibility == View.VISIBLE) {
+            lp.marginStart = if (seenFirstVisible) gapPx else 0
+            seenFirstVisible = true
+        } else {
+            lp.marginStart = 0
+        }
+        button.layoutParams = lp
+    }
+}
+
+/**
  * Hides (or restores) the stat rows when [compact] is true (window calibrate /
  * floating mode active).
  *

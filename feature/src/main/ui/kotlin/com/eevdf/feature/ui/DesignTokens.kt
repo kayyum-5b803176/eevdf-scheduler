@@ -28,6 +28,69 @@ public enum class SpacingStep(public val dp: Float) {
 }
 
 /**
+ * The inner-padding scale — content padding within a card/row.
+ *
+ * Its own dedicated scale, not a tier on [SpacingStep], for the opposite
+ * reason [MarginStep] needed one: margin has a floor nothing else shares;
+ * padding needs to reach all the way down to Android's actual minimum (0dp),
+ * which [SpacingStep]'s 4dp-grid floor (4dp at position 1) can't represent,
+ * and [SpacingStep] is shared with corner-radius and row-gap — changing its
+ * values to accommodate padding's own need would have moved those two as
+ * well, for no reason of their own.
+ *
+ * Position 7 (16dp) intentionally matches what position 4 resolved to on the
+ * old shared-[SpacingStep] padding tier — this is the point the whole scale
+ * was re-anchored around: "the value today's midpoint used to be" becomes
+ * the new maximum, freeing up six finer steps below it down to 0, instead of
+ * the old scale's minimum floor being a full 4dp above true zero.
+ */
+public enum class PaddingStep(public val dp: Float) {
+    P0(0f), P2(2f), P4(4f), P6(6f), P9(9f), P12(12f), P16(16f);
+
+    public companion object {
+        public fun at(scale: Int): PaddingStep = entries[(scale - 1).coerceIn(0, entries.lastIndex)]
+    }
+}
+
+/**
+ * Vertical gap between stacked rows *within* one card (title row to stats
+ * row, stats row to the action-button row, etc.) — purely internal spacing,
+ * never touching the card's own outer margin or edge padding.
+ *
+ * Its own dedicated scale, not derived from [MarginStep]: row gap used to
+ * share [MarginStep]'s value (both driven by the same `marginScale`), which
+ * meant it inherited margin's 10dp floor — appropriate for margin (a
+ * deliberate, requested requirement), wrong for an internal gap that should
+ * be able to reach true 0dp, collapsing rows flush against each other at the
+ * tightest setting, the same way the old pre-token-system card could.
+ */
+public enum class RowGapStep(public val dp: Float) {
+    G0(0f), G1(1f), G2(2f), G3(3f), G4(4f), G6(6f), G8(8f);
+
+    public companion object {
+        public fun at(scale: Int): RowGapStep = entries[(scale - 1).coerceIn(0, entries.lastIndex)]
+    }
+}
+
+/**
+ * Horizontal gap between items placed side by side *within* one row — e.g.
+ * the action-button row's icons (Revert/Reset/GroupToggle/Run/Complete/
+ * Delete), which previously had no spacing mechanism between them at all.
+ * Same shape and range as [RowGapStep] (0 to 8dp), kept as its own scale
+ * rather than reusing [RowGapStep] directly since horizontal and vertical
+ * internal spacing are conceptually different roles that happen to want the
+ * same range today — a future case where they should diverge doesn't need a
+ * migration.
+ */
+public enum class ColumnGapStep(public val dp: Float) {
+    G0(0f), G1(1f), G2(2f), G3(3f), G4(4f), G6(6f), G8(8f);
+
+    public companion object {
+        public fun at(scale: Int): ColumnGapStep = entries[(scale - 1).coerceIn(0, entries.lastIndex)]
+    }
+}
+
+/**
  * Same naming convention as [SpacingStep], for the one token dimension that
  * isn't a dp spacing value — a unitless multiplier on top of a view's own
  * base text size. Kept as its own small scale rather than folded into
@@ -76,10 +139,7 @@ public enum class MarginStep(public val dp: Float) {
  * once, not re-derived at each call site.
  */
 private object SpacingTier {
-    const val PADDING = 0          // the most generous spacing in a card
     const val CORNER_RADIUS = 1
-    const val BUTTON_ROW_GAP = 1
-    const val ROW_GAP = 3          // the tightest — space within one card
 }
 
 /**
@@ -97,9 +157,9 @@ private object SpacingTier {
  *     scale-awareness at all.
  *
  * NOT a preserve-every-pixel migration. Every value below is a position on
- * [SpacingStep]/[MarginStep]/[TextScaleStep] (see [SpacingTier]), not its own
- * independent number — a future spacing need reuses an existing tier instead
- * of a new arbitrary table.
+ * [PaddingStep]/[SpacingStep]/[MarginStep]/[TextScaleStep] (see [SpacingTier]
+ * for the shared ones), not its own independent number — a future spacing
+ * need reuses an existing tier instead of a new arbitrary table.
  *
  * Widened from 5 to 7 scale points, default moved from the top of the range
  * (5) to the exact midpoint (4): with only 5 points and a max default, the
@@ -123,18 +183,23 @@ public data class DesignTokens(
     public val marginScale: Int,
     public val textScale: Int,
     public val cornerRadiusScale: Int,
+    public val rowGapScale: Int,
+    public val columnGapScale: Int,
 ) {
     init {
         require(paddingScale in 1..7)      { "paddingScale must be 1..7, was $paddingScale" }
         require(marginScale in 1..7)       { "marginScale must be 1..7, was $marginScale" }
         require(textScale in 1..7)         { "textScale must be 1..7, was $textScale" }
         require(cornerRadiusScale in 1..7) { "cornerRadiusScale must be 1..7, was $cornerRadiusScale" }
+        require(rowGapScale in 1..7)       { "rowGapScale must be 1..7, was $rowGapScale" }
+        require(columnGapScale in 1..7)    { "columnGapScale must be 1..7, was $columnGapScale" }
     }
 
     public val contentPaddingDp: Float get() = paddingDpFor(paddingScale)
     public val outerMarginDp: Float get() = marginDpFor(marginScale)
-    public val rowGapDp: Float get() = rowGapDpFor(marginScale)
-    public val buttonRowGapDp: Float get() = buttonRowGapDpFor(marginScale)
+    public val rowGapDp: Float get() = rowGapDpFor(rowGapScale)
+    public val buttonRowGapDp: Float get() = rowGapDpFor(rowGapScale)
+    public val columnGapDp: Float get() = columnGapDpFor(columnGapScale)
     public val textSizeMultiplier: Float get() = textScaleMultiplierFor(textScale)
     public val cornerRadiusDp: Float get() = cornerRadiusDpFor(cornerRadiusScale)
 
@@ -156,10 +221,17 @@ public data class DesignTokens(
         public val SCALE_POINTS: Int = SpacingStep.entries.size
 
         init {
-            check(MarginStep.entries.size == SCALE_POINTS && TextScaleStep.entries.size == SCALE_POINTS) {
-                "SpacingStep/MarginStep/TextScaleStep must all have the same " +
-                    "entry count — SCALE_POINTS assumes it, and so does any UI " +
-                    "control that reads it for a single shared slider range."
+            check(
+                MarginStep.entries.size == SCALE_POINTS &&
+                    TextScaleStep.entries.size == SCALE_POINTS &&
+                    PaddingStep.entries.size == SCALE_POINTS &&
+                    RowGapStep.entries.size == SCALE_POINTS &&
+                    ColumnGapStep.entries.size == SCALE_POINTS
+            ) {
+                "SpacingStep/MarginStep/TextScaleStep/PaddingStep/RowGapStep/" +
+                    "ColumnGapStep must all have the same entry count — " +
+                    "SCALE_POINTS assumes it, and so does any UI control that " +
+                    "reads it for a single shared slider range."
             }
         }
 
@@ -169,6 +241,8 @@ public data class DesignTokens(
             marginScale = 4,
             textScale = 4,
             cornerRadiusScale = 4,
+            rowGapScale = 4,
+            columnGapScale = 4,
         )
 
         // Every resolver below is a lookup into SpacingStep/MarginStep/
@@ -179,16 +253,16 @@ public data class DesignTokens(
         // 4-dimension token set.
 
         public fun paddingDpFor(scale: Int): Float =
-            SpacingStep.at(scale, SpacingTier.PADDING).dp
+            PaddingStep.at(scale).dp
 
         public fun marginDpFor(scale: Int): Float =
             MarginStep.at(scale).dp
 
         public fun rowGapDpFor(scale: Int): Float =
-            SpacingStep.at(scale, SpacingTier.ROW_GAP).dp
+            RowGapStep.at(scale).dp
 
-        public fun buttonRowGapDpFor(scale: Int): Float =
-            SpacingStep.at(scale, SpacingTier.BUTTON_ROW_GAP).dp
+        public fun columnGapDpFor(scale: Int): Float =
+            ColumnGapStep.at(scale).dp
 
         public fun textScaleMultiplierFor(scale: Int): Float =
             TextScaleStep.at(scale).multiplier

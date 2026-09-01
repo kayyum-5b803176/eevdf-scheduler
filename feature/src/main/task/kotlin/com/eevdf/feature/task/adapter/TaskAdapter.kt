@@ -324,6 +324,9 @@ class TaskAdapter(
             }
         }
 
+        // Button visibility for this bind is now final — safe to compute gaps.
+        applyColumnGap(holder, density)
+
         // ── Schedule / queue rank — shown for DL-active or RT-active tasks at rank #1 ──
         val isRtActive = item.isRtActive
         if ((item.isDlActive || isRtActive) && !task.isGroup && item.queueNumber == "1") {

@@ -85,5 +85,6 @@ public object CardDensity {
 
     private val COMPACT_OVERRIDE = DesignTokens(
         paddingScale = 2, marginScale = 2, textScale = 1, cornerRadiusScale = 1,
+        rowGapScale = 1, columnGapScale = 1,
     )
 }

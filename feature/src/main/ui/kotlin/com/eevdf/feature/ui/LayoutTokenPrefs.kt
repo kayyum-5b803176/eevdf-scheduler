@@ -19,6 +19,8 @@ public object LayoutTokenPrefs {
     private const val KEY_MARGIN_SCALE        = "layout_margin_scale"
     private const val KEY_TEXT_SCALE          = "layout_text_scale"
     private const val KEY_CORNER_RADIUS_SCALE = "layout_corner_radius_scale"
+    private const val KEY_ROW_GAP_SCALE       = "layout_row_gap_scale"
+    private const val KEY_COLUMN_GAP_SCALE    = "layout_column_gap_scale"
 
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -59,6 +61,24 @@ public object LayoutTokenPrefs {
         prefs(ctx).edit().putInt(KEY_CORNER_RADIUS_SCALE, scale.coerceIn(1, 7)).apply()
     }
 
+    /** Internal vertical gap between stacked rows within one card — never
+     * the card's own outer margin, see [RowGapStep]'s doc comment. */
+    public fun getRowGapScale(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_ROW_GAP_SCALE, DesignTokens.DEFAULT.rowGapScale).coerceIn(1, 7)
+
+    public fun setRowGapScale(ctx: Context, scale: Int) {
+        prefs(ctx).edit().putInt(KEY_ROW_GAP_SCALE, scale.coerceIn(1, 7)).apply()
+    }
+
+    /** Internal horizontal gap between items side by side within one row —
+     * e.g. the action-button row's icons. See [ColumnGapStep]'s doc comment. */
+    public fun getColumnGapScale(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_COLUMN_GAP_SCALE, DesignTokens.DEFAULT.columnGapScale).coerceIn(1, 7)
+
+    public fun setColumnGapScale(ctx: Context, scale: Int) {
+        prefs(ctx).edit().putInt(KEY_COLUMN_GAP_SCALE, scale.coerceIn(1, 7)).apply()
+    }
+
     /**
      * Reads every layout-token preference and returns the resolved
      * [DesignTokens] for the current settings. This is the ONE place a screen
@@ -71,5 +91,7 @@ public object LayoutTokenPrefs {
         marginScale = getMarginScale(ctx),
         textScale = getTextScale(ctx),
         cornerRadiusScale = getCornerRadiusScale(ctx),
+        rowGapScale = getRowGapScale(ctx),
+        columnGapScale = getColumnGapScale(ctx),
     )
 }
