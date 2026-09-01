@@ -105,6 +105,16 @@ class ToggleCardView @JvmOverloads constructor(
         CardDensity.applyOuterGap(cardRoot, context, isCompact)
         CardDensity.applyBodyPadding(bodyView, context, isCompact)
         CardDensity.applyCornerRadius(cardRoot, context, isCompact)
+        // Attempted, not confirmed: unlike NavCard's title row (a plain
+        // LinearLayout with a custom style's minHeight, fully within our
+        // control), this card's title is baked into SwitchMaterial itself —
+        // a compound-button widget that may enforce its own Material
+        // Components touch-target minimum internally, independent of
+        // View.minimumHeight. This sets minimumHeight the same way NavCard's
+        // fix does; whether SwitchMaterial actually honors it down to true
+        // 0dp, the way a plain View does, needs real-device confirmation,
+        // not assumed from the NavCard result.
+        CardDensity.applyMinHeight(switchView, context, isCompact)
 
         if (isCompact) spacerView.visibility = View.GONE
         else spacerView.visibility = if (description != null) View.VISIBLE else View.GONE

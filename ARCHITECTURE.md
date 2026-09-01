@@ -1629,3 +1629,30 @@ rounding-formula fix for negative dp values (`(value * density + 0.5f).toInt()`
 truncates incorrectly for negatives) was still applied to `CardDensity.dp()`,
 since it's a real, if currently dormant, correctness fix, and was already in
 progress when the request changed direction.
+
+### Phase 13 — done (v5.37.0): checked all 3 remaining cards, found 2 already worked
+
+Investigated each of the other 3 shared card views individually before
+applying anything — the earlier fix's mechanism doesn't transfer uniformly,
+since each card uses a different underlying style/widget.
+
+**`DropdownCardView` and `ValueCardView`: already correct, no change made.**
+Their title/label rows are plain `TextView`s (`App.SwitchRow`,
+`App.ValueRow.Label`/`.Value`) — checked every style in their chain, none
+declares a `minHeight` anywhere. These already reach "text touches the card
+border" at padding=0 with the existing padding mechanism alone; adding an
+`applyMinHeight()` call here would be a pure no-op with nothing to override,
+so nothing was added — matching this whole session's standing rule against
+copying a fix somewhere it doesn't apply just for surface-level symmetry.
+
+**`ToggleCardView`: a genuinely different, unresolved question.** Its title
+isn't a separate TextView — it's baked into `SwitchMaterial` itself (`App.SwitchRow`
+style, no custom `minHeight`). `SwitchMaterial` is a compound-button widget
+that may enforce its own Material Components touch-target minimum
+internally, independent of the plain `View.minimumHeight` property the
+`CardDensity.applyMinHeight()` mechanism sets. Applied the same call to the
+switch anyway — it's the correct, systemic thing to attempt — but explicitly
+did **not** claim this achieves the same result NavCard's fix confirmed.
+Whether `SwitchMaterial` actually honors `minimumHeight` down to true 0dp
+the way a plain `View` does is a real, open, device-verification question,
+stated as such in the code comment rather than assumed.
