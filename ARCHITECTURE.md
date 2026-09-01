@@ -1656,3 +1656,51 @@ did **not** claim this achieves the same result NavCard's fix confirmed.
 Whether `SwitchMaterial` actually honors `minimumHeight` down to true 0dp
 the way a plain `View` does is a real, open, device-verification question,
 stated as such in the code comment rather than assumed.
+
+### Phase 14 — done (v5.38.0): universal adoption begins — Settings hub migrated
+
+The first real screen migrated from hand-authored, static XML onto the
+actual shared `NavCardView` class — the gap flagged as "item 4, universal
+adoption" since before Phase 1 even started, and restated as not-yet-done
+at the end of nearly every phase since. Explained plainly why the Layout
+demo page's sliders never affected Settings before this: the two screens
+used the *same visual styles* but were never the *same class* — one
+instantiated `NavCardView`, the other hand-built a lookalike in XML.
+Fixing the demo page's own mechanism, however correctly, could never
+retroactively connect a screen that was never wired to it.
+
+**12 cards, 4 tabs, migrated in one pass.** `activity_settings.xml` shrank
+from 478 lines to 153 — every ~20-line hand-authored `MaterialCardView` +
+title row + subtitle + spacer block became a single
+`<com.eevdf.feature.ui.NavCardView>` tag. `NavCardView` supports the
+standard `@JvmOverloads constructor(context, attrs)` shape, so it can be
+declared directly in XML — confirmed before assuming it, since if it
+couldn't, the whole migration would have needed a different shape
+(constructing every card programmatically instead, the way
+`LayoutDemoActivity` does). `title`/`subtitle`/`navigable`/`onNavigate` have
+no XML attributes defined — set in `SettingsActivity.kt`'s new `bindCards()`
+via `findViewById`, the same properties `LayoutDemoActivity`'s
+`NavCardView.create()` already sets, just via a different construction
+path.
+
+**Inter-card dividers dropped, not preserved.** The old XML inserted a
+static `App.Divider.Section` view between some cards — a fixed extra margin
+untouched by any scale. Kept, it would have added an untracked, non-uniform
+gap on top of each `NavCardView`'s own live-token-driven margin (Phase 8).
+Removed entirely: every gap on this screen is now controlled by the exact
+same mechanism, and the exact same slider, as everywhere else.
+
+**Reserved/placeholder rows use the existing `navigable` property directly**
+(`event handle service`, `system config`, `core algorithm`, `rules`,
+`logs`, `about`) — no new mechanism needed; `navigable = false` already
+correctly hides the chevron, strips the ripple, and disables the click
+listener, exactly matching what these rows need.
+
+**Scope confirmed narrow, deliberately.** `DisplaySettingsActivity`,
+`SoundVibrationActivity`, and `ButtonActionActivity` (the 3 screens this
+hub navigates to) are untouched — still hand-authored XML, still using
+`App.Row.Nav`/`App.Row.Reserved` directly. Confirmed those styles remain in
+active use there before considering anything cleanup-adjacent. Each is its
+own future migration, one screen at a time, each needing its own visual
+verification — not something to batch silently into "the Settings hub is
+done."

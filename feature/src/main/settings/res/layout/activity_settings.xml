@@ -4,16 +4,17 @@
     Abbreviations and acronyms stay uppercase (UI, API, ID, EEVDF, SI, DL, RT).
     See docs/UI_TEXT_CONVENTIONS.md for the full rule and checklist.
 
-    Template conformance: every card below is a NavCard instance per
-    TEMPLATE_CATALOG.md.
-      piece 0 [F] - title + trailing indicator (chevron, or omitted for
-                    reserved/placeholder rows)
-      piece 1 [O] - subtitle, full-width row below piece 0
-      spacer  [S] - auto-inserted only when piece 1 is present, closes
-                    the 66dp (48+18) title+subtitle total to the 72dp
-                    scale rung (app_row_boundary_rung_72). Never present
-                    when piece 1 is absent, since piece 0 alone already
-                    sits on the 48dp rung.
+    MIGRATED onto NavCardView (see ARCHITECTURE.md's "universal adoption"
+    phase): every card below is a single <com.eevdf.feature.ui.NavCardView>
+    tag, not hand-authored MaterialCardView boilerplate. title/subtitle/
+    navigable/onNavigate are set in SettingsActivity.kt, not as XML
+    attributes — NavCardView has no custom attrs defined, only Kotlin
+    properties, matching how the Layout demo page already builds these same
+    instances via NavCardView.create(). No inter-card divider views: each
+    NavCardView's own outer margin (CardDensity.applyOuterGap, live-token-
+    driven since Phase 8) is now what separates cards, uniformly, the same
+    mechanism controlling every other card in the app — a static divider
+    view here would add an untracked, non-uniform extra gap on top of it.
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -55,73 +56,15 @@
                 android:orientation="vertical"
                 android:visibility="visible">
 
-                <!-- NavCard: display - (0,1) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowVisual"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout
-                            style="@style/App.Row.Nav"
-                            android:id="@+id/rowVisual">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="display" />
-                            </LinearLayout>
-                            <TextView style="@style/App.Text.Chevron"
-                                android:text="&#8250;" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="appearance, layout, density, overlay" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <View style="@style/App.Divider.Section" />
-
-                <!-- NavCard: sound and vibration - (0,1) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowSoundVibration"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout
-                            style="@style/App.Row.Nav"
-                            android:id="@+id/rowSoundVibration">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="sound and vibration" />
-                            </LinearLayout>
-                            <TextView style="@style/App.Text.Chevron"
-                                android:text="&#8250;" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="profiles, patterns, haptic feedback" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
             </LinearLayout>
 
@@ -133,104 +76,20 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <!-- NavCard: control - (0,1) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowButtonAction"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout
-                            style="@style/App.Row.Nav"
-                            android:id="@+id/rowButtonAction">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="control" />
-                            </LinearLayout>
-                            <TextView style="@style/App.Text.Chevron"
-                                android:text="&#8250;" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="hardware keys, quick action" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <View style="@style/App.Divider.Section" />
-
-                <!-- NavCard: event handle service - (0) only, indicator omitted -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowEventHandleService"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout style="@style/App.Row.Reserved">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="event handle service" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="no settings available yet" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <View style="@style/App.Divider.Section" />
-
-                <!-- NavCard: auto switch - (0,1) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowAutoSwitch"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout
-                            style="@style/App.Row.Nav"
-                            android:id="@+id/rowAutoSwitch">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="auto switch" />
-                            </LinearLayout>
-                            <TextView style="@style/App.Text.Chevron"
-                                android:text="&#8250;" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="pause and resume on incoming calls" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
             </LinearLayout>
 
@@ -242,96 +101,20 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <!-- NavCard: system config - (0) only, indicator omitted -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowSystemConfig"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout style="@style/App.Row.Reserved">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="system config" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="no settings available yet" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <View style="@style/App.Divider.Section" />
-
-                <!-- NavCard: core algorithm - (0) only, indicator omitted -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowCoreAlgorithm"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout style="@style/App.Row.Reserved">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="core algorithm" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="no settings available yet" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <View style="@style/App.Divider.Section" />
-
-                <!-- NavCard: rules - (0) only, indicator omitted -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowRules"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout style="@style/App.Row.Reserved">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="rules" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="no settings available yet" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
             </LinearLayout>
 
@@ -343,133 +126,25 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <!-- NavCard: data and backup - (0,1) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowDataBackup"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout
-                            style="@style/App.Row.Nav"
-                            android:id="@+id/rowDataBackup">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="data and backup" />
-                            </LinearLayout>
-                            <TextView style="@style/App.Text.Chevron"
-                                android:text="&#8250;" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="export and import app data" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <!-- NavCard: multiuser sync - (0,1) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowMultiUserSync"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout
-                            style="@style/App.Row.Nav"
-                            android:id="@+id/rowMultiUserSync">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="multiuser sync" />
-                            </LinearLayout>
-                            <TextView style="@style/App.Text.Chevron"
-                                android:text="&#8250;" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="share task state across devices" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <View style="@style/App.Divider.Section" />
-
-                <!-- NavCard: logs - (0) only, indicator omitted -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowLogs"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout style="@style/App.Row.Reserved">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="logs" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="no settings available yet" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <View style="@style/App.Divider.Section" />
-
-                <!-- NavCard: about - (0) only, indicator omitted -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <com.eevdf.feature.ui.NavCardView
+                    android:id="@+id/rowAbout"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-                        <LinearLayout style="@style/App.Row.Reserved">
-                            <LinearLayout style="@style/App.Row.TextBlock">
-                                <TextView style="@style/App.Row.Title"
-                                    android:text="about" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <TextView style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginStart="@dimen/app_row_padding_horizontal"
-                            android:layout_marginEnd="@dimen/app_row_padding_horizontal"
-                            android:layout_marginBottom="@dimen/app_spacing_sm"
-                            android:text="no settings available yet" />
-                        <View style="@style/App.Row.Nav.Spacer" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
             </LinearLayout>
 
