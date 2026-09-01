@@ -198,11 +198,25 @@ class AlarmForegroundService : Service() {
         // Must call startForeground() in onCreate() within 5 seconds of
         // startForegroundService().  Use a silent placeholder notification —
         // the real notification is set in onStartCommand for each action.
-        startForeground(NOTIF_ID, buildTimerNotification("Starting…", 0))
+        //
+        // IMPORTANT: this must NOT be buildTimerNotification(_, 0). That builds a
+        // chronometer with triggerEpoch = now, i.e. already in the past by the time
+        // it renders, so the notification flashes a negative/count-up stopwatch
+        // instead of "0:00". If onStartCommand's real update is ever delayed (or,
+        // rarely, delivered with a null Intent and skipped), that broken state is
+        // what the user is stuck looking at. The placeholder must carry no
+        // chronometer at all.
+        startForeground(NOTIF_ID, buildPlaceholderNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent == null) return START_NOT_STICKY
+        if (intent == null) {
+            // No action to act on — don't leave the chronometer-less placeholder
+            // notification (or a stale prior one) stuck forever; just tear down.
+            stopForegroundCompat()
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         val taskName   = intent.getStringExtra(EXTRA_TASK_NAME) ?: ""
         val remaining  = intent.getLongExtra(EXTRA_REMAINING_SECS, 0)
@@ -320,8 +334,27 @@ class AlarmForegroundService : Service() {
 
     // ── Notifications ─────────────────────────────────────────────────────────
 
+    /**
+     * Static placeholder shown only for the brief window between startForeground()
+     * in onCreate() and the real notification built in onStartCommand(). No
+     * setWhen/chronometer — there is no meaningful remaining time yet, so there is
+     * nothing to count down that could render as negative.
+     */
+    private fun buildPlaceholderNotification(): Notification =
+        NotificationCompat.Builder(this, CHANNEL_TIMER)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Starting…")
+            .setOngoing(true)
+            .setSilent(true)
+            .setContentIntent(openMainActivityPi(0))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
     private fun buildDelayNotification(taskName: String, delaySecs: Long): Notification {
-        val delayEndEpoch = System.currentTimeMillis() + delaySecs * 1000L
+        // Clamp to >=1s: a chronometer built with `when` <= now is already in the
+        // past by render time and shows a negative count instead of "0:00".
+        val safeDelaySecs = delaySecs.coerceAtLeast(1L)
+        val delayEndEpoch = System.currentTimeMillis() + safeDelaySecs * 1000L
         val builder = NotificationCompat.Builder(this, CHANNEL_DELAY)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Starting soon — $taskName")
@@ -339,7 +372,9 @@ class AlarmForegroundService : Service() {
     }
 
     private fun buildTimerNotification(taskName: String, remainingSecs: Long): Notification {
-        val triggerEpoch = System.currentTimeMillis() + remainingSecs * 1000L
+        // Same clamp as buildDelayNotification — see comment there.
+        val safeRemainingSecs = remainingSecs.coerceAtLeast(1L)
+        val triggerEpoch = System.currentTimeMillis() + safeRemainingSecs * 1000L
         val builder = NotificationCompat.Builder(this, CHANNEL_TIMER)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(taskName)
