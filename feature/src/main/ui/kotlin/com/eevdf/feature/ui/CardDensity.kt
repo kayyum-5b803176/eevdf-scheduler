@@ -3,7 +3,9 @@ package com.eevdf.feature.ui
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
+import com.eevdf.feature.R
 import com.google.android.material.card.MaterialCardView
+import kotlin.math.roundToInt
 
 /**
  * Shared density-application logic for every card view in this design
@@ -27,13 +29,16 @@ import com.google.android.material.card.MaterialCardView
  *
  * [isCompact] is each view's own existing manual override (used only by the
  * Render -> Layout demo screen today, never by any real production screen).
- * [COMPACT_OVERRIDE]'s padding (8dp, scale 2) still matches the old static
- * `app_spacing_md` exactly. Its margin no longer matches the old
+ * [COMPACT_OVERRIDE]'s margin no longer matches the old static
  * `app_spacing_sm` (4dp) — margin gained its own dedicated [MarginStep]
  * scale with a 10dp floor no other dimension shares, so even the smallest
- * margin scale now resolves to 10dp, never 4dp. Accepted deliberately: the
- * floor is a hard rule, not one this override should bypass, and nothing in
- * production ever exercised the old 4dp value anyway.
+ * margin scale now resolves to 10dp, never 4dp. Its padding value is also
+ * stale relative to the numbers this comment originally described, now
+ * that padding has its own dedicated [PaddingStep] scale too. Neither is
+ * corrected to match any specific old value: nothing in production ever
+ * exercises [COMPACT_OVERRIDE] (confirmed — zero live callers), so precise
+ * backward-compatible numeric matching isn't meaningful here, only that the
+ * values stay valid.
  */
 public object CardDensity {
 
@@ -77,11 +82,40 @@ public object CardDensity {
         cardRoot.radius = dp(context, tokens.cornerRadiusDp).toFloat()
     }
 
+    /**
+     * Scales a row's minimum height (the accessibility touch-target floor,
+     * `app_row_min_height` = 48dp) linearly with the live padding scale —
+     * 0dp at the smallest padding setting, up to the full 48dp at the
+     * largest. Previously a static, always-on `android:minHeight` in
+     * `App.Row.Base` (used by `NavCardView`'s title row): padding=0 alone
+     * couldn't achieve "text touches the card border" there, since the row
+     * was still forced to be at least 48dp tall regardless of padding, with
+     * its content centered inside that space. Made scale-driven instead, on
+     * explicit instruction that the padding slider should be allowed to
+     * shrink the touch target below the accessibility floor at its lowest
+     * setting — a real, deliberate trade-off, not an oversight.
+     *
+     * The 48dp ceiling is read from the named dimen resource, not
+     * hardcoded a second time here, so the two stay in sync by construction.
+     */
+    public fun applyMinHeight(view: View, context: Context, isCompact: Boolean) {
+        val tokens = tokensFor(context, isCompact)
+        val maxPx = context.resources.getDimensionPixelSize(R.dimen.app_row_min_height)
+        val steps = (DesignTokens.SCALE_POINTS - 1).coerceAtLeast(1)
+        view.minimumHeight = (maxPx.toFloat() * (tokens.paddingScale - 1) / steps).roundToInt()
+    }
+
     private fun tokensFor(context: Context, isCompact: Boolean): DesignTokens =
         if (isCompact) COMPACT_OVERRIDE else LayoutTokenPrefs.current(context)
 
     private fun dp(context: Context, value: Float): Int =
-        (value * context.resources.displayMetrics.density + 0.5f).toInt()
+        // roundToInt(), not (value * density + 0.5f).toInt() — that older
+        // pattern only rounds positive values correctly; for negatives it
+        // truncates toward zero instead of rounding, off by up to 1px. Now
+        // that padding can go negative (see PaddingStep), this needed fixing
+        // here since this function is the one every card's density value
+        // actually passes through.
+        (value * context.resources.displayMetrics.density).roundToInt()
 
     private val COMPACT_OVERRIDE = DesignTokens(
         paddingScale = 2, marginScale = 2, textScale = 1, cornerRadiusScale = 1,

@@ -153,6 +153,7 @@ class NavCardView @JvmOverloads constructor(
         CardDensity.applyOuterGap(cardRoot, context, isCompact)
         CardDensity.applyBodyPadding(titleRow, context, isCompact)
         CardDensity.applyCornerRadius(cardRoot, context, isCompact)
+        CardDensity.applyMinHeight(titleRow, context, isCompact)
 
         if (isCompact) spacerView.visibility = View.GONE
         else spacerView.visibility = if (subtitle != null) View.VISIBLE else View.GONE

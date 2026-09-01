@@ -104,14 +104,22 @@
          ROW TEMPLATE — internal structure of card rows
          ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Minimum tap target height for any interactive row -->
+    <!-- Minimum tap target height for any interactive row. No longer applied
+         as a static style attribute (see App.Row.Base) — NavCard's title-row
+         minHeight is now driven by the live padding scale
+         (CardDensity.applyMinHeight), from ~0dp at the smallest setting up to
+         this value at the largest, on explicit instruction that padding
+         should be able to shrink the row below this floor. Kept as a named
+         dimen: it's still the scale's maximum, referenced programmatically. -->
     <dimen name="app_row_min_height">48dp</dimen>
 
     <!-- ══════════════════════════════════════════════════════════════════════
          PIECE-BOUNDARY SCALE EXTENSION — NavCard piece 0 + piece 1
          ──────────────────────────────────────────────────────────────────
-         NavCard's title-row (48dp, from app_row_min_height) plus its
-         subtitle piece (18dp: 14sp line + app_row_title_gap) totals 66dp,
+         NavCard's title-row (48dp, from app_row_min_height, BEFORE it became
+         scale-driven — this section's numbers are now only accurate at the
+         padding scale's maximum, not universally) plus its subtitle piece
+         (18dp: 14sp line + app_row_title_gap) totals 66dp,
          which is not a rung on the existing scale (0,2,4,8,12,16,24,48).
          Per the scale-alignment rule, a new rung is added by continuing
          the scale's progression rather than left off-scale: 72dp. The

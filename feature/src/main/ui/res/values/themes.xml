@@ -313,7 +313,6 @@
     <style name="App.Row.Base">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:minHeight">@dimen/app_row_min_height</item>
         <item name="android:orientation">horizontal</item>
         <item name="android:gravity">center_vertical</item>
         <item name="android:paddingStart">@dimen/app_row_padding_horizontal</item>

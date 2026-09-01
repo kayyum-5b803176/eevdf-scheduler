@@ -1567,3 +1567,65 @@ ALL_ROUTES" pattern exactly. `AppRoutesTest` — which resolves every entry in
 `ALL_ROUTES` via `Class.forName` and separately checks for a declared
 constant that was never added to that list — validates the new route
 automatically, with zero changes to the test itself needed.
+
+### Phase 12 — done (v5.36.0): NavCard's accessibility floor made scale-driven, on explicit trade-off
+
+Traced a real report — "at padding scale 1, text still doesn't touch the
+card border" — to its actual cause rather than assuming padding itself was
+wrong. `App.Row.Base` (which `NavCardView`'s title row inherits) had a
+static `android:minHeight` of 48dp, Android's own recommended accessibility
+touch-target minimum. Even with padding correctly at 0dp, the row was still
+forced to be at least 48dp tall, with its content centered inside that
+space — the whitespace was never padding, it was a row that couldn't shrink
+below a floor no padding setting could reach.
+
+Confirmed this floor is specific to `NavCardView`: the other three shared
+card views (`ToggleCardView`/`DropdownCardView`/`ValueCardView`) use a
+different style (`App.SettingsCard.Body`/`App.SwitchRow`) that never
+inherited it.
+
+**Asked before touching an accessibility decision, rather than assuming.**
+Shrinking a touch target below the recommended minimum is a real,
+user-facing trade-off, not a pure implementation detail — confirmed
+explicitly: yes, let padding scale reach below 48dp at the low end,
+accepting a harder-to-tap row at the extreme setting.
+
+**Implementation, fully systemic — not a one-off patch to NavCard.**
+`CardDensity.applyMinHeight()` added alongside the existing `applyOuterGap`/
+`applyBodyPadding`/`applyCornerRadius` in the same shared object, called
+from `NavCardView.applyDensity()` the same way the other three already are.
+Scales linearly with the live padding scale: 0dp at the smallest setting up
+to the full 48dp (read from the named `app_row_min_height` dimen, not a
+hardcoded literal, so the two can't drift apart) at the largest. Any other
+card view that ever needs the same shrinkable-floor behavior gets it by
+calling the same function, not by copying logic — matching this whole
+file's "systemic mechanism, not per-view calls" design from Phase 3.
+`android:minHeight` removed from `App.Row.Base`'s static XML declaration
+entirely, since it's now applied programmatically.
+
+**A pre-existing, already-flagged limitation, not newly introduced:**
+`TEMPLATE_CATALOG.md`'s "rung-alignment" spacer-size calculation (a
+separate, already-noted-as-unfinished proposal from earlier in this UI-
+unification work) assumed NavCard's title-row was always a fixed 48dp when
+computing its spacer's size. That assumption was already documented as
+fragile — NavCardView's own code comment already states the alignment
+"goes stale the moment padding shrinks," which is exactly why the spacer is
+already suppressed entirely in compact mode. This phase doesn't fix that
+separate system; the relevant dimens.xml comment was corrected to state
+plainly that its numbers are now only accurate at the padding scale's
+maximum, not universally — an honest correction, not a new limitation.
+
+**A stale comment fixed while in the file for an unrelated reason:**
+`CardDensity.kt`'s `COMPACT_OVERRIDE` doc comment still described padding
+numbers from before `PaddingStep` (padding's own dedicated 0-based scale,
+added a few turns before this phase) existed. Corrected — `COMPACT_OVERRIDE`
+remains confirmed dead code (zero live callers), so the fix is about
+documentation accuracy, not behavior.
+
+Also folded into this version: the padding-scale request that led to this
+investigation was walked back from an earlier "allow negative values"
+direction to what was actually needed — true 0dp, not negative. The
+rounding-formula fix for negative dp values (`(value * density + 0.5f).toInt()`
+truncates incorrectly for negatives) was still applied to `CardDensity.dp()`,
+since it's a real, if currently dormant, correctness fix, and was already in
+progress when the request changed direction.
