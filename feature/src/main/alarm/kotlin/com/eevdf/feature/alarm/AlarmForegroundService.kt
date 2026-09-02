@@ -255,28 +255,28 @@ class AlarmForegroundService : Service() {
                 // isAlarmRinging is the secondary in-process guard.
                 if (!isAlarmRinging) {
                     isAlarmRinging = true
-                    // Snapshot lock state BEFORE acquiring the wake lock: the
-                    // wake lock's ACQUIRE_CAUSES_WAKEUP turns the screen on,
-                    // which would make isInteractive() report false-unlocked
-                    // for devices with no secure lock (Swipe/None) even though
-                    // the alarm genuinely fired while the screen was off.
-                    val deviceLocked = isDeviceLocked()
                     acquireWakeLock()
 
                     // Style routing — never show anything while the EEVDF app
                     // itself is the foreground app (the in-app expired UI
                     // covers that case; either style on top of our own app
                     // would be redundant/jarring). Otherwise:
-                    //   • Lock Screen Overlay pref ON + device LOCKED → attach
-                    //     a full-screen intent, which the platform launches as
-                    //     the full-screen AlarmActivity precisely because the
-                    //     keyguard is showing at post time. Checked explicitly
-                    //     here (not left to the platform to infer) so the
-                    //     "locked → overlay" half of the rule is guaranteed
-                    //     regardless of OEM full-screen-intent heuristics.
-                    //   • Device UNLOCKED, or the pref is off → no full-screen
-                    //     intent is attached at all, so only the banner style
-                    //     can ever show.
+                    //   • Lock Screen Overlay pref ON → always attach the
+                    //     full-screen intent, unconditionally — exactly like
+                    //     AOSP Clock's TimerNotificationBuilder.buildHeadsUp(),
+                    //     which never pre-checks lock state in app code either.
+                    //     Whether that intent actually launches AlarmActivity
+                    //     full-screen (locked) or gets silently downgraded to
+                    //     a heads-up banner (unlocked) is decided by the
+                    //     platform, reading the real keyguard/interactive
+                    //     state at the exact moment the notification posts —
+                    //     which is strictly more accurate than anything this
+                    //     app could compute ahead of time, and removes the
+                    //     race a pre-check would otherwise create against
+                    //     that same platform decision.
+                    //   • Lock Screen Overlay pref OFF → no full-screen intent
+                    //     is attached at all, so only the banner style can
+                    //     ever show, regardless of lock state.
                     //   • Exclude App pref → suppresses the BANNER style only
                     //     (via setSilent). Irrelevant while locked: the device
                     //     being locked means no third-party app is
@@ -288,7 +288,7 @@ class AlarmForegroundService : Service() {
                         NotificationPrefs.isAppExcluded(this, foregroundPkg)
 
                     val suppressBanner = appForeground || excludeAppMatch
-                    val attachFullScreenIntent = !appForeground && deviceLocked &&
+                    val attachFullScreenIntent = !appForeground &&
                         NotificationPrefs.isLockScreenOverlayEnabled(this)
 
                     showExpiredNotification(taskName, suppressBanner, attachFullScreenIntent)
@@ -341,16 +341,29 @@ class AlarmForegroundService : Service() {
 
     // ── WakeLock ──────────────────────────────────────────────────────────────
 
+    /**
+     * PARTIAL_WAKE_LOCK only — keeps the CPU running so the alarm can play
+     * sound and post its notification while the screen stays off. Deliberately
+     * NOT a screen-waking wake lock (the old FULL_WAKE_LOCK +
+     * ACQUIRE_CAUSES_WAKEUP this replaced): manually forcing the screen on
+     * here races the platform's own full-screen-intent eligibility check —
+     * NotificationManagerService decides "locked → full screen, unlocked →
+     * banner" by reading keyguard/interactive state at the moment the
+     * notification posts, and a wake lock that flips the screen on WHILE that
+     * decision is in flight makes the outcome timing-dependent (this is what
+     * caused the intermittent "sometimes full-screen, sometimes just a
+     * banner" behavior). AOSP Clock's own AlarmAlertWakeLock uses exactly
+     * this: PARTIAL_WAKE_LOCK, nothing more. Turning the screen on is left
+     * entirely to the full-screen intent's own Activity launch — AlarmActivity
+     * declares setTurnScreenOn(true)/FLAG_TURN_SCREEN_ON itself, so the screen
+     * still turns on, just as a downstream effect of the platform's decision
+     * rather than a precondition racing it.
+     */
     private fun acquireWakeLock() {
         releaseWakeLock()
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        @Suppress("DEPRECATION")
-        wakeLock = pm.newWakeLock(
-            PowerManager.FULL_WAKE_LOCK          or
-            PowerManager.ACQUIRE_CAUSES_WAKEUP   or
-            PowerManager.ON_AFTER_RELEASE,
-            WAKE_TAG
-        ).also { it.acquire(WAKE_TIMEOUT) }
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_TAG)
+            .also { it.acquire(WAKE_TIMEOUT) }
     }
 
     private fun releaseWakeLock() {
@@ -495,20 +508,6 @@ class AlarmForegroundService : Service() {
         } else {
             updateNotification(notification)
         }
-    }
-
-    /**
-     * True when the device is locked OR the screen is off — the AOSP "alarm
-     * fires on the lock screen" situation. Uses KeyguardManager.isKeyguardLocked
-     * and falls back to PowerManager interactivity so a powered-off screen
-     * counts as locked even on no-secure-lock setups.
-     */
-    private fun isDeviceLocked(): Boolean {
-        val km = getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager
-        val keyguardLocked = km?.isKeyguardLocked == true
-        val pm = getSystemService(POWER_SERVICE) as? PowerManager
-        val screenOff = pm?.isInteractive == false
-        return keyguardLocked || screenOff
     }
 
     private fun updateNotification(notification: Notification) {
