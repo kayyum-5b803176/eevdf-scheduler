@@ -31,6 +31,8 @@ class NotificationSettingsActivity : AppCompatActivity() {
     private lateinit var rowExcludeApp: LinearLayout
     private lateinit var tvExcludeApp: TextView
     private lateinit var rowFullScreenIntentAccess: LinearLayout
+    private lateinit var cardBatteryOptimization: View
+    private lateinit var rowBatteryOptimization: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,6 +47,8 @@ class NotificationSettingsActivity : AppCompatActivity() {
         rowExcludeApp             = findViewById(R.id.rowExcludeApp)
         tvExcludeApp              = findViewById(R.id.tvExcludeApp)
         rowFullScreenIntentAccess = findViewById(R.id.rowFullScreenIntentAccess)
+        cardBatteryOptimization   = findViewById(R.id.cardBatteryOptimization)
+        rowBatteryOptimization    = findViewById(R.id.rowBatteryOptimization)
 
         // ── Load saved prefs ────────────────────────────────────────────────
         switchLockScreenOverlay.isChecked = NotificationPrefs.isLockScreenOverlayEnabled(this)
@@ -72,15 +76,17 @@ class NotificationSettingsActivity : AppCompatActivity() {
             }
         }
         rowFullScreenIntentAccess.setOnClickListener { showFullScreenIntentAccessDialog() }
+        rowBatteryOptimization.setOnClickListener { showBatteryOptimizationDialog() }
     }
 
     override fun onResume() {
         super.onResume()
-        // The permission is only grantable through the system Settings app,
-        // so the state can only have changed while this Activity was paused —
-        // re-check every time it comes back into view rather than only at
-        // toggle-time, so the warning row clears itself once granted.
+        // These are only grantable through the system Settings app, so state
+        // can only have changed while this Activity was paused — re-check
+        // every time it comes back into view rather than only at toggle-time,
+        // so the warning rows clear themselves once granted.
         refreshFullScreenIntentAccessRow()
+        refreshBatteryOptimizationRow()
     }
 
     /**
@@ -220,6 +226,55 @@ class NotificationSettingsActivity : AppCompatActivity() {
                 } catch (_: Exception) {
                     Toast.makeText(this, "Couldn't open Full Screen Intent settings",
                         Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Later", null)
+            .show()
+    }
+
+    /**
+     * True when the app is exempted from battery optimization ("Unrestricted").
+     * While "Optimized" (the default), the system can throttle notification
+     * alerting — including full-screen launches — especially on repeated
+     * firings in a short window. This is a real, observed cause of
+     * intermittent full-screen alarm behavior distinct from the Full Screen
+     * Intent special access above.
+     */
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    private fun refreshBatteryOptimizationRow() {
+        val needsGrant = !isIgnoringBatteryOptimizations()
+        cardBatteryOptimization.visibility = if (needsGrant) View.VISIBLE else View.GONE
+    }
+
+    private fun showBatteryOptimizationDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Battery optimization")
+            .setMessage(
+                "While battery-optimized, the system can silently throttle " +
+                "how alarms alert — including the full-screen overlay — " +
+                "especially on repeated firings close together. Set to " +
+                "Unrestricted for reliable alarms."
+            )
+            .setPositiveButton("Open settings") { _, _ ->
+                try {
+                    startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            android.net.Uri.parse("package:$packageName")
+                        )
+                    )
+                } catch (_: Exception) {
+                    try {
+                        startActivity(android.content.Intent(
+                            android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    } catch (_: Exception) {
+                        Toast.makeText(this, "Couldn't open Battery settings",
+                            Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             .setNegativeButton("Later", null)

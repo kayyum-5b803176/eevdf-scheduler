@@ -37,6 +37,46 @@
 
         <LinearLayout style="@style/App.PageContent">
 
+            <!-- ══ BATTERY OPTIMIZATION ═════════════════════════════════════ -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardBatteryOptimization"
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/rowBatteryOptimization"
+                    style="@style/App.Row.Nav.FlushHorizontal"
+                    android:paddingStart="@dimen/app_card_padding_lg"
+                    android:paddingEnd="@dimen/app_card_padding_lg"
+                    android:paddingTop="@dimen/app_card_padding_lg"
+                    android:paddingBottom="@dimen/app_card_padding_lg"
+                    android:minHeight="0dp">
+
+                    <LinearLayout style="@style/App.Row.TextBlock">
+                        <TextView style="@style/App.Row.Title"
+                            android:textColor="@color/quotaTextExceeded"
+                            android:text="Battery optimization is on — tap to fix" />
+                        <TextView
+                            style="@style/App.Row.Subtitle"
+                            android:layout_width="match_parent"
+                            android:layout_marginTop="@dimen/app_spacing_md"
+                            android:text="Repeated timer alarms can be silently throttled while the app is battery-optimized. Set to Unrestricted for reliable alarms, especially back-to-back ones."
+                            android:lineSpacingMultiplier="1.3" />
+                    </LinearLayout>
+
+                    <TextView style="@style/App.Text.Chevron"
+                        android:layout_marginStart="@dimen/app_spacing_lg"
+                        android:text="&#8250;" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- ══ LOCK SCREEN OVERLAY ══════════════════════════════════════ -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/App.Card"
