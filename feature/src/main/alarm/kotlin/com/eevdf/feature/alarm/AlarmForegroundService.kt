@@ -207,6 +207,7 @@ class AlarmForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate: posting placeholder notification (fresh service instance)")
         createChannels()
         // Must call startForeground() in onCreate() within 5 seconds of
         // startForegroundService().  Use a silent placeholder notification —
@@ -343,6 +344,7 @@ class AlarmForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d(TAG, "onDestroy: service instance torn down")
         // Release resources only.  Must NOT cancel AlarmManager here.
         //
         // onDestroy fires in two cases:

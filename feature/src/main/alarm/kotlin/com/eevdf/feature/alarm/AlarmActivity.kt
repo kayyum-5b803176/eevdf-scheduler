@@ -32,6 +32,17 @@ class AlarmActivity : AppCompatActivity() {
         /** Intent extra MainActivity reads to perform a "stop and start" restart. */
         const val EXTRA_RESTART_AFTER_EXPIRE = "restart_after_expire"
 
+        /**
+         * True while this Activity is actually on screen. Set in onCreate,
+         * cleared in onDestroy. Used by [AlarmForegroundService] purely as a
+         * fallback check: if the full-screen intent didn't actually launch
+         * this Activity within a short window, the service wakes the screen
+         * manually so the alarm is still visible instead of leaving the
+         * screen dark. Not used for any other decision.
+         */
+        @Volatile
+        var isShowing = false
+
         /** Launch this activity from anywhere (notification, broadcast). */
         fun createIntent(context: Context, taskName: String): Intent =
             Intent(context, AlarmActivity::class.java).apply {
@@ -90,6 +101,7 @@ class AlarmActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        isShowing = true
         Log.d("EEVDFAlarm", "AlarmActivity.onCreate — full-screen intent launched us")
 
         // Wake screen + show over lock screen — same flags Google Clock uses
@@ -162,6 +174,7 @@ class AlarmActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isShowing = false
         handler.removeCallbacks(elapsedRunnable)
         try { unregisterReceiver(screenOffReceiver) } catch (_: Exception) {}
     }
