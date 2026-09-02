@@ -9,7 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -17,6 +19,8 @@ import androidx.core.app.ServiceCompat
 import com.eevdf.feature.R
 import com.eevdf.platform.media.SoundManager
 import com.eevdf.platform.media.VibrationManager
+import com.eevdf.platform.notification.AlarmNotificationPolicy
+import com.eevdf.platform.notification.AlarmReliabilityChecker
 import com.eevdf.platform.notification.AppForegroundTracker
 import com.eevdf.platform.notification.ForegroundAppDetector
 import com.eevdf.feature.shared.prefs.NotificationPrefs
@@ -86,7 +90,21 @@ class AlarmForegroundService : Service() {
         // block the full-screen intent forever. A fresh channel ID guarantees
         // this build starts from correct HIGH-importance defaults.
         private const val CHANNEL_ALARM = "eevdf_alarm_fg_channel_v2"
-        private const val NOTIF_ID      = 3001
+
+        // Two IDs, one per concern, instead of one ID reused for placeholder/
+        // countdown/delay AND the expiry notification. Keeping them isolated
+        // means updating the countdown can never be mistaken by anything
+        // (us or the platform) for "updating" the expiry notification, and
+        // vice versa — each has its own independent lifecycle.
+        private const val NOTIF_ID_ONGOING = 3000   // placeholder / countdown / delay
+        private const val NOTIF_ID_EXPIRE  = 3001   // timer-expired alarm (unchanged —
+                                                     // NotificationHelper.cancelExpired()
+                                                     // targets this exact value)
+
+        /** How long to wait for AlarmActivity to actually appear before falling
+         *  back to a manual screen wake. See the fallback comment in
+         *  ACTION_TIMER_EXPIRE for why this exists. */
+        private const val FULLSCREEN_FALLBACK_DELAY_MS = 2_000L
 
         private const val WAKE_TAG     = "EEVDFScheduler:AlarmWake"
         private const val WAKE_TIMEOUT = 3_600_000L   // 1 hour max
@@ -220,7 +238,7 @@ class AlarmForegroundService : Service() {
         // rarely, delivered with a null Intent and skipped), that broken state is
         // what the user is stuck looking at. The placeholder must carry no
         // chronometer at all.
-        startForeground(NOTIF_ID, buildPlaceholderNotification())
+        startForeground(NOTIF_ID_ONGOING, buildPlaceholderNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -262,53 +280,50 @@ class AlarmForegroundService : Service() {
                     Log.d(TAG, "EXPIRE fired: taskName=$taskName isDeviceLocked=${isDeviceLocked()}")
                     acquireWakeLock()
 
-                    // Style routing — never show anything while the EEVDF app
-                    // itself is the foreground app (the in-app expired UI
-                    // covers that case; either style on top of our own app
-                    // would be redundant/jarring). Otherwise:
-                    //   • Lock Screen Overlay pref ON → always attach the
-                    //     full-screen intent, unconditionally — exactly like
-                    //     AOSP Clock's TimerNotificationBuilder.buildHeadsUp(),
-                    //     which never pre-checks lock state in app code either.
-                    //     Whether that intent actually launches AlarmActivity
-                    //     full-screen (locked) or gets silently downgraded to
-                    //     a heads-up banner (unlocked) is decided by the
-                    //     platform, reading the real keyguard/interactive
-                    //     state at the exact moment the notification posts —
-                    //     which is strictly more accurate than anything this
-                    //     app could compute ahead of time, and removes the
-                    //     race a pre-check would otherwise create against
-                    //     that same platform decision.
-                    //   • Lock Screen Overlay pref OFF → no full-screen intent
-                    //     is attached at all, so only the banner style can
-                    //     ever show, regardless of lock state.
-                    //   • Exclude App pref → suppresses the BANNER style only
-                    //     (via setSilent). Irrelevant while locked: the device
-                    //     being locked means no third-party app is
-                    //     meaningfully "in front" to match against.
+                    // Foreground-app detection is a best-effort UsageStatsManager
+                    // read for the Exclude App feature only. Isolated in its own
+                    // try/catch: if it throws on some OEM/edge case, that must
+                    // degrade to "no match" — it must never take down the alarm
+                    // itself, which is a far worse failure than one missed
+                    // Exclude App check.
                     val appForeground = AppForegroundTracker.isAppInForeground
-                    val foregroundPkg = if (appForeground) null
-                        else ForegroundAppDetector.getForegroundPackage(this)
+                    val foregroundPkg = if (appForeground) null else try {
+                        ForegroundAppDetector.getForegroundPackage(this)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "getForegroundPackage failed, treating as no match", e)
+                        null
+                    }
                     val excludeAppMatch = !appForeground &&
                         NotificationPrefs.isAppExcluded(this, foregroundPkg)
 
-                    val suppressBanner = appForeground || excludeAppMatch
-                    val attachFullScreenIntent = !appForeground &&
-                        NotificationPrefs.isLockScreenOverlayEnabled(this)
+                    // Pure decision — see AlarmNotificationPolicy for the full
+                    // rationale. Extracted out of this method so the decision
+                    // itself is unit-testable independent of the service.
+                    val decision = AlarmNotificationPolicy.decide(
+                        appForeground = appForeground,
+                        excludeAppMatch = excludeAppMatch,
+                        lockScreenOverlayEnabled = NotificationPrefs.isLockScreenOverlayEnabled(this)
+                    )
 
-                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                    val canUseFsi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-                        nm.canUseFullScreenIntent() else true
-                    val channelImportance = nm.getNotificationChannel(CHANNEL_ALARM)?.importance
+                    // Diagnostic snapshot only — never gates behavior. Channel
+                    // lookup wrapped defensively; a query failure here must not
+                    // block posting the actual alarm notification.
+                    val channelImportance = try {
+                        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                            .getNotificationChannel(CHANNEL_ALARM)?.importance
+                    } catch (e: Exception) {
+                        null
+                    }
                     Log.d(
                         TAG,
                         "EXPIRE decision: appForeground=$appForeground foregroundPkg=$foregroundPkg " +
-                            "excludeAppMatch=$excludeAppMatch suppressBanner=$suppressBanner " +
-                            "attachFullScreenIntent=$attachFullScreenIntent canUseFullScreenIntent=$canUseFsi " +
+                            "excludeAppMatch=$excludeAppMatch suppressBanner=${decision.suppressBanner} " +
+                            "attachFullScreenIntent=${decision.attachFullScreenIntent} " +
+                            "canUseFullScreenIntent=${AlarmReliabilityChecker.canUseFullScreenIntent(this)} " +
                             "channelImportance=$channelImportance"
                     )
 
-                    showExpiredNotification(taskName, suppressBanner, attachFullScreenIntent)
+                    showExpiredNotification(taskName, decision.suppressBanner, decision.attachFullScreenIntent)
                     val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
                     SoundManager.startAlarmForType(this, prefs, taskType)
                     VibrationManager.startAlarmForType(this, prefs, taskType)
@@ -323,14 +338,29 @@ class AlarmForegroundService : Service() {
                         }
                     )
 
-                    // No manual startActivity() call here — the full-screen
-                    // launch (when enabled and the device is locked) is done by
-                    // the platform via the notification's full-screen intent,
-                    // never by this service reaching for AlarmActivity directly.
-                    // Hardware keys are only live while AlarmActivity is
-                    // actually on screen; on the banner path there is no
-                    // focused window of ours to receive them, same as Clock's
-                    // banner.
+                    // Bounded fallback — nothing more than this one check. The
+                    // full-screen intent is the primary, correct mechanism (see
+                    // showExpiredNotification); the platform can still decline
+                    // to honor it for reasons outside app control (OEM policy,
+                    // battery/standby state, rapid repeat throttling — all
+                    // observed in practice). If we asked for full-screen and
+                    // AlarmActivity genuinely never appeared, a manual
+                    // startActivity() is attempted once, best-effort: it may
+                    // itself be blocked by background-start restrictions, but
+                    // costs nothing to try, since acquireWakeLock() has already
+                    // woken the screen either way.
+                    if (decision.attachFullScreenIntent) {
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            if (isAlarmRinging && !AlarmActivity.isShowing) {
+                                Log.d(TAG, "Fallback: AlarmActivity never appeared, attempting direct launch")
+                                try {
+                                    startActivity(AlarmActivity.createIntent(this, taskName))
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Fallback direct launch failed", e)
+                                }
+                            }
+                        }, FULLSCREEN_FALLBACK_DELAY_MS)
+                    }
                 } else {
                     Log.d(TAG, "EXPIRE ignored: isAlarmRinging guard already true (duplicate delivery?)")
                 }
@@ -519,12 +549,16 @@ class AlarmForegroundService : Service() {
         // a non-MediaSession alarm ringer.
         val notification = builder.build()
         Log.d(TAG, "Posting notification: hasFullScreenIntent=${notification.fullScreenIntent != null} isSilent=${suppressBanner}")
+        // Cancel the ongoing/placeholder notification explicitly — we're
+        // switching the FGS's notification to a different ID (NOTIF_ID_EXPIRE),
+        // so the old one would otherwise linger as an orphaned, non-FGS entry.
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIF_ID_ONGOING)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceCompat.startForeground(
-                this, NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                this, NOTIF_ID_EXPIRE, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
         } else {
-            updateNotification(notification)
+            updateExpiredNotification(notification)
         }
     }
 
@@ -545,7 +579,12 @@ class AlarmForegroundService : Service() {
 
     private fun updateNotification(notification: Notification) {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIF_ID, notification)
+        nm.notify(NOTIF_ID_ONGOING, notification)
+    }
+
+    private fun updateExpiredNotification(notification: Notification) {
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID_EXPIRE, notification)
     }
 
     private fun openMainActivityPi(reqCode: Int) = PendingIntent.getActivity(
@@ -582,6 +621,13 @@ class AlarmForegroundService : Service() {
             @Suppress("DEPRECATION")
             stopForeground(true)
         }
+        // stopForeground() only removes whichever ID is CURRENTLY the FGS
+        // notification. Explicitly cancel both — a stray notification from
+        // the other ID (e.g. a countdown notification left behind after a
+        // switch to the expiry ID) must not linger in the shade.
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        nm.cancel(NOTIF_ID_ONGOING)
+        nm.cancel(NOTIF_ID_EXPIRE)
     }
 
     // ── Channels ──────────────────────────────────────────────────────────────

@@ -82,6 +82,11 @@ class SettingsActivity : AppCompatActivity() {
             subtitle = "lock screen overlay, exclude app"
             onNavigate = { startActivity(Intent(this@SettingsActivity, NotificationSettingsActivity::class.java)) }
         }
+        findViewById<NavCardView>(R.id.rowPermissions).apply {
+            title = "permission"
+            subtitle = "notifications, full-screen, battery, alarms"
+            onNavigate = { startActivity(Intent(this@SettingsActivity, PermissionsActivity::class.java)) }
+        }
         findViewById<NavCardView>(R.id.rowSoundVibration).apply {
             title = "sound and vibration"
             subtitle = "profiles, patterns, haptic feedback"

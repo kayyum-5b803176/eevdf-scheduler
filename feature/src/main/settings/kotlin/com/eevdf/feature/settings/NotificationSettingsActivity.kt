@@ -1,15 +1,16 @@
 package com.eevdf.feature.settings
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
-import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.feature.R
 import com.eevdf.feature.shared.prefs.NotificationPrefs
+import com.eevdf.platform.notification.AlarmReliabilityChecker
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 /**
@@ -24,15 +25,18 @@ import com.google.android.material.switchmaterial.SwitchMaterial
  *
  * Neither applies while the EEVDF app itself is foreground — that case is
  * unconditional and handled entirely in AlarmForegroundService.
+ *
+ * Permission/capability status for these features (Full Screen Intent
+ * access, Usage Access, etc.) lives entirely in [PermissionsActivity] now —
+ * this screen only owns the two feature preferences themselves, and nudges
+ * to that screen when a feature's prerequisite isn't met, rather than
+ * duplicating the check-and-dialog logic here.
  */
 class NotificationSettingsActivity : AppCompatActivity() {
 
     private lateinit var switchLockScreenOverlay: SwitchMaterial
     private lateinit var rowExcludeApp: LinearLayout
     private lateinit var tvExcludeApp: TextView
-    private lateinit var rowFullScreenIntentAccess: LinearLayout
-    private lateinit var cardBatteryOptimization: View
-    private lateinit var rowBatteryOptimization: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,66 +47,51 @@ class NotificationSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Notification"
 
-        switchLockScreenOverlay   = findViewById(R.id.switchLockScreenOverlay)
-        rowExcludeApp             = findViewById(R.id.rowExcludeApp)
-        tvExcludeApp              = findViewById(R.id.tvExcludeApp)
-        rowFullScreenIntentAccess = findViewById(R.id.rowFullScreenIntentAccess)
-        cardBatteryOptimization   = findViewById(R.id.cardBatteryOptimization)
-        rowBatteryOptimization    = findViewById(R.id.rowBatteryOptimization)
+        switchLockScreenOverlay = findViewById(R.id.switchLockScreenOverlay)
+        rowExcludeApp           = findViewById(R.id.rowExcludeApp)
+        tvExcludeApp            = findViewById(R.id.tvExcludeApp)
 
-        // ── Load saved prefs ────────────────────────────────────────────────
         switchLockScreenOverlay.isChecked = NotificationPrefs.isLockScreenOverlayEnabled(this)
         refreshExcludeAppSummary()
 
-        // ── Switches / rows ──────────────────────────────────────────────────
         switchLockScreenOverlay.setOnCheckedChangeListener { _, isChecked ->
             NotificationPrefs.setLockScreenOverlayEnabled(this, isChecked)
-            refreshFullScreenIntentAccessRow()
-            // Android 14+ gates full-screen intents behind a user-granted
-            // special access. Without it, the platform silently downgrades
-            // the full-screen intent to a normal heads-up notification even
-            // while the device is locked — which looks exactly like "nothing
-            // happened" to the user. Prompt once, right when they turn it on.
-            if (isChecked && !canUseFullScreenIntent()) showFullScreenIntentAccessDialog()
+            // Nudge to the Permissions page rather than duplicating the check
+            // and dialog here — that page is now the single source of truth
+            // for "is this actually going to work".
+            if (isChecked && !AlarmReliabilityChecker.canUseFullScreenIntent(this)) {
+                showGoToPermissionsDialog(
+                    "Full-screen access needed",
+                    "Lock Screen Overlay needs the \"Full screen intents\" permission to actually launch over the lock screen. Check it on the Permissions page."
+                )
+            }
         }
         rowExcludeApp.setOnClickListener {
-            // Exclude App needs Usage Access to read the foreground app.
-            // Prompt for it instead of opening the picker — without the
-            // permission, whatever gets selected can never actually match.
-            if (!hasUsageStatsPermission()) {
-                showUsageAccessDialog()
+            if (!AlarmReliabilityChecker.hasUsageStatsPermission(this)) {
+                showGoToPermissionsDialog(
+                    "Usage access needed",
+                    "Exclude App needs Usage Access to detect which app is in the foreground when a timer expires. Grant it on the Permissions page, then come back."
+                )
             } else {
                 showExcludeAppPicker()
             }
         }
-        rowFullScreenIntentAccess.setOnClickListener { showFullScreenIntentAccessDialog() }
-        rowBatteryOptimization.setOnClickListener { showBatteryOptimizationDialog() }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // These are only grantable through the system Settings app, so state
-        // can only have changed while this Activity was paused — re-check
-        // every time it comes back into view rather than only at toggle-time,
-        // so the warning rows clear themselves once granted.
-        refreshFullScreenIntentAccessRow()
-        refreshBatteryOptimizationRow()
-    }
-
-    /**
-     * Shows a persistent warning row (not just a one-time dialog) whenever
-     * Lock Screen Overlay is on but the platform will not actually honor a
-     * full-screen intent — otherwise the feature silently degrades to a
-     * normal notification with no visible explanation.
-     */
-    private fun refreshFullScreenIntentAccessRow() {
-        val needsGrant = switchLockScreenOverlay.isChecked && !canUseFullScreenIntent()
-        rowFullScreenIntentAccess.visibility = if (needsGrant) View.VISIBLE else View.GONE
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) { finish(); return true }
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun showGoToPermissionsDialog(title: String, message: String) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("Open Permissions") { _, _ ->
+                startActivity(Intent(this, PermissionsActivity::class.java))
+            }
+            .setNegativeButton("Later", null)
+            .show()
     }
 
     // ── Exclude App: app picker (same picker UI as Auto Switch / bubble) ──────
@@ -125,7 +114,7 @@ class NotificationSettingsActivity : AppCompatActivity() {
         val currentSet   = NotificationPrefs.getExcludeAppList(this)
         val mutableCheck = apps.map { it.packageName in currentSet }.toBooleanArray()
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Hide banner on these apps")
             .setMultiChoiceItems(
                 apps.map { it.label }.toTypedArray(), mutableCheck
@@ -154,130 +143,5 @@ class NotificationSettingsActivity : AppCompatActivity() {
                 ).toString()
             } catch (_: android.content.pm.PackageManager.NameNotFoundException) { pkg }
         }
-    }
-
-    // ── Permissions ─────────────────────────────────────────────────────────
-
-    private fun hasUsageStatsPermission(): Boolean {
-        val appOps = getSystemService(APP_OPS_SERVICE) as android.app.AppOpsManager
-        val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q)
-            appOps.unsafeCheckOpNoThrow(
-                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(), packageName)
-        else
-            @Suppress("DEPRECATION")
-            appOps.checkOpNoThrow(
-                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(), packageName)
-        return mode == android.app.AppOpsManager.MODE_ALLOWED
-    }
-
-    private fun showUsageAccessDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Usage access needed")
-            .setMessage(
-                "Exclude App needs Usage Access to detect which app is in the " +
-                "foreground when a timer expires. Without it, the banner is " +
-                "never suppressed for the selected apps."
-            )
-            .setPositiveButton("Open settings") { _, _ ->
-                try {
-                    startActivity(android.content.Intent(
-                        android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                } catch (_: Exception) {
-                    Toast.makeText(this, "Couldn't open Usage Access settings",
-                        Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton("Later", null)
-            .show()
-    }
-
-    /**
-     * Android 14+ gates full-screen intent notifications behind a special,
-     * user-granted access (Settings ▸ Special app access ▸ Full screen
-     * intents). On API < 34 the permission is a normal, always-granted
-     * manifest permission, so there is nothing to check or prompt for.
-     */
-    private fun canUseFullScreenIntent(): Boolean {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            return true
-        }
-        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        return nm.canUseFullScreenIntent()
-    }
-
-    private fun showFullScreenIntentAccessDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Full-screen access needed")
-            .setMessage(
-                "Lock Screen Overlay needs the \"Full screen intents\" special " +
-                "access to launch over the lock screen. Without it, a timer " +
-                "expiry while locked shows a normal notification instead."
-            )
-            .setPositiveButton("Open settings") { _, _ ->
-                try {
-                    startActivity(
-                        android.content.Intent(
-                            android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-                            android.net.Uri.parse("package:$packageName")
-                        )
-                    )
-                } catch (_: Exception) {
-                    Toast.makeText(this, "Couldn't open Full Screen Intent settings",
-                        Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton("Later", null)
-            .show()
-    }
-
-    /**
-     * True when the app is exempted from battery optimization ("Unrestricted").
-     * While "Optimized" (the default), the system can throttle notification
-     * alerting — including full-screen launches — especially on repeated
-     * firings in a short window. This is a real, observed cause of
-     * intermittent full-screen alarm behavior distinct from the Full Screen
-     * Intent special access above.
-     */
-    private fun isIgnoringBatteryOptimizations(): Boolean {
-        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
-        return pm.isIgnoringBatteryOptimizations(packageName)
-    }
-
-    private fun refreshBatteryOptimizationRow() {
-        val needsGrant = !isIgnoringBatteryOptimizations()
-        cardBatteryOptimization.visibility = if (needsGrant) View.VISIBLE else View.GONE
-    }
-
-    private fun showBatteryOptimizationDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Battery optimization")
-            .setMessage(
-                "While battery-optimized, the system can silently throttle " +
-                "how alarms alert — including the full-screen overlay — " +
-                "especially on repeated firings close together. Set to " +
-                "Unrestricted for reliable alarms."
-            )
-            .setPositiveButton("Open settings") { _, _ ->
-                try {
-                    startActivity(
-                        android.content.Intent(
-                            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                            android.net.Uri.parse("package:$packageName")
-                        )
-                    )
-                } catch (_: Exception) {
-                    try {
-                        startActivity(android.content.Intent(
-                            android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                    } catch (_: Exception) {
-                        Toast.makeText(this, "Couldn't open Battery settings",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Later", null)
-            .show()
     }
 }

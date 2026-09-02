@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rowPermission"
+    style="@style/App.Row.Nav.FlushHorizontal"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="@dimen/app_card_padding_md"
+    android:paddingBottom="@dimen/app_card_padding_md"
+    android:minHeight="0dp">
+
+    <LinearLayout style="@style/App.Row.TextBlock">
+        <TextView
+            android:id="@+id/tvPermissionTitle"
+            style="@style/App.Row.Title"
+            tools:text="Full screen intents" />
+        <TextView
+            android:id="@+id/tvPermissionStatus"
+            style="@style/App.Row.Subtitle"
+            android:layout_width="match_parent"
+            android:layout_marginTop="@dimen/app_spacing_xs"
+            tools:text="Granted" />
+        <TextView
+            android:id="@+id/tvPermissionDescription"
+            style="@style/App.SwitchRow.Description"
+            android:layout_marginTop="@dimen/app_spacing_sm"
+            android:lineSpacingMultiplier="1.3"
+            tools:text="Needed to launch the alarm overlay while the device is locked." />
+    </LinearLayout>
+
+    <TextView style="@style/App.Text.Chevron"
+        android:layout_marginStart="@dimen/app_spacing_lg"
+        android:text="&#8250;" />
+
+</LinearLayout>

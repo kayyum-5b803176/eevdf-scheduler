@@ -101,6 +101,13 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName="com.eevdf.feature.settings.SettingsActivity" />
 
+        <!-- Permissions screen -->
+        <activity
+            android:name="com.eevdf.feature.settings.PermissionsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName="com.eevdf.feature.settings.SettingsActivity" />
+
         <!-- Hardware Keys: list of assignable keys -->
         <activity
             android:name="com.eevdf.feature.settings.HardwareKeyActionActivity"
