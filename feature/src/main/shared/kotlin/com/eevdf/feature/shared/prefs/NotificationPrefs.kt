@@ -39,7 +39,7 @@ object NotificationPrefs {
     //       the device is locked.
 
     fun isLockScreenOverlayEnabled(ctx: Context): Boolean =
-        prefs(ctx).getBoolean(KEY_LOCK_SCREEN_OVERLAY_ENABLED, true)
+        prefs(ctx).getBoolean(KEY_LOCK_SCREEN_OVERLAY_ENABLED, false)
 
     fun setLockScreenOverlayEnabled(ctx: Context, enabled: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_LOCK_SCREEN_OVERLAY_ENABLED, enabled).apply()
