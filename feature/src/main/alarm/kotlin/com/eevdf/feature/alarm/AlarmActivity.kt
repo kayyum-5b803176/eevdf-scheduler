@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -89,6 +90,7 @@ class AlarmActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("EEVDFAlarm", "AlarmActivity.onCreate — full-screen intent launched us")
 
         // Wake screen + show over lock screen — same flags Google Clock uses
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {

@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.eevdf.feature.R
@@ -54,6 +55,8 @@ import com.eevdf.contract.nav.AppRoutes
 class AlarmForegroundService : Service() {
 
     companion object {
+        private const val TAG = "EEVDFAlarm"
+
         const val ACTION_TIMER_START  = "com.eevdf.scheduler.TIMER_START"
         const val ACTION_DELAY_START  = "com.eevdf.scheduler.DELAY_START"
         const val ACTION_TIMER_EXPIRE = "com.eevdf.scheduler.TIMER_EXPIRE"
@@ -255,6 +258,7 @@ class AlarmForegroundService : Service() {
                 // isAlarmRinging is the secondary in-process guard.
                 if (!isAlarmRinging) {
                     isAlarmRinging = true
+                    Log.d(TAG, "EXPIRE fired: taskName=$taskName isDeviceLocked=${isDeviceLocked()}")
                     acquireWakeLock()
 
                     // Style routing — never show anything while the EEVDF app
@@ -291,6 +295,18 @@ class AlarmForegroundService : Service() {
                     val attachFullScreenIntent = !appForeground &&
                         NotificationPrefs.isLockScreenOverlayEnabled(this)
 
+                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                    val canUseFsi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+                        nm.canUseFullScreenIntent() else true
+                    val channelImportance = nm.getNotificationChannel(CHANNEL_ALARM)?.importance
+                    Log.d(
+                        TAG,
+                        "EXPIRE decision: appForeground=$appForeground foregroundPkg=$foregroundPkg " +
+                            "excludeAppMatch=$excludeAppMatch suppressBanner=$suppressBanner " +
+                            "attachFullScreenIntent=$attachFullScreenIntent canUseFullScreenIntent=$canUseFsi " +
+                            "channelImportance=$channelImportance"
+                    )
+
                     showExpiredNotification(taskName, suppressBanner, attachFullScreenIntent)
                     val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
                     SoundManager.startAlarmForType(this, prefs, taskType)
@@ -314,6 +330,8 @@ class AlarmForegroundService : Service() {
                     // actually on screen; on the banner path there is no
                     // focused window of ours to receive them, same as Clock's
                     // banner.
+                } else {
+                    Log.d(TAG, "EXPIRE ignored: isAlarmRinging guard already true (duplicate delivery?)")
                 }
             }
 
@@ -498,6 +516,7 @@ class AlarmForegroundService : Service() {
         // specific post, which mediaPlayback never correctly represented for
         // a non-MediaSession alarm ringer.
         val notification = builder.build()
+        Log.d(TAG, "Posting notification: hasFullScreenIntent=${notification.fullScreenIntent != null} isSilent=${suppressBanner}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceCompat.startForeground(
                 this, NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
@@ -505,6 +524,21 @@ class AlarmForegroundService : Service() {
         } else {
             updateNotification(notification)
         }
+    }
+
+    /**
+     * Diagnostic only — logged alongside the EXPIRE decision so a logcat
+     * capture shows what the app itself believed the lock state was,
+     * compared against the platform's own full-screen-intent decision (which
+     * is what actually determines whether AlarmActivity launches). Not used
+     * to gate any behavior.
+     */
+    private fun isDeviceLocked(): Boolean {
+        val km = getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        val keyguardLocked = km?.isKeyguardLocked == true
+        val pm = getSystemService(POWER_SERVICE) as? PowerManager
+        val screenOff = pm?.isInteractive == false
+        return keyguardLocked || screenOff
     }
 
     private fun updateNotification(notification: Notification) {
@@ -524,6 +558,7 @@ class AlarmForegroundService : Service() {
 
     private fun stopEverything() {
         val wasRinging = isAlarmRinging
+        Log.d(TAG, "stopEverything: wasRinging=$wasRinging")
         VibrationManager.stop(this)
         SoundManager.stop(this)
         isAlarmRinging = false
