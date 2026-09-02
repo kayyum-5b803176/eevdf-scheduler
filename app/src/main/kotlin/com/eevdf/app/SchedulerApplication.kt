@@ -3,6 +3,7 @@ package com.eevdf.app
 import android.app.Application
 import com.eevdf.app.core.LogcatCrashReporter
 import com.eevdf.feature.shared.prefs.DisplayPrefs
+import com.eevdf.platform.notification.AppForegroundTracker
 import com.eevdf.shared.CrashIsolation
 import dagger.hilt.android.HiltAndroidApp
 
@@ -26,5 +27,8 @@ class SchedulerApplication : Application() {
         // Apply before any Activity is drawn.
         DisplayPrefs.applyDarkMode(this)
         CrashIsolation.install(LogcatCrashReporter)
+        // Needed by AlarmForegroundService to suppress the timer-expired overlay
+        // while this app itself is already in the foreground.
+        AppForegroundTracker.install(this)
     }
 }

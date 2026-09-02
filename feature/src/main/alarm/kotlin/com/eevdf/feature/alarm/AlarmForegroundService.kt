@@ -15,6 +15,7 @@ import com.eevdf.feature.R
 import com.eevdf.platform.media.SoundManager
 import com.eevdf.feature.shared.prefs.DisplayPrefs
 import com.eevdf.platform.media.VibrationManager
+import com.eevdf.platform.notification.AppForegroundTracker
 import com.eevdf.contract.nav.AppRoutes
 
 /**
@@ -247,15 +248,19 @@ class AlarmForegroundService : Service() {
                     isAlarmRinging = true
                     acquireWakeLock()
 
-                    // Overlay Intent suppression (UI Customization): when the user
-                    // has enabled it and the foreground app is in the configured
-                    // list, suppress the full-screen overlay.  The alarm still
-                    // rings and shows its notification; only the overlay is hidden.
-                    // Because the hardware-key handlers live in the overlay, keys
-                    // are inactive while it is suppressed — by design.
-                    val suppressOverlay = DisplayPrefs.shouldSuppressOverlay(
-                        this, getForegroundPackage(), isDeviceLocked()
-                    )
+                    // Overlay suppression. Two independent reasons to suppress:
+                    //  1. User-configured (UI Customization): enabled + foreground
+                    //     app is in the configured list / lock-only mode — see
+                    //     DisplayPrefs.shouldSuppressOverlay.
+                    //  2. Always, unconditionally: the EEVDF app itself is already
+                    //     in the foreground. The in-app expired UI covers that case;
+                    //     popping a heads-up/full-screen overlay on top of our own
+                    //     app would be redundant and jarring.
+                    // Either reason suppresses the SAME thing — the alarm still
+                    // rings and still posts its ongoing notification with the Stop
+                    // action either way; only the intrusive overlay is skipped.
+                    val suppressOverlay = AppForegroundTracker.isAppInForeground ||
+                        DisplayPrefs.shouldSuppressOverlay(this, getForegroundPackage(), isDeviceLocked())
 
                     showExpiredNotification(taskName, suppressOverlay)
                     val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
@@ -272,22 +277,15 @@ class AlarmForegroundService : Service() {
                         }
                     )
 
-                    if (!suppressOverlay) {
-                        // Force-launch the full-screen overlay so a focused window
-                        // always exists for hardware-key handling — not merely a
-                        // full-screen intent (which the system may downgrade to a
-                        // heads-up while the device is in use, leaving no window to
-                        // receive key events).  The service was started from an
-                        // alarm broadcast, so it holds a short background-activity-
-                        // launch grant here.  The notification's setFullScreenIntent
-                        // remains as the fallback path.
-                        try {
-                            startActivity(AlarmActivity.createIntent(this, taskName))
-                        } catch (_: Exception) {
-                            // BAL denied (rare): the full-screen intent on the
-                            // notification is the fallback and surfaces the overlay.
-                        }
-                    }
+                    // No manual startActivity() launch here on purpose, and no
+                    // setFullScreenIntent either — this is a banner (heads-up)
+                    // notification only, never a full-screen Activity takeover.
+                    // showExpiredNotification posts a HIGH-importance, non-silent
+                    // notification with just the Stop action; the platform peeks it
+                    // over whatever app is in front on its own, Clock-app style,
+                    // without taking focus from that app. Hardware keys are
+                    // inactive in this case — there is no focused window of ours to
+                    // receive them, same as Clock's banner.
                 }
             }
 
@@ -391,6 +389,14 @@ class AlarmForegroundService : Service() {
         return builder.build()
     }
 
+    /**
+     * Banner-only (heads-up) expiry notification. Deliberately NOT a full-screen
+     * intent / Activity launch: on a HIGH-importance channel, a non-silent
+     * notification is heads-up-eligible on its own — `setSilent()` is what
+     * actually gates the peek, not `setFullScreenIntent`. This is exactly what
+     * shows the "Stop" banner over whatever app is in front, without stealing
+     * window focus from it.
+     */
     private fun showExpiredNotification(taskName: String, suppressOverlay: Boolean = false) {
         val stopPi = PendingIntent.getBroadcast(
             this, 20,
@@ -399,17 +405,11 @@ class AlarmForegroundService : Service() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val fullScreenPi = PendingIntent.getActivity(
-            this, 30,
-            AlarmActivity.createIntent(this, taskName),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
         val builder = NotificationCompat.Builder(this, CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Timer expired")
             .setContentText(taskName)
             .setOngoing(true)
-            .setSilent(true)
             .setWhen(System.currentTimeMillis())
             .setShowWhen(true)
             .setUsesChronometer(true)   // counts UP from setWhen — elapsed time
@@ -418,11 +418,15 @@ class AlarmForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-        // When suppressed, omit the full-screen intent so the overlay does NOT pop
-        // over the configured app.  The high-priority alarm notification still
-        // appears (with its Stop action) so the user isn't silently missing it.
-        if (!suppressOverlay) {
-            builder.setFullScreenIntent(fullScreenPi, true)
+        // Suppressed (configured app / lock-only pref, OR our own app is
+        // foreground — see the two suppression reasons at the call site): mark
+        // silent so it posts quietly to the drawer with no peek/banner. Otherwise
+        // leave silent unset — HIGH channel importance + not-silent is what makes
+        // it heads-up. The channel itself carries no sound/vibration (see
+        // createChannels): SoundManager/VibrationManager already own that, so
+        // this never doubles up regardless of which branch runs.
+        if (suppressOverlay) {
+            builder.setSilent(true)
         }
         updateNotification(builder.build())
     }
@@ -553,7 +557,12 @@ class AlarmForegroundService : Service() {
             )
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL_ALARM, "Timer Expired", NotificationManager.IMPORTANCE_HIGH).apply {
-                    setSound(null, null); enableVibration(true)
+                    // No sound/vibration here: SoundManager/VibrationManager already
+                    // own both explicitly when the alarm rings. The notification
+                    // itself only needs to be non-silent to be heads-up-eligible
+                    // (see showExpiredNotification) — it doesn't need its own sound
+                    // or vibration to do that, and giving it either would double up.
+                    setSound(null, null); enableVibration(false)
                 }
             )
         }
