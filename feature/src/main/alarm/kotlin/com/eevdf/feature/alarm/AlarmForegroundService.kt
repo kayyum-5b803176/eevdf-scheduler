@@ -15,6 +15,8 @@ import com.eevdf.feature.R
 import com.eevdf.platform.media.SoundManager
 import com.eevdf.platform.media.VibrationManager
 import com.eevdf.platform.notification.AppForegroundTracker
+import com.eevdf.platform.notification.ForegroundAppDetector
+import com.eevdf.feature.shared.prefs.NotificationPrefs
 import com.eevdf.contract.nav.AppRoutes
 
 /**
@@ -247,23 +249,33 @@ class AlarmForegroundService : Service() {
                     isAlarmRinging = true
                     acquireWakeLock()
 
-                    // Overlay suppression: only the one rule that was actually
-                    // asked for — never show while the EEVDF app itself is the
-                    // foreground app (the in-app expired UI covers that case; a
-                    // banner on top of our own app would be redundant/jarring).
-                    //
-                    // The old "Overlay Intent" display setting (app-list / lock-only)
-                    // was built for the previous full-screen takeover, where
-                    // "only show when locked" made sense — you don't want a
-                    // full-screen interruption stealing focus from an app you're
-                    // actively using. A heads-up banner never takes focus, so that
-                    // same rule defeats the feature: with lock-only enabled it
-                    // suppresses the banner on every unlocked screen, i.e. every
-                    // real "another app is in front" case — which is the whole
-                    // point of this notification. Deliberately not wired in here.
-                    val suppressOverlay = AppForegroundTracker.isAppInForeground
+                    // Style routing — never show anything while the EEVDF app
+                    // itself is the foreground app (the in-app expired UI
+                    // covers that case; either style on top of our own app
+                    // would be redundant/jarring). Otherwise:
+                    //   • Lock Screen Overlay pref ON  → attach a full-screen
+                    //     intent. The platform itself decides, from the
+                    //     keyguard state, whether that launches the full-screen
+                    //     AlarmActivity (locked) or is downgraded to a normal
+                    //     heads-up banner (unlocked) — this is exactly the
+                    //     "locked → overlay, unlocked → banner" routing asked
+                    //     for, and it comes for free from CATEGORY_ALARM +
+                    //     PRIORITY_MAX + a HIGH-importance channel.
+                    //   • Exclude App pref → suppresses the BANNER style only
+                    //     (via setSilent). Irrelevant on the lock screen: the
+                    //     device being locked means no third-party app is
+                    //     meaningfully "in front" to match against.
+                    val appForeground = AppForegroundTracker.isAppInForeground
+                    val foregroundPkg = if (appForeground) null
+                        else ForegroundAppDetector.getForegroundPackage(this)
+                    val excludeAppMatch = !appForeground &&
+                        NotificationPrefs.isAppExcluded(this, foregroundPkg)
 
-                    showExpiredNotification(taskName, suppressOverlay)
+                    val suppressBanner = appForeground || excludeAppMatch
+                    val attachFullScreenIntent =
+                        !appForeground && NotificationPrefs.isLockScreenOverlayEnabled(this)
+
+                    showExpiredNotification(taskName, suppressBanner, attachFullScreenIntent)
                     val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
                     SoundManager.startAlarmForType(this, prefs, taskType)
                     VibrationManager.startAlarmForType(this, prefs, taskType)
@@ -278,15 +290,14 @@ class AlarmForegroundService : Service() {
                         }
                     )
 
-                    // No manual startActivity() launch here on purpose, and no
-                    // setFullScreenIntent either — this is a banner (heads-up)
-                    // notification only, never a full-screen Activity takeover.
-                    // showExpiredNotification posts a HIGH-importance, non-silent
-                    // notification with just the Stop action; the platform peeks it
-                    // over whatever app is in front on its own, Clock-app style,
-                    // without taking focus from that app. Hardware keys are
-                    // inactive in this case — there is no focused window of ours to
-                    // receive them, same as Clock's banner.
+                    // No manual startActivity() call here — the full-screen
+                    // launch (when enabled and the device is locked) is done by
+                    // the platform via the notification's full-screen intent,
+                    // never by this service reaching for AlarmActivity directly.
+                    // Hardware keys are only live while AlarmActivity is
+                    // actually on screen; on the banner path there is no
+                    // focused window of ours to receive them, same as Clock's
+                    // banner.
                 }
             }
 
@@ -391,14 +402,26 @@ class AlarmForegroundService : Service() {
     }
 
     /**
-     * Banner-only (heads-up) expiry notification. Deliberately NOT a full-screen
-     * intent / Activity launch: on a HIGH-importance channel, a non-silent
-     * notification is heads-up-eligible on its own — `setSilent()` is what
-     * actually gates the peek, not `setFullScreenIntent`. This is exactly what
-     * shows the "Stop" banner over whatever app is in front, without stealing
-     * window focus from it.
+     * Expiry notification. Always built the same way; which STYLE the user
+     * actually sees is resolved by the platform, not chosen manually here:
+     *
+     *   • [attachFullScreenIntent] adds a full-screen intent pointing at
+     *     [AlarmActivity]. With CATEGORY_ALARM + PRIORITY_MAX on a
+     *     HIGH-importance channel, the platform launches it full-screen while
+     *     the device is locked, and silently downgrades to a normal heads-up
+     *     banner while unlocked — i.e. "locked → overlay, unlocked → banner"
+     *     comes from the platform's own full-screen-intent rules, not from
+     *     anything decided in this method.
+     *   • [suppressBanner] governs the banner style only: `setSilent()` is
+     *     what gates the heads-up peek on a non-full-screen-intent posting
+     *     (or on the downgraded-to-banner path above) — it does not affect
+     *     whether the full-screen intent itself fires while locked.
      */
-    private fun showExpiredNotification(taskName: String, suppressOverlay: Boolean = false) {
+    private fun showExpiredNotification(
+        taskName: String,
+        suppressBanner: Boolean = false,
+        attachFullScreenIntent: Boolean = false
+    ) {
         val stopPi = PendingIntent.getBroadcast(
             this, 20,
             Intent(this, AlarmStopReceiver::class.java).apply {
@@ -419,14 +442,24 @@ class AlarmForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-        // Suppressed (configured app / lock-only pref, OR our own app is
-        // foreground — see the two suppression reasons at the call site): mark
-        // silent so it posts quietly to the drawer with no peek/banner. Otherwise
-        // leave silent unset — HIGH channel importance + not-silent is what makes
-        // it heads-up. The channel itself carries no sound/vibration (see
-        // createChannels): SoundManager/VibrationManager already own that, so
-        // this never doubles up regardless of which branch runs.
-        if (suppressOverlay) {
+
+        if (attachFullScreenIntent) {
+            val fullScreenPi = PendingIntent.getActivity(
+                this, 30,
+                AlarmActivity.createIntent(this, taskName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.setFullScreenIntent(fullScreenPi, true)
+        }
+
+        // Suppressed (Exclude App match, OR our own app is foreground — see
+        // the two suppression reasons at the call site): mark silent so the
+        // banner posts quietly with no peek. Otherwise leave silent unset —
+        // HIGH channel importance + not-silent is what makes it heads-up. The
+        // channel itself carries no sound/vibration (see createChannels):
+        // SoundManager/VibrationManager already own that, so this never
+        // doubles up regardless of which branch runs.
+        if (suppressBanner) {
             builder.setSilent(true)
         }
         updateNotification(builder.build())

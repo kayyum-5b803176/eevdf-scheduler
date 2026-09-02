@@ -74,8 +74,13 @@ class SettingsActivity : AppCompatActivity() {
     private fun bindCards() {
         findViewById<NavCardView>(R.id.rowVisual).apply {
             title = "display"
-            subtitle = "appearance, layout, density, overlay"
+            subtitle = "appearance, layout, density"
             onNavigate = { startActivity(Intent(this@SettingsActivity, DisplaySettingsActivity::class.java)) }
+        }
+        findViewById<NavCardView>(R.id.rowNotification).apply {
+            title = "notification"
+            subtitle = "lock screen overlay, exclude app"
+            onNavigate = { startActivity(Intent(this@SettingsActivity, NotificationSettingsActivity::class.java)) }
         }
         findViewById<NavCardView>(R.id.rowSoundVibration).apply {
             title = "sound and vibration"

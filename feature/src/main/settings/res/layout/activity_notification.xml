@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Text casing: all labels and descriptions are lowercase in the title case
+    conventions used elsewhere; see docs/UI_TEXT_CONVENTIONS.md.
+
+    Same page skeleton as every other settings screen (Toolbar + TabLayout +
+    ScrollView/PageContent) — the TabLayout is present but left blank (no
+    tabs added in NotificationSettingsActivity), matching ButtonActionActivity.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/screenBackground">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/notificationToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/screenBackground"
+        android:elevation="4dp"
+        app:titleTextColor="@color/app_text_title" />
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
+
+    <ScrollView style="@style/App.PageScroll">
+
+        <LinearLayout style="@style/App.PageContent">
+
+            <!-- ══ LOCK SCREEN OVERLAY ══════════════════════════════════════ -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
+
+                <LinearLayout style="@style/App.SettingsCard.Body">
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchLockScreenOverlay"
+                        style="@style/App.SwitchRow"
+                        android:text="Lock Screen Overlay" />
+
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:text="When on, a timer expiry shows the full-screen alarm overlay while the device is locked, like the Clock app. When off, it always shows a normal notification instead, even while locked."
+                        android:lineSpacingMultiplier="1.3" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ══ EXCLUDE APP ══════════════════════════════════════════════ -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
+
+                <LinearLayout style="@style/App.SettingsCard.Body">
+
+                    <LinearLayout
+                        android:id="@+id/rowExcludeApp"
+                        style="@style/App.Row.Nav.FlushHorizontal"
+                        android:paddingTop="@dimen/app_card_padding_md"
+                        android:paddingBottom="@dimen/app_spacing_sm"
+                        android:minHeight="0dp">
+
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView style="@style/App.Row.Title"
+                                android:text="Exclude App" />
+                            <TextView
+                                android:id="@+id/tvExcludeApp"
+                                style="@style/App.Row.Subtitle"
+                                android:layout_width="match_parent"
+                                android:text="No apps selected" />
+                        </LinearLayout>
+
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
+
+                    </LinearLayout>
+
+                    <TextView style="@style/App.SwitchRow.Description"
+                        android:layout_marginTop="@dimen/app_spacing_md"
+                        android:text="The banner notification is not shown while one of the selected apps is in the foreground. Only applies to the banner style — never the lock screen overlay."
+                        android:lineSpacingMultiplier="1.3" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
