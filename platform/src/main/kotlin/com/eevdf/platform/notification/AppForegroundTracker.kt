@@ -19,8 +19,26 @@ import android.os.Bundle
  * "went to background" blip.
  *
  * [install] must be called once, from `Application.onCreate`.
+ *
+ * ── Why AlarmActivity is excluded from the count ─────────────────────────────
+ *
+ * This flag exists to answer one question: "is the user actively using the
+ * app's normal UI right now?", so the alarm-expiry notification can skip
+ * showing a redundant style on top of it. AlarmActivity — the full-screen
+ * alarm overlay itself — is also an Activity of this app, so without this
+ * exclusion, the overlay showing would flip this flag to true and could
+ * suppress the very notification whose full-screen intent launched it, or a
+ * second alarm racing shortly after the first is dismissed (this is exactly
+ * what caused the reported "works once, then never shows full-screen again"
+ * bug: the count could still read >0 from the first alarm's AlarmActivity at
+ * the moment the second alarm's suppression decision was made). AlarmActivity
+ * is intentionally referenced by string class name, not by import — `platform`
+ * cannot and should not depend on `feature:alarm`; see AppRoutes.kt for the
+ * same string-based decoupling rationale used elsewhere in this codebase.
  */
 object AppForegroundTracker {
+
+    private const val ALARM_ACTIVITY_CLASS_NAME = "com.eevdf.feature.alarm.AlarmActivity"
 
     @Volatile
     private var startedActivityCount = 0
@@ -32,11 +50,13 @@ object AppForegroundTracker {
     fun install(application: Application) {
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
-                startedActivityCount++
+                if (isTracked(activity)) startedActivityCount++
             }
 
             override fun onActivityStopped(activity: Activity) {
-                startedActivityCount = (startedActivityCount - 1).coerceAtLeast(0)
+                if (isTracked(activity)) {
+                    startedActivityCount = (startedActivityCount - 1).coerceAtLeast(0)
+                }
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
@@ -46,4 +66,7 @@ object AppForegroundTracker {
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
     }
+
+    private fun isTracked(activity: Activity): Boolean =
+        activity.javaClass.name != ALARM_ACTIVITY_CLASS_NAME
 }
