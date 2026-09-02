@@ -2,6 +2,7 @@ package com.eevdf.feature.settings
 
 import android.os.Bundle
 import android.view.MenuItem
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -29,6 +30,7 @@ class NotificationSettingsActivity : AppCompatActivity() {
     private lateinit var switchLockScreenOverlay: SwitchMaterial
     private lateinit var rowExcludeApp: LinearLayout
     private lateinit var tvExcludeApp: TextView
+    private lateinit var rowFullScreenIntentAccess: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,9 +41,10 @@ class NotificationSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Notification"
 
-        switchLockScreenOverlay = findViewById(R.id.switchLockScreenOverlay)
-        rowExcludeApp           = findViewById(R.id.rowExcludeApp)
-        tvExcludeApp            = findViewById(R.id.tvExcludeApp)
+        switchLockScreenOverlay   = findViewById(R.id.switchLockScreenOverlay)
+        rowExcludeApp             = findViewById(R.id.rowExcludeApp)
+        tvExcludeApp              = findViewById(R.id.tvExcludeApp)
+        rowFullScreenIntentAccess = findViewById(R.id.rowFullScreenIntentAccess)
 
         // ── Load saved prefs ────────────────────────────────────────────────
         switchLockScreenOverlay.isChecked = NotificationPrefs.isLockScreenOverlayEnabled(this)
@@ -50,6 +53,7 @@ class NotificationSettingsActivity : AppCompatActivity() {
         // ── Switches / rows ──────────────────────────────────────────────────
         switchLockScreenOverlay.setOnCheckedChangeListener { _, isChecked ->
             NotificationPrefs.setLockScreenOverlayEnabled(this, isChecked)
+            refreshFullScreenIntentAccessRow()
             // Android 14+ gates full-screen intents behind a user-granted
             // special access. Without it, the platform silently downgrades
             // the full-screen intent to a normal heads-up notification even
@@ -67,6 +71,27 @@ class NotificationSettingsActivity : AppCompatActivity() {
                 showExcludeAppPicker()
             }
         }
+        rowFullScreenIntentAccess.setOnClickListener { showFullScreenIntentAccessDialog() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The permission is only grantable through the system Settings app,
+        // so the state can only have changed while this Activity was paused —
+        // re-check every time it comes back into view rather than only at
+        // toggle-time, so the warning row clears itself once granted.
+        refreshFullScreenIntentAccessRow()
+    }
+
+    /**
+     * Shows a persistent warning row (not just a one-time dialog) whenever
+     * Lock Screen Overlay is on but the platform will not actually honor a
+     * full-screen intent — otherwise the feature silently degrades to a
+     * normal notification with no visible explanation.
+     */
+    private fun refreshFullScreenIntentAccessRow() {
+        val needsGrant = switchLockScreenOverlay.isChecked && !canUseFullScreenIntent()
+        rowFullScreenIntentAccess.visibility = if (needsGrant) View.VISIBLE else View.GONE
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

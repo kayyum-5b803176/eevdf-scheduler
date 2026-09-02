@@ -58,6 +58,28 @@
                         android:text="When on, a timer expiry shows the full-screen alarm overlay while the device is locked, like the Clock app. When off, it always shows a normal notification instead, even while locked."
                         android:lineSpacingMultiplier="1.3" />
 
+                    <LinearLayout
+                        android:id="@+id/rowFullScreenIntentAccess"
+                        style="@style/App.Row.Nav.FlushHorizontal"
+                        android:paddingTop="@dimen/app_card_padding_md"
+                        android:paddingBottom="@dimen/app_spacing_sm"
+                        android:minHeight="0dp"
+                        android:visibility="gone">
+
+                        <LinearLayout style="@style/App.Row.TextBlock">
+                            <TextView
+                                android:id="@+id/tvFullScreenIntentAccess"
+                                style="@style/App.Row.Subtitle"
+                                android:layout_width="match_parent"
+                                android:textColor="@color/quotaTextExceeded"
+                                android:text="Full-screen access not granted — tap to grant" />
+                        </LinearLayout>
+
+                        <TextView style="@style/App.Text.Chevron"
+                            android:text="&#8250;" />
+
+                    </LinearLayout>
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

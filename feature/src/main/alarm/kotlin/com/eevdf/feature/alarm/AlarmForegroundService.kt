@@ -74,7 +74,13 @@ class AlarmForegroundService : Service() {
 
         private const val CHANNEL_TIMER = "eevdf_timer_fg_channel"
         private const val CHANNEL_DELAY = "eevdf_delay_fg_channel"
-        private const val CHANNEL_ALARM = "eevdf_alarm_fg_channel"
+        // Bumped from "eevdf_alarm_fg_channel" — channel settings are
+        // immutable by the app once created, so any earlier build (or manual
+        // user tweak while debugging the banner-only version) that left this
+        // channel's importance/"pop on screen" below HIGH would silently
+        // block the full-screen intent forever. A fresh channel ID guarantees
+        // this build starts from correct HIGH-importance defaults.
+        private const val CHANNEL_ALARM = "eevdf_alarm_fg_channel_v2"
         private const val NOTIF_ID      = 3001
 
         private const val WAKE_TAG     = "EEVDFScheduler:AlarmWake"
