@@ -342,28 +342,25 @@ class AlarmForegroundService : Service() {
     // ── WakeLock ──────────────────────────────────────────────────────────────
 
     /**
-     * PARTIAL_WAKE_LOCK only — keeps the CPU running so the alarm can play
-     * sound and post its notification while the screen stays off. Deliberately
-     * NOT a screen-waking wake lock (the old FULL_WAKE_LOCK +
-     * ACQUIRE_CAUSES_WAKEUP this replaced): manually forcing the screen on
-     * here races the platform's own full-screen-intent eligibility check —
-     * NotificationManagerService decides "locked → full screen, unlocked →
-     * banner" by reading keyguard/interactive state at the moment the
-     * notification posts, and a wake lock that flips the screen on WHILE that
-     * decision is in flight makes the outcome timing-dependent (this is what
-     * caused the intermittent "sometimes full-screen, sometimes just a
-     * banner" behavior). AOSP Clock's own AlarmAlertWakeLock uses exactly
-     * this: PARTIAL_WAKE_LOCK, nothing more. Turning the screen on is left
-     * entirely to the full-screen intent's own Activity launch — AlarmActivity
-     * declares setTurnScreenOn(true)/FLAG_TURN_SCREEN_ON itself, so the screen
-     * still turns on, just as a downstream effect of the platform's decision
-     * rather than a precondition racing it.
+     * Restored to FULL_WAKE_LOCK + ACQUIRE_CAUSES_WAKEUP after switching to
+     * PARTIAL_WAKE_LOCK regressed the app: the screen stopped waking at all
+     * when a timer expired. That change assumed the full-screen intent
+     * reliably launches AlarmActivity (which would wake the screen itself via
+     * setTurnScreenOn), but that launch is evidently not happening
+     * consistently here — so relying on it alone left the phone with no
+     * screen wake whatsoever. Reverting to a known-working baseline while the
+     * actual full-screen-intent launch issue is investigated separately.
      */
     private fun acquireWakeLock() {
         releaseWakeLock()
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_TAG)
-            .also { it.acquire(WAKE_TIMEOUT) }
+        @Suppress("DEPRECATION")
+        wakeLock = pm.newWakeLock(
+            PowerManager.FULL_WAKE_LOCK          or
+            PowerManager.ACQUIRE_CAUSES_WAKEUP   or
+            PowerManager.ON_AFTER_RELEASE,
+            WAKE_TAG
+        ).also { it.acquire(WAKE_TIMEOUT) }
     }
 
     private fun releaseWakeLock() {
