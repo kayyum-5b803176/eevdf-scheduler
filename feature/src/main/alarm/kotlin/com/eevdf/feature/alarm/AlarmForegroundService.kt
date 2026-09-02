@@ -7,10 +7,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.eevdf.feature.R
 import com.eevdf.platform.media.SoundManager
 import com.eevdf.platform.media.VibrationManager
@@ -476,7 +478,23 @@ class AlarmForegroundService : Service() {
         if (suppressBanner) {
             builder.setSilent(true)
         }
-        updateNotification(builder.build())
+
+        // Post via a fresh startForeground() call — mirroring AOSP DeskClock's
+        // TimerModel.updateHeadsUpNotification(), which does exactly this
+        // (ServiceCompat.startForeground(...)) for the expiry notification
+        // specifically, rather than a plain NotificationManager.notify() on
+        // the already-running foreground notification. On Android 14+ this
+        // also re-asserts the SPECIAL_USE foreground service type for this
+        // specific post, which mediaPlayback never correctly represented for
+        // a non-MediaSession alarm ringer.
+        val notification = builder.build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceCompat.startForeground(
+                this, NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            updateNotification(notification)
+        }
     }
 
     /**

@@ -133,6 +133,8 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:excludeFromRecents="true"
+            android:resizeableActivity="false"
+            android:taskAffinity=""
             android:launchMode="singleInstance" />
 
         <!-- Receives the Stop action from the expired-timer notification -->
@@ -150,14 +152,22 @@
             android:exported="false" />
 
         <!--
-            Foreground service that holds WakeLock and launches AlarmActivity.
-            Uses media_playback type which is allowed to start activities from background
-            on Android 12+ without special permissions.
+            Foreground service that owns the alarm/timer notification and the
+            countdown/expiry sound.  Type is "specialUse" — matching AOSP
+            Clock's TimerService exactly (see PROPERTY_SPECIAL_USE_FGS_SUBTYPE
+            below) — rather than "mediaPlayback": this service does not run a
+            MediaSession-backed player Android 14 expects for that type, and
+            "mediaPlayback" carries its own OS-level scrutiny (idle/no-session
+            timeouts) that a plain alarm ringer does not need or want.
         -->
         <service
             android:name="com.eevdf.feature.alarm.AlarmForegroundService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Used to ring and display the timer-expiry alarm" />
+        </service>
 
         <!--
             Hover bubble: foreground service that shows the floating call-state
