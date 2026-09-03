@@ -262,20 +262,34 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         )
 
     /**
-     * Substitutes [membership]'s own vruntime onto [realTask], for display
-     * purposes only — never persisted, never looked up by id elsewhere. This
-     * is the read-path counterpart to TaskRepository.creditMembershipRun's
-     * write-path vruntime isolation: without it, a membership row would show
-     * the real task's PRIMARY vruntime (relative to its real siblings
-     * elsewhere), not this placement's.
+     * Substitutes [membership]'s own vruntime — AND the eligibleTime/
+     * virtualDeadline that vruntime determines — onto [realTask], for display
+     * purposes only. Never persisted, never looked up by id elsewhere.
      *
-     * totalRunTime/runCount are deliberately NOT substituted — they're
-     * SHARED, lifetime statistics that live on the real task and must read
-     * identically everywhere it appears (see TaskMembership doc comment), so
-     * [realTask]'s own values are already exactly correct as-is.
+     * virtualDeadline must be DERIVED here, not read off [realTask] at all:
+     * it's a pure function of vruntime + the (shared, correct either way)
+     * timeSliceSeconds/weight — `EevdfScheduler.recalculate()`'s own formula,
+     * `eligibleTime = vruntime; virtualDeadline = eligibleTime +
+     * timeSlice/weight`. Reading [realTask.virtualDeadline] directly (as this
+     * used to) shows whatever the real task's OWN cached vdl happens to be —
+     * stale after a hardlink run (nothing here ever touches it), and
+     * incorrectly "synced" after a real-node run (the primary path's global
+     * recalc sweep refreshes it, and a membership row would blindly mirror
+     * that change even though nothing happened at this placement).
+     *
+     * totalRunTime/runCount are still deliberately NOT substituted — they're
+     * SHARED (see [TaskMembership] doc comment), so [realTask]'s own values
+     * are already exactly correct as-is.
      */
-    private fun withMembershipSchedState(realTask: Task, membership: TaskMembership): Task =
-        realTask.copy(vruntime = membership.vruntime)
+    private fun withMembershipSchedState(realTask: Task, membership: TaskMembership): Task {
+        val eligibleTime    = membership.vruntime
+        val virtualDeadline = eligibleTime + realTask.timeSliceSeconds.toDouble() / realTask.weight
+        return realTask.copy(
+            vruntime        = membership.vruntime,
+            eligibleTime    = eligibleTime,
+            virtualDeadline = virtualDeadline,
+        )
+    }
 
     // ── List builders ─────────────────────────────────────────────────────────
 
