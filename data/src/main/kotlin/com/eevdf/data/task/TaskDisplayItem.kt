@@ -82,5 +82,28 @@ data class TaskDisplayItem(
      * a rebind — ensuring the arrow icon rotation updates correctly.
      * Always true for leaf tasks (expand state is not meaningful).
      */
-    val isExpanded: Boolean = true
-)
+    val isExpanded: Boolean = true,
+
+    // ── Links feature: symlinks + hardlinks ───────────────────────────────────
+
+    /**
+     * Non-null when this row is a SYMLINK pointer (see [TaskLink]), not the
+     * real task. [task] is a live, read-only snapshot of the target so name/
+     * running-state always display current — but this row carries no weight
+     * in [cpuShare]/EEVDF computation, and tapping its timer icon must
+     * navigate to the target's real location rather than run anything here.
+     */
+    val symlinkId: String? = null,
+
+    /**
+     * Non-null when this row represents a HARDLINK placement (see
+     * [TaskMembership]) rather than [task]'s real, primary parent. [task]'s
+     * own config (name, priority, etc.) is genuinely shared and shown as-is,
+     * but [cpuShare]/vruntime/[childTotalRuntime] credit for this row come
+     * from that one placement's own fields, not [task]'s primary ones.
+     */
+    val membershipId: String? = null,
+) {
+    /** True for either a [symlinkId] or [membershipId] row — a "links" row, not the task's primary appearance. */
+    val isLinkRow: Boolean get() = symlinkId != null || membershipId != null
+}

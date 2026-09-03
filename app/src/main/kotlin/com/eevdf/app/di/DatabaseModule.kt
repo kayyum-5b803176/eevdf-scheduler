@@ -5,6 +5,8 @@ import com.eevdf.data.runlog.RunLogDao
 import com.eevdf.data.task.TaskDao
 import com.eevdf.data.task.InterruptReturnDao
 import com.eevdf.data.task.TaskLoadFactorDao
+import com.eevdf.data.task.TaskLinkDao
+import com.eevdf.data.task.TaskMembershipDao
 import com.eevdf.data.task.TaskDatabase
 import dagger.Module
 import dagger.Provides
@@ -34,4 +36,10 @@ object DatabaseModule {
 
     @Provides
     fun provideTaskLoadFactorDao(db: TaskDatabase): TaskLoadFactorDao = db.taskLoadFactorDao()
+
+    @Provides
+    fun provideTaskLinkDao(db: TaskDatabase): TaskLinkDao = db.taskLinkDao()
+
+    @Provides
+    fun provideTaskMembershipDao(db: TaskDatabase): TaskMembershipDao = db.taskMembershipDao()
 }

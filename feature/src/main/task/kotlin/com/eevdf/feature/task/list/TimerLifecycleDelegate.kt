@@ -196,6 +196,11 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
     }
 
     fun setCurrentTask(task: Task) {
+        // Plain selection is always the task's real, primary placement.
+        // Membership-context selection goes through
+        // TaskViewModel.setCurrentTaskAsMembership, which sets this AFTER
+        // calling this function — so clearing it here never races that path.
+        vm.activeRunMembershipId = null
         pauseTimer()
         // Bug 1 fix — stale NoticePhase.Expired locking the button:
         //
@@ -325,7 +330,9 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             // and was found via a real user report.
             val freshTask = if (session != null) {
                 if (task.taskType != "NOTIFICATION") {
-                    vm.repository.updateVruntimeAfterRun(task, session)
+                    val membershipId = vm.activeRunMembershipId
+                    vm.activeRunMembershipId = null   // one-shot: this session is now credited
+                    vm.repository.updateVruntimeAfterRun(task, session, membershipId)
                 } else {
                     vm.notice.accumulateSessionSeconds(session.wallClockSeconds)
                     task
@@ -366,8 +373,14 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
 
     fun applyVruntimeUpdate(session: RunSession) {
         val task = vm._currentTask.value ?: return
+        // Intentionally NOT cleared here (unlike the full-expiry path): a
+        // pause is not a context switch. The same still-selected task can be
+        // resumed and paused again any number of times and every one of
+        // those sessions must keep crediting the same hardlink placement
+        // until the user genuinely selects something else via setCurrentTask.
+        val membershipId = vm.activeRunMembershipId
         vm.viewModelScope.launch {
-            val freshTask = vm.repository.updateVruntimeAfterRun(task, session)
+            val freshTask = vm.repository.updateVruntimeAfterRun(task, session, membershipId)
             // Reassign _currentTask to the authoritative post-run object —
             // otherwise it keeps holding a stale virtualDeadline forever, and
             // the next time the user taps Start, the code persists that stale

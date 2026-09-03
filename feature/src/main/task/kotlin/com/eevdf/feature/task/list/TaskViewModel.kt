@@ -133,6 +133,50 @@ class TaskViewModel @Inject constructor(
      */
     internal var taskToRestoreAfterExpire: Task? = null
 
+    // ── Links (symlinks/hardlinks) ────────────────────────────────────────────
+
+    /** Every symlink in the app. Spliced into the tree by [ListBuilderDelegate]. */
+    val allTaskLinks: LiveData<List<com.eevdf.data.task.TaskLink>> = repository.allTaskLinks
+
+    /** Every hardlink placement in the app. Spliced into the tree by [ListBuilderDelegate]. */
+    val allTaskMemberships: LiveData<List<com.eevdf.data.task.TaskMembership>> = repository.allTaskMemberships
+
+    /**
+     * Non-null while the currently selected/running task ([_currentTask]) was
+     * seated via a hardlink placement rather than its real, primary parent.
+     * Read by [TimerLifecycleDelegate] so a completed/paused session's runtime
+     * is credited to that ONE placement (see [TaskRepository.creditMembershipRun])
+     * instead of the task's own primary fields. Cleared on every ordinary
+     * [setCurrentTask] so a ordinary tap never inherits a stale membership
+     * context from a previous selection.
+     */
+    internal var activeRunMembershipId: String? = null
+
+    /** Creates a symlink: [hostGroupId] will show [targetTaskId] as a live pointer. */
+    fun createSymlink(targetTaskId: String, hostGroupId: String) =
+        viewModelScope.launch { repository.createSymlink(targetTaskId, hostGroupId) }
+
+    fun deleteSymlink(linkId: String) =
+        viewModelScope.launch { repository.deleteSymlink(linkId) }
+
+    /** Creates a hardlink: an extra real placement of [taskId] inside [hostGroupId]. */
+    fun createHardlink(taskId: String, hostGroupId: String) =
+        viewModelScope.launch { repository.createHardlink(taskId, hostGroupId) }
+
+    fun deleteHardlink(membershipId: String) =
+        viewModelScope.launch { repository.deleteHardlink(membershipId) }
+
+    /**
+     * Selects [task] as if the user tapped it inside a specific hardlink
+     * placement ([membershipId]) rather than at its real, primary location.
+     * Everything about the running task is identical — same timer, same
+     * config — only where the resulting runtime gets credited differs.
+     */
+    fun setCurrentTaskAsMembership(task: Task, membershipId: String) {
+        timerLifecycle.setCurrentTask(task)
+        activeRunMembershipId = membershipId
+    }
+
     // ── Timer engine ──────────────────────────────────────────────────────────
 
     internal val timerEngine = TimerEngine()

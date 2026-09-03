@@ -7,6 +7,7 @@ import com.eevdf.core.scheduler.model.QuotaBudget
 import com.eevdf.core.scheduler.model.RtConfig
 import com.eevdf.core.scheduler.model.SchedTask
 import com.eevdf.data.task.Task
+import com.eevdf.data.task.TaskMembership
 
 /**
  * Bridge between the rich Room [Task] entity (used by the UI) and the pure
@@ -54,7 +55,54 @@ data class SchedulerStats(
     val systemLoad: Double = 0.0,
 )
 
+/** Prefix marking a synthetic id built by [EEVDFScheduler.withMemberships] — never a real Task.id. */
+const val MEMBERSHIP_SYNTHETIC_PREFIX = "membership:"
+
 object EEVDFScheduler {
+
+    /**
+     * Builds an "effective" task list for scheduling/share computation: every
+     * real [tasks] entry, PLUS one synthetic [Task] copy per hardlink
+     * placement in [memberships] — each a full stand-in for its real task,
+     * but with `id` swapped to a synthetic, prefixed value, `parentId` set to
+     * the placement's [TaskMembership.groupId], and vruntime/runtime fields
+     * sourced from that placement instead of the real task's own.
+     *
+     * This lets a hardlinked task compete as a genuine child in TWO (or more)
+     * different parents' pools at once without any change to the pure EEVDF
+     * core: [computeShares]/[getScheduleOrder]/[recalculate] only ever see a
+     * flat `List<Task>` shaped by `parentId` — they cannot tell a synthetic
+     * membership entry apart from a real one, which is exactly the point.
+     *
+     * Callers that persist results back must recognise
+     * [MEMBERSHIP_SYNTHETIC_PREFIX] and write them onto the [TaskMembership]
+     * row (via `id.removePrefix(...)`), never onto a real [Task] row.
+     *
+     * Scope note: if the hardlinked task is itself a GROUP, its real children
+     * are still looked up by its REAL id elsewhere (list building) — this
+     * function does not attempt to also give those grandchildren a synthetic
+     * membership-relative identity. The group's own placement-specific weight
+     * competes correctly; composing a full nested subtree through multiple
+     * simultaneous parents is out of scope for v1.
+     */
+    fun withMemberships(tasks: List<Task>, memberships: List<TaskMembership>): List<Task> {
+        if (memberships.isEmpty()) return tasks
+        val byTaskId = tasks.associateBy { it.id }
+        val synthetic = memberships.mapNotNull { m ->
+            val real = byTaskId[m.taskId] ?: return@mapNotNull null
+            real.copy(
+                id              = MEMBERSHIP_SYNTHETIC_PREFIX + m.id,
+                parentId        = m.groupId,
+                totalRunTime    = m.totalRunTime,
+                runCount        = m.runCount,
+                vruntime        = m.vruntime,
+                eligibleTime    = m.eligibleTime,
+                virtualDeadline = m.virtualDeadline,
+                lag             = m.lag,
+            )
+        }
+        return tasks + synthetic
+    }
 
     fun totalWeight(tasks: List<Task>): Double = EevdfScheduler.totalWeight(tasks.map { it.toSched() })
 

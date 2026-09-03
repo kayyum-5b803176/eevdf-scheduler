@@ -40,6 +40,14 @@ class TaskAdapter(
     private val onGroupToggleDeep:  (Task) -> Unit = {},  // expand / collapse this group + all descendants (long-press)
     private val onResetSliceClick:  (Task) -> Unit = {},
     private val onRevertClick:      (Task) -> Unit = {},
+    /** Symlink row's timer icon tapped — must navigate to the target's real location, never run anything here. */
+    private val onSymlinkNavigate:  (TaskDisplayItem) -> Unit = {},
+    /** Hardlink placement row's timer icon tapped — selects the task credited to THIS placement (see TaskMembership). */
+    private val onMembershipRunClick: (TaskDisplayItem) -> Unit = {},
+    /** Symlink row's delete button — removes only this pointer, never the real task. */
+    private val onSymlinkDelete:      (TaskDisplayItem) -> Unit = {},
+    /** Hardlink row's delete button — removes only this one placement, never the real task or its other placements. */
+    private val onMembershipDelete:   (TaskDisplayItem) -> Unit = {},
     private val showScheduleRank:   Boolean = false,
     private val isCompletedTab:     Boolean = false,
     /** Returns the expanded state for a group task id — used for rotation icon. */
@@ -256,7 +264,9 @@ class TaskAdapter(
         applyCardScale(holder, density)
 
         // ── Common fields ──────────────────────────────────────────────────────
-        holder.tvName.text     = task.name
+        // Symlinks are pure pointers: always show the target's live name, with
+        // a small arrow prefix so they read as shortcuts, not real entries.
+        holder.tvName.text     = if (item.symlinkId != null) "\u21A6 ${task.name}" else task.name
         bindPriorityLabel(holder.tvPriority, task, priorityColor(holder, task))
         holder.tvVruntime.text  = "VRT: ${fmtFloat(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${fmtFloat(task.virtualDeadline)}"
@@ -281,10 +291,22 @@ class TaskAdapter(
             holder.btnResetSlice.visibility  = View.GONE
             holder.btnRevert.visibility      = View.GONE
             holder.btnGroupToggle.visibility = View.VISIBLE
-            // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
-            holder.btnGroupToggle.rotation = if (expandStateProvider(task.id)) 180f else 0f
-            holder.btnGroupToggle.setOnClickListener { onGroupToggle(task) }
-            holder.btnGroupToggle.setOnLongClickListener { onGroupToggleDeep(task); true }
+            if (item.symlinkId != null) {
+                // A symlinked GROUP is a single pointer row — its target's real
+                // children are never rendered nested under it (see
+                // ListBuilderDelegate: link rows are leaf entries only, no
+                // recursion). Toggling this row's arrow must never silently
+                // flip the REAL group's expand state elsewhere, so it also
+                // navigates instead of expanding in place.
+                holder.btnGroupToggle.rotation = 0f
+                holder.btnGroupToggle.setOnClickListener { onSymlinkNavigate(item) }
+                holder.btnGroupToggle.setOnLongClickListener { true }
+            } else {
+                // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
+                holder.btnGroupToggle.rotation = if (expandStateProvider(task.id)) 180f else 0f
+                holder.btnGroupToggle.setOnClickListener { onGroupToggle(task) }
+                holder.btnGroupToggle.setOnLongClickListener { onGroupToggleDeep(task); true }
+            }
         } else {
             // Leaf task row
             holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
@@ -310,6 +332,25 @@ class TaskAdapter(
                 holder.btnComplete.visibility   = View.GONE
                 holder.btnResetSlice.visibility = View.GONE
                 holder.btnRevert.setOnClickListener { onRevertClick(task) }
+            } else if (item.symlinkId != null) {
+                // Symlink row: pure pointer. No complete/reset from here — those
+                // are the real task's own actions at its real location. Tapping
+                // the timer icon navigates there instead of running anything.
+                holder.btnRun.visibility         = View.VISIBLE
+                holder.btnComplete.visibility    = View.GONE
+                holder.btnResetSlice.visibility  = View.GONE
+                holder.btnRun.setOnClickListener { onSymlinkNavigate(item) }
+            } else if (item.membershipId != null) {
+                // Hardlink placement row: a real, complete task here — full
+                // action set — but runtime/vruntime must credit THIS placement,
+                // so btnRun goes through onMembershipRunClick, not onRunClick.
+                holder.btnRun.visibility         = View.VISIBLE
+                holder.btnComplete.visibility    = View.VISIBLE
+                holder.btnResetSlice.visibility  =
+                    if (task.remainingSeconds < task.timeSliceSeconds) View.VISIBLE else View.GONE
+                holder.btnRun.setOnClickListener        { onMembershipRunClick(item) }
+                holder.btnComplete.setOnClickListener   { onCompleteClick(task) }
+                holder.btnResetSlice.setOnClickListener { onResetSliceClick(task) }
             } else {
                 // Active / schedule tabs
                 holder.btnRevert.visibility      = View.GONE
@@ -450,8 +491,24 @@ class TaskAdapter(
             if (simpleModeEnabled) setSelectedTask(task.id)
             onTaskClick(task)
         }
-        holder.card.setOnLongClickListener { onTaskLongClick(task); true }
-        holder.btnDelete.setOnClickListener { onDeleteClick(task) }
+        // Link rows never edit/delete the real underlying task from here — a
+        // symlink has no config of its own to edit, and "delete" on ANY link
+        // row must remove only that one pointer/placement, never cascade into
+        // deleting the real task everywhere else it lives.
+        when {
+            item.symlinkId != null -> {
+                holder.card.setOnLongClickListener { true }   // no-op: nothing of its own to edit
+                holder.btnDelete.setOnClickListener { onSymlinkDelete(item) }
+            }
+            item.membershipId != null -> {
+                holder.card.setOnLongClickListener { onTaskLongClick(task); true }  // shared config IS editable
+                holder.btnDelete.setOnClickListener { onMembershipDelete(item) }
+            }
+            else -> {
+                holder.card.setOnLongClickListener { onTaskLongClick(task); true }
+                holder.btnDelete.setOnClickListener { onDeleteClick(task) }
+            }
+        }
     }
 
     override fun onBindViewHolder(

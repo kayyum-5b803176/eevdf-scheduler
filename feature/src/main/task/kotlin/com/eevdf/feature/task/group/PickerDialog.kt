@@ -36,16 +36,32 @@ import com.google.android.material.textfield.TextInputEditText
  *
  * Caller wires [onGroupSelected] before showing; receives the chosen [Task]
  * (null = "None / root level").
+ *
+ * Generalized for the Links feature (symlinks/hardlinks): [title] and
+ * [showNoneOption] let the same dialog serve as either the original
+ * groups-only parent picker, or a picker over EVERY task/group (a link's
+ * target can be any task, not just a group). [allGroups] intentionally keeps
+ * its original name for source compatibility with [GroupSection]'s existing
+ * call site — despite the name, callers may now pass any mixed task/group list.
  */
 class PickerDialog : DialogFragment() {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /** Full sorted list of available groups (excluding the task being edited). */
+    /** Full sorted list of selectable items (excluding the task being edited). */
     var allGroups: List<Task> = emptyList()
 
-    /** Currently selected group id (null = root). Used to pre-tick the item. */
+    /** Currently selected item id (null = root / none). Used to pre-tick the item. */
     var currentGroupId: String? = null
+
+    /** Dialog title. Defaults to the original parent-group picker's title. */
+    var title: String = "Select Parent Group"
+
+    /** Whether a "None" entry is offered (root-level / no target). */
+    var showNoneOption: Boolean = true
+
+    /** Label for the "None" entry when [showNoneOption] is true. */
+    var noneLabel: String = "None (root level)"
 
     /** Invoked on the main thread when the user taps an item. */
     var onGroupSelected: ((Task?) -> Unit)? = null
@@ -69,13 +85,13 @@ class PickerDialog : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        view.findViewById<TextView>(R.id.tvPickerTitle).text = "Select Parent Group"
+        view.findViewById<TextView>(R.id.tvPickerTitle).text = title
         view.findViewById<View>(R.id.btnPickerClose).setOnClickListener { dismiss() }
 
         etSearch = view.findViewById(R.id.etGroupSearch)
         rvItems  = view.findViewById(R.id.rvGroupItems)
 
-        adapter = PickerAdapter(currentGroupId) { chosen ->
+        adapter = PickerAdapter(currentGroupId, noneLabel) { chosen ->
             RecentGroupPrefs.push(requireContext(), chosen?.id)
             onGroupSelected?.invoke(chosen)
             dismiss()
@@ -131,12 +147,12 @@ class PickerDialog : DialogFragment() {
 
             // All groups section
             items += PickerItem.Header("All Groups")
-            items += PickerItem.Entry(null)            // "None (root level)"
+            if (showNoneOption) items += PickerItem.Entry(null)
             allGroups.forEach { items += PickerItem.Entry(it) }
         } else {
             // Filtered — no section headers, just matches
             val matched = allGroups.filter { it.name.contains(q, ignoreCase = true) }
-            items += PickerItem.Entry(null)            // always keep "None" available
+            if (showNoneOption) items += PickerItem.Entry(null)
             matched.forEach { items += PickerItem.Entry(it) }
         }
 
@@ -155,6 +171,7 @@ class PickerDialog : DialogFragment() {
 
     private class PickerAdapter(
         private val selectedId: String?,
+        private val noneLabel: String,
         private val onPick: (Task?) -> Unit
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
@@ -204,7 +221,7 @@ class PickerDialog : DialogFragment() {
             private val ivCheck  = v.findViewById<View>(R.id.ivPickerCheck)
 
             fun bind(group: Task?) {
-                tvName.text   = group?.name ?: "None (root level)"
+                tvName.text   = group?.name ?: noneLabel
                 val isSelected = group?.id == selectedId
                 ivCheck.visibility = if (isSelected) View.VISIBLE else View.INVISIBLE
                 itemView.setOnClickListener { onPick(group) }

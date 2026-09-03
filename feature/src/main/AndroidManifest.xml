@@ -21,6 +21,14 @@
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
 
+        <!-- Links: symlink/hardlink creation and management. Opened by holding
+             the Add Task FAB — see MainActivity.setupViews(). -->
+        <activity
+            android:name="com.eevdf.feature.links.LinksActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
+
         <activity
             android:name="com.eevdf.feature.stats.StatsActivity"
             android:exported="false"

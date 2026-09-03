@@ -20,9 +20,11 @@ import com.eevdf.data.task.Task
         RunDailySummary::class,
         RunMonthlySummary::class,
         InterruptReturnEntry::class,
-        TaskLoadFactor::class,          // ← new side table
+        TaskLoadFactor::class,
+        TaskLink::class,                // ← new: symlinks
+        TaskMembership::class,          // ← new: hardlink extra placements
     ],
-    version  = 27,                      // ← bumped from 26
+    version  = 28,                      // ← bumped from 27
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -30,7 +32,9 @@ abstract class TaskDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun runLogDao(): RunLogDao
     abstract fun interruptReturnDao(): InterruptReturnDao
-    abstract fun taskLoadFactorDao(): TaskLoadFactorDao   // ← new
+    abstract fun taskLoadFactorDao(): TaskLoadFactorDao
+    abstract fun taskLinkDao(): TaskLinkDao             // ← new
+    abstract fun taskMembershipDao(): TaskMembershipDao // ← new
 
     companion object {
         @Volatile
@@ -464,6 +468,47 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 27 → 28 — Symlinks + hardlinks ("Links" feature).
+         *
+         * task_links       — pure pointer rows for symlinks. No relation to the
+         *                     tasks table's own columns; targetTaskId/hostGroupId
+         *                     are plain string references resolved at query time.
+         * task_memberships — extra real placements for hardlinks. Same shape as
+         *                     the subset of `tasks` columns needed for a second,
+         *                     independent EEVDF/runtime context (see
+         *                     [TaskMembership] doc comment for why these can't
+         *                     just reuse the tasks table's own fields).
+         */
+        private val MIGRATION_27_28 = object : Migration(27, 28) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS task_links (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        targetTaskId TEXT NOT NULL,
+                        hostGroupId TEXT NOT NULL,
+                        totalRunTime INTEGER NOT NULL DEFAULT 0,
+                        runCount INTEGER NOT NULL DEFAULT 0,
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS task_memberships (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        taskId TEXT NOT NULL,
+                        groupId TEXT NOT NULL,
+                        totalRunTime INTEGER NOT NULL DEFAULT 0,
+                        runCount INTEGER NOT NULL DEFAULT 0,
+                        vruntime REAL NOT NULL DEFAULT 0.0,
+                        eligibleTime REAL NOT NULL DEFAULT 0.0,
+                        virtualDeadline REAL NOT NULL DEFAULT 0.0,
+                        lag REAL NOT NULL DEFAULT 0.0,
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -478,7 +523,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
-                        MIGRATION_25_26, MIGRATION_26_27,
+                        MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28,
                     )
                     .build()
                 INSTANCE = instance

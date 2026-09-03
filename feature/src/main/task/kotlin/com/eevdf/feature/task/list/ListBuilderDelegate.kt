@@ -6,7 +6,10 @@ import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import com.eevdf.data.task.Task
 import com.eevdf.data.task.TaskDisplayItem
+import com.eevdf.data.task.TaskLink
+import com.eevdf.data.task.TaskMembership
 import com.eevdf.data.scheduler.EEVDFScheduler
+import com.eevdf.data.scheduler.MEMBERSHIP_SYNTHETIC_PREFIX
 import com.eevdf.data.scheduler.RtScheduler
 
 /**
@@ -110,20 +113,26 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     fun setup() {
         flatActiveTasks = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                val tasks   = vm.activeTasks.value   ?: emptyList()
-                val enabled = vm.settings.groupsEnabled.value ?: false
-                value = buildQueueList(tasks, enabled)
+                val tasks       = vm.activeTasks.value        ?: emptyList()
+                val enabled     = vm.settings.groupsEnabled.value ?: false
+                val links       = vm.allTaskLinks.value        ?: emptyList()
+                val memberships = vm.allTaskMemberships.value  ?: emptyList()
+                value = buildQueueList(tasks, enabled, links, memberships)
             }
             addSource(vm.activeTasks)                        { rebuild() }
             addSource(vm.settings.groupsEnabled)             { rebuild() }
             addSource(vm.groupExpand.queueExpandTrigger)     { rebuild() }
+            addSource(vm.allTaskLinks)                       { rebuild() }
+            addSource(vm.allTaskMemberships)                 { rebuild() }
         }
 
         flatScheduleOrder = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                val tasks   = vm.activeTasks.value   ?: emptyList()
-                val enabled = vm.settings.groupsEnabled.value ?: false
-                value = buildScheduleList(tasks, enabled)
+                val tasks       = vm.activeTasks.value        ?: emptyList()
+                val enabled     = vm.settings.groupsEnabled.value ?: false
+                val links       = vm.allTaskLinks.value        ?: emptyList()
+                val memberships = vm.allTaskMemberships.value  ?: emptyList()
+                value = buildScheduleList(tasks, enabled, links, memberships)
                 // Re-arm the one-shot handler for the next period expiry so the
                 // list auto-resorts when the next DL budget replenishes.
                 rescheduleDlResort(tasks)
@@ -137,8 +146,50 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             addSource(_dlResortTick)                         { rebuild() }
             // Fifth source: fires when an RT window opens or closes (wall-clock trigger).
             addSource(_rtResortTick)                         { rebuild() }
+            addSource(vm.allTaskLinks)                       { rebuild() }
+            addSource(vm.allTaskMemberships)                 { rebuild() }
         }
     }
+
+    // ── Links feature helpers ─────────────────────────────────────────────────
+
+    /**
+     * Builds a symlink's display row. Always shows the TARGET's live data
+     * (name, running state) — a symlink carries none of its own. Carries zero
+     * weight (cpuShare = 0, never fed into EEVDFScheduler) and is marked via
+     * [TaskDisplayItem.symlinkId] so the adapter renders it as a jump-to-real-
+     * location pointer instead of a runnable row.
+     */
+    private fun linkDisplayItem(link: TaskLink, target: Task, depth: Int, number: String): TaskDisplayItem =
+        TaskDisplayItem(
+            task        = target,
+            depth       = depth,
+            queueNumber = number,
+            symlinkId   = link.id,
+            cpuShare    = 0.0,
+        )
+
+    /**
+     * Builds a hardlink's display row. [task] is the real, shared task (same
+     * name/config everywhere) but the runtime/share numbers shown come from
+     * THIS placement's own [TaskMembership] fields, never the task's primary
+     * ones — see [TaskMembership] doc comment.
+     */
+    private fun membershipDisplayItem(
+        membership: TaskMembership, task: Task, depth: Int, number: String,
+        cpuShare: Double, descGroups: Int, descTasks: Int,
+    ): TaskDisplayItem =
+        TaskDisplayItem(
+            task               = task,
+            depth              = depth,
+            queueNumber        = number,
+            membershipId       = membership.id,
+            cpuShare           = cpuShare,
+            childGroupCount    = descGroups,
+            childTaskCount     = descTasks,
+            effectiveQuotaExceeded = task.isQuotaExceeded,
+            effectiveQuotaWarning  = task.isQuotaWarning,
+        )
 
     // ── List builders ─────────────────────────────────────────────────────────
 
@@ -146,7 +197,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      * Queue tab: tasks sorted by the first number in their name (static order).
      * Groups are shown when [groupsEnabled] is true; only leaf tasks otherwise.
      */
-    private fun buildQueueList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+    private fun buildQueueList(
+        tasks: List<Task>, groupsEnabled: Boolean,
+        links: List<TaskLink> = emptyList(), memberships: List<TaskMembership> = emptyList(),
+    ): List<TaskDisplayItem> {
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
         if (!groupsEnabled) {
             return tasks
@@ -163,29 +217,67 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         queueNumber            = "${index + 1}")
                 }
         }
+        val effectiveTasks = EEVDFScheduler.withMemberships(tasks, memberships)
+        val effectiveShares = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled)
+        val membershipsById = memberships.associateBy { it.id }
+        val tasksById = tasks.associateBy { it.id }
+
         val result = mutableListOf<TaskDisplayItem>()
         fun addLevel(parentId: String?, depth: Int, parentNumber: String,
                      parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
-            val children = tasks
+            val children = effectiveTasks
                 .filter { it.parentId == parentId }
                 .sortedWith(SortHelper.taskNameComparator)
-            children.forEachIndexed { index, task ->
-                val dc             = tasks.filter { it.parentId == task.id }
-                val quotaExceeded  = parentQuotaExceeded || task.isQuotaExceeded
-                val quotaWarning   = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
-                val number = if (parentNumber.isEmpty()) "${index + 1}" else "$parentNumber.${index + 1}"
-                val (descGroups, descTasks) = countDescendants(task.id, tasks)
-                result.add(TaskDisplayItem(task, depth,
-                    childGroupCount        = descGroups,
-                    childTaskCount         = descTasks,
-                    childTotalRuntime      = dc.sumOf { it.totalRunTime },
-                    cpuShare               = shares[task.id] ?: 0.0,
-                    effectiveQuotaExceeded = quotaExceeded,
-                    effectiveQuotaWarning  = quotaWarning,
-                    queueNumber            = number,
-                    isExpanded             = if (task.isGroup) (vm.groupExpand.queueExpandState[task.id] ?: true) else true))
-                if (task.isGroup && (vm.groupExpand.queueExpandState[task.id] ?: true))
-                    addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning)
+            val counter = IntArray(1)
+            children.forEach { entry ->
+                val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
+                val membership   = if (isMembership) membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
+                // For a membership row, recurse/rollup using the REAL task's real
+                // id — its actual children live under that id, not the synthetic one.
+                val realTask = if (membership != null) tasksById[membership.taskId] ?: entry else entry
+                val dc             = tasks.filter { it.parentId == realTask.id }
+                val quotaExceeded  = parentQuotaExceeded || realTask.isQuotaExceeded
+                val quotaWarning   = !quotaExceeded && (parentQuotaWarning || realTask.isQuotaWarning)
+                counter[0]++
+                val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
+                val (descGroups, descTasks) = countDescendants(realTask.id, tasks)
+
+                if (membership != null) {
+                    result.add(membershipDisplayItem(
+                        membership, realTask, depth, number,
+                        cpuShare = effectiveShares[entry.id] ?: 0.0,
+                        descGroups = descGroups, descTasks = descTasks,
+                    ).copy(
+                        childTotalRuntime      = dc.sumOf { it.totalRunTime } + membership.totalRunTime,
+                        effectiveQuotaExceeded = quotaExceeded,
+                        effectiveQuotaWarning  = quotaWarning,
+                        isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true,
+                    ))
+                } else {
+                    result.add(TaskDisplayItem(realTask, depth,
+                        childGroupCount        = descGroups,
+                        childTaskCount         = descTasks,
+                        childTotalRuntime      = dc.sumOf { it.totalRunTime },
+                        cpuShare               = effectiveShares[realTask.id] ?: 0.0,
+                        effectiveQuotaExceeded = quotaExceeded,
+                        effectiveQuotaWarning  = quotaWarning,
+                        queueNumber            = number,
+                        isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true))
+                }
+                if (realTask.isGroup && (vm.groupExpand.queueExpandState[realTask.id] ?: true))
+                    addLevel(realTask.id, depth + 1, number, quotaExceeded, quotaWarning)
+            }
+
+            // Symlinks hosted at this level: display-only, zero weight, appended
+            // after the real/hardlinked children so they never disturb numbering
+            // parity with how many "real" siblings exist.
+            links.filter { it.hostGroupId == parentId }.forEach { link ->
+                val target = tasksById[link.targetTaskId] ?: return@forEach
+                counter[0]++
+                val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
+                result.add(linkDisplayItem(link, target, depth, number).copy(
+                    childTotalRuntime = link.totalRunTime,
+                ))
             }
         }
         addLevel(null, 0, "", false, false)
@@ -223,7 +315,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      * group still sort among themselves by their own classes via recursion.
      * No entity ever leaves its group for display.
      */
-    private fun buildScheduleList(tasks: List<Task>, groupsEnabled: Boolean): List<TaskDisplayItem> {
+    private fun buildScheduleList(
+        tasks: List<Task>, groupsEnabled: Boolean,
+        links: List<TaskLink> = emptyList(), memberships: List<TaskMembership> = emptyList(),
+    ): List<TaskDisplayItem> {
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
         // Captured once so all partitions and sorts use the same instant.
         val nowMs = System.currentTimeMillis()
@@ -257,6 +352,17 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         // ── Groups-enabled: descendant-aware per-level class partitioning ─────
         val result = mutableListOf<TaskDisplayItem>()
 
+        // Links feature: hardlinks compete as real bucket participants (see
+        // EEVDFScheduler.withMemberships); symlinks never do and are appended
+        // separately per level below. Scope note: DL/RT descendant-hoisting
+        // (dlUrgency, hasActiveDlDescendant, etc. below) still only walks real
+        // `tasks` — a hardlinked/symlinked DL descendant does not yet promote
+        // an ancestor group through those helpers. Acceptable v1 limitation.
+        val effectiveTasks   = EEVDFScheduler.withMemberships(tasks, memberships)
+        val effectiveShares  = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled)
+        val membershipsById  = memberships.associateBy { it.id }
+        val tasksById        = tasks.associateBy { it.id }
+
         // DL urgency for sorting within the DL bucket: for a promoted group,
         // urgency is the minimum remaining budget across all DL descendants.
         fun dlUrgency(task: Task): Long =
@@ -273,7 +379,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             parentQuotaWarning: Boolean,
             counter: IntArray,
         ) {
-            val children = tasks.filter { it.parentId == parentId }
+            val children = effectiveTasks.filter { it.parentId == parentId }
 
             // Bucket 1 — DL: entity is DL-active itself, or (if group) has an
             // active DL descendant. Scenario A + Scenario B both handled here.
@@ -309,7 +415,12 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
             val ordered = dlActive + rtActive + fairActive
 
-            ordered.forEach { task ->
+            ordered.forEach { entry ->
+                val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
+                val membership   = if (isMembership) membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
+                // Membership rows recurse/rollup via the REAL task id — its
+                // actual children live there, not under the synthetic id.
+                val task            = if (membership != null) tasksById[membership.taskId] ?: entry else entry
                 val dc              = tasks.filter { it.parentId == task.id }
                 val quotaExceeded   = parentQuotaExceeded || task.isQuotaExceeded
                 val quotaWarning    = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
@@ -318,11 +429,20 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 val (descGroups, descTasks) = countDescendants(task.id, tasks)
-                result.add(TaskDisplayItem(task, depth,
-                    childGroupCount  = descGroups,
-                    childTaskCount   = descTasks,
-                    childTotalRuntime      = dc.sumOf { it.totalRunTime },
-                    cpuShare               = shares[task.id] ?: 0.0,
+                val baseItem = if (membership != null) {
+                    membershipDisplayItem(
+                        membership, task, depth, number,
+                        cpuShare = effectiveShares[entry.id] ?: 0.0,
+                        descGroups = descGroups, descTasks = descTasks,
+                    ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + membership.totalRunTime)
+                } else {
+                    TaskDisplayItem(task, depth,
+                        childGroupCount   = descGroups,
+                        childTaskCount    = descTasks,
+                        childTotalRuntime = dc.sumOf { it.totalRunTime },
+                        cpuShare          = effectiveShares[task.id] ?: 0.0)
+                }
+                result.add(baseItem.copy(
                     effectiveQuotaExceeded = quotaExceeded,
                     effectiveQuotaWarning  = quotaWarning,
                     queueNumber            = number,
@@ -339,6 +459,17 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 // independently — the parent group's class does not cascade down.
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
                     addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
+            }
+
+            // Symlinks hosted at this level: display-only, zero weight, never
+            // part of the DL/RT/fair bucket ordering above.
+            links.filter { it.hostGroupId == parentId }.forEach { link ->
+                val target = tasksById[link.targetTaskId] ?: return@forEach
+                counter[0]++
+                val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
+                result.add(linkDisplayItem(link, target, depth, number).copy(
+                    childTotalRuntime = link.totalRunTime,
+                ))
             }
         }
         addLevel(null, 0, "", false, false, IntArray(1))

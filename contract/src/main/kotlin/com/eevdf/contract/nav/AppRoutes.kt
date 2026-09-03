@@ -40,9 +40,10 @@ public object AppRoutes {
     public const val BACKUP: String      = "com.eevdf.feature.backup.DataBackupActivity"
     public const val AUTO_SWITCH: String = "com.eevdf.feature.autoswitch.AutoSwitchActivity"
     public const val SYNC: String        = "com.eevdf.feature.sync.MultiUserSyncActivity"
+    public const val LINKS: String       = "com.eevdf.feature.links.LinksActivity"
 
     /** Every route, for the resolution test. Keep in step with the constants. */
-    public val ALL_ROUTES: List<String> = listOf(MAIN, ADD_TASK, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC)
+    public val ALL_ROUTES: List<String> = listOf(MAIN, ADD_TASK, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC, LINKS)
 
     /**
      * Builds an explicit Intent for [className] within this application.
@@ -60,4 +61,5 @@ public object AppRoutes {
     public fun backup(context: Context): Intent = intent(context, BACKUP)
     public fun autoSwitch(context: Context): Intent = intent(context, AUTO_SWITCH)
     public fun sync(context: Context): Intent = intent(context, SYNC)
+    public fun links(context: Context): Intent = intent(context, LINKS)
 }

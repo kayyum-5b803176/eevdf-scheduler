@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/screenBackground">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/app_text_label"
+            app:titleTextColor="@android:color/white" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        style="@style/App.PageScroll"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/app_card_padding_md">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Create a link"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/app_text_label"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/toggleLinkType"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:singleSelection="true"
+                        app:selectionRequired="true"
+                        android:layout_marginBottom="@dimen/app_spacing_xl">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnTypeSymlink"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Symlink" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnTypeHardlink"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Hardlink" />
+
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                    <TextView
+                        android:id="@+id/tvLinkTypeDesc"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_caption"
+                        android:layout_marginBottom="@dimen/app_spacing_xl" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/App.TextInput.Dropdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Link target (any task or group)"
+                        android:layout_marginBottom="@dimen/app_spacing_lg">
+
+                        <AutoCompleteTextView
+                            android:id="@+id/actvLinkTarget"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="none"
+                            android:focusable="false"
+                            android:focusableInTouchMode="false"
+                            android:cursorVisible="false" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/App.TextInput.Dropdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Place inside"
+                        android:layout_marginBottom="@dimen/app_spacing_xl">
+
+                        <AutoCompleteTextView
+                            android:id="@+id/actvLinkHost"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="none"
+                            android:focusable="false"
+                            android:focusableInTouchMode="false"
+                            android:cursorVisible="false" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:id="@+id/tvLinkError"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_color_error"
+                        android:visibility="gone"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCreateLink"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Create link" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/app_card_padding_md">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Existing symlinks"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/app_text_label"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+                    <TextView
+                        android:id="@+id/tvNoLinks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No symlinks yet."
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_caption" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvExistingLinks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

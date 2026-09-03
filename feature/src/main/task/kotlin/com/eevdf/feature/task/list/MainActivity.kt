@@ -424,6 +424,15 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, AddTaskActivity::class.java))
         }
 
+        // Hold Add Task -> Links (symlink/hardlink creation). Tap still opens
+        // the normal Add Task screen unchanged. Same hold-to-open pattern as
+        // statsBar's long click above.
+        fabAdd.setOnLongClickListener {
+            haptic(it)
+            startActivity(com.eevdf.contract.nav.AppRoutes.links(this))
+            true
+        }
+
         // Quick Action: jump to the active INT task (A or B) then start timer.
         // A small post-delay lets the ViewModel settle currentTask before startTimer
         // is called — without it, startTimer() may see currentTask==null and no-op.
@@ -452,8 +461,37 @@ class MainActivity : AppCompatActivity() {
         onResetSliceClick    = { viewModel.resetSlice(it) },
         showScheduleRank     = showRank,
         expandStateProvider  = { id -> if (scheduleTab) viewModel.getScheduleExpanded(id)
-                                        else viewModel.getQueueExpanded(id) }
+                                        else viewModel.getQueueExpanded(id) },
+        onSymlinkNavigate    = { item -> navigateToRealLocation(item.task, scheduleTab) },
+        onMembershipRunClick = { item -> viewModel.setCurrentTaskAsMembership(item.task, item.membershipId!!) },
+        onSymlinkDelete      = { item -> viewModel.deleteSymlink(item.symlinkId!!) },
+        onMembershipDelete   = { item -> viewModel.deleteHardlink(item.membershipId!!) }
     )
+
+    /**
+     * Symlink tap target: expands every real ancestor group of [task] (in
+     * whichever tab it was tapped from) and scrolls to it if currently
+     * visible in that tab's flat list — the "jump to the real location"
+     * behavior a symlink is supposed to have. If the task isn't visible in
+     * this tab at all (e.g. hidden by settings), falls back to opening its
+     * Edit Task screen so the user still lands somewhere meaningful.
+     */
+    private fun navigateToRealLocation(task: Task, scheduleTab: Boolean) {
+        var parentId = task.parentId
+        while (parentId != null) {
+            val parent = (viewModel.activeTasks.value ?: emptyList()).find { it.id == parentId } ?: break
+            if (scheduleTab) { if (!viewModel.getScheduleExpanded(parent.id)) viewModel.toggleScheduleGroupExpanded(parent) }
+            else             { if (!viewModel.getQueueExpanded(parent.id))    viewModel.toggleQueueGroupExpanded(parent) }
+            parentId = parent.parentId
+        }
+        val list = if (scheduleTab) viewModel.flatScheduleOrder.value else viewModel.flatActiveTasks.value
+        val index = list?.indexOfFirst { it.task.id == task.id && it.symlinkId == null && it.membershipId == null } ?: -1
+        if (index >= 0) {
+            recyclerView.post { (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(index, 0) }
+        } else {
+            showTaskDetail(task)
+        }
+    }
 
     private fun setupAdapters() {
         activeAdapter   = makeAdapter()

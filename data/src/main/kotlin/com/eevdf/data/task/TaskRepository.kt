@@ -17,13 +17,52 @@ class TaskRepository @Inject constructor(
     private val dao: TaskDao,
     private val runLog: RunLogRepository,
     private val interruptReturnDao: InterruptReturnDao,
-    private val loadFactorDao: TaskLoadFactorDao,       // ← new
+    private val loadFactorDao: TaskLoadFactorDao,
+    private val taskLinkDao: TaskLinkDao,               // ← new: symlinks
+    private val taskMembershipDao: TaskMembershipDao,   // ← new: hardlinks
 ) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
     val activeTasks: LiveData<List<Task>> = dao.getActiveTasks()
     val completedTasks: LiveData<List<Task>> = dao.getCompletedTasks()
     val activeGroups: LiveData<List<Task>> = dao.getActiveGroups()
+
+    // ── Links (symlinks) + Memberships (hardlinks) ────────────────────────────
+
+    val allTaskLinks: LiveData<List<TaskLink>> = taskLinkDao.getAll()
+    val allTaskMemberships: LiveData<List<TaskMembership>> = taskMembershipDao.getAll()
+
+    /** Creates a symlink: [hostGroupId] shows [targetTaskId] as a live pointer. */
+    suspend fun createSymlink(targetTaskId: String, hostGroupId: String) = withContext(Dispatchers.IO) {
+        taskLinkDao.insert(TaskLink(targetTaskId = targetTaskId, hostGroupId = hostGroupId))
+    }
+
+    suspend fun deleteSymlink(linkId: String) = withContext(Dispatchers.IO) {
+        taskLinkDao.deleteById(linkId)
+    }
+
+    /**
+     * Creates a hardlink: an extra real placement of [taskId] inside [hostGroupId],
+     * seeded at the sibling-average vruntime of that group (same anti-starvation
+     * placement new tasks get — see [EEVDFScheduler.placeNewTask]) so it doesn't
+     * unfairly jump the queue on arrival.
+     */
+    suspend fun createHardlink(taskId: String, hostGroupId: String) = withContext(Dispatchers.IO) {
+        val membership = TaskMembership(taskId = taskId, groupId = hostGroupId)
+        val siblings = dao.getChildrenOf(hostGroupId)
+        val avgVruntime = siblings.map { it.vruntime }.average().takeIf { !it.isNaN() } ?: 0.0
+        taskMembershipDao.insert(membership.copy(vruntime = avgVruntime))
+    }
+
+    suspend fun deleteHardlink(membershipId: String) = withContext(Dispatchers.IO) {
+        taskMembershipDao.deleteById(membershipId)
+    }
+
+    suspend fun getMembershipsForGroup(groupId: String): List<TaskMembership> =
+        withContext(Dispatchers.IO) { taskMembershipDao.getForGroup(groupId) }
+
+    suspend fun getLinksForHost(groupId: String): List<TaskLink> =
+        withContext(Dispatchers.IO) { taskLinkDao.getForHost(groupId) }
 
     /**
      * Live, alphabetically sorted list of every distinct category string stored
@@ -191,6 +230,13 @@ class TaskRepository @Inject constructor(
         interruptReturnDao.clearByTask(task.id)
         // Drop the load factor side table row.
         loadFactorDao.clearByTask(task.id)
+        // Links feature: no broken symlinks, no orphaned hardlink placements.
+        taskLinkDao.deleteByTarget(task.id)
+        taskMembershipDao.deleteByTask(task.id)
+        if (task.isGroup) {
+            taskLinkDao.deleteByHost(task.id)
+            taskMembershipDao.deleteByGroup(task.id)
+        }
     }
 
     private suspend fun deleteDescendants(parentId: String) {
@@ -200,6 +246,12 @@ class TaskRepository @Inject constructor(
             dao.delete(child)
             interruptReturnDao.clearByTask(child.id)
             loadFactorDao.clearByTask(child.id)
+            taskLinkDao.deleteByTarget(child.id)
+            taskMembershipDao.deleteByTask(child.id)
+            if (child.isGroup) {
+                taskLinkDao.deleteByHost(child.id)
+                taskMembershipDao.deleteByGroup(child.id)
+            }
         }
     }
 
@@ -304,7 +356,27 @@ class TaskRepository @Inject constructor(
      * specifically so this can't happen again by a future caller forgetting
      * to know that history: the correct object is handed over explicitly.
      */
-    suspend fun updateVruntimeAfterRun(task: Task, session: RunSession): Task = withContext(Dispatchers.IO) {
+    /**
+     * @param membershipId When non-null, this run was started from a hardlink
+     *   placement — see [TaskMembership] — rather than the task's real,
+     *   primary parent. All accounting (vruntime, totalRunTime, runCount, and
+     *   upward propagation) is redirected to that one placement's own fields
+     *   and its own ancestor chain via [creditMembershipRun]; the task's own
+     *   row is returned completely untouched, exactly as if this run had
+     *   never happened from the primary parent's point of view. Quota/DL/load
+     *   accounting is intentionally NOT duplicated for a membership run — the
+     *   task's own quota/DL/load configuration lives on the one shared [Task]
+     *   row and is only meaningful relative to its primary placement.
+     */
+    suspend fun updateVruntimeAfterRun(
+        task: Task,
+        session: RunSession,
+        membershipId: String? = null,
+    ): Task = withContext(Dispatchers.IO) {
+        if (membershipId != null) {
+            creditMembershipRun(task, membershipId, session.wallClockSeconds)
+            return@withContext task
+        }
         val secondsRan = session.wallClockSeconds
 
         EEVDFScheduler.updateVruntime(task, secondsRan)
@@ -357,6 +429,59 @@ class TaskRepository @Inject constructor(
         // this function is called from, but a caller receiving its own input
         // back unchanged is safer than a crash.
         allActive.find { it.id == task.id } ?: task
+    }
+
+    /**
+     * Credits a run session to ONE hardlink placement — [membershipId] — instead
+     * of to [task]'s own primary fields.
+     *
+     * Reuses [EEVDFScheduler.updateVruntime]'s exact math by building a throwaway
+     * [Task] copy that carries the membership's own vruntime/runtime fields in
+     * place of the real task's, running the same advance-vruntime logic on it,
+     * then writing the results back onto the [TaskMembership] row — so a
+     * hardlinked task's placement-specific EEVDF state is computed identically
+     * to how any real task's would be, just persisted to a different row.
+     *
+     * Propagation then walks upward from [TaskMembership.groupId] — NOT
+     * [task.parentId] — crediting only that ancestor chain, exactly like the
+     * primary path credits [task.parentId]'s chain. The task's real parent
+     * never sees this run; the group actually hosting the hardlink does.
+     */
+    private suspend fun creditMembershipRun(task: Task, membershipId: String, secondsRan: Long) {
+        val membership = taskMembershipDao.getById(membershipId) ?: return
+
+        val scratch = task.copy(
+            totalRunTime    = membership.totalRunTime,
+            runCount        = membership.runCount,
+            vruntime        = membership.vruntime,
+            eligibleTime    = membership.eligibleTime,
+            virtualDeadline = membership.virtualDeadline,
+            lag             = membership.lag,
+        )
+        EEVDFScheduler.updateVruntime(scratch, secondsRan)
+        taskMembershipDao.updateSchedState(
+            id              = membership.id,
+            totalRunTime    = scratch.totalRunTime,
+            runCount        = scratch.runCount,
+            vruntime        = scratch.vruntime,
+            eligibleTime    = scratch.eligibleTime,
+            virtualDeadline = scratch.virtualDeadline,
+            lag             = scratch.lag,
+        )
+
+        var parentId: String? = membership.groupId
+        while (parentId != null) {
+            val parent = dao.getTaskById(parentId) ?: break
+            parent.totalRunTime += secondsRan
+            parent.runCount     += 1
+            if (parent.weight > 0) {
+                parent.vruntime += secondsRan.toDouble() / parent.weight
+            }
+            applyQuotaAccounting(parent, secondsRan)
+            applyDlAccounting(parent, secondsRan)
+            dao.update(parent)
+            parentId = parent.parentId
+        }
     }
 
     /**
