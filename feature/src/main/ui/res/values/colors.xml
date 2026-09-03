@@ -193,7 +193,7 @@
     <color name="cardStateRt">@color/app_green_cl</color>
     <color name="cardStateQuotaExceeded">@color/app_yellow_cl</color>
     <color name="cardStateQuotaWarning">@color/app_orange_cl</color>
-    <color name="cardStateGroup">@color/app_grey_cl</color>
+    <color name="cardStateGroup">@color/app_grey_lt</color>
     <!-- Links feature: the one row a drill-down jump landed on (symlink to a
          leaf task, highlighted among its real siblings). Distinct from every
          other card state color above. -->
@@ -242,7 +242,11 @@
     <color name="rankRt">@color/app_green_xd</color>
 
     <color name="pinActive">@color/app_orange_nd</color>
-    <color name="pinInactive">@color/app_grey_lt</color>
+    <!-- Was app_grey_lt (#E0E0E0) — same near-invisible-on-card tone as the
+         old `divider`-as-text bug. Repointed to app_text_caption so the
+         un-pinned "RS" value reads the same as its VRT/VDL/Runs row
+         siblings; pinActive above is intentionally left untouched. -->
+    <color name="pinInactive">@color/app_text_caption</color>
 
     <color name="syncDotOK">@color/app_green_nd</color>
     <color name="syncDotError">@color/app_red_nd</color>

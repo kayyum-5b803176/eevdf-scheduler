@@ -337,7 +337,7 @@
                 android:layout_height="wrap_content"
                 android:text="Tap + to add your first task"
                 android:textSize="@dimen/app_text_size_md"
-                android:textColor="@color/divider"
+                android:textColor="@color/app_text_caption"
                 android:layout_marginTop="@dimen/app_spacing_md" />
         </LinearLayout>
 

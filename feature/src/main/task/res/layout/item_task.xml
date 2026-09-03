@@ -234,7 +234,7 @@
                     android:layout_weight="1"
                     android:text="VRT: 0.00"
                     android:textSize="@dimen/app_text_size_xs"
-                    android:textColor="@color/divider" />
+                    android:textColor="@color/app_text_caption" />
 
                 <TextView
                     android:id="@+id/tvVdeadline"
@@ -243,7 +243,7 @@
                     android:layout_weight="1"
                     android:text="VDL: 0.00"
                     android:textSize="@dimen/app_text_size_xs"
-                    android:textColor="@color/divider" />
+                    android:textColor="@color/app_text_caption" />
 
                 <TextView
                     android:id="@+id/tvCpuShare"
@@ -252,7 +252,7 @@
                     android:layout_weight="1"
                     android:text="RS: 0.0"
                     android:textSize="@dimen/app_text_size_xs"
-                    android:textColor="@color/divider" />
+                    android:textColor="@color/app_text_caption" />
 
                 <TextView
                     android:id="@+id/tvRunCount"
@@ -260,7 +260,7 @@
                     android:layout_height="wrap_content"
                     android:text="Runs: 0"
                     android:textSize="@dimen/app_text_size_xs"
-                    android:textColor="@color/divider" />
+                    android:textColor="@color/app_text_caption" />
             </LinearLayout>
 
             <!-- Row 4: Action buttons -->
