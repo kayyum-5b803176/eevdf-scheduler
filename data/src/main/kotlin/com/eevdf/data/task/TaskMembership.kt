@@ -13,32 +13,32 @@ import java.util.UUID
  * A hardlink: an EXTRA real placement of [taskId] inside [groupId], on top of
  * the task's one primary [Task.parentId] home.
  *
- * Unlike a symlink, a hardlink is not a mirror — it is the same underlying
- * task genuinely living in a second place. All of the task's own config
- * (name, description, priority, timeSliceSeconds, quota, schedulerClass, …)
- * stays on the single [Task] row and is shared everywhere it appears: edit it
- * from any location and every location shows the change.
+ * A hardlink is not a copy — it's the same underlying task genuinely living
+ * in a second place. Everything about it is SHARED with every other
+ * placement and lives on the single [Task] row: name, description, priority,
+ * timeSliceSeconds, quota state, DL/RT budget state, `totalRunTime`,
+ * `runCount`, load/EWMA — edit it, run it, or exhaust its quota from ANY
+ * placement and every placement sees the same result, because it's the same
+ * row. This is deliberate: `totalRunTime`/`runCount` in particular are meant
+ * to be a true lifetime statistic ("how much has this task actually been
+ * worked on, no matter where"), not a per-placement fragment you'd have to
+ * sum up to get the real total.
  *
- * What CANNOT be shared across two simultaneous real placements is the EEVDF
- * scheduling state and the runtime ledger — each is inherently relative to
- * "my siblings in this one pool", so this row carries its own independent
- * copy of exactly those fields, mirroring [Task]'s own vruntime/runtime
- * fields one-for-one:
+ * The ONE thing that genuinely cannot be shared is [vruntime] — EEVDF
+ * fairness is only meaningful relative to a specific set of siblings, and
+ * `Work`'s children and `Personal`'s children are a completely different
+ * population. So this placement gets its own vruntime, seeded like a fresh
+ * arrival in [groupId] (see [TaskRepository.createHardlink]) and advanced
+ * independently every time a run session is credited here (see
+ * [TaskRepository.creditMembershipRun]).
  *
- *   • [vruntime]/[eligibleTime]/[virtualDeadline]/[lag] — this placement's own
- *     EEVDF state, computed against [groupId]'s other children, independent
- *     of whatever the task's primary vruntime under its real parent is doing.
- *   • [totalRunTime]/[runCount] — credited only when a run session is started
- *     from THIS placement (i.e. from inside [groupId]); a session started
- *     from the task's real, primary parent (or another hardlink placement)
- *     never touches these fields, and vice versa. Each placement — primary
- *     or hardlink — only ever knows about what happened under it, exactly
- *     like a normal group only rolls up its own direct children.
- *
- * Cascade: deleting [taskId] deletes every [TaskMembership] row for it.
- * Deleting [groupId] deletes every membership hosted there (without touching
- * the task itself if it still has its primary home, or other memberships,
- * elsewhere).
+ * `virtualDeadline`/`eligibleTime`/`lag` deliberately have NO field here at
+ * all — they are pure functions of vruntime plus the task's own (shared)
+ * timeSliceSeconds/weight (`EevdfScheduler.recalculate()`: eligibleTime =
+ * vruntime, virtualDeadline = eligibleTime + timeSlice/weight), recomputed
+ * fresh every time the scheduler needs them. Persisting them here would just
+ * be a second copy of a value already fully determined by [vruntime] — never
+ * a second source of truth to keep in sync, and never a corruption risk.
  */
 @Entity(tableName = "task_memberships")
 data class TaskMembership(
@@ -46,12 +46,7 @@ data class TaskMembership(
     val id: String = UUID.randomUUID().toString(),
     val taskId: String,
     val groupId: String,
-    var totalRunTime: Long = 0L,
-    var runCount: Int = 0,
     var vruntime: Double = 0.0,
-    var eligibleTime: Double = 0.0,
-    var virtualDeadline: Double = 0.0,
-    var lag: Double = 0.0,
     val createdAt: Long = System.currentTimeMillis(),
 )
 
@@ -80,22 +75,11 @@ interface TaskMembershipDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(membership: TaskMembership)
 
-    @Query("""
-        UPDATE task_memberships SET
-            totalRunTime = :totalRunTime, runCount = :runCount,
-            vruntime = :vruntime, eligibleTime = :eligibleTime,
-            virtualDeadline = :virtualDeadline, lag = :lag
-        WHERE id = :id
-    """)
-    suspend fun updateSchedState(
-        id: String,
-        totalRunTime: Long,
-        runCount: Int,
-        vruntime: Double,
-        eligibleTime: Double,
-        virtualDeadline: Double,
-        lag: Double,
-    )
+    /** The only mutable scheduling state a placement has — see class doc
+     *  comment for why virtualDeadline/eligibleTime/lag need no field, let
+     *  alone an update query, of their own. */
+    @Query("UPDATE task_memberships SET vruntime = :vruntime WHERE id = :id")
+    suspend fun updateVruntime(id: String, vruntime: Double)
 
     @Query("DELETE FROM task_memberships WHERE id = :id")
     suspend fun deleteById(id: String)

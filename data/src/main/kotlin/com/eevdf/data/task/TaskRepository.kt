@@ -45,12 +45,18 @@ class TaskRepository @Inject constructor(
      * Creates a hardlink: an extra real placement of [taskId] inside [hostGroupId],
      * seeded at the sibling-average vruntime of that group (same anti-starvation
      * placement new tasks get — see [EEVDFScheduler.placeNewTask]) so it doesn't
-     * unfairly jump the queue on arrival.
+     * unfairly jump the queue on arrival. The average includes BOTH real
+     * children AND any other hardlink placements already hosted there — using
+     * only real children would under-seed (or over-seed) the new placement's
+     * starting vruntime whenever the group's siblings are themselves mostly
+     * hardlinks, letting it unfairly dominate or starve relative to them.
      */
     suspend fun createHardlink(taskId: String, hostGroupId: String) = withContext(Dispatchers.IO) {
         val membership = TaskMembership(taskId = taskId, groupId = hostGroupId)
-        val siblings = dao.getChildrenOf(hostGroupId)
-        val avgVruntime = siblings.map { it.vruntime }.average().takeIf { !it.isNaN() } ?: 0.0
+        val realSiblingVruntimes       = dao.getChildrenOf(hostGroupId).map { it.vruntime }
+        val membershipSiblingVruntimes = taskMembershipDao.getForGroup(hostGroupId).map { it.vruntime }
+        val avgVruntime = (realSiblingVruntimes + membershipSiblingVruntimes)
+            .average().takeIf { !it.isNaN() } ?: 0.0
         taskMembershipDao.insert(membership.copy(vruntime = avgVruntime))
     }
 
@@ -248,10 +254,19 @@ class TaskRepository @Inject constructor(
     /**
      * Deletes [task], UNLESS it has a surviving [TaskMembership] elsewhere —
      * in which case that placement is promoted to become the task's new
-     * primary [Task.parentId]/scheduling state instead, and the task itself
-     * lives on. This mirrors real hardlink semantics deliberately: a task's
-     * data persists as long as ANY placement (primary or membership) of it
-     * still exists; only removing the very last one actually deletes it.
+     * primary [Task.parentId] instead, and the task itself lives on. This
+     * mirrors real hardlink semantics deliberately: a task's data persists as
+     * long as ANY placement (primary or membership) of it still exists; only
+     * removing the very last one actually deletes it.
+     *
+     * Only `parentId` and `vruntime` are copied from the promoted membership.
+     * `totalRunTime`/`runCount` are SHARED (see [TaskMembership] doc comment)
+     * and already correct on [task] as-is — copying anything from the
+     * (now-retired) membership row onto them would silently zero out the
+     * task's real, current, shared lifetime totals. `eligibleTime`/
+     * `virtualDeadline`/`lag` need no copying either: they're pure functions
+     * of `vruntime` (recomputed fresh wherever needed), not independent state
+     * to keep in sync.
      *
      * Used for both the top-level [delete] call and every real descendant
      * encountered by [deleteDescendants] — a hardlinked task several levels
@@ -267,13 +282,8 @@ class TaskRepository @Inject constructor(
         if (remaining.isNotEmpty()) {
             val promoted = remaining.first()
             dao.update(task.copy(
-                parentId        = promoted.groupId,
-                vruntime        = promoted.vruntime,
-                eligibleTime    = promoted.eligibleTime,
-                virtualDeadline = promoted.virtualDeadline,
-                lag             = promoted.lag,
-                totalRunTime    = promoted.totalRunTime,
-                runCount        = promoted.runCount,
+                parentId = promoted.groupId,
+                vruntime = promoted.vruntime,
             ))
             taskMembershipDao.deleteById(promoted.id)
             return
@@ -419,32 +429,13 @@ class TaskRepository @Inject constructor(
         membershipId: String? = null,
     ): Task = withContext(Dispatchers.IO) {
         if (membershipId != null) {
-            creditMembershipRun(task, membershipId, session.wallClockSeconds)
+            creditMembershipRun(task, membershipId, session)
             return@withContext task
         }
         val secondsRan = session.wallClockSeconds
 
         EEVDFScheduler.updateVruntime(task, secondsRan)
-        applyQuotaAccounting(task, secondsRan)
-        applyDlAccounting(task, secondsRan)
-
-        // applyLoadAccounting runs BEFORE recordRun so the EWMA snapshot fields
-        // on task are populated and can be passed directly to the run log entry.
-        val loadFactorEntry = loadFactorDao.get(task.id)
-        applyLoadAccounting(task, session, loadFactorEntry)
-        dao.update(task)
-
-        // Record AFTER accounting so the log entry carries the correct EWMA snapshot.
-        if (secondsRan > 0 && !task.isGroup) {
-            runLog.recordRun(
-                taskId            = task.id,
-                startEpoch        = session.startEpochMs,
-                durationSecs      = secondsRan,
-                snapshotCognitive = task.loadAvgCognitive,
-                snapshotPhysical  = task.loadAvgPhysical,
-                snapshotEmotional = task.loadAvgEmotional,
-            )
-        }
+        applySharedRunAccounting(task, session, secondsRan)
 
         // Propagate up the ancestor chain — credit runtime and increment runCount
         // so each ancestor group accumulates one run unit per child completion.
@@ -477,42 +468,90 @@ class TaskRepository @Inject constructor(
     }
 
     /**
-     * Credits a run session to ONE hardlink placement — [membershipId] — instead
-     * of to [task]'s own primary fields.
+     * Every SHARED (never per-placement) accounting effect of running [task]
+     * for [secondsRan]: quota, DL budget, load/EWMA, and the run-log entry.
+     * Persists [task] via [dao.update] as its last step.
      *
-     * Reuses [EEVDFScheduler.updateVruntime]'s exact math by building a throwaway
-     * [Task] copy that carries the membership's own vruntime/runtime fields in
-     * place of the real task's, running the same advance-vruntime logic on it,
-     * then writing the results back onto the [TaskMembership] row — so a
-     * hardlinked task's placement-specific EEVDF state is computed identically
-     * to how any real task's would be, just persisted to a different row.
-     *
-     * Propagation then walks upward from [TaskMembership.groupId] — NOT
-     * [task.parentId] — crediting only that ancestor chain, exactly like the
-     * primary path credits [task.parentId]'s chain. The task's real parent
-     * never sees this run; the group actually hosting the hardlink does.
+     * Deliberately does NOT touch vruntime/eligibleTime/virtualDeadline/lag —
+     * callers are responsible for advancing those (or deliberately NOT
+     * advancing them, for the real task in [creditMembershipRun]'s case)
+     * before calling this, since those are the one thing that differs between
+     * the primary path and a hardlink placement's path. Extracted into one
+     * function so both paths can never drift apart on what "shared run
+     * accounting" means — a bug fixed in quota/DL/load logic here fixes both
+     * paths at once, and there is exactly one place that can get it wrong.
      */
-    private suspend fun creditMembershipRun(task: Task, membershipId: String, secondsRan: Long) {
-        val membership = taskMembershipDao.getById(membershipId) ?: return
+    private suspend fun applySharedRunAccounting(task: Task, session: RunSession, secondsRan: Long) {
+        applyQuotaAccounting(task, secondsRan)
+        applyDlAccounting(task, secondsRan)
 
-        val scratch = task.copy(
-            totalRunTime    = membership.totalRunTime,
-            runCount        = membership.runCount,
-            vruntime        = membership.vruntime,
-            eligibleTime    = membership.eligibleTime,
-            virtualDeadline = membership.virtualDeadline,
-            lag             = membership.lag,
-        )
+        // applyLoadAccounting runs BEFORE recordRun so the EWMA snapshot fields
+        // on task are populated and can be passed directly to the run log entry.
+        val loadFactorEntry = loadFactorDao.get(task.id)
+        applyLoadAccounting(task, session, loadFactorEntry)
+        dao.update(task)
+
+        // Record AFTER accounting so the log entry carries the correct EWMA snapshot.
+        if (secondsRan > 0 && !task.isGroup) {
+            runLog.recordRun(
+                taskId            = task.id,
+                startEpoch        = session.startEpochMs,
+                durationSecs      = secondsRan,
+                snapshotCognitive = task.loadAvgCognitive,
+                snapshotPhysical  = task.loadAvgPhysical,
+                snapshotEmotional = task.loadAvgEmotional,
+            )
+        }
+    }
+
+    /**
+     * Credits a run session started from ONE hardlink placement —
+     * [membershipId] — rather than [task]'s real, primary parent.
+     *
+     * The split, precisely:
+     *   • vruntime — advanced on a THROWAWAY scratch copy seeded with THIS
+     *     placement's own vruntime (never the real task's), so the EEVDF
+     *     fairness math is computed relative to [membershipId]'s actual
+     *     siblings. The result is persisted ONLY to the [TaskMembership] row.
+     *     virtualDeadline/eligibleTime/lag need no separate handling — see
+     *     [TaskMembership] doc comment for why they're pure functions of
+     *     vruntime, not independent state.
+     *   • totalRunTime/runCount/quota/DL/load/run-log — SHARED. Advanced via
+     *     the exact same [applySharedRunAccounting] the primary path uses
+     *     (never a second, drift-prone copy of that logic), then persisted to
+     *     the REAL [Task] row — but only after explicitly restoring the real
+     *     task's OWN vruntime/eligibleTime/virtualDeadline/lag first. Without
+     *     that restoration, the scratch copy's placement-relative vruntime
+     *     would silently leak onto the task's primary scheduling state the
+     *     next time it's read — exactly the kind of corruption this whole
+     *     split exists to prevent.
+     *
+     * Ancestor propagation then walks upward from [TaskMembership.groupId] —
+     * NOT [task.parentId] — crediting only that chain's own group rollups,
+     * exactly like the primary path credits [task.parentId]'s chain.
+     *
+     * Deliberately skips the primary path's whole-app
+     * `EEVDFScheduler.recalculate(allActive)` sweep: that sweep only refreshes
+     * REAL tasks' derived eligibleTime/virtualDeadline from their OWN
+     * (unchanged-here) vruntime, so it would be a guaranteed no-op for this
+     * task and every other active task — running it here would just be an
+     * expensive full-table pass for zero effect.
+     */
+    private suspend fun creditMembershipRun(task: Task, membershipId: String, session: RunSession) {
+        val membership = taskMembershipDao.getById(membershipId) ?: return
+        val secondsRan = session.wallClockSeconds
+
+        val scratch = task.copy(vruntime = membership.vruntime)
         EEVDFScheduler.updateVruntime(scratch, secondsRan)
-        taskMembershipDao.updateSchedState(
-            id              = membership.id,
-            totalRunTime    = scratch.totalRunTime,
-            runCount        = scratch.runCount,
-            vruntime        = scratch.vruntime,
-            eligibleTime    = scratch.eligibleTime,
-            virtualDeadline = scratch.virtualDeadline,
-            lag             = scratch.lag,
+        taskMembershipDao.updateVruntime(membership.id, scratch.vruntime)
+
+        val realTaskUpdate = scratch.copy(
+            vruntime        = task.vruntime,
+            eligibleTime    = task.eligibleTime,
+            virtualDeadline = task.virtualDeadline,
+            lag             = task.lag,
         )
+        applySharedRunAccounting(realTaskUpdate, session, secondsRan)
 
         var parentId: String? = membership.groupId
         while (parentId != null) {

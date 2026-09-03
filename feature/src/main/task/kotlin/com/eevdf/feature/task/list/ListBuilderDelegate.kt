@@ -238,10 +238,12 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         )
 
     /**
-     * Builds a hardlink's display row. [task] is the real, shared task (same
-     * name/config everywhere) but the runtime/share numbers shown come from
-     * THIS placement's own [TaskMembership] fields, never the task's primary
-     * ones — see [TaskMembership] doc comment.
+     * Builds a hardlink's display row. [task] must be pre-substituted with
+     * THIS placement's own scheduling fields (see call sites below) — its
+     * name/config stay genuinely shared, but totalRunTime/runCount/vruntime/
+     * eligibleTime/virtualDeadline/lag must reflect [membership], not the
+     * real task's primary fields, or the row silently shows the primary
+     * location's numbers forever regardless of what's run from here.
      */
     private fun membershipDisplayItem(
         membership: TaskMembership, task: Task, depth: Int, number: String,
@@ -258,6 +260,22 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             effectiveQuotaExceeded = task.isQuotaExceeded,
             effectiveQuotaWarning  = task.isQuotaWarning,
         )
+
+    /**
+     * Substitutes [membership]'s own vruntime onto [realTask], for display
+     * purposes only — never persisted, never looked up by id elsewhere. This
+     * is the read-path counterpart to TaskRepository.creditMembershipRun's
+     * write-path vruntime isolation: without it, a membership row would show
+     * the real task's PRIMARY vruntime (relative to its real siblings
+     * elsewhere), not this placement's.
+     *
+     * totalRunTime/runCount are deliberately NOT substituted — they're
+     * SHARED, lifetime statistics that live on the real task and must read
+     * identically everywhere it appears (see TaskMembership doc comment), so
+     * [realTask]'s own values are already exactly correct as-is.
+     */
+    private fun withMembershipSchedState(realTask: Task, membership: TaskMembership): Task =
+        realTask.copy(vruntime = membership.vruntime)
 
     // ── List builders ─────────────────────────────────────────────────────────
 
@@ -313,11 +331,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
                 if (membership != null) {
                     result.add(membershipDisplayItem(
-                        membership, realTask, depth, number,
+                        membership, withMembershipSchedState(realTask, membership), depth, number,
                         cpuShare = effectiveShares[entry.id] ?: 0.0,
                         descGroups = descGroups, descTasks = descTasks,
                     ).copy(
-                        childTotalRuntime      = dc.sumOf { it.totalRunTime } + membership.totalRunTime,
+                        childTotalRuntime      = dc.sumOf { it.totalRunTime } + realTask.totalRunTime,
                         effectiveQuotaExceeded = quotaExceeded,
                         effectiveQuotaWarning  = quotaWarning,
                         isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true,
@@ -500,10 +518,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 val (descGroups, descTasks) = countDescendants(task.id, tasks)
                 val baseItem = if (membership != null) {
                     membershipDisplayItem(
-                        membership, task, depth, number,
+                        membership, withMembershipSchedState(task, membership), depth, number,
                         cpuShare = effectiveShares[entry.id] ?: 0.0,
                         descGroups = descGroups, descTasks = descTasks,
-                    ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + membership.totalRunTime)
+                    ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime)
                 } else {
                     TaskDisplayItem(task, depth,
                         childGroupCount   = descGroups,
@@ -579,11 +597,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 val number = "$counter"
                 result.add(
                     if (membership != null) {
-                        membershipDisplayItem(membership, task, 0, number,
+                        membershipDisplayItem(membership, withMembershipSchedState(task, membership), 0, number,
                             cpuShare = effectiveShares[entry.id] ?: 0.0,
                             descGroups = descGroups, descTasks = descTasks
                         ).copy(
-                            childTotalRuntime = dc.sumOf { it.totalRunTime } + membership.totalRunTime,
+                            childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime,
                             isJumpHighlighted = task.id == highlightTaskId,
                         )
                     } else {
@@ -653,10 +671,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             counter++
             val number = "$counter"
             val baseItem = if (membership != null) {
-                membershipDisplayItem(membership, task, 0, number,
+                membershipDisplayItem(membership, withMembershipSchedState(task, membership), 0, number,
                     cpuShare = effectiveShares[entry.id] ?: 0.0,
                     descGroups = descGroups, descTasks = descTasks
-                ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + membership.totalRunTime)
+                ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime)
             } else {
                 TaskDisplayItem(task, 0,
                     childGroupCount   = descGroups,

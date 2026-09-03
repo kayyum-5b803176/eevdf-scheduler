@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "eba49b50cb25fb9226c6c9f495784267",
+    "identityHash": "c16358ab0aa51444962cd1ba0dc919f0",
     "entities": [
       {
         "tableName": "tasks",
@@ -748,7 +748,7 @@
       },
       {
         "tableName": "task_memberships",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `groupId` TEXT NOT NULL, `totalRunTime` INTEGER NOT NULL, `runCount` INTEGER NOT NULL, `vruntime` REAL NOT NULL, `eligibleTime` REAL NOT NULL, `virtualDeadline` REAL NOT NULL, `lag` REAL NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `groupId` TEXT NOT NULL, `vruntime` REAL NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -769,38 +769,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "totalRunTime",
-            "columnName": "totalRunTime",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "runCount",
-            "columnName": "runCount",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
             "fieldPath": "vruntime",
             "columnName": "vruntime",
-            "affinity": "REAL",
-            "notNull": true
-          },
-          {
-            "fieldPath": "eligibleTime",
-            "columnName": "eligibleTime",
-            "affinity": "REAL",
-            "notNull": true
-          },
-          {
-            "fieldPath": "virtualDeadline",
-            "columnName": "virtualDeadline",
-            "affinity": "REAL",
-            "notNull": true
-          },
-          {
-            "fieldPath": "lag",
-            "columnName": "lag",
             "affinity": "REAL",
             "notNull": true
           },
@@ -824,7 +794,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'eba49b50cb25fb9226c6c9f495784267')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c16358ab0aa51444962cd1ba0dc919f0')"
     ]
   }
 }

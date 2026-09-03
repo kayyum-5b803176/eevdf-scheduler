@@ -64,9 +64,21 @@ object EEVDFScheduler {
      * Builds an "effective" task list for scheduling/share computation: every
      * real [tasks] entry, PLUS one synthetic [Task] copy per hardlink
      * placement in [memberships] — each a full stand-in for its real task,
-     * but with `id` swapped to a synthetic, prefixed value, `parentId` set to
-     * the placement's [TaskMembership.groupId], and vruntime/runtime fields
-     * sourced from that placement instead of the real task's own.
+     * with `id` swapped to a synthetic, prefixed value, `parentId` set to the
+     * placement's [TaskMembership.groupId], and `vruntime` swapped for this
+     * placement's own — the one thing that's genuinely placement-relative
+     * (see [TaskMembership] doc comment).
+     *
+     * Deliberately does NOT touch `totalRunTime`/`runCount` — those are
+     * shared, lifetime statistics that live on the real task and must read
+     * the same everywhere; the `.copy()` below already carries them over
+     * unmodified, which is exactly correct. Also does NOT touch
+     * `eligibleTime`/`virtualDeadline`/`lag` — those are pure functions of
+     * `vruntime` plus the (already-shared, already-correct) `weight`/
+     * `timeSliceSeconds` on the copy, and get recomputed fresh internally by
+     * `EevdfScheduler.recalculate()` before [getScheduleOrder] ever uses
+     * them; whatever stale values ride along on the copy are discarded before
+     * they could matter.
      *
      * This lets a hardlinked task compete as a genuine child in TWO (or more)
      * different parents' pools at once without any change to the pure EEVDF
@@ -76,7 +88,9 @@ object EEVDFScheduler {
      *
      * Callers that persist results back must recognise
      * [MEMBERSHIP_SYNTHETIC_PREFIX] and write them onto the [TaskMembership]
-     * row (via `id.removePrefix(...)`), never onto a real [Task] row.
+     * row's `vruntime` (via `id.removePrefix(...)`), never onto a real [Task]
+     * row and never onto any field but `vruntime` — see
+     * [com.eevdf.data.task.TaskRepository.creditMembershipRun].
      *
      * Scope note: if the hardlinked task is itself a GROUP, its real children
      * are still looked up by its REAL id elsewhere (list building) — this
@@ -91,14 +105,9 @@ object EEVDFScheduler {
         val synthetic = memberships.mapNotNull { m ->
             val real = byTaskId[m.taskId] ?: return@mapNotNull null
             real.copy(
-                id              = MEMBERSHIP_SYNTHETIC_PREFIX + m.id,
-                parentId        = m.groupId,
-                totalRunTime    = m.totalRunTime,
-                runCount        = m.runCount,
-                vruntime        = m.vruntime,
-                eligibleTime    = m.eligibleTime,
-                virtualDeadline = m.virtualDeadline,
-                lag             = m.lag,
+                id       = MEMBERSHIP_SYNTHETIC_PREFIX + m.id,
+                parentId = m.groupId,
+                vruntime = m.vruntime,
             )
         }
         return tasks + synthetic
