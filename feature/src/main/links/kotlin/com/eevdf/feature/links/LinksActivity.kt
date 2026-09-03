@@ -56,6 +56,7 @@ class LinksActivity : AppCompatActivity() {
 
     /** Every non-completed task/group — the source list for both pickers. */
     private var allTasksSnapshot: List<Task> = emptyList()
+    private var allMembershipsSnapshot: List<com.eevdf.data.task.TaskMembership> = emptyList()
 
     private var selectedTargetId: String? = null
     private var selectedHostId:   String? = null
@@ -130,6 +131,9 @@ class LinksActivity : AppCompatActivity() {
             tvNoLinks.visibility = if (links.isEmpty()) View.VISIBLE else View.GONE
             existingLinksAdapter.setLinks(links)
         }
+        viewModel.allTaskMemberships.observe(this) { memberships ->
+            allMembershipsSnapshot = memberships
+        }
     }
 
     private fun updateTypeDescription() {
@@ -179,11 +183,33 @@ class LinksActivity : AppCompatActivity() {
      * built purely out of chained symlinks/hardlinks is not detected here —
      * acceptable v1 scope, called out in the PR notes.
      */
+    /**
+     * True when placing [targetId] inside [hostId] would create a cycle.
+     *
+     * A hardlink adds a REAL extra parent edge (targetId's task now also
+     * lives under hostId) — on top of every task's existing real parentId
+     * edges AND every hardlink membership edge already in the graph. This
+     * creates a cycle exactly when [hostId] is already reachable by walking
+     * DOWN from [targetId] through EITHER kind of edge: if it is, the new
+     * edge would make [targetId] its own descendant. Checking only the real
+     * parentId chain (as a tree-only implementation would) misses cycles
+     * built through an existing hardlink — this walks both.
+     *
+     * [ListBuilderDelegate]'s tree recursion also carries an independent
+     * depth-limit guard as defense in depth, in case a cycle ever gets into
+     * the data some other way (e.g. a future bug) — this check is the
+     * primary prevention, that one is the safety net.
+     */
     private fun wouldCreateCycle(targetId: String, hostId: String): Boolean {
-        var currentId: String? = hostId
-        while (currentId != null) {
-            if (currentId == targetId) return true
-            currentId = allTasksSnapshot.find { it.id == currentId }?.parentId
+        if (targetId == hostId) return true
+        val visited = mutableSetOf<String>()
+        val stack = ArrayDeque<String>().apply { add(targetId) }
+        while (stack.isNotEmpty()) {
+            val current = stack.removeLast()
+            if (!visited.add(current)) continue
+            if (current == hostId) return true
+            allTasksSnapshot.filter { it.parentId == current }.forEach { stack.add(it.id) }
+            allMembershipsSnapshot.filter { it.groupId == current }.forEach { stack.add(it.taskId) }
         }
         return false
     }

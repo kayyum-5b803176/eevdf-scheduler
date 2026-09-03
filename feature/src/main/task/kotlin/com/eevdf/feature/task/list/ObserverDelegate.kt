@@ -39,6 +39,17 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         observeDisplayToggles()
         observeSync()
         observeActionButtons()
+        observeDrillNavigation()
+    }
+
+    /** Breadcrumb bar visibility/text — refreshes whenever either tab's drill
+     *  stack changes, or either tab's style setting flips (switching back to
+     *  FLAT_OUTLINE clears that tab's stack, which fires through here too). */
+    private fun observeDrillNavigation() {
+        activity.viewModel.queueDrillState.observe(activity)    { if (activity.currentTab == 0) activity.updateBreadcrumb() }
+        activity.viewModel.scheduleDrillState.observe(activity) { if (activity.currentTab == 1) activity.updateBreadcrumb() }
+        activity.viewModel.queueListStyle.observe(activity)     { if (activity.currentTab == 0) activity.updateBreadcrumb() }
+        activity.viewModel.scheduleListStyle.observe(activity)  { if (activity.currentTab == 1) activity.updateBreadcrumb() }
     }
 
     /** Auto-switch call detection. Keeps the ViewModel's in-memory call state in
@@ -63,18 +74,24 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         }
     }
 
-    /** The three tab lists: queue, schedule order and completed. */
+    /** The three tab lists: queue, schedule order and completed.
+     *
+     *  Queue/Schedule observe the *display* projection (queueDisplayList /
+     *  scheduleDisplayList), not flatActiveTasks/flatScheduleOrder directly —
+     *  those two remain the full tree for scheduling; the display lists are
+     *  what actually renders and switch to a single drill level when that
+     *  tab's style setting is DRILL_DOWN. See ListBuilderDelegate.setup(). */
     private fun observeTaskLists() {
-        // Queue tab — flat group-aware list
-        activity.viewModel.flatActiveTasks.observe(activity) { items ->
+        // Queue tab — flat group-aware list, or one drill-down level
+        activity.viewModel.listBuilder.queueDisplayList.observe(activity) { items ->
             activity.activeAdapter.submitList(items)
             activity.activeAdapter.setRunningTask(activity.viewModel.currentTask.value?.id)
             activity.updateEmptyView()
             activity.updateScheduleRankBadge()
         }
 
-        // Schedule tab — flat group-aware list
-        activity.viewModel.flatScheduleOrder.observe(activity) { items ->
+        // Schedule tab — flat group-aware list, or one drill-down level
+        activity.viewModel.listBuilder.scheduleDisplayList.observe(activity) { items ->
             activity.scheduleAdapter.submitList(items)
             activity.scheduleAdapter.setRunningTask(activity.viewModel.currentTask.value?.id)
             activity.updateScheduleRankBadge()

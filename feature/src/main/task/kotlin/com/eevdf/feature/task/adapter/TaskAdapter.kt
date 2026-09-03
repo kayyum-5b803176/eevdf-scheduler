@@ -267,6 +267,10 @@ class TaskAdapter(
         // Symlinks are pure pointers: always show the target's live name, with
         // a small arrow prefix so they read as shortcuts, not real entries.
         holder.tvName.text     = if (item.symlinkId != null) "\u21A6 ${task.name}" else task.name
+        // Broken link (target deleted — see TaskLink doc comment): dim the
+        // whole row so it visually reads as inert. Reset for every other row
+        // since views are recycled.
+        holder.itemView.alpha = if (item.isBrokenLink) 0.5f else 1f
         bindPriorityLabel(holder.tvPriority, task, priorityColor(holder, task))
         holder.tvVruntime.text  = "VRT: ${fmtFloat(task.vruntime)}"
         holder.tvVdeadline.text = "VDL: ${fmtFloat(task.virtualDeadline)}"
@@ -336,10 +340,21 @@ class TaskAdapter(
                 // Symlink row: pure pointer. No complete/reset from here — those
                 // are the real task's own actions at its real location. Tapping
                 // the timer icon navigates there instead of running anything.
+                // A BROKEN link (target deleted — see TaskLink doc comment) has
+                // nowhere to navigate to, so the button is disabled entirely
+                // rather than routing into a synthetic placeholder id.
                 holder.btnRun.visibility         = View.VISIBLE
                 holder.btnComplete.visibility    = View.GONE
                 holder.btnResetSlice.visibility  = View.GONE
-                holder.btnRun.setOnClickListener { onSymlinkNavigate(item) }
+                if (item.isBrokenLink) {
+                    holder.btnRun.isEnabled = false
+                    holder.btnRun.alpha     = 0.4f
+                    holder.btnRun.setOnClickListener(null)
+                } else {
+                    holder.btnRun.isEnabled = true
+                    holder.btnRun.alpha     = 1f
+                    holder.btnRun.setOnClickListener { onSymlinkNavigate(item) }
+                }
             } else if (item.membershipId != null) {
                 // Hardlink placement row: a real, complete task here — full
                 // action set — but runtime/vruntime must credit THIS placement,
@@ -476,13 +491,14 @@ class TaskAdapter(
         val ctx = holder.itemView.context
         holder.card.setCardBackgroundColor(
             androidx.core.content.ContextCompat.getColor(ctx, when {
-                isRunning        -> R.color.cardStateRunning
-                isDlActive       -> R.color.cardStateDl
-                isRtActive       -> R.color.cardStateRt
-                quotaExceeded    -> R.color.cardStateQuotaExceeded
-                quotaWarning     -> R.color.cardStateQuotaWarning
-                task.isGroup     -> R.color.cardStateGroup
-                else             -> R.color.cardBackground
+                isRunning         -> R.color.cardStateRunning
+                item.isJumpHighlighted -> R.color.cardStateJumpHighlight
+                isDlActive        -> R.color.cardStateDl
+                isRtActive        -> R.color.cardStateRt
+                quotaExceeded     -> R.color.cardStateQuotaExceeded
+                quotaWarning      -> R.color.cardStateQuotaWarning
+                task.isGroup      -> R.color.cardStateGroup
+                else              -> R.color.cardBackground
             })
         )
 

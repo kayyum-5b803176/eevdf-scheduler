@@ -28,8 +28,32 @@ import com.eevdf.data.scheduler.RtScheduler
  */
 internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
+    /**
+     * Defense-in-depth against a cycle in the parent graph. Hardlinks give a
+     * task multiple real parents, so the tree-building recursion below is no
+     * longer walking a provably-acyclic structure by construction — cycle
+     * creation is prevented at the source (see LinksActivity.wouldCreateCycle),
+     * but this cap means a cycle that somehow got into the data anyway (a
+     * future bug, manual DB edit, restored backup, …) makes the list stop
+     * growing instead of crashing the app with a StackOverflowError.
+     */
+    private val MAX_TREE_DEPTH = 64
+
     lateinit var flatActiveTasks:   MediatorLiveData<List<TaskDisplayItem>>
     lateinit var flatScheduleOrder: MediatorLiveData<List<TaskDisplayItem>>
+
+    /**
+     * What each tab's RecyclerView actually renders. [flatActiveTasks]/
+     * [flatScheduleOrder] above remain the full, always-complete multi-depth
+     * tree — every scheduling/rotation function in [SchedulerDelegate] depends
+     * on that, and must keep working identically regardless of display style
+     * (see [DrillState] doc comment). These two are a purely presentational
+     * projection: FLAT_OUTLINE mode just passes the full list straight through;
+     * DRILL_DOWN mode substitutes a single level's rows for whichever group the
+     * tab is currently drilled into (see [buildQueueDrillLevel]/[buildScheduleDrillLevel]).
+     */
+    lateinit var queueDisplayList:    MediatorLiveData<List<TaskDisplayItem>>
+    lateinit var scheduleDisplayList: MediatorLiveData<List<TaskDisplayItem>>
 
     // ── DL period-expiry auto-resort ──────────────────────────────────────────
     //
@@ -149,6 +173,40 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             addSource(vm.allTaskLinks)                       { rebuild() }
             addSource(vm.allTaskMemberships)                 { rebuild() }
         }
+
+        queueDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
+            fun rebuild() {
+                value = if (vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN) {
+                    val tasks       = vm.activeTasks.value       ?: emptyList()
+                    val links       = vm.allTaskLinks.value       ?: emptyList()
+                    val memberships = vm.allTaskMemberships.value ?: emptyList()
+                    val drill       = vm.queueDrillState.value
+                    buildQueueDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId)
+                } else {
+                    flatActiveTasks.value ?: emptyList()
+                }
+            }
+            addSource(flatActiveTasks)          { rebuild() }
+            addSource(vm.settings.queueListStyle) { rebuild() }
+            addSource(vm.queueDrillState)         { rebuild() }
+        }
+
+        scheduleDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
+            fun rebuild() {
+                value = if (vm.settings.scheduleListStyle.value == TaskListStyle.DRILL_DOWN) {
+                    val tasks       = vm.activeTasks.value       ?: emptyList()
+                    val links       = vm.allTaskLinks.value       ?: emptyList()
+                    val memberships = vm.allTaskMemberships.value ?: emptyList()
+                    val drill       = vm.scheduleDrillState.value
+                    buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId)
+                } else {
+                    flatScheduleOrder.value ?: emptyList()
+                }
+            }
+            addSource(flatScheduleOrder)             { rebuild() }
+            addSource(vm.settings.scheduleListStyle) { rebuild() }
+            addSource(vm.scheduleDrillState)         { rebuild() }
+        }
     }
 
     // ── Links feature helpers ─────────────────────────────────────────────────
@@ -159,14 +217,24 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      * weight (cpuShare = 0, never fed into EEVDFScheduler) and is marked via
      * [TaskDisplayItem.symlinkId] so the adapter renders it as a jump-to-real-
      * location pointer instead of a runnable row.
+     *
+     * [target] is null when the real task/group this symlink pointed at has
+     * been deleted — see [TaskLink] doc comment: the pointer survives as a
+     * broken link rather than being cascade-deleted. A synthetic placeholder
+     * [Task] is built purely for display (never persisted, never has a real
+     * id anything else looks up) and the row is marked [TaskDisplayItem.isBrokenLink].
      */
-    private fun linkDisplayItem(link: TaskLink, target: Task, depth: Int, number: String): TaskDisplayItem =
+    private fun linkDisplayItem(link: TaskLink, target: Task?, depth: Int, number: String): TaskDisplayItem =
         TaskDisplayItem(
-            task        = target,
-            depth       = depth,
-            queueNumber = number,
-            symlinkId   = link.id,
-            cpuShare    = 0.0,
+            task         = target ?: Task(
+                id = "broken-link-placeholder:${link.id}", name = "Broken link",
+                priority = 0, timeSliceSeconds = 0L, parentId = link.hostGroupId,
+            ),
+            depth        = depth,
+            queueNumber  = number,
+            symlinkId    = link.id,
+            cpuShare     = 0.0,
+            isBrokenLink = target == null,
         )
 
     /**
@@ -225,6 +293,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         val result = mutableListOf<TaskDisplayItem>()
         fun addLevel(parentId: String?, depth: Int, parentNumber: String,
                      parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
+            if (depth > MAX_TREE_DEPTH) return
             val children = effectiveTasks
                 .filter { it.parentId == parentId }
                 .sortedWith(SortHelper.taskNameComparator)
@@ -272,7 +341,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // after the real/hardlinked children so they never disturb numbering
             // parity with how many "real" siblings exist.
             links.filter { it.hostGroupId == parentId }.forEach { link ->
-                val target = tasksById[link.targetTaskId] ?: return@forEach
+                val target = tasksById[link.targetTaskId]  // null = broken link, rendered not skipped
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 result.add(linkDisplayItem(link, target, depth, number).copy(
@@ -371,18 +440,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             else tasks.filter { it.parentId == task.id && !it.isCompleted }
                       .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
 
-        fun addLevel(
-            parentId: String?,
-            depth: Int,
-            parentNumber: String,
-            parentQuotaExceeded: Boolean,
-            parentQuotaWarning: Boolean,
-            counter: IntArray,
-        ) {
-            val children = effectiveTasks.filter { it.parentId == parentId }
-
-            // Bucket 1 — DL: entity is DL-active itself, or (if group) has an
-            // active DL descendant. Scenario A + Scenario B both handled here.
+        // Shared with buildScheduleDrillLevel below — one level's worth of
+        // children, DL → RT → EEVDF tier-sorted. Factored out so drill-down
+        // mode shows exactly the same per-level ordering the flat outline does,
+        // rather than a second, drift-prone copy of this partitioning.
+        fun orderChildren(children: List<Task>): List<Task> {
             val dlActive = children.filter { child ->
                 if (child.isGroup)
                     child.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(child, tasks)
@@ -391,8 +453,6 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             }.sortedBy { dlUrgency(it) }
             val dlIds = dlActive.mapTo(HashSet()) { it.id }
 
-            // Bucket 2 — RT: entity is RT-active itself, or (if group) has an
-            // active RT descendant.
             val rtActive = children.filter { child ->
                 child.id !in dlIds && (
                     if (child.isGroup)
@@ -404,16 +464,25 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             }.sortedByDescending { it.rtPriority }
             val rtIds = rtActive.mapTo(HashSet()) { it.id }
 
-            // Bucket 3 — Fair: fair-class leaves + any group not in buckets 1 or 2.
-            // Groups fall here when they are fair-class with no active DL/RT content.
-            // Dormant non-fair leaves (expired DL, closed RT window, not a group)
-            // are in none of the three buckets and are silently excluded.
             val fairActive = children.filter { child ->
                 child.id !in dlIds && child.id !in rtIds &&
                     (child.isGroup || child.schedulerClass == "fair_sched_class")
             }.sortedBy { it.virtualDeadline }
 
-            val ordered = dlActive + rtActive + fairActive
+            return dlActive + rtActive + fairActive
+        }
+
+        fun addLevel(
+            parentId: String?,
+            depth: Int,
+            parentNumber: String,
+            parentQuotaExceeded: Boolean,
+            parentQuotaWarning: Boolean,
+            counter: IntArray,
+        ) {
+            if (depth > MAX_TREE_DEPTH) return
+            val children = effectiveTasks.filter { it.parentId == parentId }
+            val ordered = orderChildren(children)
 
             ordered.forEach { entry ->
                 val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
@@ -464,7 +533,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // Symlinks hosted at this level: display-only, zero weight, never
             // part of the DL/RT/fair bucket ordering above.
             links.filter { it.hostGroupId == parentId }.forEach { link ->
-                val target = tasksById[link.targetTaskId] ?: return@forEach
+                val target = tasksById[link.targetTaskId]  // null = broken link, rendered not skipped
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 result.add(linkDisplayItem(link, target, depth, number).copy(
@@ -473,6 +542,143 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             }
         }
         addLevel(null, 0, "", false, false, IntArray(1))
+        return result
+    }
+
+    // ── Drill-down: single-level builders ─────────────────────────────────────
+    //
+    // Both produce exactly one screen's worth of rows (depth 0, no recursion,
+    // no indentation) for whichever group [frameId] names — null meaning Home.
+    // They deliberately mirror buildQueueList/buildScheduleList's per-level
+    // logic (same row construction, same sort/bucket rules) but never recurse,
+    // since drill-down shows one level at a time by design. They read directly
+    // from vm.activeTasks — NOT from flatActiveTasks/flatScheduleOrder's own
+    // value — so a drill rebuild is always computed fresh rather than trying to
+    // slice a level back out of an already-flattened multi-depth list.
+
+    private fun buildQueueDrillLevel(
+        frameId: String?, tasks: List<Task>, links: List<TaskLink>, memberships: List<TaskMembership>,
+        highlightTaskId: String? = null,
+    ): List<TaskDisplayItem> {
+        val effectiveTasks  = EEVDFScheduler.withMemberships(tasks, memberships)
+        val effectiveShares = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled = true)
+        val membershipsById = memberships.associateBy { it.id }
+        val tasksById       = tasks.associateBy { it.id }
+        val result = mutableListOf<TaskDisplayItem>()
+        var counter = 0
+
+        effectiveTasks.filter { it.parentId == frameId }
+            .sortedWith(SortHelper.taskNameComparator)
+            .forEach { entry ->
+                val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
+                val membership   = if (isMembership) membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
+                val task         = if (membership != null) tasksById[membership.taskId] ?: entry else entry
+                val dc           = tasks.filter { it.parentId == task.id }
+                val (descGroups, descTasks) = countDescendants(task.id, tasks)
+                counter++
+                val number = "$counter"
+                result.add(
+                    if (membership != null) {
+                        membershipDisplayItem(membership, task, 0, number,
+                            cpuShare = effectiveShares[entry.id] ?: 0.0,
+                            descGroups = descGroups, descTasks = descTasks
+                        ).copy(
+                            childTotalRuntime = dc.sumOf { it.totalRunTime } + membership.totalRunTime,
+                            isJumpHighlighted = task.id == highlightTaskId,
+                        )
+                    } else {
+                        TaskDisplayItem(task, 0,
+                            childGroupCount   = descGroups,
+                            childTaskCount    = descTasks,
+                            childTotalRuntime = dc.sumOf { it.totalRunTime },
+                            cpuShare          = effectiveShares[task.id] ?: 0.0,
+                            queueNumber       = number,
+                            isJumpHighlighted = task.id == highlightTaskId)
+                    }
+                )
+            }
+
+        links.filter { it.hostGroupId == frameId }.forEach { link ->
+            val target = tasksById[link.targetTaskId]  // null = broken link, rendered not skipped
+            counter++
+            result.add(linkDisplayItem(link, target, 0, "$counter")
+                .copy(childTotalRuntime = link.totalRunTime))
+        }
+        return result
+    }
+
+    private fun buildScheduleDrillLevel(
+        frameId: String?, tasks: List<Task>, links: List<TaskLink>, memberships: List<TaskMembership>,
+        highlightTaskId: String? = null,
+    ): List<TaskDisplayItem> {
+        val effectiveTasks  = EEVDFScheduler.withMemberships(tasks, memberships)
+        val effectiveShares = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled = true)
+        val membershipsById = memberships.associateBy { it.id }
+        val tasksById       = tasks.associateBy { it.id }
+        val nowMs           = System.currentTimeMillis()
+        val result = mutableListOf<TaskDisplayItem>()
+        var counter = 0
+
+        fun dlUrgency(task: Task): Long =
+            if (!task.isGroup) task.dlPeriodRemainingSeconds
+            else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds
+            else tasks.filter { it.parentId == task.id && !it.isCompleted }
+                      .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+
+        val children = effectiveTasks.filter { it.parentId == frameId }
+        val dlActive = children.filter { child ->
+            if (child.isGroup) child.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(child, tasks)
+            else child.isDlBudgetActive
+        }.sortedBy { dlUrgency(it) }
+        val dlIds = dlActive.mapTo(HashSet()) { it.id }
+        val rtActive = children.filter { child ->
+            child.id !in dlIds && (
+                if (child.isGroup) RtScheduler.isRtWindowActive(child, nowMs) ||
+                    RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
+                else RtScheduler.isRtWindowActive(child, nowMs)
+            )
+        }.sortedByDescending { it.rtPriority }
+        val rtIds = rtActive.mapTo(HashSet()) { it.id }
+        val fairActive = children.filter { child ->
+            child.id !in dlIds && child.id !in rtIds &&
+                (child.isGroup || child.schedulerClass == "fair_sched_class")
+        }.sortedBy { it.virtualDeadline }
+
+        (dlActive + rtActive + fairActive).forEach { entry ->
+            val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
+            val membership   = if (isMembership) membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
+            val task         = if (membership != null) tasksById[membership.taskId] ?: entry else entry
+            val dc           = tasks.filter { it.parentId == task.id }
+            val (descGroups, descTasks) = countDescendants(task.id, tasks)
+            counter++
+            val number = "$counter"
+            val baseItem = if (membership != null) {
+                membershipDisplayItem(membership, task, 0, number,
+                    cpuShare = effectiveShares[entry.id] ?: 0.0,
+                    descGroups = descGroups, descTasks = descTasks
+                ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + membership.totalRunTime)
+            } else {
+                TaskDisplayItem(task, 0,
+                    childGroupCount   = descGroups,
+                    childTaskCount    = descTasks,
+                    childTotalRuntime = dc.sumOf { it.totalRunTime },
+                    cpuShare          = effectiveShares[task.id] ?: 0.0)
+            }
+            result.add(baseItem.copy(
+                queueNumber      = number,
+                isDlActive       = task.isDlBudgetActive,
+                isDlGroupHoisted = task.isGroup && (task.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(task, tasks)),
+                isRtActive       = RtScheduler.isRtWindowActive(task, nowMs),
+                isRtGroupHoisted = task.isGroup && (RtScheduler.isRtWindowActive(task, nowMs) || RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)),
+                isJumpHighlighted = task.id == highlightTaskId))
+        }
+
+        links.filter { it.hostGroupId == frameId }.forEach { link ->
+            val target = tasksById[link.targetTaskId]  // null = broken link, rendered not skipped
+            counter++
+            result.add(linkDisplayItem(link, target, 0, "$counter")
+                .copy(childTotalRuntime = link.totalRunTime))
+        }
         return result
     }
 

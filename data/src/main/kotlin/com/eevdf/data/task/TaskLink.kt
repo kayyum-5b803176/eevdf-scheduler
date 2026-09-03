@@ -28,8 +28,14 @@ import java.util.UUID
  * [TaskRepository.updateVruntimeAfterRun]) — a symlink placement is just
  * another place a run can be credited, tracked the same simple way.
  *
- * Cascade: deleting the target task deletes every [TaskLink] pointing at it
- * (see [TaskRepository.delete]) — there is never a "broken link" state.
+ * Deleting the target does NOT delete this row — a symlink is a real
+ * filesystem symlink's exact behavior: the pointer survives as a BROKEN
+ * LINK, resolving to nothing, rather than being cascade-deleted. It is
+ * rendered as a distinct, disabled "broken link" row (see
+ * [com.eevdf.feature.task.list.ListBuilderDelegate]) until the user
+ * explicitly deletes the symlink itself, or its host group is deleted (see
+ * [TaskLinkDao.deleteByHost], which IS still a cascade — the symlink can't
+ * outlive the group it's displayed inside).
  */
 @Entity(tableName = "task_links")
 data class TaskLink(
@@ -66,7 +72,11 @@ interface TaskLinkDao {
     @Query("DELETE FROM task_links WHERE id = :id")
     suspend fun deleteById(id: String)
 
-    /** Cascade: called whenever a task/group is deleted so no broken links remain. */
+    /** Cascade: called whenever a task/group is deleted so its hosted links go with it.
+     *  Note: NOT called for the target side of a deletion any more — see the
+     *  class doc comment. Kept available for a possible future "clean up
+     *  broken links" bulk action; deleteOrPromote in TaskRepository never
+     *  calls it for a deleted target on its own. */
     @Query("DELETE FROM task_links WHERE targetTaskId = :targetTaskId")
     suspend fun deleteByTarget(targetTaskId: String)
 

@@ -67,6 +67,13 @@ interface TaskMembershipDao {
     @Query("SELECT * FROM task_memberships WHERE groupId = :groupId")
     suspend fun getForGroup(groupId: String): List<TaskMembership>
 
+    /** Every OTHER real placement a task has — used to promote one to primary
+     *  when the task's current primary placement is deleted (see
+     *  TaskRepository.deleteOrPromote): real hardlink semantics mean the data
+     *  survives as long as ANY placement of it still exists. */
+    @Query("SELECT * FROM task_memberships WHERE taskId = :taskId")
+    suspend fun getForTask(taskId: String): List<TaskMembership>
+
     @Query("SELECT * FROM task_memberships WHERE id = :id")
     suspend fun getById(id: String): TaskMembership?
 

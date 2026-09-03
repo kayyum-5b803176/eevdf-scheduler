@@ -69,6 +69,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvScheduleRank:      TextView
     private lateinit var emptyView:           LinearLayout
     internal lateinit var viewPhaseStatus:     View
+    private lateinit var breadcrumbBar:       LinearLayout
+    private lateinit var tvBreadcrumbPath:    TextView
+    private lateinit var drillBackCallback:   androidx.activity.OnBackPressedCallback
 
     // ── Expired/alarm block — dedicated views, fully styled in XML ─────────────
     internal lateinit var tvAlarmTaskName:     TextView
@@ -144,6 +147,8 @@ class MainActivity : AppCompatActivity() {
         )
     }
     internal var groupsMenuItem:       MenuItem? = null
+    internal var queueDrillMenuItem:    MenuItem? = null
+    internal var scheduleDrillMenuItem: MenuItem? = null
     internal var globalRotateMenuItem: MenuItem? = null
     internal var allowEditMenuItem:    MenuItem? = null
     internal var autoScrollMenuItem:   MenuItem? = null
@@ -176,6 +181,21 @@ class MainActivity : AppCompatActivity() {
         setupAdapters()
         setupRecyclerView()
         setupTabs()
+
+        // Drill-down back: pop one frame on system/gesture back before falling
+        // through to leaving the Activity. Enabled state is kept in sync by
+        // refreshDrillBackCallback(), called from both drill-state changes and
+        // tab switches (see setupTabs()'s onTabSelected).
+        drillBackCallback = object : androidx.activity.OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                val onQueueTab = currentTab == 0
+                if (viewModel.drillBack(onQueueTab)) updateBreadcrumb() else isEnabled = false
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, drillBackCallback)
+        viewModel.queueDrillState.observe(this)    { refreshDrillBackCallback() }
+        viewModel.scheduleDrillState.observe(this) { refreshDrillBackCallback() }
+
         observerDelegate.setupObservers()
         // Restore last active tab using a one-shot observer so the tab is
         // selected only AFTER the target adapter has received its first data
@@ -412,6 +432,13 @@ class MainActivity : AppCompatActivity() {
         tvScheduleRank    = findViewById(R.id.tvScheduleRank)
         emptyView         = findViewById(R.id.emptyView)
         viewPhaseStatus   = findViewById(R.id.viewPhaseStatus)
+        breadcrumbBar     = findViewById(R.id.breadcrumbBar)
+        tvBreadcrumbPath  = findViewById(R.id.tvBreadcrumbPath)
+        breadcrumbBar.setOnClickListener {
+            haptic(it)
+            val onQueueTab = currentTab == 0
+            if (viewModel.drillBack(onQueueTab)) updateBreadcrumb()
+        }
         layoutTimerContent = findViewById(R.id.layoutTimerContent)
         layoutAlarmContent = findViewById(R.id.layoutAlarmContent)
         tvAlarmTaskName   = findViewById(R.id.tvAlarmTaskName)
@@ -454,15 +481,33 @@ class MainActivity : AppCompatActivity() {
         onDeleteClick        = { confirmDelete(it) },
         onCompleteClick      = { viewModel.markCompleted(it) },
         onRunClick           = { viewModel.setCurrentTask(it) },
-        onGroupToggle        = { if (scheduleTab) viewModel.toggleScheduleGroupExpanded(it)
-                                 else viewModel.toggleQueueGroupExpanded(it) },
+        onGroupToggle        = { task ->
+            val style = if (scheduleTab) viewModel.scheduleListStyle.value else viewModel.queueListStyle.value
+            if (style == TaskListStyle.DRILL_DOWN) {
+                viewModel.drillInto(onQueueTab = !scheduleTab, groupId = task.id, arrivedVia = ArrivedVia.REAL)
+                updateBreadcrumb()
+            } else if (scheduleTab) viewModel.toggleScheduleGroupExpanded(task)
+            else viewModel.toggleQueueGroupExpanded(task)
+        },
         onGroupToggleDeep    = { if (scheduleTab) viewModel.deepToggleScheduleGroupExpanded(it)
                                  else viewModel.deepToggleQueueGroupExpanded(it) },
         onResetSliceClick    = { viewModel.resetSlice(it) },
         showScheduleRank     = showRank,
         expandStateProvider  = { id -> if (scheduleTab) viewModel.getScheduleExpanded(id)
                                         else viewModel.getQueueExpanded(id) },
-        onSymlinkNavigate    = { item -> navigateToRealLocation(item.task, scheduleTab) },
+        onSymlinkNavigate    = { item ->
+            val style = if (scheduleTab) viewModel.scheduleListStyle.value else viewModel.queueListStyle.value
+            if (style == TaskListStyle.DRILL_DOWN) {
+                val target = item.task
+                val frameGroupId = if (target.isGroup) target.id else target.parentId
+                val highlightId  = if (target.isGroup) null else target.id
+                viewModel.drillInto(onQueueTab = !scheduleTab, groupId = frameGroupId,
+                    arrivedVia = ArrivedVia.SYMLINK, highlightTaskId = highlightId)
+                updateBreadcrumb()
+            } else {
+                navigateToRealLocation(item.task, scheduleTab)
+            }
+        },
         onMembershipRunClick = { item -> viewModel.setCurrentTaskAsMembership(item.task, item.membershipId!!) },
         onSymlinkDelete      = { item -> viewModel.deleteSymlink(item.symlinkId!!) },
         onMembershipDelete   = { item -> viewModel.deleteHardlink(item.membershipId!!) }
@@ -531,6 +576,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 updateEmptyView()
                 updateScheduleRankBadge()
+                updateBreadcrumb()
+                refreshDrillBackCallback()
             }
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             override fun onTabReselected(tab: TabLayout.Tab) {}
@@ -591,13 +638,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     internal fun updateEmptyView() {
+        // Uses the DISPLAY list (respects drill-down), not the full tree — an
+        // empty drill level must show "No tasks yet" even when other groups
+        // elsewhere in the tree have content.
         val isEmpty = when (currentTab) {
-            0    -> viewModel.flatActiveTasks.value?.isEmpty() ?: true
-            1    -> viewModel.flatScheduleOrder.value?.isEmpty() ?: true
+            0    -> viewModel.listBuilder.queueDisplayList.value?.isEmpty() ?: true
+            1    -> viewModel.listBuilder.scheduleDisplayList.value?.isEmpty() ?: true
             else -> viewModel.completedTasks.value?.isEmpty() ?: true
         }
         emptyView.visibility    = if (isEmpty) View.VISIBLE else View.GONE
         recyclerView.visibility = if (isEmpty) View.GONE   else View.VISIBLE
+    }
+
+    /**
+     * Shows/hides the breadcrumb bar and builds its path text for whichever
+     * tab is active. Hidden on the Completed tab (no hierarchy there), when
+     * the active tab's style is FLAT_OUTLINE, or when its drill stack is empty
+     * (sitting at Home — nothing to show "back" from).
+     */
+    internal fun updateBreadcrumb() {
+        val onQueueTab = currentTab == 0
+        val style = if (onQueueTab) viewModel.queueListStyle.value else viewModel.scheduleListStyle.value
+        val drill = if (onQueueTab) viewModel.queueDrillState.value else viewModel.scheduleDrillState.value
+        val stack = drill?.stack ?: emptyList()
+        if (currentTab == 2 || style != TaskListStyle.DRILL_DOWN || stack.isEmpty()) {
+            breadcrumbBar.visibility = View.GONE
+            return
+        }
+        val tasksById = (viewModel.activeTasks.value ?: emptyList()).associateBy { it.id }
+        val segments = mutableListOf("Home")
+        stack.forEach { frame ->
+            val name = frame.groupId?.let { tasksById[it]?.name } ?: "Home"
+            val sep  = if (frame.arrivedVia == ArrivedVia.SYMLINK) " \u21E2 " else " \u203A "
+            segments.add(sep)
+            segments.add(name)
+        }
+        tvBreadcrumbPath.text = segments.joinToString("")
+        breadcrumbBar.visibility = View.VISIBLE
+    }
+
+    /** Keeps the system/gesture back callback's enabled state in sync with
+     *  whether the CURRENT tab has a drill frame to pop. Called on drill-state
+     *  changes and on every tab switch (a tab change alone can flip this even
+     *  when neither drill LiveData fired). */
+    private fun refreshDrillBackCallback() {
+        val onQueueTab = currentTab == 0
+        val drill = if (onQueueTab) viewModel.queueDrillState.value else viewModel.scheduleDrillState.value
+        drillBackCallback.isEnabled = currentTab != 2 && (drill?.canGoBack == true)
     }
 
     private fun showTaskDetail(task: Task) {

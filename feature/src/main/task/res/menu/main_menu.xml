@@ -22,6 +22,23 @@
         android:checkable="true"
         app:showAsAction="never" />
 
+    <!-- Links feature: per-tab display style. Only meaningful (and only
+         shown) when groups are enabled — visibility kept in sync with
+         action_toggle_groups in MenuSyncDelegate. -->
+    <item
+        android:id="@+id/action_toggle_queue_drill"
+        android:title="Queue: Drill-down"
+        android:checkable="true"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_toggle_schedule_drill"
+        android:title="Schedule: Drill-down"
+        android:checkable="true"
+        android:visible="false"
+        app:showAsAction="never" />
+
     <item
         android:id="@+id/action_toggle_global_rotate"
         android:title="Global Rotate"

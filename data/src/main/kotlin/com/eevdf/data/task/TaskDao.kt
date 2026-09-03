@@ -15,6 +15,13 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isCompleted = 1 ORDER BY createdAt DESC")
     fun getCompletedTasks(): LiveData<List<Task>>
 
+    /** Suspend/sync variant of [getCompletedTasks] — used by
+     *  TaskRepository.clearCompleted() to run per-task deleteOrPromote instead
+     *  of a single bulk DELETE, so a completed task with a surviving hardlink
+     *  placement elsewhere is promoted rather than destroyed outright. */
+    @Query("SELECT * FROM tasks WHERE isCompleted = 1")
+    suspend fun getCompletedTasksSync(): List<Task>
+
     @Query("SELECT * FROM tasks WHERE id = :id")
     suspend fun getTaskById(id: String): Task?
 

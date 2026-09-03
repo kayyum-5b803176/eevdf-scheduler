@@ -199,6 +199,26 @@ class TaskViewModel @Inject constructor(
     internal val callSwitch  = CallSwitchDelegate(this)
     internal val notice      = NoticeStateMachine(this)
     internal val scheduler   = SchedulerDelegate(this)
+    // ── Drill-down navigation (Links feature: symlink-aware "up") ───────────
+    //
+    // In-memory only, one DrillState per tab. NEVER wired into flatActiveTasks
+    // or flatScheduleOrder themselves — see DrillState's doc comment for why.
+    // The style toggle and drill functions live here (not ListBuilderDelegate)
+    // because they're navigation/selection state, matching where every other
+    // "which task/group am I on" concern (currentTask, groupExpand) already lives.
+    //
+    // MUST be declared before the init block below — listBuilder.setup() runs
+    // from it and immediately does addSource(vm.queueDrillState)/
+    // addSource(vm.scheduleDrillState). Kotlin initializes properties in
+    // textual declaration order, so if these were declared after init{},
+    // they'd still be null (uninitialized) at the moment setup() reads them —
+    // MediatorLiveData.addSource throws NullPointerException("source cannot
+    // be null") in that case, which is exactly the crash this fixes.
+    internal val _queueDrillState    = MutableLiveData(DrillState())
+    internal val _scheduleDrillState = MutableLiveData(DrillState())
+    val queueDrillState:    LiveData<DrillState> = _queueDrillState
+    val scheduleDrillState: LiveData<DrillState> = _scheduleDrillState
+
     internal val listBuilder = ListBuilderDelegate(this)
     internal val crud        = TaskCrudDelegate(this)
     internal val alarmOverrun = AlarmOverrunDelegate(this)
@@ -450,6 +470,8 @@ class TaskViewModel @Inject constructor(
 
     // ── LiveData passthrough ──────────────────────────────────────────────────
     val groupsEnabled:       LiveData<Boolean> get() = settings.groupsEnabled
+    val queueListStyle:      LiveData<TaskListStyle> get() = settings.queueListStyle
+    val scheduleListStyle:   LiveData<TaskListStyle> get() = settings.scheduleListStyle
 
     /** Distinct category strings from the DB — drives autocomplete in Add/Edit task. */
     val distinctCategories:  LiveData<List<String>> get() = repository.distinctCategories
@@ -459,6 +481,41 @@ class TaskViewModel @Inject constructor(
 
     // ── Toggle methods ────────────────────────────────────────────────────────
     fun toggleGroupsEnabled()  = settings.toggleGroupsEnabled()
+
+    // ── Drill-down navigation (Links feature: symlink-aware "up") toggles ───
+    // (state itself — _queueDrillState/_scheduleDrillState/queueDrillState/
+    // scheduleDrillState — is declared earlier, before listBuilder, since
+    // listBuilder.setup() needs it already initialized; see that declaration's
+    // comment for why.)
+
+    fun toggleQueueListStyle() {
+        settings.toggleQueueListStyle()
+        if (settings.queueListStyle.value == TaskListStyle.FLAT_OUTLINE) _queueDrillState.value = DrillState()
+    }
+    fun toggleScheduleListStyle() {
+        settings.toggleScheduleListStyle()
+        if (settings.scheduleListStyle.value == TaskListStyle.FLAT_OUTLINE) _scheduleDrillState.value = DrillState()
+    }
+
+    /** Pushes a new drill frame — [arrivedVia] SYMLINK when following a symlink into [groupId].
+     *  [groupId] null represents root (a symlink to a root-level leaf task).
+     *  [highlightTaskId] marks one row in the new frame for a jump-highlight
+     *  (a symlink-to-leaf-task jump highlighting that task among its real
+     *  siblings) — leave null for a symlink-to-group jump or a real drill-in. */
+    fun drillInto(onQueueTab: Boolean, groupId: String?, arrivedVia: ArrivedVia, highlightTaskId: String? = null) {
+        val live = if (onQueueTab) _queueDrillState else _scheduleDrillState
+        val current = live.value ?: DrillState()
+        live.value = current.copy(stack = current.stack + DrillFrame(groupId, arrivedVia, highlightTaskId))
+    }
+
+    /** Pops one frame. For a SYMLINK frame this returns to the symlink's HOST group, not the real parent. */
+    fun drillBack(onQueueTab: Boolean): Boolean {
+        val live = if (onQueueTab) _queueDrillState else _scheduleDrillState
+        val current = live.value ?: DrillState()
+        if (current.stack.isEmpty()) return false
+        live.value = current.copy(stack = current.stack.dropLast(1))
+        return true
+    }
     fun toggleGlobalRotate()   = settings.toggleGlobalRotate()
     fun toggleAllowEdit()      = settings.toggleAllowEdit()
     fun toggleAutoScroll()     = settings.toggleAutoScroll()

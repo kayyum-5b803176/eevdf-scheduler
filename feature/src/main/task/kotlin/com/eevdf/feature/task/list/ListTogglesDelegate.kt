@@ -33,6 +33,8 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
     private val KEY_LAST_TAB                  = "last_tab"
     private val KEY_SELECTED_TASK_ID          = "selected_timer_task_id"
     private val KEY_CARD_MANUALLY_HIDDEN      = "timer_card_manually_hidden"
+    private val KEY_QUEUE_LIST_STYLE          = "queue_list_style"
+    private val KEY_SCHEDULE_LIST_STYLE       = "schedule_list_style"
 
     // ── Groups ────────────────────────────────────────────────────────────────
 
@@ -138,4 +140,35 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
 
     fun getSavedCardManuallyHidden(): Boolean =
         prefs.getBoolean(KEY_CARD_MANUALLY_HIDDEN, false)
+
+    // ── Per-tab list style (flat outline vs drill-down) ─────────────────────
+    //
+    // Independent per tab by design — e.g. Schedule flat (see full ranking at
+    // a glance) while Queue is drill-down (browse one group at a time). Only
+    // meaningful when groups are enabled; the menu items that expose these are
+    // hidden otherwise (see MenuSyncDelegate).
+
+    private fun readStyle(key: String) =
+        runCatching { TaskListStyle.valueOf(prefs.getString(key, null) ?: "") }
+            .getOrDefault(TaskListStyle.FLAT_OUTLINE)
+
+    private val _queueListStyle = MutableLiveData(readStyle(KEY_QUEUE_LIST_STYLE))
+    val queueListStyle: LiveData<TaskListStyle> = _queueListStyle
+
+    private val _scheduleListStyle = MutableLiveData(readStyle(KEY_SCHEDULE_LIST_STYLE))
+    val scheduleListStyle: LiveData<TaskListStyle> = _scheduleListStyle
+
+    fun toggleQueueListStyle() {
+        val next = if (_queueListStyle.value == TaskListStyle.FLAT_OUTLINE)
+            TaskListStyle.DRILL_DOWN else TaskListStyle.FLAT_OUTLINE
+        prefs.edit().putString(KEY_QUEUE_LIST_STYLE, next.name).apply()
+        _queueListStyle.value = next
+    }
+
+    fun toggleScheduleListStyle() {
+        val next = if (_scheduleListStyle.value == TaskListStyle.FLAT_OUTLINE)
+            TaskListStyle.DRILL_DOWN else TaskListStyle.FLAT_OUTLINE
+        prefs.edit().putString(KEY_SCHEDULE_LIST_STYLE, next.name).apply()
+        _scheduleListStyle.value = next
+    }
 }

@@ -29,6 +29,9 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
         activity.menuInflater.inflate(R.menu.main_menu, menu)
         activity.groupsMenuItem       = menu.findItem(R.id.action_toggle_groups)
         activity.groupsMenuItem?.isChecked = activity.viewModel.groupsEnabled.value ?: false
+        activity.queueDrillMenuItem    = menu.findItem(R.id.action_toggle_queue_drill)
+        activity.scheduleDrillMenuItem = menu.findItem(R.id.action_toggle_schedule_drill)
+        syncDrillMenuItems()
         activity.globalRotateMenuItem = menu.findItem(R.id.action_toggle_global_rotate)
         activity.globalRotateMenuItem?.isChecked = activity.viewModel.globalRotateEnabled.value ?: false
         activity.allowEditMenuItem    = menu.findItem(R.id.action_allow_edit)
@@ -126,6 +129,17 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
             R.id.action_toggle_groups -> {
                 activity.viewModel.toggleGroupsEnabled()
                 item.isChecked = activity.viewModel.groupsEnabled.value ?: false
+                syncDrillMenuItems()
+                true
+            }
+            R.id.action_toggle_queue_drill -> {
+                activity.viewModel.toggleQueueListStyle()
+                item.isChecked = activity.viewModel.queueListStyle.value == TaskListStyle.DRILL_DOWN
+                true
+            }
+            R.id.action_toggle_schedule_drill -> {
+                activity.viewModel.toggleScheduleListStyle()
+                item.isChecked = activity.viewModel.scheduleListStyle.value == TaskListStyle.DRILL_DOWN
                 true
             }
             R.id.action_toggle_global_rotate -> {
@@ -149,6 +163,22 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
                 true
             }
             else -> false
+        }
+    }
+
+    // ── Links feature: per-tab display style menu items ─────────────────────
+
+    /** Visibility + checked state for the two drill-down toggles — only shown
+     *  at all when groups are enabled (no hierarchy to drill into otherwise). */
+    private fun syncDrillMenuItems() {
+        val groupsOn = activity.viewModel.groupsEnabled.value ?: false
+        activity.queueDrillMenuItem?.apply {
+            isVisible = groupsOn
+            isChecked = activity.viewModel.queueListStyle.value == TaskListStyle.DRILL_DOWN
+        }
+        activity.scheduleDrillMenuItem?.apply {
+            isVisible = groupsOn
+            isChecked = activity.viewModel.scheduleListStyle.value == TaskListStyle.DRILL_DOWN
         }
     }
 

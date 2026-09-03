@@ -341,6 +341,48 @@
                 android:layout_marginTop="@dimen/app_spacing_md" />
         </LinearLayout>
 
+        <!-- Drill-down breadcrumb bar (Links feature). Hidden in flat-outline
+             mode and whenever the current tab's drill stack is empty. Tapping
+             it pops exactly one frame — for a symlink hop this returns to the
+             symlink's HOST group, never the real group's own real parent. -->
+        <LinearLayout
+            android:id="@+id/breadcrumbBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="@dimen/app_spacing_sm"
+            android:paddingEnd="@dimen/app_spacing_md"
+            android:paddingTop="@dimen/app_spacing_sm"
+            android:paddingBottom="@dimen/app_spacing_sm"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/ivBreadcrumbBack"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:rotation="90"
+                android:src="@drawable/ic_chevron_down_modern"
+                android:contentDescription="Back"
+                app:tint="@color/app_text_label" />
+
+            <TextView
+                android:id="@+id/tvBreadcrumbPath"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="@dimen/app_spacing_sm"
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_caption"
+                android:maxLines="1"
+                android:ellipsize="start"
+                android:singleLine="true" />
+
+        </LinearLayout>
+
         <!-- Task list -->
         <androidx.recyclerview.widget.RecyclerView
             style="@style/App.List.Content"

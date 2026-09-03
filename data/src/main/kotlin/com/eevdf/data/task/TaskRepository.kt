@@ -222,37 +222,72 @@ class TaskRepository @Inject constructor(
         if (tasks.isNotEmpty()) dao.updateAll(tasks)
     }
 
-    suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
-        // Also delete all descendants
-        deleteDescendants(task.id)
+    /**
+     * Unconditional, final deletion — no promotion check. Used by
+     * [deleteOrPromote]'s zero-membership branch, and directly by
+     * [clearCompleted]: `isCompleted` lives on the one shared [Task] row, not
+     * per-placement, so a completed task is completed EVERYWHERE it appears —
+     * there is no "it's still alive at another placement" scenario to protect
+     * against the way there is for an explicit single-location [delete]. A
+     * completed task's other membership placements are just leftover rows to
+     * clean up together with it, never a reason to keep it alive.
+     */
+    private suspend fun forceDelete(task: Task) {
+        if (task.isGroup) deleteDescendants(task.id)
         dao.delete(task)
-        // Drop any per-tab/slot return-to that pointed at this task.
         interruptReturnDao.clearByTask(task.id)
-        // Drop the load factor side table row.
         loadFactorDao.clearByTask(task.id)
-        // Links feature: no broken symlinks, no orphaned hardlink placements.
-        taskLinkDao.deleteByTarget(task.id)
         taskMembershipDao.deleteByTask(task.id)
         if (task.isGroup) {
             taskLinkDao.deleteByHost(task.id)
             taskMembershipDao.deleteByGroup(task.id)
         }
+        // Symlinks pointing at this task persist as broken links — see TaskLink doc comment.
+    }
+
+    /**
+     * Deletes [task], UNLESS it has a surviving [TaskMembership] elsewhere —
+     * in which case that placement is promoted to become the task's new
+     * primary [Task.parentId]/scheduling state instead, and the task itself
+     * lives on. This mirrors real hardlink semantics deliberately: a task's
+     * data persists as long as ANY placement (primary or membership) of it
+     * still exists; only removing the very last one actually deletes it.
+     *
+     * Used for both the top-level [delete] call and every real descendant
+     * encountered by [deleteDescendants] — a hardlinked task several levels
+     * deep inside a deleted group is promoted exactly the same way a
+     * top-level hardlinked task would be, never silently destroyed just
+     * because ITS ancestor happened to be the one the user deleted from.
+     *
+     * NOT used by [clearCompleted] — see [forceDelete]'s doc comment for why
+     * completion specifically bypasses promotion.
+     */
+    private suspend fun deleteOrPromote(task: Task) {
+        val remaining = taskMembershipDao.getForTask(task.id)
+        if (remaining.isNotEmpty()) {
+            val promoted = remaining.first()
+            dao.update(task.copy(
+                parentId        = promoted.groupId,
+                vruntime        = promoted.vruntime,
+                eligibleTime    = promoted.eligibleTime,
+                virtualDeadline = promoted.virtualDeadline,
+                lag             = promoted.lag,
+                totalRunTime    = promoted.totalRunTime,
+                runCount        = promoted.runCount,
+            ))
+            taskMembershipDao.deleteById(promoted.id)
+            return
+        }
+        forceDelete(task)
+    }
+
+    suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
+        deleteOrPromote(task)
     }
 
     private suspend fun deleteDescendants(parentId: String) {
         val children = dao.getChildrenOf(parentId)
-        children.forEach { child ->
-            if (child.isGroup) deleteDescendants(child.id)
-            dao.delete(child)
-            interruptReturnDao.clearByTask(child.id)
-            loadFactorDao.clearByTask(child.id)
-            taskLinkDao.deleteByTarget(child.id)
-            taskMembershipDao.deleteByTask(child.id)
-            if (child.isGroup) {
-                taskLinkDao.deleteByHost(child.id)
-                taskMembershipDao.deleteByGroup(child.id)
-            }
-        }
+        children.forEach { child -> deleteOrPromote(child) }
     }
 
     suspend fun markCompleted(task: Task) = withContext(Dispatchers.IO) {
@@ -264,7 +299,17 @@ class TaskRepository @Inject constructor(
 
     suspend fun stopAll() = withContext(Dispatchers.IO) { dao.stopAllRunning() }
 
-    suspend fun clearCompleted() = withContext(Dispatchers.IO) { dao.clearCompleted() }
+    /**
+     * Deletes every completed task — routed through [forceDelete] per task
+     * (never [deleteOrPromote] — see [forceDelete]'s doc comment for why
+     * completion specifically must not promote) rather than a single bulk
+     * DELETE. This also picks up the interruptReturn/loadFactor/membership/
+     * link-host cleanup [forceDelete] already does for a single delete, which
+     * the old bulk query never performed.
+     */
+    suspend fun clearCompleted() = withContext(Dispatchers.IO) {
+        dao.getCompletedTasksSync().forEach { forceDelete(it) }
+    }
 
     suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) { dao.getTaskById(id) }
 

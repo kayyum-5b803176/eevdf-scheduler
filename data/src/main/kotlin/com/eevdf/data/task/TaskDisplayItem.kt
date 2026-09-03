@@ -103,6 +103,15 @@ data class TaskDisplayItem(
      * from that one placement's own fields, not [task]'s primary ones.
      */
     val membershipId: String? = null,
+    /** True for the one row a drill-down symlink jump landed on — see
+     *  DrillFrame.highlightTaskId. Purely cosmetic (card tint), no effect on
+     *  scheduling or ordering. */
+    val isJumpHighlighted: Boolean = false,
+    /** True for a symlink row whose target has been deleted — see [TaskLink]
+     *  doc comment. [task] is a synthetic placeholder in this case, never a
+     *  real DB row; the row renders disabled/greyed with delete as the only
+     *  available action. */
+    val isBrokenLink: Boolean = false,
 ) {
     /** True for either a [symlinkId] or [membershipId] row — a "links" row, not the task's primary appearance. */
     val isLinkRow: Boolean get() = symlinkId != null || membershipId != null
