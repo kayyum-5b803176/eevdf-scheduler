@@ -24,7 +24,7 @@ import com.eevdf.data.task.Task
         TaskLink::class,                // ← new: symlinks
         TaskMembership::class,          // ← new: hardlink extra placements
     ],
-    version  = 28,                      // ← bumped from 27
+    version  = 29,                      // ← bumped from 28
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -509,6 +509,41 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 28 → 29 — hardlink accounting rework: totalRunTime/runCount
+         * became SHARED (live only on the real `tasks` row, never per-
+         * placement) and eligibleTime/virtualDeadline/lag turned out to be
+         * pure functions of vruntime (recomputed fresh, never independently
+         * stored) — see TaskMembership's doc comment for the full reasoning.
+         *
+         * SQLite has no DROP COLUMN before 3.35, and even where it exists,
+         * changing a table's shape safely still means the standard rebuild
+         * pattern: create the new shape under a temp name, copy every row's
+         * SURVIVING columns across (id/taskId/groupId/vruntime/createdAt —
+         * every hardlink's placement-relative vruntime is preserved exactly;
+         * only the retired columns are left behind), drop the old table, then
+         * rename. No data is lost for anything this entity still tracks.
+         */
+        private val MIGRATION_28_29 = object : Migration(28, 29) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS task_memberships_new (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        taskId TEXT NOT NULL,
+                        groupId TEXT NOT NULL,
+                        vruntime REAL NOT NULL DEFAULT 0.0,
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO task_memberships_new (id, taskId, groupId, vruntime, createdAt)
+                    SELECT id, taskId, groupId, vruntime, createdAt FROM task_memberships
+                """.trimIndent())
+                db.execSQL("DROP TABLE task_memberships")
+                db.execSQL("ALTER TABLE task_memberships_new RENAME TO task_memberships")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -523,7 +558,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
-                        MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28,
+                        MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                     )
                     .build()
                 INSTANCE = instance
