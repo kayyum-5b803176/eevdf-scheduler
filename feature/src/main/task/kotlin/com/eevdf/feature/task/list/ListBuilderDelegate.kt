@@ -262,33 +262,17 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         )
 
     /**
-     * Substitutes [membership]'s own vruntime — AND the eligibleTime/
-     * virtualDeadline that vruntime determines — onto [realTask], for display
-     * purposes only. Never persisted, never looked up by id elsewhere.
-     *
-     * virtualDeadline must be DERIVED here, not read off [realTask] at all:
-     * it's a pure function of vruntime + the (shared, correct either way)
-     * timeSliceSeconds/weight — `EevdfScheduler.recalculate()`'s own formula,
-     * `eligibleTime = vruntime; virtualDeadline = eligibleTime +
-     * timeSlice/weight`. Reading [realTask.virtualDeadline] directly (as this
-     * used to) shows whatever the real task's OWN cached vdl happens to be —
-     * stale after a hardlink run (nothing here ever touches it), and
-     * incorrectly "synced" after a real-node run (the primary path's global
-     * recalc sweep refreshes it, and a membership row would blindly mirror
-     * that change even though nothing happened at this placement).
-     *
-     * totalRunTime/runCount are still deliberately NOT substituted — they're
-     * SHARED (see [TaskMembership] doc comment), so [realTask]'s own values
-     * are already exactly correct as-is.
+     * Computes what a MEMBERSHIP (hardlink) row's vrt/vdl should DISPLAY —
+     * derived from [membership]'s own vruntime plus the (shared, correct
+     * either way) timeSliceSeconds/weight — WITHOUT touching [realTask]
+     * itself. Returned as a plain pair, never a modified `Task` copy: see
+     * [TaskDisplayItem.displayVruntime]'s doc comment for exactly why a
+     * mutated `Task` object must never be built for this purpose again.
      */
-    private fun withMembershipSchedState(realTask: Task, membership: TaskMembership): Task {
+    private fun membershipDisplayVrtVdl(realTask: Task, membership: TaskMembership): Pair<Double, Double> {
         val eligibleTime    = membership.vruntime
         val virtualDeadline = eligibleTime + realTask.timeSliceSeconds.toDouble() / realTask.weight
-        return realTask.copy(
-            vruntime        = membership.vruntime,
-            eligibleTime    = eligibleTime,
-            virtualDeadline = virtualDeadline,
-        )
+        return eligibleTime to virtualDeadline
     }
 
     // ── List builders ─────────────────────────────────────────────────────────
@@ -349,8 +333,9 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 val childDoor = membership?.id ?: inheritedDoor
 
                 if (membership != null) {
+                    val (vrt, vdl) = membershipDisplayVrtVdl(realTask, membership)
                     result.add(membershipDisplayItem(
-                        membership, withMembershipSchedState(realTask, membership), depth, number,
+                        membership, realTask, depth, number,
                         cpuShare = effectiveShares[entry.id] ?: 0.0,
                         descGroups = descGroups, descTasks = descTasks,
                     ).copy(
@@ -358,6 +343,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         effectiveQuotaExceeded = quotaExceeded,
                         effectiveQuotaWarning  = quotaWarning,
                         isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true,
+                        displayVruntime        = vrt,
+                        displayVirtualDeadline = vdl,
                     ))
                 } else {
                     result.add(TaskDisplayItem(realTask, depth,
@@ -542,11 +529,16 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 // straight through to its children unchanged.
                 val childDoor = membership?.id ?: inheritedDoor
                 val baseItem = if (membership != null) {
+                    val (vrt, vdl) = membershipDisplayVrtVdl(task, membership)
                     membershipDisplayItem(
-                        membership, withMembershipSchedState(task, membership), depth, number,
+                        membership, task, depth, number,
                         cpuShare = effectiveShares[entry.id] ?: 0.0,
                         descGroups = descGroups, descTasks = descTasks,
-                    ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime)
+                    ).copy(
+                        childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime,
+                        displayVruntime = vrt,
+                        displayVirtualDeadline = vdl,
+                    )
                 } else {
                     TaskDisplayItem(task, depth,
                         childGroupCount   = descGroups,
@@ -623,12 +615,15 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 val number = "$counter"
                 result.add(
                     if (membership != null) {
-                        membershipDisplayItem(membership, withMembershipSchedState(task, membership), 0, number,
+                        val (vrt, vdl) = membershipDisplayVrtVdl(task, membership)
+                        membershipDisplayItem(membership, task, 0, number,
                             cpuShare = effectiveShares[entry.id] ?: 0.0,
                             descGroups = descGroups, descTasks = descTasks
                         ).copy(
                             childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime,
                             isJumpHighlighted = task.id == highlightTaskId,
+                            displayVruntime = vrt,
+                            displayVirtualDeadline = vdl,
                         )
                     } else {
                         TaskDisplayItem(task, 0,
@@ -698,10 +693,15 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             counter++
             val number = "$counter"
             val baseItem = if (membership != null) {
-                membershipDisplayItem(membership, withMembershipSchedState(task, membership), 0, number,
+                val (vrt, vdl) = membershipDisplayVrtVdl(task, membership)
+                membershipDisplayItem(membership, task, 0, number,
                     cpuShare = effectiveShares[entry.id] ?: 0.0,
                     descGroups = descGroups, descTasks = descTasks
-                ).copy(childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime)
+                ).copy(
+                    childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime,
+                    displayVruntime = vrt,
+                    displayVirtualDeadline = vdl,
+                )
             } else {
                 TaskDisplayItem(task, 0,
                     childGroupCount   = descGroups,

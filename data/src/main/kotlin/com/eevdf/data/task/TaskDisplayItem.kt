@@ -124,6 +124,24 @@ data class TaskDisplayItem(
      * parentId edges" — the plain, ordinary case.
      */
     val entryMembershipId: String? = null,
+    /**
+     * Display-only vrt/vdl for a MEMBERSHIP (hardlink) row, computed from that
+     * placement's own vruntime — see [TaskMembership] doc comment. [task]
+     * itself is ALWAYS the pristine, unmodified real row; these two fields
+     * are the ONLY place a placement's vrt/vdl live for rendering purposes.
+     *
+     * This exists specifically so [task] is safe to seed as the app's
+     * "currently selected/running task" and safe to pass into any
+     * `TaskRepository.update(...)` call without risk — a full-row `@Update`
+     * on a `Task` object that had its own vruntime field overwritten for
+     * display would silently persist that borrowed value onto the REAL row
+     * the moment the timer starts, long before any accounting even runs.
+     * That was a real, shipped bug; see git history / ARCHITECTURE.md for
+     * the trace. Null for every non-membership row — the adapter falls back
+     * to `task.vruntime`/`task.virtualDeadline` in that case.
+     */
+    val displayVruntime: Double? = null,
+    val displayVirtualDeadline: Double? = null,
 ) {
     /** True for either a [symlinkId] or [membershipId] row — a "links" row, not the task's primary appearance. */
     val isLinkRow: Boolean get() = symlinkId != null || membershipId != null

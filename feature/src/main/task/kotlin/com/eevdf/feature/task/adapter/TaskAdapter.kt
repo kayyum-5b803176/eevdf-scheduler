@@ -272,8 +272,15 @@ class TaskAdapter(
         // since views are recycled.
         holder.itemView.alpha = if (item.isBrokenLink) 0.5f else 1f
         bindPriorityLabel(holder.tvPriority, task, priorityColor(holder, task))
-        holder.tvVruntime.text  = "VRT: ${fmtFloat(task.vruntime)}"
-        holder.tvVdeadline.text = "VDL: ${fmtFloat(task.virtualDeadline)}"
+        // Membership (hardlink) rows show THIS placement's own vrt/vdl — see
+        // TaskDisplayItem.displayVruntime's doc comment for why these live as
+        // separate cosmetic fields rather than ever being written onto `task`
+        // itself: task.vruntime must stay the real row's true value so it's
+        // always safe to seed as the running task and persist unmodified.
+        val displayVrt = item.displayVruntime        ?: task.vruntime
+        val displayVdl = item.displayVirtualDeadline  ?: task.virtualDeadline
+        holder.tvVruntime.text  = "VRT: ${fmtFloat(displayVrt)}"
+        holder.tvVdeadline.text = "VDL: ${fmtFloat(displayVdl)}"
         val pinned = task.pinnedShare != null
         holder.tvCpuShare.text = "RS: ${"%.1f".format(item.cpuShare)}"
         holder.tvCpuShare.setTextColor(
@@ -286,7 +293,7 @@ class TaskAdapter(
             // Group header row
             holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
-            holder.tvRemaining.text = "VRT: ${fmtFloat(task.vruntime)}"
+            holder.tvRemaining.text = "VRT: ${fmtFloat(displayVrt)}"
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.progressBar.visibility    = View.GONE
             holder.progressNotice.visibility = View.GONE  // fix: hide notice bar on recycled group ViewHolders
