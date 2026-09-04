@@ -412,18 +412,6 @@ class TaskRepository @Inject constructor(
      * to know that history: the correct object is handed over explicitly.
      */
     /**
-     * @param membershipId When non-null, this run was started from a hardlink
-     *   placement — see [TaskMembership] — rather than the task's real,
-     *   primary parent. All accounting (vruntime, totalRunTime, runCount, and
-     *   upward propagation) is redirected to that one placement's own fields
-     *   and its own ancestor chain via [creditMembershipRun]; the task's own
-     *   row is returned completely untouched, exactly as if this run had
-     *   never happened from the primary parent's point of view. Quota/DL/load
-     *   accounting is intentionally NOT duplicated for a membership run — the
-     *   task's own quota/DL/load configuration lives on the one shared [Task]
-     *   row and is only meaningful relative to its primary placement.
-     */
-    /**
      * @param membershipId The "door" this run was credited through — a
      *   [TaskMembership] the task was reached via, whether that membership IS
      *   the task itself (the classic case: tapping run on a hardlink's own
@@ -432,11 +420,14 @@ class TaskRepository @Inject constructor(
      *   Either way there is exactly ONE substitution boundary per run: the
      *   node whose id equals [TaskMembership.taskId]. Below that boundary,
      *   accounting is always the plain, real-chain kind (a leaf's own fields
-     *   are never door-dependent); AT that boundary, vruntime goes to the
-     *   membership instead of the real row; ABOVE it, propagation continues
-     *   from [TaskMembership.groupId] instead of the boundary's real
-     *   `parentId`. See [creditAncestors] for the shared walk that applies
-     *   this uniformly at whichever level the boundary actually falls.
+     *   are never door-dependent); AT that boundary, vruntime advances on
+     *   BOTH the placement AND the real row's own field, by the same
+     *   per-second-of-work delta computed independently for each — real work
+     *   through either placement must keep both fair relative to their own
+     *   respective siblings; ABOVE it, propagation continues from
+     *   [TaskMembership.groupId] instead of the boundary's real `parentId`.
+     *   See [creditAncestors] for the shared walk that applies this
+     *   uniformly at whichever level the boundary actually falls.
      */
     suspend fun updateVruntimeAfterRun(
         task: Task,
@@ -447,19 +438,30 @@ class TaskRepository @Inject constructor(
         val door = membershipId?.let { taskMembershipDao.getById(it) }
 
         if (door != null && door.taskId == task.id) {
-            // Classic case: the door's boundary IS the task being run — same
-            // split as before: vruntime isolated to the placement, everything
-            // else shared and restored onto the real row before persisting.
-            val scratch = task.copy(vruntime = door.vruntime)
-            EEVDFScheduler.updateVruntime(scratch, secondsRan)
-            taskMembershipDao.updateVruntime(door.id, scratch.vruntime)
+            // Classic case: the door's boundary IS the task being run.
+            //
+            // Both vrt copies now advance by the SAME per-second-of-work
+            // delta, computed INDEPENDENTLY from the same original `task` on
+            // two separate scratch objects — never chained one from the
+            // other — so neither write depends on or corrupts the other.
+            // Real work done through EITHER placement must keep BOTH fair
+            // relative to THEIR OWN respective siblings, or the untouched one
+            // would look artificially idle and unfairly jump its own queue.
+            // The gap between the two vrt values — set once at hardlink
+            // creation time — is deliberately preserved forever: advancing
+            // both by the same amount from the same starting point never
+            // closes or widens it.
+            val doorScratch = task.copy(vruntime = door.vruntime)
+            EEVDFScheduler.updateVruntime(doorScratch, secondsRan)
+            taskMembershipDao.updateVruntime(door.id, doorScratch.vruntime)
 
-            val realTaskUpdate = scratch.copy(
-                vruntime        = task.vruntime,
-                eligibleTime    = task.eligibleTime,
-                virtualDeadline = task.virtualDeadline,
-                lag             = task.lag,
-            )
+            // Independent advance from the SAME original `task` — its own
+            // totalRunTime/runCount land at exactly one increment past
+            // task's pre-run values here, same as doorScratch's did; using
+            // this directly (not chaining off doorScratch) is what keeps the
+            // shared fields advancing exactly once rather than twice.
+            val realTaskUpdate = task.copy()
+            EEVDFScheduler.updateVruntime(realTaskUpdate, secondsRan)
             applySharedRunAccounting(realTaskUpdate, session, secondsRan)
             // door.groupId's real ancestor chain (Personal, Life, …) gets its
             // OWN vruntime genuinely advanced by this walk (see creditAncestors'
@@ -551,17 +553,20 @@ class TaskRepository @Inject constructor(
      *
      * If [door] is non-null, the walk watches for the one ancestor whose id
      * equals [door.taskId] — the group [door] is a placement OF. At exactly
-     * that ancestor: totalRunTime/runCount/quota/DL are still credited
-     * normally onto the real row (shared, correct regardless of which door
-     * was used to reach it), but vruntime is diverted onto the [TaskMembership]
-     * row instead of the real ancestor's own field — advanced by the exact
-     * same per-second-of-work formula the primary path uses, just persisted
-     * to the placement — and propagation continues from [door.groupId]
-     * instead of that ancestor's real `parentId`. Above that point the walk
-     * is purely the plain kind again, all the way to the top — this fix
-     * supports exactly one hardlink boundary per run, matching what a single
-     * `entryMembershipId` (see [com.eevdf.data.task.TaskDisplayItem]) can
-     * express; stacked/nested hardlink doors are out of scope for now.
+     * that ancestor: totalRunTime/runCount/quota/DL are credited normally
+     * onto the real row (shared, correct regardless of which door was used to
+     * reach it), AND vruntime advances on BOTH the real row's own field AND
+     * the [TaskMembership] row — by the same per-second-of-work delta,
+     * computed independently for each so neither write depends on the other.
+     * Both copies must move on every real run, through either placement, or
+     * whichever one didn't get touched would look artificially idle relative
+     * to ITS OWN siblings and unfairly dominate its own queue. Propagation
+     * then continues from [door.groupId] instead of that ancestor's real
+     * `parentId`. Above that point the walk is purely the plain kind again,
+     * all the way to the top — this fix supports exactly one hardlink
+     * boundary per run, matching what a single `entryMembershipId` (see
+     * [com.eevdf.data.task.TaskDisplayItem]) can express; stacked/nested
+     * hardlink doors are out of scope for now.
      *
      * [doorAboveConsumed] is true only when [updateVruntimeAfterRun] already
      * handled the door at the TASK level itself (the classic case) and this
@@ -582,11 +587,17 @@ class TaskRepository @Inject constructor(
             parent.runCount     += 1
 
             if (door != null && parent.id == door.taskId) {
-                // This IS the door's boundary: shared fields above already
-                // applied to `parent`; vruntime goes to the placement instead
-                // of parent's own (real, primary-placement) field.
-                val advanced = door.vruntime + if (parent.weight > 0) secondsRan.toDouble() / parent.weight else 0.0
-                taskMembershipDao.updateVruntime(door.id, advanced)
+                // This IS the door's boundary. totalRunTime/runCount already
+                // advanced on `parent` above (shared, correct regardless of
+                // which door was used to reach it). Both vrt copies now also
+                // advance by the same per-second-of-work delta — the
+                // placement's (as before) AND parent's own real field (the
+                // fix: previously only the placement moved, leaving the real
+                // copy looking artificially idle to ITS OWN siblings whenever
+                // work only ever happened through this door).
+                val delta = if (parent.weight > 0) secondsRan.toDouble() / parent.weight else 0.0
+                taskMembershipDao.updateVruntime(door.id, door.vruntime + delta)
+                parent.vruntime += delta
                 applyQuotaAccounting(parent, secondsRan)
                 applyDlAccounting(parent, secondsRan)
                 dao.update(parent)
