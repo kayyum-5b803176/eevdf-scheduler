@@ -35,8 +35,8 @@ class TaskAdapter(
     private val onTaskLongClick:    (Task) -> Unit = {},
     private val onDeleteClick:      (Task) -> Unit,
     private val onCompleteClick:    (Task) -> Unit,
-    private val onRunClick:         (Task) -> Unit,
-    private val onGroupToggle:      (Task) -> Unit,   // expand / collapse this group only
+    private val onRunClick:         (TaskDisplayItem) -> Unit,
+    private val onGroupToggle:      (TaskDisplayItem) -> Unit,   // expand / collapse this group only
     private val onGroupToggleDeep:  (Task) -> Unit = {},  // expand / collapse this group + all descendants (long-press)
     private val onResetSliceClick:  (Task) -> Unit = {},
     private val onRevertClick:      (Task) -> Unit = {},
@@ -308,7 +308,7 @@ class TaskAdapter(
             } else {
                 // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
                 holder.btnGroupToggle.rotation = if (expandStateProvider(task.id)) 180f else 0f
-                holder.btnGroupToggle.setOnClickListener { onGroupToggle(task) }
+                holder.btnGroupToggle.setOnClickListener { onGroupToggle(item) }
                 holder.btnGroupToggle.setOnLongClickListener { onGroupToggleDeep(task); true }
             }
         } else {
@@ -374,7 +374,7 @@ class TaskAdapter(
                 // Show reset button only when the slice has been partially consumed
                 holder.btnResetSlice.visibility  =
                     if (task.remainingSeconds < task.timeSliceSeconds) View.VISIBLE else View.GONE
-                holder.btnRun.setOnClickListener        { onRunClick(task) }
+                holder.btnRun.setOnClickListener        { onRunClick(item) }
                 holder.btnComplete.setOnClickListener   { onCompleteClick(task) }
                 holder.btnResetSlice.setOnClickListener { onResetSliceClick(task) }
             }

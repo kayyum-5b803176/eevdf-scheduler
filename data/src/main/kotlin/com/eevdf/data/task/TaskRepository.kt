@@ -423,48 +423,85 @@ class TaskRepository @Inject constructor(
      *   task's own quota/DL/load configuration lives on the one shared [Task]
      *   row and is only meaningful relative to its primary placement.
      */
+    /**
+     * @param membershipId The "door" this run was credited through — a
+     *   [TaskMembership] the task was reached via, whether that membership IS
+     *   the task itself (the classic case: tapping run on a hardlink's own
+     *   row) or an ANCESTOR further up (running a real leaf nested inside a
+     *   hardlinked group's subtree, viewed through that group's placement).
+     *   Either way there is exactly ONE substitution boundary per run: the
+     *   node whose id equals [TaskMembership.taskId]. Below that boundary,
+     *   accounting is always the plain, real-chain kind (a leaf's own fields
+     *   are never door-dependent); AT that boundary, vruntime goes to the
+     *   membership instead of the real row; ABOVE it, propagation continues
+     *   from [TaskMembership.groupId] instead of the boundary's real
+     *   `parentId`. See [creditAncestors] for the shared walk that applies
+     *   this uniformly at whichever level the boundary actually falls.
+     */
     suspend fun updateVruntimeAfterRun(
         task: Task,
         session: RunSession,
         membershipId: String? = null,
     ): Task = withContext(Dispatchers.IO) {
-        if (membershipId != null) {
-            creditMembershipRun(task, membershipId, session)
-            return@withContext task
-        }
         val secondsRan = session.wallClockSeconds
+        val door = membershipId?.let { taskMembershipDao.getById(it) }
 
+        if (door != null && door.taskId == task.id) {
+            // Classic case: the door's boundary IS the task being run — same
+            // split as before: vruntime isolated to the placement, everything
+            // else shared and restored onto the real row before persisting.
+            val scratch = task.copy(vruntime = door.vruntime)
+            EEVDFScheduler.updateVruntime(scratch, secondsRan)
+            taskMembershipDao.updateVruntime(door.id, scratch.vruntime)
+
+            val realTaskUpdate = scratch.copy(
+                vruntime        = task.vruntime,
+                eligibleTime    = task.eligibleTime,
+                virtualDeadline = task.virtualDeadline,
+                lag             = task.lag,
+            )
+            applySharedRunAccounting(realTaskUpdate, session, secondsRan)
+            // door.groupId's real ancestor chain (Personal, Life, …) gets its
+            // OWN vruntime genuinely advanced by this walk (see creditAncestors'
+            // plain branch) — their cached eligibleTime/virtualDeadline need the
+            // same whole-app refresh below a plain run gets; there is no
+            // "nothing real was touched" case here to skip it for.
+            creditAncestors(door.groupId, secondsRan, doorAboveConsumed = true, door = null)
+            return@withContext refreshAllAndReturn(task.id) ?: task
+        }
+
+        // Either no door at all (plain run), or the door's boundary is an
+        // ANCESTOR further up — either way, the task's OWN accounting is
+        // always the plain, real kind. A leaf several levels inside a
+        // hardlinked group's subtree is never itself door-dependent; only the
+        // boundary ancestor is.
         EEVDFScheduler.updateVruntime(task, secondsRan)
         applySharedRunAccounting(task, session, secondsRan)
+        creditAncestors(task.parentId, secondsRan, doorAboveConsumed = false, door = door)
 
-        // Propagate up the ancestor chain — credit runtime and increment runCount
-        // so each ancestor group accumulates one run unit per child completion.
-        // +1 per run (not a bulk copy of the child's existing count) means
-        // deleting or completing a child never resets or corrupts the group total.
-        var parentId = task.parentId
-        while (parentId != null) {
-            val parent = dao.getTaskById(parentId) ?: break
-            parent.totalRunTime += secondsRan
-            parent.runCount     += 1
-            if (parent.weight > 0) {
-                parent.vruntime += secondsRan.toDouble() / parent.weight
-            }
-            applyQuotaAccounting(parent, secondsRan)
-            applyDlAccounting(parent, secondsRan)   // credit child runtime against group DL budget
-            dao.update(parent)
-            parentId = parent.parentId
-        }
+        // Every real ancestor `creditAncestors` just walked — whether via its
+        // plain branch or past a door's boundary — had its OWN real vruntime
+        // (task itself, or an ancestor above/beside the door) genuinely
+        // advanced somewhere in this call. Their cached eligibleTime/
+        // virtualDeadline need refreshing regardless of whether a door was
+        // involved at all — always run the whole-app recalculation sweep, the
+        // same one the primary path has always used, rather than trying to
+        // reason case-by-case about which specific tasks actually need it.
+        refreshAllAndReturn(task.id) ?: task
+    }
 
+    /**
+     * Recomputes eligibleTime/virtualDeadline/lag for every active task from
+     * its own (possibly just-advanced) vruntime and persists all of them —
+     * cheap relative to correctness risk, and the one place both the primary
+     * path and every door-credited path converge so their derived-field
+     * freshness can never silently diverge from each other.
+     */
+    private suspend fun refreshAllAndReturn(taskId: String): Task? {
         val allActive = dao.getActiveTasksSync()
         EEVDFScheduler.recalculate(allActive)
         allActive.forEach { dao.update(it) }
-
-        // The authoritative post-recalculation object. Falls back to `task`
-        // only if it's no longer in the active set (e.g. completed/deleted
-        // concurrently) — should not happen on the normal pause/expire paths
-        // this function is called from, but a caller receiving its own input
-        // back unchanged is safer than a crash.
-        allActive.find { it.id == task.id } ?: task
+        return allActive.find { it.id == taskId }
     }
 
     /**
@@ -473,13 +510,11 @@ class TaskRepository @Inject constructor(
      * Persists [task] via [dao.update] as its last step.
      *
      * Deliberately does NOT touch vruntime/eligibleTime/virtualDeadline/lag —
-     * callers are responsible for advancing those (or deliberately NOT
-     * advancing them, for the real task in [creditMembershipRun]'s case)
-     * before calling this, since those are the one thing that differs between
-     * the primary path and a hardlink placement's path. Extracted into one
-     * function so both paths can never drift apart on what "shared run
-     * accounting" means — a bug fixed in quota/DL/load logic here fixes both
-     * paths at once, and there is exactly one place that can get it wrong.
+     * callers are responsible for advancing those before calling this, since
+     * that's the one thing that differs depending on whether a door applies.
+     * Extracted into one function so every accounting path can never drift
+     * apart on what "shared run accounting" means — a bug fixed in quota/DL/
+     * load logic here fixes every path at once.
      */
     private suspend fun applySharedRunAccounting(task: Task, session: RunSession, secondsRan: Long) {
         applyQuotaAccounting(task, secondsRan)
@@ -505,66 +540,66 @@ class TaskRepository @Inject constructor(
     }
 
     /**
-     * Credits a run session started from ONE hardlink placement —
-     * [membershipId] — rather than [task]'s real, primary parent.
+     * Walks the ancestor chain crediting each group exactly once — the single
+     * shared implementation used whether or not a [door] applies partway up,
+     * so the "plain chain" and "hardlink-aware chain" behaviors can never
+     * silently drift apart from each other.
      *
-     * The split, precisely:
-     *   • vruntime — advanced on a THROWAWAY scratch copy seeded with THIS
-     *     placement's own vruntime (never the real task's), so the EEVDF
-     *     fairness math is computed relative to [membershipId]'s actual
-     *     siblings. The result is persisted ONLY to the [TaskMembership] row.
-     *     virtualDeadline/eligibleTime/lag need no separate handling — see
-     *     [TaskMembership] doc comment for why they're pure functions of
-     *     vruntime, not independent state.
-     *   • totalRunTime/runCount/quota/DL/load/run-log — SHARED. Advanced via
-     *     the exact same [applySharedRunAccounting] the primary path uses
-     *     (never a second, drift-prone copy of that logic), then persisted to
-     *     the REAL [Task] row — but only after explicitly restoring the real
-     *     task's OWN vruntime/eligibleTime/virtualDeadline/lag first. Without
-     *     that restoration, the scratch copy's placement-relative vruntime
-     *     would silently leak onto the task's primary scheduling state the
-     *     next time it's read — exactly the kind of corruption this whole
-     *     split exists to prevent.
+     * Starts at [startParentId] and normally just follows each ancestor's
+     * real `parentId` upward, crediting totalRunTime/runCount/quota/DL/
+     * vruntime on every real group exactly like it always has.
      *
-     * Ancestor propagation then walks upward from [TaskMembership.groupId] —
-     * NOT [task.parentId] — crediting only that chain's own group rollups,
-     * exactly like the primary path credits [task.parentId]'s chain.
+     * If [door] is non-null, the walk watches for the one ancestor whose id
+     * equals [door.taskId] — the group [door] is a placement OF. At exactly
+     * that ancestor: totalRunTime/runCount/quota/DL are still credited
+     * normally onto the real row (shared, correct regardless of which door
+     * was used to reach it), but vruntime is diverted onto the [TaskMembership]
+     * row instead of the real ancestor's own field — advanced by the exact
+     * same per-second-of-work formula the primary path uses, just persisted
+     * to the placement — and propagation continues from [door.groupId]
+     * instead of that ancestor's real `parentId`. Above that point the walk
+     * is purely the plain kind again, all the way to the top — this fix
+     * supports exactly one hardlink boundary per run, matching what a single
+     * `entryMembershipId` (see [com.eevdf.data.task.TaskDisplayItem]) can
+     * express; stacked/nested hardlink doors are out of scope for now.
      *
-     * Deliberately skips the primary path's whole-app
-     * `EEVDFScheduler.recalculate(allActive)` sweep: that sweep only refreshes
-     * REAL tasks' derived eligibleTime/virtualDeadline from their OWN
-     * (unchanged-here) vruntime, so it would be a guaranteed no-op for this
-     * task and every other active task — running it here would just be an
-     * expensive full-table pass for zero effect.
+     * [doorAboveConsumed] is true only when [updateVruntimeAfterRun] already
+     * handled the door at the TASK level itself (the classic case) and this
+     * walk should therefore behave as a plain chain throughout — [door] is
+     * always null in that case, this parameter exists purely for readability
+     * at the call site.
      */
-    private suspend fun creditMembershipRun(task: Task, membershipId: String, session: RunSession) {
-        val membership = taskMembershipDao.getById(membershipId) ?: return
-        val secondsRan = session.wallClockSeconds
-
-        val scratch = task.copy(vruntime = membership.vruntime)
-        EEVDFScheduler.updateVruntime(scratch, secondsRan)
-        taskMembershipDao.updateVruntime(membership.id, scratch.vruntime)
-
-        val realTaskUpdate = scratch.copy(
-            vruntime        = task.vruntime,
-            eligibleTime    = task.eligibleTime,
-            virtualDeadline = task.virtualDeadline,
-            lag             = task.lag,
-        )
-        applySharedRunAccounting(realTaskUpdate, session, secondsRan)
-
-        var parentId: String? = membership.groupId
+    private suspend fun creditAncestors(
+        startParentId: String?,
+        secondsRan: Long,
+        doorAboveConsumed: Boolean,
+        door: TaskMembership?,
+    ) {
+        var parentId = startParentId
         while (parentId != null) {
             val parent = dao.getTaskById(parentId) ?: break
             parent.totalRunTime += secondsRan
             parent.runCount     += 1
-            if (parent.weight > 0) {
-                parent.vruntime += secondsRan.toDouble() / parent.weight
+
+            if (door != null && parent.id == door.taskId) {
+                // This IS the door's boundary: shared fields above already
+                // applied to `parent`; vruntime goes to the placement instead
+                // of parent's own (real, primary-placement) field.
+                val advanced = door.vruntime + if (parent.weight > 0) secondsRan.toDouble() / parent.weight else 0.0
+                taskMembershipDao.updateVruntime(door.id, advanced)
+                applyQuotaAccounting(parent, secondsRan)
+                applyDlAccounting(parent, secondsRan)
+                dao.update(parent)
+                parentId = door.groupId
+            } else {
+                if (parent.weight > 0) {
+                    parent.vruntime += secondsRan.toDouble() / parent.weight
+                }
+                applyQuotaAccounting(parent, secondsRan)
+                applyDlAccounting(parent, secondsRan)
+                dao.update(parent)
+                parentId = parent.parentId
             }
-            applyQuotaAccounting(parent, secondsRan)
-            applyDlAccounting(parent, secondsRan)
-            dao.update(parent)
-            parentId = parent.parentId
         }
     }
 

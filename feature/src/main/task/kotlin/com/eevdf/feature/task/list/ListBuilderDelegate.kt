@@ -181,7 +181,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     val links       = vm.allTaskLinks.value       ?: emptyList()
                     val memberships = vm.allTaskMemberships.value ?: emptyList()
                     val drill       = vm.queueDrillState.value
-                    buildQueueDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId)
+                    buildQueueDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId)
                 } else {
                     flatActiveTasks.value ?: emptyList()
                 }
@@ -198,7 +198,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     val links       = vm.allTaskLinks.value       ?: emptyList()
                     val memberships = vm.allTaskMemberships.value ?: emptyList()
                     val drill       = vm.scheduleDrillState.value
-                    buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId)
+                    buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId)
                 } else {
                     flatScheduleOrder.value ?: emptyList()
                 }
@@ -324,7 +324,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         val result = mutableListOf<TaskDisplayItem>()
         fun addLevel(parentId: String?, depth: Int, parentNumber: String,
-                     parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean) {
+                     parentQuotaExceeded: Boolean, parentQuotaWarning: Boolean,
+                     inheritedDoor: String?) {
             if (depth > MAX_TREE_DEPTH) return
             val children = effectiveTasks
                 .filter { it.parentId == parentId }
@@ -342,6 +343,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 val (descGroups, descTasks) = countDescendants(realTask.id, tasks)
+                // A membership row is itself a fresh door for everything real
+                // rendered beneath it; a plain row just passes its own
+                // inherited door straight through to its children unchanged.
+                val childDoor = membership?.id ?: inheritedDoor
 
                 if (membership != null) {
                     result.add(membershipDisplayItem(
@@ -363,10 +368,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         effectiveQuotaExceeded = quotaExceeded,
                         effectiveQuotaWarning  = quotaWarning,
                         queueNumber            = number,
+                        entryMembershipId      = inheritedDoor,
                         isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true))
                 }
                 if (realTask.isGroup && (vm.groupExpand.queueExpandState[realTask.id] ?: true))
-                    addLevel(realTask.id, depth + 1, number, quotaExceeded, quotaWarning)
+                    addLevel(realTask.id, depth + 1, number, quotaExceeded, quotaWarning, childDoor)
             }
 
             // Symlinks hosted at this level: display-only, zero weight, appended
@@ -381,7 +387,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 ))
             }
         }
-        addLevel(null, 0, "", false, false)
+        addLevel(null, 0, "", false, false, null)
         return result
     }
 
@@ -511,6 +517,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             parentQuotaExceeded: Boolean,
             parentQuotaWarning: Boolean,
             counter: IntArray,
+            inheritedDoor: String?,
         ) {
             if (depth > MAX_TREE_DEPTH) return
             val children = effectiveTasks.filter { it.parentId == parentId }
@@ -530,6 +537,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 val (descGroups, descTasks) = countDescendants(task.id, tasks)
+                // A membership row is itself a fresh door for everything real
+                // rendered beneath it; a plain row passes its inherited door
+                // straight through to its children unchanged.
+                val childDoor = membership?.id ?: inheritedDoor
                 val baseItem = if (membership != null) {
                     membershipDisplayItem(
                         membership, withMembershipSchedState(task, membership), depth, number,
@@ -541,7 +552,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         childGroupCount   = descGroups,
                         childTaskCount    = descTasks,
                         childTotalRuntime = dc.sumOf { it.totalRunTime },
-                        cpuShare          = effectiveShares[task.id] ?: 0.0)
+                        cpuShare          = effectiveShares[task.id] ?: 0.0,
+                        entryMembershipId = inheritedDoor)
                 }
                 result.add(baseItem.copy(
                     effectiveQuotaExceeded = quotaExceeded,
@@ -559,7 +571,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 // Recurse into children with the same per-level rules applied
                 // independently — the parent group's class does not cascade down.
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
-                    addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1))
+                    addLevel(task.id, depth + 1, number, quotaExceeded, quotaWarning, IntArray(1), childDoor)
             }
 
             // Symlinks hosted at this level: display-only, zero weight, never
@@ -573,7 +585,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 ))
             }
         }
-        addLevel(null, 0, "", false, false, IntArray(1))
+        addLevel(null, 0, "", false, false, IntArray(1), null)
         return result
     }
 
@@ -590,7 +602,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
     private fun buildQueueDrillLevel(
         frameId: String?, tasks: List<Task>, links: List<TaskLink>, memberships: List<TaskMembership>,
-        highlightTaskId: String? = null,
+        highlightTaskId: String? = null, inheritedDoor: String? = null,
     ): List<TaskDisplayItem> {
         val effectiveTasks  = EEVDFScheduler.withMemberships(tasks, memberships)
         val effectiveShares = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled = true)
@@ -625,6 +637,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                             childTotalRuntime = dc.sumOf { it.totalRunTime },
                             cpuShare          = effectiveShares[task.id] ?: 0.0,
                             queueNumber       = number,
+                            entryMembershipId = inheritedDoor,
                             isJumpHighlighted = task.id == highlightTaskId)
                     }
                 )
@@ -641,7 +654,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
     private fun buildScheduleDrillLevel(
         frameId: String?, tasks: List<Task>, links: List<TaskLink>, memberships: List<TaskMembership>,
-        highlightTaskId: String? = null,
+        highlightTaskId: String? = null, inheritedDoor: String? = null,
     ): List<TaskDisplayItem> {
         val effectiveTasks  = EEVDFScheduler.withMemberships(tasks, memberships)
         val effectiveShares = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled = true)
@@ -694,7 +707,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     childGroupCount   = descGroups,
                     childTaskCount    = descTasks,
                     childTotalRuntime = dc.sumOf { it.totalRunTime },
-                    cpuShare          = effectiveShares[task.id] ?: 0.0)
+                    cpuShare          = effectiveShares[task.id] ?: 0.0,
+                    entryMembershipId = inheritedDoor)
             }
             result.add(baseItem.copy(
                 queueNumber      = number,

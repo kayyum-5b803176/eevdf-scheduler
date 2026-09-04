@@ -480,11 +480,26 @@ class MainActivity : AppCompatActivity() {
         else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
         onDeleteClick        = { confirmDelete(it) },
         onCompleteClick      = { viewModel.markCompleted(it) },
-        onRunClick           = { viewModel.setCurrentTask(it) },
-        onGroupToggle        = { task ->
+        onRunClick           = { item ->
+            // A leaf nested inside a hardlinked group's subtree carries the
+            // door it's being viewed through — crediting must follow that
+            // door, not the leaf's own fixed real parentId chain (see
+            // TaskRepository.updateVruntimeAfterRun's door parameter).
+            val door = item.entryMembershipId
+            if (door != null) viewModel.setCurrentTaskAsMembership(item.task, door)
+            else viewModel.setCurrentTask(item.task)
+        },
+        onGroupToggle        = { item ->
+            val task  = item.task
             val style = if (scheduleTab) viewModel.scheduleListStyle.value else viewModel.queueListStyle.value
             if (style == TaskListStyle.DRILL_DOWN) {
-                viewModel.drillInto(onQueueTab = !scheduleTab, groupId = task.id, arrivedVia = ArrivedVia.REAL)
+                // A hardlinked group opens a fresh door (its own membership);
+                // a plain real subgroup just carries the CURRENT door forward
+                // unchanged, so leaves further down stay credited correctly
+                // no matter how many real levels deep they are inside it.
+                val arrivedVia = if (item.membershipId != null) ArrivedVia.HARDLINK else ArrivedVia.REAL
+                val door       = item.membershipId ?: item.entryMembershipId
+                viewModel.drillInto(onQueueTab = !scheduleTab, groupId = task.id, arrivedVia = arrivedVia, doorMembershipId = door)
                 updateBreadcrumb()
             } else if (scheduleTab) viewModel.toggleScheduleGroupExpanded(task)
             else viewModel.toggleQueueGroupExpanded(task)
@@ -669,7 +684,11 @@ class MainActivity : AppCompatActivity() {
         val segments = mutableListOf("Home")
         stack.forEach { frame ->
             val name = frame.groupId?.let { tasksById[it]?.name } ?: "Home"
-            val sep  = if (frame.arrivedVia == ArrivedVia.SYMLINK) " \u21E2 " else " \u203A "
+            val sep  = when (frame.arrivedVia) {
+                ArrivedVia.SYMLINK  -> " \u21E2 "   // dashed-style arrow: pure pointer hop
+                ArrivedVia.HARDLINK -> " \u21D2 "   // double arrow: real extra-placement hop
+                ArrivedVia.REAL     -> " \u203A "   // plain chevron: ordinary real parent-child hop
+            }
             segments.add(sep)
             segments.add(name)
         }

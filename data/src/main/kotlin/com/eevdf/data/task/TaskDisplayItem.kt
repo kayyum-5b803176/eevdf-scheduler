@@ -112,6 +112,18 @@ data class TaskDisplayItem(
      *  real DB row; the row renders disabled/greyed with delete as the only
      *  available action. */
     val isBrokenLink: Boolean = false,
+    /**
+     * The "door" this row was reached through, if any — a [TaskMembership]
+     * id whose [TaskMembership.taskId] is this row's own real task, OR an
+     * ancestor of it, that the user is currently viewing THROUGH. Inherited
+     * downward through an entire hardlinked group's real subtree (see
+     * [ListBuilderDelegate]): every real descendant rendered underneath a
+     * hardlink placement carries the SAME door, so that running any of them
+     * credits the group they're being viewed inside, not the group they
+     * happen to physically live in. `null` means "reached only via real
+     * parentId edges" — the plain, ordinary case.
+     */
+    val entryMembershipId: String? = null,
 ) {
     /** True for either a [symlinkId] or [membershipId] row — a "links" row, not the task's primary appearance. */
     val isLinkRow: Boolean get() = symlinkId != null || membershipId != null

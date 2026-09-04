@@ -502,10 +502,20 @@ class TaskViewModel @Inject constructor(
      *  [highlightTaskId] marks one row in the new frame for a jump-highlight
      *  (a symlink-to-leaf-task jump highlighting that task among its real
      *  siblings) — leave null for a symlink-to-group jump or a real drill-in. */
-    fun drillInto(onQueueTab: Boolean, groupId: String?, arrivedVia: ArrivedVia, highlightTaskId: String? = null) {
+    /** Pushes a new drill frame — [arrivedVia] SYMLINK when following a symlink into [groupId],
+     *  HARDLINK when entering a hardlink placement directly. [groupId] null represents root
+     *  (a symlink to a root-level leaf task). [doorMembershipId] is the door every leaf run
+     *  from this frame (or any frame nested below it) should be credited through — pass the
+     *  entered hardlink's own membership id for a HARDLINK frame, or the CURRENT inherited
+     *  door (DrillState.currentDoorMembershipId) when drilling into a plain real subgroup
+     *  that's already inside an open door, so it keeps propagating downward unchanged. */
+    fun drillInto(
+        onQueueTab: Boolean, groupId: String?, arrivedVia: ArrivedVia,
+        highlightTaskId: String? = null, doorMembershipId: String? = null,
+    ) {
         val live = if (onQueueTab) _queueDrillState else _scheduleDrillState
         val current = live.value ?: DrillState()
-        live.value = current.copy(stack = current.stack + DrillFrame(groupId, arrivedVia, highlightTaskId))
+        live.value = current.copy(stack = current.stack + DrillFrame(groupId, arrivedVia, highlightTaskId, doorMembershipId))
     }
 
     /** Pops one frame. For a SYMLINK frame this returns to the symlink's HOST group, not the real parent. */
