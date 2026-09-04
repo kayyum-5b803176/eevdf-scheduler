@@ -438,19 +438,7 @@ class TaskRepository @Inject constructor(
         val door = membershipId?.let { taskMembershipDao.getById(it) }
 
         if (door != null && door.taskId == task.id) {
-            // Classic case: the door's boundary IS the task being run.
-            //
-            // Both vrt copies now advance by the SAME per-second-of-work
-            // delta, computed INDEPENDENTLY from the same original `task` on
-            // two separate scratch objects — never chained one from the
-            // other — so neither write depends on or corrupts the other.
-            // Real work done through EITHER placement must keep BOTH fair
-            // relative to THEIR OWN respective siblings, or the untouched one
-            // would look artificially idle and unfairly jump its own queue.
-            // The gap between the two vrt values — set once at hardlink
-            // creation time — is deliberately preserved forever: advancing
-            // both by the same amount from the same starting point never
-            // closes or widens it.
+            // Direction: task run via its OWN membership placement `door`.
             val doorScratch = task.copy(vruntime = door.vruntime)
             EEVDFScheduler.updateVruntime(doorScratch, secondsRan)
             taskMembershipDao.updateVruntime(door.id, doorScratch.vruntime)
@@ -463,33 +451,70 @@ class TaskRepository @Inject constructor(
             val realTaskUpdate = task.copy()
             EEVDFScheduler.updateVruntime(realTaskUpdate, secondsRan)
             applySharedRunAccounting(realTaskUpdate, session, secondsRan)
-            // door.groupId's real ancestor chain (Personal, Life, …) gets its
-            // OWN vruntime genuinely advanced by this walk (see creditAncestors'
-            // plain branch) — their cached eligibleTime/virtualDeadline need the
-            // same whole-app refresh below a plain run gets; there is no
-            // "nothing real was touched" case here to skip it for.
-            creditAncestors(door.groupId, secondsRan, doorAboveConsumed = true, door = null)
+
+            // Unconditional symmetric fix: if `task` has YET OTHER placements
+            // beyond `door` (a third, fourth, …), keep THOSE fair too — this
+            // is a fresh database lookup done on every single run, never
+            // gated behind whether the caller happened to supply a door
+            // matching one specific placement.
+            touchSiblingPlacements(task.id, task.weight, secondsRan, excludeMembershipId = door.id)
+
+            creditAncestors(door.groupId, secondsRan, door = null)
             return@withContext refreshAllAndReturn(task.id) ?: task
         }
 
-        // Either no door at all (plain run), or the door's boundary is an
-        // ANCESTOR further up — either way, the task's OWN accounting is
-        // always the plain, real kind. A leaf several levels inside a
-        // hardlinked group's subtree is never itself door-dependent; only the
-        // boundary ancestor is.
+        // Plain run, or the door's boundary is an ancestor further up. Task's
+        // own accounting is always the plain kind either way — a leaf
+        // several levels inside a hardlinked group's subtree is never itself
+        // door-dependent.
         EEVDFScheduler.updateVruntime(task, secondsRan)
         applySharedRunAccounting(task, session, secondsRan)
-        creditAncestors(task.parentId, secondsRan, doorAboveConsumed = false, door = door)
 
-        // Every real ancestor `creditAncestors` just walked — whether via its
-        // plain branch or past a door's boundary — had its OWN real vruntime
-        // (task itself, or an ancestor above/beside the door) genuinely
-        // advanced somewhere in this call. Their cached eligibleTime/
-        // virtualDeadline need refreshing regardless of whether a door was
-        // involved at all — always run the whole-app recalculation sweep, the
-        // same one the primary path has always used, rather than trying to
-        // reason case-by-case about which specific tasks actually need it.
+        // Unconditional symmetric fix: even on a run with NO door at all
+        // (running from task's real, primary location), if `task` itself
+        // separately has other placements, keep them fair too. This is the
+        // exact case that was broken before this fix — a plain run supplied
+        // no door, so nothing ever looked up whether placements existed at
+        // all; now every run always checks, regardless of direction.
+        touchSiblingPlacements(task.id, task.weight, secondsRan, excludeMembershipId = null)
+
+        creditAncestors(task.parentId, secondsRan, door = door)
         refreshAllAndReturn(task.id) ?: task
+    }
+
+    /**
+     * The unconditional half of the fix: advances every OTHER real
+     * placement's ([TaskMembership]) vrt for the node identified by [nodeId]
+     * — by the same per-second-of-work delta every other vrt advance in this
+     * file uses — regardless of which specific placement (if any) was
+     * actually used to run it. Called on EVERY node touched during
+     * accounting (the task itself, and every ancestor [creditAncestors]
+     * visits), via a fresh [TaskMembershipDao.getForTask] lookup each time —
+     * never inferred from, or gated behind, the door supplied for a
+     * particular run.
+     *
+     * This is the fix in this pass: real work through ANY one placement of a
+     * multi-placement node must keep EVERY placement of that node fair to
+     * its own siblings, not just whichever one or two paths a given call
+     * happened to know about. Previously this only fired for the ONE
+     * placement matching an explicitly-supplied door, so running from a
+     * node's real, primary location (no door at all) silently left every
+     * OTHER placement's vrt stale — exactly the reported bug.
+     *
+     * [excludeMembershipId] skips the one placement whose advance is already
+     * being handled by the caller through its own (differently-sourced, but
+     * identical-formula) code path, so it's never double-credited.
+     */
+    private suspend fun touchSiblingPlacements(
+        nodeId: String, weight: Double, secondsRan: Long, excludeMembershipId: String?,
+    ) {
+        if (weight <= 0) return
+        val delta = secondsRan.toDouble() / weight
+        taskMembershipDao.getForTask(nodeId).forEach { m ->
+            if (m.id != excludeMembershipId) {
+                taskMembershipDao.updateVruntime(m.id, m.vruntime + delta)
+            }
+        }
     }
 
     /**
@@ -556,28 +581,26 @@ class TaskRepository @Inject constructor(
      * that ancestor: totalRunTime/runCount/quota/DL are credited normally
      * onto the real row (shared, correct regardless of which door was used to
      * reach it), AND vruntime advances on BOTH the real row's own field AND
-     * the [TaskMembership] row — by the same per-second-of-work delta,
-     * computed independently for each so neither write depends on the other.
-     * Both copies must move on every real run, through either placement, or
-     * whichever one didn't get touched would look artificially idle relative
-     * to ITS OWN siblings and unfairly dominate its own queue. Propagation
-     * then continues from [door.groupId] instead of that ancestor's real
-     * `parentId`. Above that point the walk is purely the plain kind again,
-     * all the way to the top — this fix supports exactly one hardlink
-     * boundary per run, matching what a single `entryMembershipId` (see
-     * [com.eevdf.data.task.TaskDisplayItem]) can express; stacked/nested
-     * hardlink doors are out of scope for now.
+     * the [door] row — by the same per-second-of-work delta, computed
+     * independently for each. Propagation then continues from [door.groupId]
+     * instead of that ancestor's real `parentId`. Above that point the walk
+     * is purely the plain kind again, all the way to the top — [door] only
+     * ever redirects the chain once; a second hardlink boundary further up
+     * would need its own explicit door to redirect again, which this
+     * function does not attempt (stacked/nested hardlink doors are out of
+     * scope for now).
      *
-     * [doorAboveConsumed] is true only when [updateVruntimeAfterRun] already
-     * handled the door at the TASK level itself (the classic case) and this
-     * walk should therefore behave as a plain chain throughout — [door] is
-     * always null in that case, this parameter exists purely for readability
-     * at the call site.
+     * CRITICALLY, [touchSiblingPlacements] is called for EVERY ancestor
+     * visited — not just the one matching [door] — via a fresh database
+     * lookup each time. This is what makes vrt symmetric regardless of
+     * which direction this specific run is walking: an ancestor might have
+     * its OWN separate placement(s) unrelated to [door] entirely, and those
+     * must stay fair too, on every single run through this chain, whether or
+     * not [door] happens to be null this time.
      */
     private suspend fun creditAncestors(
         startParentId: String?,
         secondsRan: Long,
-        doorAboveConsumed: Boolean,
         door: TaskMembership?,
     ) {
         var parentId = startParentId
@@ -585,29 +608,29 @@ class TaskRepository @Inject constructor(
             val parent = dao.getTaskById(parentId) ?: break
             parent.totalRunTime += secondsRan
             parent.runCount     += 1
+            if (parent.weight > 0) {
+                parent.vruntime += secondsRan.toDouble() / parent.weight
+            }
+            applyQuotaAccounting(parent, secondsRan)
+            applyDlAccounting(parent, secondsRan)
 
             if (door != null && parent.id == door.taskId) {
-                // This IS the door's boundary. totalRunTime/runCount already
-                // advanced on `parent` above (shared, correct regardless of
-                // which door was used to reach it). Both vrt copies now also
-                // advance by the same per-second-of-work delta — the
-                // placement's (as before) AND parent's own real field (the
-                // fix: previously only the placement moved, leaving the real
-                // copy looking artificially idle to ITS OWN siblings whenever
-                // work only ever happened through this door).
+                // This IS the door's boundary: advance the door's OWN vrt
+                // too (parent's real vrt already advanced, unconditionally,
+                // above), then continue climbing from its host instead of
+                // parent's real parent.
                 val delta = if (parent.weight > 0) secondsRan.toDouble() / parent.weight else 0.0
                 taskMembershipDao.updateVruntime(door.id, door.vruntime + delta)
-                parent.vruntime += delta
-                applyQuotaAccounting(parent, secondsRan)
-                applyDlAccounting(parent, secondsRan)
+                touchSiblingPlacements(parent.id, parent.weight, secondsRan, excludeMembershipId = door.id)
                 dao.update(parent)
                 parentId = door.groupId
             } else {
-                if (parent.weight > 0) {
-                    parent.vruntime += secondsRan.toDouble() / parent.weight
-                }
-                applyQuotaAccounting(parent, secondsRan)
-                applyDlAccounting(parent, secondsRan)
+                // Unconditional symmetric fix: `parent` might have its OWN
+                // placement(s) entirely unrelated to `door` (or door may be
+                // null altogether, as on a plain run) — keep them fair too,
+                // every time, via a fresh lookup rather than only when a
+                // door happens to be supplied.
+                touchSiblingPlacements(parent.id, parent.weight, secondsRan, excludeMembershipId = null)
                 dao.update(parent)
                 parentId = parent.parentId
             }
