@@ -75,6 +75,27 @@
                         android:textColor="@color/app_text_body" />
                 </LinearLayout>
 
+                <!-- Links feature: square R/H/S badge — only visible when a
+                     link relationship genuinely exists (see TaskAdapter).
+                     Sits between the name and priority columns per the
+                     requested row order: name … link badge … priority. -->
+                <TextView
+                    android:id="@+id/tvLinkBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="H"
+                    android:textSize="@dimen/app_text_size_xs"
+                    android:textColor="@color/cardBackground"
+                    android:fontFamily="sans-serif-medium"
+                    android:paddingStart="@dimen/app_spacing_md"
+                    android:paddingEnd="@dimen/app_spacing_md"
+                    android:paddingTop="@dimen/app_spacing_cs"
+                    android:paddingBottom="@dimen/app_spacing_cs"
+                    android:layout_marginStart="@dimen/app_spacing_md"
+                    android:background="@drawable/bg_link_badge"
+                    android:gravity="center"
+                    android:visibility="gone" />
+
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

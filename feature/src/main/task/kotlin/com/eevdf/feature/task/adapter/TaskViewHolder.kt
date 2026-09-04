@@ -18,6 +18,7 @@ class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
     val tvQuotaRemaining:  TextView     = itemView.findViewById(R.id.tvQuotaRemaining)
     val tvDlStatus:        TextView     = itemView.findViewById(R.id.tvDlStatus)
     val tvRtStatus:        TextView     = itemView.findViewById(R.id.tvRtStatus)
+    val tvLinkBadge:       TextView     = itemView.findViewById(R.id.tvLinkBadge)
     val tvTimeSlice:       TextView     = itemView.findViewById(R.id.tvTimeSlice)
     val tvRemaining:       TextView     = itemView.findViewById(R.id.tvRemaining)
     val tvVruntime:        TextView     = itemView.findViewById(R.id.tvVruntime)

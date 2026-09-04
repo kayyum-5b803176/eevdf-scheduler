@@ -275,6 +275,15 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         return eligibleTime to virtualDeadline
     }
 
+    /**
+     * True when [taskId] is targeted by at least one symlink, or is the real
+     * task of at least one hardlink placement, anywhere in the app. Drives
+     * the "R" square badge on an ordinary (non-link) row — see
+     * [TaskDisplayItem.isLinkedElsewhere].
+     */
+    private fun isLinkedElsewhere(taskId: String, links: List<TaskLink>, memberships: List<TaskMembership>): Boolean =
+        links.any { it.targetTaskId == taskId } || memberships.any { it.taskId == taskId }
+
     // ── List builders ─────────────────────────────────────────────────────────
 
     /**
@@ -298,7 +307,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         cpuShare               = shares[it.id] ?: 0.0,
                         effectiveQuotaExceeded = it.isQuotaExceeded,
                         effectiveQuotaWarning  = it.isQuotaWarning,
-                        queueNumber            = "${index + 1}")
+                        queueNumber            = "${index + 1}",
+                        isLinkedElsewhere      = isLinkedElsewhere(it.id, links, memberships))
                 }
         }
         val effectiveTasks = EEVDFScheduler.withMemberships(tasks, memberships)
@@ -356,6 +366,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         effectiveQuotaWarning  = quotaWarning,
                         queueNumber            = number,
                         entryMembershipId      = inheritedDoor,
+                        isLinkedElsewhere      = isLinkedElsewhere(realTask.id, links, memberships),
                         isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true))
                 }
                 if (realTask.isGroup && (vm.groupExpand.queueExpandState[realTask.id] ?: true))
@@ -545,7 +556,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         childTaskCount    = descTasks,
                         childTotalRuntime = dc.sumOf { it.totalRunTime },
                         cpuShare          = effectiveShares[task.id] ?: 0.0,
-                        entryMembershipId = inheritedDoor)
+                        entryMembershipId = inheritedDoor,
+                        isLinkedElsewhere = isLinkedElsewhere(task.id, links, memberships))
                 }
                 result.add(baseItem.copy(
                     effectiveQuotaExceeded = quotaExceeded,
@@ -633,7 +645,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                             cpuShare          = effectiveShares[task.id] ?: 0.0,
                             queueNumber       = number,
                             entryMembershipId = inheritedDoor,
-                            isJumpHighlighted = task.id == highlightTaskId)
+                            isJumpHighlighted = task.id == highlightTaskId,
+                            isLinkedElsewhere = isLinkedElsewhere(task.id, links, memberships))
                     }
                 )
             }
@@ -708,7 +721,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     childTaskCount    = descTasks,
                     childTotalRuntime = dc.sumOf { it.totalRunTime },
                     cpuShare          = effectiveShares[task.id] ?: 0.0,
-                    entryMembershipId = inheritedDoor)
+                    entryMembershipId = inheritedDoor,
+                    isLinkedElsewhere = isLinkedElsewhere(task.id, links, memberships))
             }
             result.add(baseItem.copy(
                 queueNumber      = number,

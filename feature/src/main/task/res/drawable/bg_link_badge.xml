@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Square background for the Real/Hardlink/Symlink link-indicator badge on
+  task cards. Deliberately square (near-zero corner radius) so it's visually
+  distinct in SHAPE from the pill-shaped DL/RT scheduler badges it sits next
+  to, on top of already being a different color per state.
+  The fill colour is set programmatically in TaskAdapter:
+    Real (linked elsewhere)  → linkBadgeReal
+    Hardlink                 → linkBadgeHardlink
+    Symlink                  → linkBadgeSymlink
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#303F9F" />
+    <corners android:radius="2dp" />
+</shape>

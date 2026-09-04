@@ -281,6 +281,28 @@ class TaskAdapter(
         val displayVdl = item.displayVirtualDeadline  ?: task.virtualDeadline
         holder.tvVruntime.text  = "VRT: ${fmtFloat(displayVrt)}"
         holder.tvVdeadline.text = "VDL: ${fmtFloat(displayVdl)}"
+
+        // Links feature: square R/H/S badge, only shown when a link
+        // relationship genuinely exists. H/S mark the link row itself;
+        // R marks the real row when it's targeted by a link elsewhere.
+        when {
+            item.membershipId != null -> {
+                holder.tvLinkBadge.text = "H"
+                holder.tvLinkBadge.visibility = View.VISIBLE
+                applyPillColor(holder.tvLinkBadge, holder.itemView.context, R.color.linkBadgeHardlink)
+            }
+            item.symlinkId != null -> {
+                holder.tvLinkBadge.text = "S"
+                holder.tvLinkBadge.visibility = View.VISIBLE
+                applyPillColor(holder.tvLinkBadge, holder.itemView.context, R.color.linkBadgeSymlink)
+            }
+            item.isLinkedElsewhere -> {
+                holder.tvLinkBadge.text = "R"
+                holder.tvLinkBadge.visibility = View.VISIBLE
+                applyPillColor(holder.tvLinkBadge, holder.itemView.context, R.color.linkBadgeReal)
+            }
+            else -> holder.tvLinkBadge.visibility = View.GONE
+        }
         val pinned = task.pinnedShare != null
         holder.tvCpuShare.text = "RS: ${"%.1f".format(item.cpuShare)}"
         holder.tvCpuShare.setTextColor(

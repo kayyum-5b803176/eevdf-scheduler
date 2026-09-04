@@ -142,6 +142,16 @@ data class TaskDisplayItem(
      */
     val displayVruntime: Double? = null,
     val displayVirtualDeadline: Double? = null,
+    /**
+     * True when this row's REAL task/group (never set for a symlink or
+     * membership row itself — those are already identified by
+     * [symlinkId]/[membershipId]) is the TARGET of at least one symlink or
+     * the taskId of at least one hardlink placement elsewhere in the app.
+     * Drives the "R" square badge — see [membershipId]/[symlinkId] for the
+     * "H"/"S" counterparts. False (badge hidden) for the vast majority of
+     * ordinary, never-linked tasks.
+     */
+    val isLinkedElsewhere: Boolean = false,
 ) {
     /** True for either a [symlinkId] or [membershipId] row — a "links" row, not the task's primary appearance. */
     val isLinkRow: Boolean get() = symlinkId != null || membershipId != null

@@ -197,7 +197,14 @@
     <!-- Links feature: the one row a drill-down jump landed on (symlink to a
          leaf task, highlighted among its real siblings). Distinct from every
          other card state color above. -->
+    <!-- Links feature: square R/H/S badge on task cards indicating a link
+         relationship exists. "Real" = this task/group is linked TO from
+         elsewhere; "Hardlink"/"Symlink" mark the link row itself. Only ever
+         shown when a link relationship genuinely exists — see TaskAdapter. -->
     <color name="cardStateJumpHighlight">@color/app_violet_cl</color>
+    <color name="linkBadgeReal">@color/app_blue_dk</color>
+    <color name="linkBadgeHardlink">@color/app_mint_dk</color>
+    <color name="linkBadgeSymlink">@color/app_cyan_dk</color>
 
     <!-- ══════════════════════════════════════════════════════════════════════
          PRIORITY RAINBOW  1 → 7  (Material 500 across the wheel)
