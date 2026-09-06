@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  task-list-screen's OWN copy of the night colour entries it references.
+
+  Deliberately duplicated rather than shared: this capability must
+  keep compiling and rendering correctly if any other capability
+  folder is deleted. Only the entries this capability actually uses
+  are copied here, so the duplication stays bounded.
+-->
+<resources>
+    <color name="divider">#424242</color>
+</resources>

@@ -7,24 +7,16 @@ android {
     namespace = "com.eevdf.feature"
     defaultConfig { minSdk = 31 }
 
-    // Deliberately NOT one flat src/main/{kotlin,res}/. Each subfeature is
-    // physically co-located — its own kotlin/ and res/ side by side — instead of
-    // being scattered across type-based top-level folders. It is still exactly
-    // one Android module: one namespace, one generated R class, one manifest.
-    // Per-feature COMPILE isolation (task cannot import settings) is still the
-    // job of scripts/check_architecture.sh, not the module system, until a
-    // future phase splits these into real per-feature Gradle modules.
-    //
-    // "ui" is dropped from this list as of v6.1.0 — it moved to the standalone
-    // :capabilities:design-system module (Phase 1). "links" stays here for now:
-    // it has real cross-feature imports (task, group) that haven't migrated
-    // yet, so it can't move to an isolated capability module until Phase 4.
+    // v6.8.0: "task", "links", "backup" dropped from this list entirely.
+    // Every file that lived under them moved to its own capability module
+    // (task-list-screen, add-task-screen, countdown-timer, notice-phase,
+    // links-screen, backup-restore) in Phase 8. What's left here —
+    // alarm, autoswitch, settings, stats, sync — moves in Phase 9.
     sourceSets {
         getByName("main") {
             manifest.srcFile("src/main/AndroidManifest.xml")
             val subfeatures = listOf(
-                "task", "alarm", "autoswitch", "backup",
-                "settings", "stats", "sync", "links",
+                "alarm", "autoswitch", "settings", "stats", "sync",
             )
             kotlin.srcDirs(subfeatures.map { "src/main/$it/kotlin" })
             res.srcDirs(subfeatures.map { "src/main/$it/res" })
@@ -39,13 +31,12 @@ dependencies {
     implementation(project(":capabilities:feedback-cues"))
     implementation(project(":capabilities:design-system"))
     implementation(project(":capabilities:task-storage"))
-    implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))
     implementation(project(":capabilities:reminder-notifier"))
     implementation(project(":capabilities:settings-storage"))
-    implementation(project(":capabilities:group-picker"))
     implementation(project(":capabilities:navigation-routes"))
-    implementation(project(":capabilities:feature-toggles"))
+    // task-scheduling and group-picker removed v6.8.0 — only used by the
+    // task/links subfeatures that moved out to their own modules this phase.
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

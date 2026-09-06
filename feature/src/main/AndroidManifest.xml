@@ -3,49 +3,25 @@
 
     <application>
 
-        <activity
-            android:name="com.eevdf.feature.task.list.MainActivity"
-            android:exported="true"
-            android:resizeableActivity="true"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name="com.eevdf.feature.task.addtask.AddTaskActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
-
-        <!-- Links: symlink/hardlink creation and management. Opened by holding
-             the Add Task FAB — see MainActivity.setupViews(). -->
-        <activity
-            android:name="com.eevdf.feature.links.LinksActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
+        <!--
+            v6.8.0: MainActivity, AddTaskActivity, LinksActivity and
+            DataBackupActivity moved out — each now declares itself in its
+            own capability module's AndroidManifest.xml (task-list-screen,
+            add-task-screen, links-screen, backup-restore), merged in by AGP
+            at build time. See scripts/apply-6.8.0-deletions.sh.
+        -->
 
         <activity
             android:name="com.eevdf.feature.stats.StatsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
+            android:parentActivityName="com.eevdf.capabilities.tasklistscreen.MainActivity" />
 
         <activity
             android:name="com.eevdf.feature.settings.SettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.task.list.MainActivity" />
-
-        <activity
-            android:name="com.eevdf.feature.backup.DataBackupActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:parentActivityName="com.eevdf.feature.settings.SettingsActivity" />
+            android:parentActivityName="com.eevdf.capabilities.tasklistscreen.MainActivity" />
 
         <activity
             android:name="com.eevdf.feature.settings.ProfileSettingsActivity"

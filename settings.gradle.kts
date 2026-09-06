@@ -17,4 +17,6 @@ include(
     ":capabilities:task-storage", ":capabilities:task-scheduling", ":capabilities:run-history",
     ":capabilities:reminder-notifier", ":capabilities:settings-storage",
     ":capabilities:group-picker", ":capabilities:navigation-routes", ":capabilities:feature-toggles",
+    ":capabilities:task-list-screen", ":capabilities:add-task-screen", ":capabilities:countdown-timer",
+    ":capabilities:notice-phase", ":capabilities:links-screen", ":capabilities:backup-restore",
 )

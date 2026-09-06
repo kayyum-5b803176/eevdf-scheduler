@@ -32,7 +32,7 @@ import java.util.UUID
  * filesystem symlink's exact behavior: the pointer survives as a BROKEN
  * LINK, resolving to nothing, rather than being cascade-deleted. It is
  * rendered as a distinct, disabled "broken link" row (see
- * [com.eevdf.feature.task.list.ListBuilderDelegate]) until the user
+ * [com.eevdf.capabilities.tasklistscreen.ListBuilderDelegate]) until the user
  * explicitly deletes the symlink itself, or its host group is deleted (see
  * [TaskLinkDao.deleteByHost], which IS still a cascade — the symlink can't
  * outlive the group it's displayed inside).
