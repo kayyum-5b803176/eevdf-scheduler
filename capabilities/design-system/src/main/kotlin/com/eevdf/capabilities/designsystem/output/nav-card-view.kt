@@ -1,4 +1,4 @@
-package com.eevdf.feature.ui
+package com.eevdf.capabilities.designsystem.output
 
 import android.content.Context
 import android.util.AttributeSet
@@ -6,7 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
-import com.eevdf.feature.R
+import com.eevdf.capabilities.designsystem.R
 import com.google.android.material.card.MaterialCardView
 
 /**

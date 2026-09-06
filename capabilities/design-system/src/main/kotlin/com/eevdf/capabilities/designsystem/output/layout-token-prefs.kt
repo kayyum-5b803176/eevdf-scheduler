@@ -1,4 +1,4 @@
-package com.eevdf.feature.ui
+package com.eevdf.capabilities.designsystem.output
 
 import android.content.Context
 import android.content.SharedPreferences

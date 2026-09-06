@@ -1,4 +1,4 @@
-package com.eevdf.feature.ui
+package com.eevdf.capabilities.designsystem.output
 
 /**
  * The one spacing scale every spacing-based token in this file derives its

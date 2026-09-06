@@ -29,7 +29,7 @@ import com.eevdf.data.task.Task
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.platform.media.VibrationManager
+import com.eevdf.capabilities.feedbackcues.output.VibrationManager
 import dagger.hilt.android.AndroidEntryPoint
 import com.eevdf.contract.control.AlarmActions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder

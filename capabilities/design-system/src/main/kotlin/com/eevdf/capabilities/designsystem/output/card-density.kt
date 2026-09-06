@@ -1,9 +1,9 @@
-package com.eevdf.feature.ui
+package com.eevdf.capabilities.designsystem.output
 
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
-import com.eevdf.feature.R
+import com.eevdf.capabilities.designsystem.R
 import com.google.android.material.card.MaterialCardView
 import kotlin.math.roundToInt
 

@@ -3,7 +3,7 @@ package com.eevdf.feature.task.adapter
 import android.view.View
 import android.widget.LinearLayout
 import androidx.recyclerview.widget.RecyclerView
-import com.eevdf.feature.ui.LayoutTokenPrefs
+import com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs
 
 /**
  * UI-customization layout helpers for [TaskAdapter].
@@ -18,7 +18,7 @@ import com.eevdf.feature.ui.LayoutTokenPrefs
 /**
  * Scales the card's inner padding, outer margins, and row spacing to match
  * the live [LayoutTokenPrefs] settings. Font sizes are never changed by this
- * function specifically — text scale is a separate [com.eevdf.feature.ui.DesignTokens]
+ * function specifically — text scale is a separate [com.eevdf.capabilities.designsystem.output.DesignTokens]
  * dimension, applied elsewhere once wired in.
  *
  * Reads [LayoutTokenPrefs.current] directly — the same live token source
@@ -31,7 +31,7 @@ import com.eevdf.feature.ui.LayoutTokenPrefs
  * the same design-token system the Layout demo page's "scale" tab controls,
  * not a separate isolated preview of it.
  *
- * `cardTopDp`/`cardBottomDp` are one symmetric [com.eevdf.feature.ui.DesignTokens.outerMarginDp]
+ * `cardTopDp`/`cardBottomDp` are one symmetric [com.eevdf.capabilities.designsystem.output.DesignTokens.outerMarginDp]
  * value applied to both — not two independently-tuned numbers. `progressTopDp`
  * reuses the same margin value directly: the original hand-tuned table's
  * numbers for progress-bar top margin and card top margin were already

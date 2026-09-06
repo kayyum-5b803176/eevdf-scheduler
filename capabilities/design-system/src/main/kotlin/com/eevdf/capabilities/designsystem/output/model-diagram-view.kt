@@ -1,4 +1,4 @@
-package com.eevdf.feature.ui
+package com.eevdf.capabilities.designsystem.output
 
 import android.content.Context
 import android.graphics.Canvas
@@ -8,7 +8,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.content.ContextCompat
-import com.eevdf.feature.R
+import com.eevdf.capabilities.designsystem.R
 
 /**
  * Global box-model debug diagram. Reached from Layout demo -> "model" tab.

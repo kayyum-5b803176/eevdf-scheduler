@@ -10,13 +10,13 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.contract.nav.AppRoutes
 import com.eevdf.feature.R
-import com.eevdf.feature.ui.DesignTokens
-import com.eevdf.feature.ui.DropdownCardView
-import com.eevdf.feature.ui.LayoutTokenPrefs
-import com.eevdf.feature.ui.ModelDiagramView
-import com.eevdf.feature.ui.NavCardView
-import com.eevdf.feature.ui.ToggleCardView
-import com.eevdf.feature.ui.ValueCardView
+import com.eevdf.capabilities.designsystem.output.DesignTokens
+import com.eevdf.capabilities.designsystem.output.DropdownCardView
+import com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs
+import com.eevdf.capabilities.designsystem.output.ModelDiagramView
+import com.eevdf.capabilities.designsystem.output.NavCardView
+import com.eevdf.capabilities.designsystem.output.ToggleCardView
+import com.eevdf.capabilities.designsystem.output.ValueCardView
 import com.google.android.material.tabs.TabLayout
 
 /**
@@ -35,7 +35,7 @@ import com.google.android.material.tabs.TabLayout
  * structurally.
  *
  * PERSISTENT, NOT SANDBOXED: the four sliders on the "scale" tab write to the
- * real [LayoutTokenPrefs] — the same preferences [com.eevdf.feature.ui.CardDensity]
+ * real [LayoutTokenPrefs] — the same preferences [com.eevdf.capabilities.designsystem.output.CardDensity]
  * and the main task list read everywhere else — and those changes stick
  * after leaving this page, the same as any other real settings control.
  * Earlier versions of this page reverted every change on exit ("sandboxed");

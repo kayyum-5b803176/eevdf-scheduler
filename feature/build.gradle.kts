@@ -14,12 +14,17 @@ android {
     // Per-feature COMPILE isolation (task cannot import settings) is still the
     // job of scripts/check_architecture.sh, not the module system, until a
     // future phase splits these into real per-feature Gradle modules.
+    //
+    // "ui" is dropped from this list as of v6.1.0 — it moved to the standalone
+    // :capabilities:design-system module (Phase 1). "links" stays here for now:
+    // it has real cross-feature imports (task, group) that haven't migrated
+    // yet, so it can't move to an isolated capability module until Phase 4.
     sourceSets {
         getByName("main") {
             manifest.srcFile("src/main/AndroidManifest.xml")
             val subfeatures = listOf(
                 "task", "alarm", "autoswitch", "backup",
-                "settings", "stats", "sync", "shared", "ui", "links",
+                "settings", "stats", "sync", "shared", "links",
             )
             kotlin.srcDirs(subfeatures.map { "src/main/$it/kotlin" })
             res.srcDirs(subfeatures.map { "src/main/$it/res" })
@@ -32,6 +37,8 @@ dependencies {
     implementation(project(":data"))
     implementation(project(":platform"))
     implementation(project(":shared"))
+    implementation(project(":capabilities:feedback-cues"))
+    implementation(project(":capabilities:design-system"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

@@ -4,8 +4,8 @@ import android.view.View
 import android.widget.LinearLayout
 import com.eevdf.feature.shared.prefs.DisplayPrefs
 import com.eevdf.feature.shared.prefs.QuickActionPrefs
-import com.eevdf.feature.ui.DesignTokens
-import com.eevdf.feature.ui.LayoutTokenPrefs
+import com.eevdf.capabilities.designsystem.output.DesignTokens
+import com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs
 
 /**
  * Reads Display-settings prefs and card-scale/compact-mode/FAB-visibility rules,

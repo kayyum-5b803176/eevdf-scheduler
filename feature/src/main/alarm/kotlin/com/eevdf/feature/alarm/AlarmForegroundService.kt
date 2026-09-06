@@ -17,8 +17,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.eevdf.feature.R
-import com.eevdf.platform.media.SoundManager
-import com.eevdf.platform.media.VibrationManager
+import com.eevdf.capabilities.feedbackcues.output.SoundManager
+import com.eevdf.capabilities.feedbackcues.output.VibrationManager
 import com.eevdf.platform.notification.AlarmNotificationPolicy
 import com.eevdf.platform.notification.AlarmReliabilityChecker
 import com.eevdf.platform.notification.AppForegroundTracker

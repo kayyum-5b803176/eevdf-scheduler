@@ -10,7 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.contract.nav.AppRoutes
 import com.eevdf.feature.R
-import com.eevdf.feature.ui.NavCardView
+import com.eevdf.capabilities.designsystem.output.NavCardView
 import com.google.android.material.tabs.TabLayout
 
 /**

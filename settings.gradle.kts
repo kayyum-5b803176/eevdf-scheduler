@@ -7,4 +7,7 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral(); maven { url = uri("https://jitpack.io") } }
 }
 rootProject.name = "EEVDFScheduler"
-include(":app", ":contract", ":core", ":data", ":feature", ":kernel", ":platform", ":shared", ":testing")
+include(
+    ":app", ":contract", ":core", ":data", ":feature", ":kernel", ":platform", ":shared", ":testing",
+    ":capabilities:feedback-cues", ":capabilities:design-system",
+)

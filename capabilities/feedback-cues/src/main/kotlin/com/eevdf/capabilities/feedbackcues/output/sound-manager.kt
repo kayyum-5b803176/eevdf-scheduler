@@ -1,4 +1,4 @@
-package com.eevdf.platform.media
+package com.eevdf.capabilities.feedbackcues.output
 
 import android.content.Context
 import android.content.SharedPreferences
