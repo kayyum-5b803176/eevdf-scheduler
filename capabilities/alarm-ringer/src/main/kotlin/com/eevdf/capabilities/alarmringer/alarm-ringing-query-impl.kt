@@ -1,8 +1,8 @@
 package com.eevdf.capabilities.alarmringer
 
 import android.content.Context
-import com.eevdf.contract.control.AlarmRingingQuery
-import com.eevdf.contract.control.RingingAlarm
+import com.eevdf.kernel.contracts.AlarmRingingQuery
+import com.eevdf.kernel.contracts.RingingAlarm
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

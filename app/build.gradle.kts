@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "6.9.0"
+        versionName = "6.10.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -99,11 +99,18 @@ dependencies {
     // of their files now lives in the capability that owns it. :app depends on
     // the full capability list because it is the composition root: it is the
     // one place allowed to know every capability that exists (rule 6).
-    implementation(project(":contract"))
+    // :app is now a thin shell: manifest, launcher icons, and the dependency
+    // on :composition, which owns all wiring. Capability deps move there too —
+    // :app keeps them only because AGP needs every module contributing a
+    // manifest fragment on the application's own compile classpath.
     implementation(project(":kernel"))
+    implementation(project(":composition"))
+    // Explicit, not transitive: app/src/main/AndroidManifest.xml references
+    // @style/AppTheme, which design-system owns. Resource resolution needs the
+    // dependency declared here directly.
+    implementation(project(":capabilities:design-system"))
 
     implementation(project(":capabilities:feedback-cues"))
-    implementation(project(":capabilities:design-system"))
     implementation(project(":capabilities:task-storage"))
     implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))

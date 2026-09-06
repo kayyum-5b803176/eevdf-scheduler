@@ -8,23 +8,22 @@ dependencyResolutionManagement {
 }
 rootProject.name = "EEVDFScheduler"
 
-// v6.9.0 — the ownership-based modules are gone.
+// v6.10.0 — the microkernel layout is complete.
 //
-// Retired this phase: ":feature", ":core", ":platform", ":data". Every file
-// they held now lives in the capability that owns it. (":testing" went in
-// v6.2.0, ":shared" in v6.5.0.)
+// Every original ownership module is now retired: ":testing" (v6.2.0),
+// ":shared" (v6.5.0), ":feature"/":core"/":platform"/":data" (v6.9.0), and
+// ":contract" (this release).
 //
-// ":contract" survives holding exactly ONE file: AlarmRingingQuery — the
-// single sanctioned synchronous-query exception to rule 3, documented in its
-// own KDoc. Everything else that lived there (AppRoutes, AlarmController,
-// OverlayController, AlarmActions) is either a capability or a bus topic now.
+// ":contract" is retired too as of v6.10.0. Its last file, AlarmRingingQuery,
+// moved to kernel/contracts/ — both sides of that interface live in different
+// capabilities, so the kernel is the only place both may depend on.
 //
 // Root arity is fixed per rule 7: kernel, capabilities, composition. Only
 // ":capabilities:*" grows.
 include(
     ":app",
-    ":contract",
     ":kernel",
+    ":composition",
 
     ":capabilities:feedback-cues",
     ":capabilities:design-system",

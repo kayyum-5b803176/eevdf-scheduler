@@ -1,7 +1,20 @@
-package com.eevdf.contract.control
+package com.eevdf.kernel.contracts
 
 /**
  * A deliberately narrow, documented exception to rule 3.
+ *
+ * WHY IT LIVES IN kernel/contracts/ AND NOT IN A CAPABILITY
+ * ---------------------------------------------------------
+ * It has two sides in two different capabilities: alarm-ringer implements it,
+ * task-list-screen consumes it. Putting the interface in either one would make
+ * that capability a compile-time dependency of the other — exactly what this
+ * exception is trying to keep narrow. The kernel is the one place both are
+ * already allowed to depend on, so the interface lives here and neither
+ * capability imports the other.
+ *
+ * This is the ONLY thing in kernel/contracts/. Rule 1 says the kernel stays
+ * small forever: a second file here needs a deliberate, reviewed decision, and
+ * the default answer is that it should have been a bus topic instead.
  *
  * WHY THIS EXISTS INSTEAD OF A BUS TOPIC
  * ---------------------------------------

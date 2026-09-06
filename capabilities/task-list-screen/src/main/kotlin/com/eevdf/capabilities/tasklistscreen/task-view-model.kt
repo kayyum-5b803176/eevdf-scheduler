@@ -27,7 +27,7 @@ import com.eevdf.capabilities.countdowntimer.InterruptDelegate
 import com.eevdf.capabilities.noticephase.NoticeStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.eevdf.contract.control.AlarmRingingQuery
+import com.eevdf.kernel.contracts.AlarmRingingQuery
 
 /**
  * Root coordinator ViewModel.
