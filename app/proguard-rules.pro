@@ -10,9 +10,9 @@
 # ── Room ─────────────────────────────────────────────────────────────────────
 # Entities are constructed reflectively by generated code; DAOs are interfaces
 # whose implementations are generated at build time.
--keep class com.eevdf.data.task.Task { *; }
--keep class com.eevdf.data.task.InterruptReturnEntry { *; }
--keep class com.eevdf.data.runlog.** { *; }
+-keep class com.eevdf.capabilities.taskstorage.Task { *; }
+-keep class com.eevdf.capabilities.taskstorage.InterruptReturnEntry { *; }
+-keep class com.eevdf.capabilities.runhistory.** { *; }
 -keep class * extends androidx.room.RoomDatabase { *; }
 -keep @androidx.room.Entity class * { *; }
 -dontwarn androidx.room.paging.**
@@ -40,11 +40,11 @@
 -dontwarn org.json.**
 
 # ── App components referenced only from the manifest ─────────────────────────
--keep class com.eevdf.app.SchedulerApplication
+-keep class com.eevdf.app.boot.ApplicationEntry
 -keep class * extends android.app.Service
 -keep class * extends android.content.BroadcastReceiver
 -keep class * extends android.app.Activity
 
 # ── Backup/sync field names are JSON keys ────────────────────────────────────
 # Obfuscating these would break restore of any archive made by an older build.
--keepclassmembernames class com.eevdf.data.task.Task { <fields>; }
+-keepclassmembernames class com.eevdf.capabilities.taskstorage.Task { <fields>; }

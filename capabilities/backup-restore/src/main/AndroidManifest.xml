@@ -10,6 +10,6 @@
         <activity
             android:name="com.eevdf.capabilities.backuprestore.DataBackupActivity"
             android:exported="false"
-            android:parentActivityName="com.eevdf.feature.settings.SettingsActivity" />
+            android:parentActivityName="com.eevdf.capabilities.settingsscreens.SettingsActivity" />
     </application>
 </manifest>

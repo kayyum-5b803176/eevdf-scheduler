@@ -5,7 +5,7 @@
     See docs/UI_TEXT_CONVENTIONS.md for the full rule and checklist.
 
     MIGRATED onto NavCardView (see ARCHITECTURE.md's "universal adoption"
-    phase): every card below is a single <com.eevdf.feature.ui.NavCardView>
+    phase): every card below is a single <com.eevdf.capabilities.designsystem.output.NavCardView>
     tag, not hand-authored MaterialCardView boilerplate. title/subtitle/
     navigable/onNavigate are set in SettingsActivity.kt, not as XML
     attributes — NavCardView has no custom attrs defined, only Kotlin
@@ -56,22 +56,22 @@
                 android:orientation="vertical"
                 android:visibility="visible">
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowVisual"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowSoundVibration"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowNotification"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowPermissions"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
@@ -86,17 +86,17 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowButtonAction"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowEventHandleService"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowAutoSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
@@ -111,17 +111,17 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowSystemConfig"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowCoreAlgorithm"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowRules"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
@@ -136,22 +136,22 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowDataBackup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowMultiUserSync"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowLogs"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
-                <com.eevdf.feature.ui.NavCardView
+                <com.eevdf.capabilities.designsystem.output.NavCardView
                     android:id="@+id/rowAbout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
