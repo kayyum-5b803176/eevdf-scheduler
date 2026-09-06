@@ -19,7 +19,6 @@ dependencies {
     implementation(project(":capabilities:notice-phase"))
     implementation(project(":capabilities:reminder-notifier"))
     implementation(project(":capabilities:feedback-cues"))
-    implementation(project(":contract"))
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.cardview)
     implementation(libs.androidx.core.ktx)

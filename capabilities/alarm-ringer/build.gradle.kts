@@ -9,7 +9,6 @@ android {
 }
 dependencies {
     implementation(project(":kernel"))
-    implementation(project(":contract"))
     implementation(project(":capabilities:reminder-notifier"))
     implementation(project(":capabilities:feedback-cues"))
     implementation(project(":capabilities:settings-storage"))
