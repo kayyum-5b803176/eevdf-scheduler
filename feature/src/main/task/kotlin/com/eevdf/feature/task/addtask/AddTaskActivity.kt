@@ -7,7 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.feature.R
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.feature.task.list.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import android.widget.AutoCompleteTextView

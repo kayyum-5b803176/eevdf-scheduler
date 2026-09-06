@@ -39,6 +39,9 @@ dependencies {
     implementation(project(":shared"))
     implementation(project(":capabilities:feedback-cues"))
     implementation(project(":capabilities:design-system"))
+    implementation(project(":capabilities:task-storage"))
+    implementation(project(":capabilities:task-scheduling"))
+    implementation(project(":capabilities:run-history"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

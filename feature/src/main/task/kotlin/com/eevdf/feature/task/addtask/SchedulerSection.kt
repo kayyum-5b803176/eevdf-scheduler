@@ -4,8 +4,8 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.TextView
-import com.eevdf.data.task.Task
-import com.eevdf.data.scheduler.RtScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskscheduling.RtScheduler
 import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Date

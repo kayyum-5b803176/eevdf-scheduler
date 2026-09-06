@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.addtask
 
 import android.view.View
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 
 /**
  * Quota limit section for [AddTaskActivity].

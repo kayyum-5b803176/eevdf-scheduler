@@ -2,8 +2,8 @@ package com.eevdf.feature.task.addtask
 
 import android.view.View
 import androidx.lifecycle.lifecycleScope
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskLoadFactor
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 

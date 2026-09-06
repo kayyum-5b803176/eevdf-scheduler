@@ -22,8 +22,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskRepository
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import dagger.hilt.android.AndroidEntryPoint

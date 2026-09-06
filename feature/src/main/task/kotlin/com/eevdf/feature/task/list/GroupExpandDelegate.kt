@@ -2,7 +2,7 @@ package com.eevdf.feature.task.list
 
 import android.content.SharedPreferences
 import androidx.lifecycle.MutableLiveData
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 
 /**
  * Manages per-tab group expand / collapse state for the Queue and Schedule tabs.

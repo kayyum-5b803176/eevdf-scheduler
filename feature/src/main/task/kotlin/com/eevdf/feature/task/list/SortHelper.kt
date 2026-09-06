@@ -1,6 +1,6 @@
 package com.eevdf.feature.task.list
 
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 
 /**
  * Shared sort utility used by [ListBuilderDelegate] (Queue list),

@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.list
 
 import android.content.SharedPreferences
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 
 /**
  * Stores and retrieves the last-run task per group for the Queue tab.

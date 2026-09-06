@@ -2,7 +2,7 @@ package com.eevdf.feature.task.addtask
 
 import android.view.View
 import android.widget.ArrayAdapter
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.textfield.TextInputEditText
 import android.widget.TextView
 

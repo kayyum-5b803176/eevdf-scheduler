@@ -13,7 +13,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.feature.R
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.textfield.TextInputEditText
 
 /**

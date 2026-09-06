@@ -34,9 +34,16 @@ detekt {
             "feature/src/main/settings/kotlin",
             "feature/src/main/stats/kotlin",
             "feature/src/main/sync/kotlin",
-            "feature/src/main/ui/kotlin",
             "platform/src/main/kotlin",
             "shared/src/main/kotlin",
+            "kernel/src/main/kotlin",
+            "capabilities/feedback-cues/src/main/kotlin",
+            "capabilities/design-system/src/main/kotlin",
+            "capabilities/task-storage/src/main/kotlin",
+            "capabilities/task-scheduling/src/main/kotlin",
+            "capabilities/run-history/src/main/kotlin",
+            // "feature/src/main/ui/kotlin" removed v6.1.0 — moved to
+            // capabilities/design-system.
         )
     )
     parallel = true
@@ -84,6 +91,14 @@ tasks.register("verifyAll") {
     group = "verification"
     description = "Everything CI runs: architecture guard, detekt, and all unit tests."
     dependsOn(checkArchitecture)
-    dependsOn(":testing:test", ":data:testDebugUnitTest", ":app:testDebugUnitTest")
+    // v6.2.0: ":testing" retired (fully absorbed into :capabilities:task-scheduling's
+    // own test source set — see settings.gradle.kts).
+    dependsOn(
+        ":capabilities:task-scheduling:test",
+        ":capabilities:task-storage:test",
+        ":capabilities:run-history:test",
+        ":data:testDebugUnitTest",
+        ":app:testDebugUnitTest",
+    )
     dependsOn("detekt")
 }

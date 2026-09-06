@@ -8,9 +8,9 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.feature.R
 import com.eevdf.feature.task.notice.NoticePhase
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskDisplayItem
-import com.eevdf.data.scheduler.RtScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskDisplayItem
+import com.eevdf.capabilities.taskscheduling.RtScheduler
 
 /**
  * RecyclerView adapter for the task list.

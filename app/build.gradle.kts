@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "6.1.0"
+        versionName = "6.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -98,6 +98,8 @@ dependencies {
     implementation(project(":contract"))
     implementation(project(":core"))
     implementation(project(":data"))
+    implementation(project(":capabilities:task-storage"))
+    implementation(project(":capabilities:run-history"))
     implementation(project(":feature"))
     implementation(project(":platform"))
     implementation(project(":shared"))

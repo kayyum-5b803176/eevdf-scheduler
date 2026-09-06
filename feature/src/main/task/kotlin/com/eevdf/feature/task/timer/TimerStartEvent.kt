@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.timer
 
-import com.eevdf.data.task.timer.TaskTimerState
-import com.eevdf.data.task.timer.timerState
+import com.eevdf.capabilities.taskstorage.TaskTimerState
+import com.eevdf.capabilities.taskstorage.timerState
 
 /**
  * Sealed class representing a Start button press on the timer card.

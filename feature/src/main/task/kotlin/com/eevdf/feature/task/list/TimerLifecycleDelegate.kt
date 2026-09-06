@@ -1,12 +1,12 @@
 package com.eevdf.feature.task.list
 
 import androidx.lifecycle.viewModelScope
-import com.eevdf.data.runlog.RunSession
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.runhistory.RunSession
+import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.feature.task.timer.TimerStartEvent
-import com.eevdf.data.task.timer.TaskTimerState
-import com.eevdf.data.task.timer.timerState
-import com.eevdf.data.task.timer.withTimerState
+import com.eevdf.capabilities.taskstorage.TaskTimerState
+import com.eevdf.capabilities.taskstorage.timerState
+import com.eevdf.capabilities.taskstorage.withTimerState
 import kotlinx.coroutines.launch
 
 /**

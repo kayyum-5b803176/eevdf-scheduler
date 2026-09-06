@@ -1,10 +1,10 @@
 package com.eevdf.feature.task.list
 
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskLoadFactor
-import com.eevdf.data.task.timer.TaskTimerState
-import com.eevdf.data.task.timer.withTimerState
-import com.eevdf.data.scheduler.EEVDFScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskLoadFactor
+import com.eevdf.capabilities.taskstorage.TaskTimerState
+import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 

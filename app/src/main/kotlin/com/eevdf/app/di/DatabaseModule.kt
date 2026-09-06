@@ -1,13 +1,13 @@
 package com.eevdf.app.di
 
 import android.content.Context
-import com.eevdf.data.runlog.RunLogDao
-import com.eevdf.data.task.TaskDao
-import com.eevdf.data.task.InterruptReturnDao
-import com.eevdf.data.task.TaskLoadFactorDao
-import com.eevdf.data.task.TaskLinkDao
-import com.eevdf.data.task.TaskMembershipDao
-import com.eevdf.data.task.TaskDatabase
+import com.eevdf.capabilities.runhistory.RunLogDao
+import com.eevdf.capabilities.taskstorage.TaskDao
+import com.eevdf.capabilities.taskstorage.InterruptReturnDao
+import com.eevdf.capabilities.taskstorage.TaskLoadFactorDao
+import com.eevdf.capabilities.taskstorage.TaskLinkDao
+import com.eevdf.capabilities.taskstorage.TaskMembershipDao
+import com.eevdf.capabilities.taskstorage.TaskDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

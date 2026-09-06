@@ -13,8 +13,8 @@ import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskLink
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.feature.R
 import com.eevdf.feature.task.group.PickerDialog
 import com.eevdf.feature.task.list.SortHelper
@@ -38,7 +38,7 @@ import kotlinx.coroutines.launch
  * Hardlink — an extra REAL placement of the same task in another group. All
  *            config is genuinely shared (same [Task] row everywhere); only
  *            the scheduling/runtime state is placement-specific (see
- *            [com.eevdf.data.task.TaskMembership]).
+ *            [com.eevdf.capabilities.taskstorage.TaskMembership]).
  */
 @AndroidEntryPoint
 class LinksActivity : AppCompatActivity() {
@@ -56,7 +56,7 @@ class LinksActivity : AppCompatActivity() {
 
     /** Every non-completed task/group — the source list for both pickers. */
     private var allTasksSnapshot: List<Task> = emptyList()
-    private var allMembershipsSnapshot: List<com.eevdf.data.task.TaskMembership> = emptyList()
+    private var allMembershipsSnapshot: List<com.eevdf.capabilities.taskstorage.TaskMembership> = emptyList()
 
     private var selectedTargetId: String? = null
     private var selectedHostId:   String? = null

@@ -3,11 +3,11 @@ package com.eevdf.feature.task.timer
 import android.os.CountDownTimer
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.eevdf.data.runlog.RunSession
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.timer.TaskTimerState
-import com.eevdf.data.task.timer.timerState
-import com.eevdf.data.task.timer.withTimerState
+import com.eevdf.capabilities.runhistory.RunSession
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskTimerState
+import com.eevdf.capabilities.taskstorage.timerState
+import com.eevdf.capabilities.taskstorage.withTimerState
 
 /**
  * Owns ALL running-timer mechanics for one active task.

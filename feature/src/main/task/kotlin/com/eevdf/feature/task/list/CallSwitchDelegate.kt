@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.list
 
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.timer.timerState
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.feature.shared.signals.CallEvents
 
 /**

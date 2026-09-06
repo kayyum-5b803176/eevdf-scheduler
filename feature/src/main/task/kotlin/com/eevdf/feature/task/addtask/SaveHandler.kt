@@ -2,10 +2,10 @@ package com.eevdf.feature.task.addtask
 
 import android.view.View
 import android.widget.Toast
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskLoadFactor
-import com.eevdf.data.scheduler.EEVDFScheduler
-import com.eevdf.data.scheduler.RtScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskLoadFactor
+import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskscheduling.RtScheduler
 import java.util.UUID
 
 /**

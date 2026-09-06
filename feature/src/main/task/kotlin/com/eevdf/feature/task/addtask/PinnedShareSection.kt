@@ -1,8 +1,8 @@
 package com.eevdf.feature.task.addtask
 
 import android.view.View
-import com.eevdf.data.task.Task
-import com.eevdf.data.scheduler.EEVDFScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
 
 /**
  * Realtime share and pinned share section for [AddTaskActivity].

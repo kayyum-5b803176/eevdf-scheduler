@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.adapter
 
 import androidx.recyclerview.widget.DiffUtil
-import com.eevdf.data.task.TaskDisplayItem
+import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 
 /**
  * DiffUtil callback for [TaskAdapter]. Separated from the adapter so changes

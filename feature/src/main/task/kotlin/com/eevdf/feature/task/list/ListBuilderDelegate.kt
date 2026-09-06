@@ -4,13 +4,13 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskDisplayItem
-import com.eevdf.data.task.TaskLink
-import com.eevdf.data.task.TaskMembership
-import com.eevdf.data.scheduler.EEVDFScheduler
-import com.eevdf.data.scheduler.MEMBERSHIP_SYNTHETIC_PREFIX
-import com.eevdf.data.scheduler.RtScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskDisplayItem
+import com.eevdf.capabilities.taskstorage.TaskLink
+import com.eevdf.capabilities.taskstorage.TaskMembership
+import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskscheduling.MEMBERSHIP_SYNTHETIC_PREFIX
+import com.eevdf.capabilities.taskscheduling.RtScheduler
 
 /**
  * Builds and maintains the two flat [TaskDisplayItem] lists observed by the UI:

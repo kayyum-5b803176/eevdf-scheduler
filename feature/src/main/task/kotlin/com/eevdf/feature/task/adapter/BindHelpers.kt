@@ -10,9 +10,9 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.eevdf.feature.R
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskDisplayItem
-import com.eevdf.data.scheduler.RtScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskDisplayItem
+import com.eevdf.capabilities.taskscheduling.RtScheduler
 
 /**
  * Per-card bind helpers for [TaskAdapter].

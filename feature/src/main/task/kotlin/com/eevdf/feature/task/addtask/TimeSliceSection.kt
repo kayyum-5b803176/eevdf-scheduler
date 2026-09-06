@@ -3,7 +3,7 @@ package com.eevdf.feature.task.addtask
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 
 /**
  * Time Slice inheritance section for [AddTaskActivity].

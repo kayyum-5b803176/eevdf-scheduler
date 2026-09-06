@@ -25,11 +25,11 @@ import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.eevdf.feature.R
-import com.eevdf.data.task.TaskRepository
-import com.eevdf.data.runlog.RunSession
-import com.eevdf.data.task.timer.TaskTimerState
-import com.eevdf.data.task.timer.timerState
-import com.eevdf.data.task.timer.withTimerState
+import com.eevdf.capabilities.taskstorage.TaskRepository
+import com.eevdf.capabilities.runhistory.RunSession
+import com.eevdf.capabilities.taskstorage.TaskTimerState
+import com.eevdf.capabilities.taskstorage.timerState
+import com.eevdf.capabilities.taskstorage.withTimerState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

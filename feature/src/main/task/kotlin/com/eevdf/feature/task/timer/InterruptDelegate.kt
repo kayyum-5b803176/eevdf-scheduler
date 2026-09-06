@@ -5,7 +5,7 @@ import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.eevdf.feature.task.timer.IntButtonState
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 import kotlinx.coroutines.launch
 import com.eevdf.feature.task.list.TaskViewModel
 
@@ -55,14 +55,14 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
     private val savedReturnByCell = HashMap<String, Task?>()
 
     private fun cellKey(tab: Int, slot: String): String {
-        val tabName = if (tab == 1) com.eevdf.data.task.InterruptReturnEntry.TAB_SCHEDULE
-                      else          com.eevdf.data.task.InterruptReturnEntry.TAB_QUEUE
+        val tabName = if (tab == 1) com.eevdf.capabilities.taskstorage.InterruptReturnEntry.TAB_SCHEDULE
+                      else          com.eevdf.capabilities.taskstorage.InterruptReturnEntry.TAB_QUEUE
         return "$tabName|$slot"
     }
 
     private fun tabName(tab: Int): String =
-        if (tab == 1) com.eevdf.data.task.InterruptReturnEntry.TAB_SCHEDULE
-        else          com.eevdf.data.task.InterruptReturnEntry.TAB_QUEUE
+        if (tab == 1) com.eevdf.capabilities.taskstorage.InterruptReturnEntry.TAB_SCHEDULE
+        else          com.eevdf.capabilities.taskstorage.InterruptReturnEntry.TAB_QUEUE
 
     /**
      * Records [task] as the return-to for the current tab + [slot], in memory and

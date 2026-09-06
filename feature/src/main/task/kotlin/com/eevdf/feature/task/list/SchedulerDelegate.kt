@@ -1,10 +1,10 @@
 package com.eevdf.feature.task.list
 
 import androidx.lifecycle.viewModelScope
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskDisplayItem
-import com.eevdf.data.scheduler.EEVDFScheduler
-import com.eevdf.data.scheduler.RtScheduler
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskDisplayItem
+import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskscheduling.RtScheduler
 import kotlinx.coroutines.launch
 
 /**
@@ -158,7 +158,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      *
      * Returns null only when no leaf task exists anywhere in the ancestor
      * chain up to and including the root — the caller falls back to the
-     * global [com.eevdf.data.task.TaskRepository.selectNextTask] in that case.
+     * global [com.eevdf.capabilities.taskstorage.TaskRepository.selectNextTask] in that case.
      */
     fun selectAutoNextTask(task: Task, allTasks: List<Task>): Task? {
         val orderedLeaves = vm.listBuilder.flatScheduleOrder.value

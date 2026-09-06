@@ -8,7 +8,7 @@ import dagger.hilt.components.SingletonComponent
  * Scheduler service bindings.
  *
  * The scheduling *algorithms* live in the pure JVM core module
- * (`com.eevdf.core.scheduler.*`: `EevdfScheduler`, `CpuShares`, `TimerEngine`,
+ * (`com.eevdf.capabilities.taskscheduling.*`: `EevdfScheduler`, `CpuShares`, `TimerEngine`,
  * `RtPolicy`) and must stay free of Android/Hilt — that purity is the project's
  * architectural guard rail. They are stateless Kotlin `object`s, so they are not
  * themselves injected.
@@ -17,9 +17,9 @@ import dagger.hilt.components.SingletonComponent
  * that delegate 1:1 to those objects, turning global singletons into
  * constructor-injectable dependencies without altering any math:
  *
- *   • [com.eevdf.data.scheduler.EevdfSchedulerService]  → EEVDF facade
- *   • [com.eevdf.data.scheduler.RtSchedulerService]     → SCHED_FIFO/RT windows
- *   • [com.eevdf.data.scheduler.LoadAverageService]     → EWMA load average
+ *   • [com.eevdf.capabilities.taskscheduling.EevdfSchedulerService]  → EEVDF facade
+ *   • [com.eevdf.capabilities.taskscheduling.RtSchedulerService]     → SCHED_FIFO/RT windows
+ *   • [com.eevdf.capabilities.taskscheduling.LoadAverageService]     → EWMA load average
  *
  * All three declare `@Inject` constructors, so Hilt binds them with no manual
  * `@Provides`. Consumers (the ViewModel scheduler/interrupt delegates, services)

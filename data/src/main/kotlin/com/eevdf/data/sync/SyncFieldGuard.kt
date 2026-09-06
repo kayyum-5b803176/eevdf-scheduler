@@ -2,8 +2,8 @@ package com.eevdf.data.sync
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import com.eevdf.data.task.TaskDatabase
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.TaskDatabase
+import com.eevdf.capabilities.taskstorage.Task
 
 /**
  * Compares a remote DB snapshot against the local task table and returns any

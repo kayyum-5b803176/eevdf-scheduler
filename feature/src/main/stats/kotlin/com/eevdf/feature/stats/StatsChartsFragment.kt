@@ -9,13 +9,13 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.feature.R
-import com.eevdf.data.runlog.RunLogDao
-import com.eevdf.data.task.TaskDao
+import com.eevdf.capabilities.runhistory.RunLogDao
+import com.eevdf.capabilities.taskstorage.TaskDao
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import com.eevdf.data.runlog.RunDailySummary
-import com.eevdf.data.runlog.RunLogEntry
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.runhistory.RunDailySummary
+import com.eevdf.capabilities.runhistory.RunLogEntry
+import com.eevdf.capabilities.taskstorage.Task
 import com.github.mikephil.charting.charts.*
 import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.XAxis
@@ -30,8 +30,8 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
-import com.eevdf.data.scheduler.LoadAverage
-import com.eevdf.data.scheduler.LoadEwmaReconstructor
+import com.eevdf.capabilities.taskscheduling.LoadAverage
+import com.eevdf.capabilities.taskscheduling.LoadEwmaReconstructor
 import com.github.mikephil.charting.components.LimitLine
 
 @AndroidEntryPoint

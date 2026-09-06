@@ -9,7 +9,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import com.eevdf.feature.task.notice.NoticePhase
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 
 /**
  * Notice-segment progress bar rendering for [TaskAdapter].

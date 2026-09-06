@@ -1,6 +1,6 @@
 package com.eevdf.data.sync
 
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.reflect.full.primaryConstructor

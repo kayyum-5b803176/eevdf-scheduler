@@ -4,17 +4,17 @@ import android.app.Application
 import android.content.SharedPreferences
 import android.os.CountDownTimer
 import androidx.lifecycle.*
-import com.eevdf.data.task.TaskDatabase
-import com.eevdf.data.task.TaskRepository
-import com.eevdf.data.task.Task
-import com.eevdf.data.task.TaskLoadFactor
+import com.eevdf.capabilities.taskstorage.TaskDatabase
+import com.eevdf.capabilities.taskstorage.TaskRepository
+import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.feature.shared.AppPreferences
 import com.eevdf.feature.task.notice.NoticePhase
-import com.eevdf.data.runlog.RunSession
+import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.feature.task.timer.TimerCardAction
 import com.eevdf.feature.task.timer.NextButtonState
-import com.eevdf.data.task.TaskDisplayItem
-import com.eevdf.data.scheduler.SchedulerStats
+import com.eevdf.capabilities.taskstorage.TaskDisplayItem
+import com.eevdf.capabilities.taskscheduling.SchedulerStats
 import com.eevdf.feature.task.timer.TimerEngine
 import kotlinx.coroutines.launch
 import com.eevdf.data.sync.MultiUserSyncManager
@@ -136,10 +136,10 @@ class TaskViewModel @Inject constructor(
     // ── Links (symlinks/hardlinks) ────────────────────────────────────────────
 
     /** Every symlink in the app. Spliced into the tree by [ListBuilderDelegate]. */
-    val allTaskLinks: LiveData<List<com.eevdf.data.task.TaskLink>> = repository.allTaskLinks
+    val allTaskLinks: LiveData<List<com.eevdf.capabilities.taskstorage.TaskLink>> = repository.allTaskLinks
 
     /** Every hardlink placement in the app. Spliced into the tree by [ListBuilderDelegate]. */
-    val allTaskMemberships: LiveData<List<com.eevdf.data.task.TaskMembership>> = repository.allTaskMemberships
+    val allTaskMemberships: LiveData<List<com.eevdf.capabilities.taskstorage.TaskMembership>> = repository.allTaskMemberships
 
     /**
      * Non-null while the currently selected/running task ([_currentTask]) was

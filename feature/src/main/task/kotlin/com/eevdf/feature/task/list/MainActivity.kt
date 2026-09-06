@@ -25,11 +25,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.feature.R
 import com.eevdf.feature.task.adapter.TaskAdapter
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.capabilities.feedbackcues.output.VibrationManager
+import com.eevdf.platform.media.VibrationManager
 import dagger.hilt.android.AndroidEntryPoint
 import com.eevdf.contract.control.AlarmActions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder

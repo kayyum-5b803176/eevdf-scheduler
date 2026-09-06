@@ -15,8 +15,8 @@ import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.feature.R
 import com.eevdf.data.backup.BackupManager
-import com.eevdf.data.task.TaskDatabase
-import com.eevdf.data.task.TaskDao
+import com.eevdf.capabilities.taskstorage.TaskDatabase
+import com.eevdf.capabilities.taskstorage.TaskDao
 import com.eevdf.feature.task.list.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.Dispatchers

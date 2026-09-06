@@ -5,22 +5,7 @@ plugins {
 }
 android {
     namespace = "com.eevdf.data"
-    defaultConfig {
-        minSdk = 26
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-    ksp { arg("room.schemaLocation", "$projectDir/schemas") }
-
-    // Room writes the exported schema JSON into data/schemas/ at compile time.
-    // MigrationTestHelper reads it from androidTest assets, so the folder is
-    // registered as an asset dir rather than the JSON being copied by hand.
-    sourceSets {
-        getByName("test") { java.srcDir("src/test/kotlin") }
-        getByName("androidTest") {
-            java.srcDir("src/androidTest/kotlin")
-            assets.srcDir("$projectDir/schemas")
-        }
-    }
+    defaultConfig { minSdk = 26 }
 
     testOptions {
         unitTests {
@@ -34,11 +19,15 @@ android {
 }
 dependencies {
     api(project(":core"))
+    // v6.2.0: task/runlog/scheduler moved to :capabilities:task-storage,
+    // :capabilities:run-history, :capabilities:task-scheduling — Room/ksp
+    // and the schema/assets wiring moved with them. BackupManager and the
+    // sync/* classes remaining here still touch task data, so :data now
+    // depends on task-storage instead of owning it.
+    implementation(project(":capabilities:task-storage"))
+
     api(libs.androidx.lifecycle.livedata.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.documentfile)
     implementation(libs.kotlinx.coroutines.android)
 
@@ -54,11 +43,4 @@ dependencies {
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(kotlin("reflect"))
-
-    // ── Instrumented tests (device/emulator) ─────────────────────────────────
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.room.testing)
-    androidTestImplementation(libs.androidx.test.core)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.androidx.test.ext.junit)
 }
