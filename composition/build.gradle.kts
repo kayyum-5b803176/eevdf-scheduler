@@ -26,7 +26,6 @@ dependencies {
     implementation(project(":capabilities:task-list-screen"))
     implementation(project(":capabilities:add-task-screen"))
     implementation(project(":capabilities:countdown-timer"))
-    implementation(project(":capabilities:notice-phase"))
     implementation(project(":capabilities:links-screen"))
     implementation(project(":capabilities:backup-restore"))
     implementation(project(":capabilities:alarm-ringer"))

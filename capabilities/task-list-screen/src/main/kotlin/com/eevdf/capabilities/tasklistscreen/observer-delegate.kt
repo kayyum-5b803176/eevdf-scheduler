@@ -64,8 +64,8 @@ internal class ObserverDelegate(private val activity: MainActivity) {
     private fun observeCallEvents() {
         // ── Auto Switch — Call Detection ──────────────────────────────────────
         activity.viewModel.bus.subscribe(Topics.PHONE_CALL_STATE_CHANGED, CAPABILITY_ID) { type ->
-            if (type == null) return@observe
-            val slot = AutoSwitchPrefs.getCallSlot(activity) ?: return@observe
+            if (type == null) return@subscribe
+            val slot = AutoSwitchPrefs.getCallSlot(activity) ?: return@subscribe
             when (type) {
                 CallState.STARTED -> {
                     // CallSwitchService has already written the DB switch and
@@ -107,7 +107,7 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         // Completed tab — flat (no group hierarchy for completed)
         activity.viewModel.completedTasks.observe(activity) { tasks ->
             activity.completedAdapter.submitList(tasks.map {
-                com.eevdf.data.task.TaskDisplayItem(it, 0)
+                com.eevdf.capabilities.taskstorage.TaskDisplayItem(it, 0)
             })
             activity.updateEmptyView()
         }

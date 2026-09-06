@@ -18,7 +18,18 @@ dependencies {
     implementation(project(":capabilities:countdown-timer"))
     implementation(project(":capabilities:reminder-notifier"))
     implementation(project(":capabilities:feedback-cues"))
-    implementation(project(":contract"))
+    // v6.10.8 (flagged, not a cycle): TaskViewModel calls MultiUserSyncManager
+    // and reads SyncState directly (triggerSyncExport, sync icon state).
+    // multi-device-sync has no dependency back on task-list-screen, so this
+    // is one-way and safe -- but it is the same class of broad, un-narrow
+    // coupling flagged for add-task-screen in v6.10.6. Properly resolving it
+    // means TaskViewModel publishing a sync-requested bus event instead of
+    // holding a direct reference -- out of scope for a build-fix release.
+    implementation(project(":capabilities:multi-device-sync"))
+    // v6.10.8 (flagged, narrow): reads AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE
+    // / EXTRA_TASK_NAME -- Intent-extra-key string constants only, for the
+    // hardware-key restart-after-expire path. No reverse dependency exists.
+    implementation(project(":capabilities:alarm-ringer"))
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.cardview)
     implementation(libs.androidx.core.ktx)

@@ -1,9 +1,7 @@
 package com.eevdf.capabilities.tasklistscreen
 
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -12,7 +10,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
-import com.eevdf.capabilities.addtaskscreen.AddTaskActivity
+import com.eevdf.capabilities.alarmringer.AlarmActivity
+import com.eevdf.capabilities.navigationroutes.AppRoutes
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -32,9 +31,8 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.platform.media.VibrationManager
+import com.eevdf.capabilities.feedbackcues.output.VibrationManager
 import dagger.hilt.android.AndroidEntryPoint
-import com.eevdf.contract.control.AlarmActions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
@@ -161,12 +159,6 @@ class MainActivity : AppCompatActivity() {
     internal var allowEditMenuItem:    MenuItem? = null
     internal var autoScrollMenuItem:   MenuItem? = null
 
-    private val alarmStopReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            viewModel.stopAlarmSound()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -231,12 +223,6 @@ class MainActivity : AppCompatActivity() {
         timerCardDelegate.setupTimerCard()
         setupAlarmBanner()
 
-        androidx.core.content.ContextCompat.registerReceiver(
-            this, alarmStopReceiver,
-            IntentFilter(AlarmActions.ACTION_STOP_ALARM),
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-
         viewModel.refreshSchedule()
 
         // Hardware-key "stop and start": AlarmActivity (shown over lock screen)
@@ -252,15 +238,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun maybeHandleRestartAfterExpire(intent: Intent?) {
         if (intent?.getBooleanExtra(
-                com.eevdf.feature.alarm.AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE, false
+                AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE, false
             ) == true
         ) {
             val taskName = intent.getStringExtra(
-                com.eevdf.feature.alarm.AlarmActivity.EXTRA_TASK_NAME
+                AlarmActivity.EXTRA_TASK_NAME
             )
             // Clear the flag so a config change / re-create won't replay it.
             intent.removeExtra(
-                com.eevdf.feature.alarm.AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE
+                AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE
             )
             // Small delay lets the VM finish any startup alarm-state reconciliation
             // before we ask it to restart; the VM falls back to a DB lookup by name
@@ -280,6 +266,15 @@ class MainActivity : AppCompatActivity() {
         // by capability id instead of by remembering to null a field.
         viewModel.bus.subscribe(Topics.BUBBLE_TAPPED, CAPABILITY_ID) {
             viewModel.handleBubbleTap()
+        }
+        // Replaces the old alarmStopReceiver (a raw BroadcastReceiver for the
+        // local ACTION_STOP_ALARM intent) -- alarm-ringer publishes
+        // Topics.ALARM_STOPPED on the bus instead (see AlarmStopReceiver's
+        // KDoc). Torn down by the same unsubscribeAll(CAPABILITY_ID) call in
+        // onStop() below, alongside BUBBLE_TAPPED -- no separate lifecycle
+        // to manage.
+        viewModel.bus.subscribe(Topics.ALARM_STOPPED, CAPABILITY_ID) {
+            viewModel.stopAlarmSound()
         }
         // Publish the timer snapshot immediately so the bubble dot
         // colour is correct if the service is already running (e.g. screen rotation
@@ -313,11 +308,6 @@ class MainActivity : AppCompatActivity() {
         // Drop this capability's subscriptions — Activity is no longer visible.
         // call-autoswitch falls back to its direct DB path (see its manifest).
         viewModel.bus.unsubscribeAll(CAPABILITY_ID)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        unregisterReceiver(alarmStopReceiver)
     }
 
     /**
@@ -470,7 +460,7 @@ class MainActivity : AppCompatActivity() {
 
         fabAdd.setOnClickListener {
             haptic(it)
-            startActivity(Intent(this, AddTaskActivity::class.java))
+            startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK))
         }
 
         // Hold Add Task -> Links (symlink/hardlink creation). Tap still opens
@@ -729,7 +719,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTaskDetail(task: Task) {
-        startActivity(Intent(this, AddTaskActivity::class.java).apply {
+        startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK).apply {
             putExtra("task_id", task.id)
         })
     }

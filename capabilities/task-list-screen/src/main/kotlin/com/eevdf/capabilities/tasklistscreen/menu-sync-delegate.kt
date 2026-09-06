@@ -8,7 +8,7 @@ import android.view.View
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.navigationroutes.AppRoutes
-import com.eevdf.data.sync.SyncState
+import com.eevdf.capabilities.multidevicesync.logic.SyncState
 import com.eevdf.capabilities.tasklistscreen.R
 import com.eevdf.capabilities.countdowntimer.TimerCardAction
 import android.widget.Toast

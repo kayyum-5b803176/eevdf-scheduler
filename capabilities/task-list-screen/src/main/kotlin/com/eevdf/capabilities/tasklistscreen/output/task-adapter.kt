@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.tasklistscreen.R
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
-import com.eevdf.capabilities.taskscheduling.RtScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 
 /**
  * RecyclerView adapter for the task list.

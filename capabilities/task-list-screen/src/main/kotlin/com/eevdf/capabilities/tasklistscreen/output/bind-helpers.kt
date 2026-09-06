@@ -81,16 +81,16 @@ internal fun applyPillColor(tv: TextView, context: android.content.Context, @and
 
 /**
  * Adjusts the gap between the task-progress bar and the quota bar based on
- * the live [com.eevdf.feature.ui.LayoutTokenPrefs] margin scale and whether
+ * the live [com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs] margin scale and whether
  * both bars are currently visible.
  *
  * Found and fixed while wiring the main task list onto the real design-token
  * system: this function read `TaskAdapter.cardHeightScale`, a property
  * removed in that same change — a fourth independent scale-to-dp table that
- * existed alongside the three [com.eevdf.feature.ui.DesignTokens]'s own class
+ * existed alongside the three [com.eevdf.capabilities.designsystem.output.DesignTokens]'s own class
  * doc already describes consolidating, undiscovered until this specific
- * function stopped compiling. [com.eevdf.feature.ui.DesignTokens.rowGapDp]
- * (tighter, both bars visible) and [com.eevdf.feature.ui.DesignTokens.buttonRowGapDp]
+ * function stopped compiling. [com.eevdf.capabilities.designsystem.output.DesignTokens.rowGapDp]
+ * (tighter, both bars visible) and [com.eevdf.capabilities.designsystem.output.DesignTokens.buttonRowGapDp]
  * (looser, single bar) are the closest existing token concepts — reused
  * rather than adding a fifth table, per this file's own "numbers may shift
  * to fit the shared scale" precedent.
@@ -98,7 +98,7 @@ internal fun applyPillColor(tv: TextView, context: android.content.Context, @and
 internal fun TaskAdapter.setQuotaBarTopMargin(holder: TaskViewHolder, bothBarsVisible: Boolean) {
     val lp    = holder.progressQuota.layoutParams as? LinearLayout.LayoutParams ?: return
     val density = holder.progressQuota.context.resources.displayMetrics.density
-    val tokens = com.eevdf.feature.ui.LayoutTokenPrefs.current(holder.progressQuota.context)
+    val tokens = com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs.current(holder.progressQuota.context)
     val gapDp = if (bothBarsVisible) tokens.rowGapDp else tokens.buttonRowGapDp
     lp.topMargin = (gapDp * density + 0.5f).toInt()
     holder.progressQuota.layoutParams = lp

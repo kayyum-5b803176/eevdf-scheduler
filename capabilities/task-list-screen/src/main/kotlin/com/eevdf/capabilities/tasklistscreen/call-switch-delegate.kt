@@ -1,9 +1,10 @@
 package com.eevdf.capabilities.tasklistscreen
 
+import androidx.lifecycle.viewModelScope
 import com.eevdf.kernel.eventbus.Topics
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.timerState
-import com.eevdf.feature.shared.signals.CallEvents
+import kotlinx.coroutines.launch
 
 /**
  * Handles the Auto Switch feature: automatically switches to a designated task
@@ -17,7 +18,7 @@ import com.eevdf.feature.shared.signals.CallEvents
  *     BroadcastReceiver, writes DB directly, credits vruntime + RunLog, manages
  *     notifications and bubble.  Works even when the Activity is dead.
  *
- *   Path B — Foreground (UI sync): This delegate fires when [CallEvents] LiveData
+ *   Path B — Foreground (UI sync): This delegate fires when the `phone.call-state-changed` bus topic
  *     is observed by MainActivity.  Its job is to synchronize ViewModel in-memory
  *     state (savedTaskBeforeCall, wasTimerRunning, LiveData) with what Path A
  *     already wrote to DB.  It must NOT double-write DB timer state or double-credit
@@ -52,7 +53,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
     private var wasTimerRunningBeforeCall: Boolean = false
 
     /**
-     * Called when [com.eevdf.feature.shared.signals.CallEvents] posts CALL_STARTED.
+     * Called when the `phone.call-state-changed` bus topic delivers STARTED.
      *
      * If [CallSwitchService] already ran (detected by the call task being Running in DB),
      * we skip pauseTimer()/startTimer() to avoid double-crediting vruntime and
@@ -128,7 +129,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Called when [com.eevdf.feature.shared.signals.CallEvents] posts CALL_ENDED.
+     * Called when the `phone.call-state-changed` bus topic delivers ENDED.
      *
      * Same dual-path logic: if [CallSwitchService] already wrote the DB (restored
      * task is Running), skip timer DB writes and only update LiveData.

@@ -10,7 +10,7 @@ import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.capabilities.taskstorage.TaskMembership
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
-import com.eevdf.capabilities.taskscheduling.MEMBERSHIP_SYNTHETIC_PREFIX
+import com.eevdf.capabilities.taskstorage.scheduling.MEMBERSHIP_SYNTHETIC_PREFIX
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 
 /**

@@ -529,7 +529,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
      *   = 10 + 5 + (10 + 5) × (1 − 0) = 30 s
      *   Alarm fires 30 s from now, after: execute(10) → wait(5) → execute(10) → wait(5).
      *
-     * On pause: the caller cancels the alarm via [com.eevdf.contract.control.AlarmController.timerPause].
+     * On pause: the caller cancels the alarm via the `alarm.timer-pause-requested` bus topic.
      * On resume: [startExecutePhase] is called with the actual remaining execute seconds
      * so the formula always produces a precise, up-to-date trigger time.
      *
