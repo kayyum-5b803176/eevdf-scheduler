@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.list
 
 import android.app.Application
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 
 /**
  * Handles a tap on the hover bubble during a phone call — pause/resume the

@@ -1,4 +1,4 @@
-package com.eevdf.feature.shared
+package com.eevdf.capabilities.settingsstorage.state
 
 import javax.inject.Qualifier
 

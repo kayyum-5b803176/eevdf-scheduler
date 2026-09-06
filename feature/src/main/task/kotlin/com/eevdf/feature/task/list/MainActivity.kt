@@ -13,10 +13,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.feature.task.addtask.AddTaskActivity
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 import com.eevdf.feature.shared.signals.BubbleEventBus
-import com.eevdf.feature.shared.prefs.DisplayPrefs
-import com.eevdf.feature.shared.prefs.HardwareKeyPrefs
+import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
+import com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs
 import android.view.KeyEvent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar

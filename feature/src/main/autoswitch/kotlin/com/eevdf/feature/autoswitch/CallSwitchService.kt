@@ -23,7 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.feature.shared.signals.CallEvents
 import com.eevdf.contract.control.AlarmController

@@ -23,7 +23,7 @@ import com.eevdf.capabilities.remindernotifier.AlarmNotificationPolicy
 import com.eevdf.capabilities.remindernotifier.AlarmReliabilityChecker
 import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
 import com.eevdf.capabilities.remindernotifier.ForegroundAppDetector
-import com.eevdf.feature.shared.prefs.NotificationPrefs
+import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
 import com.eevdf.contract.nav.AppRoutes
 
 /**

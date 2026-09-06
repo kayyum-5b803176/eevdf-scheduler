@@ -2,8 +2,8 @@ package com.eevdf.feature.task.list
 
 import android.view.View
 import android.widget.LinearLayout
-import com.eevdf.feature.shared.prefs.DisplayPrefs
-import com.eevdf.feature.shared.prefs.QuickActionPrefs
+import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
+import com.eevdf.capabilities.settingsstorage.state.QuickActionPrefs
 import com.eevdf.capabilities.designsystem.output.DesignTokens
 import com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs
 

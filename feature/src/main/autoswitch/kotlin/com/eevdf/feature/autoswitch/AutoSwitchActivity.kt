@@ -27,7 +27,7 @@ import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import dagger.hilt.android.AndroidEntryPoint
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 import javax.inject.Inject
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 

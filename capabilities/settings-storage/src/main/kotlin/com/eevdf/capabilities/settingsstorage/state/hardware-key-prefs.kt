@@ -1,4 +1,4 @@
-package com.eevdf.feature.shared.prefs
+package com.eevdf.capabilities.settingsstorage.state
 
 import android.content.Context
 import android.content.SharedPreferences

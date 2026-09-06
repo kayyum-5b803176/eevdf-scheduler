@@ -13,7 +13,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
-import com.eevdf.feature.shared.AppPreferences
+import com.eevdf.capabilities.settingsstorage.state.AppPreferences
 import com.eevdf.capabilities.remindernotifier.NotificationHelper
 
 /**

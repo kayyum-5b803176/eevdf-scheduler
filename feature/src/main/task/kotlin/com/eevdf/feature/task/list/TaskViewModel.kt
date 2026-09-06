@@ -8,7 +8,7 @@ import com.eevdf.capabilities.taskstorage.TaskDatabase
 import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
-import com.eevdf.feature.shared.AppPreferences
+import com.eevdf.capabilities.settingsstorage.state.AppPreferences
 import com.eevdf.feature.task.notice.NoticePhase
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.feature.task.timer.TimerCardAction

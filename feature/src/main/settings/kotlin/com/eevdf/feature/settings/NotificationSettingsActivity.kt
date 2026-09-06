@@ -9,7 +9,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.feature.R
-import com.eevdf.feature.shared.prefs.NotificationPrefs
+import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
 import com.eevdf.capabilities.remindernotifier.AlarmReliabilityChecker
 import com.google.android.material.switchmaterial.SwitchMaterial
 

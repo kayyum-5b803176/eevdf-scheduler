@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "6.3.0"
+        versionName = "6.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -101,6 +101,7 @@ dependencies {
     implementation(project(":capabilities:task-storage"))
     implementation(project(":capabilities:run-history"))
     implementation(project(":capabilities:reminder-notifier"))
+    implementation(project(":capabilities:settings-storage"))
     implementation(project(":feature"))
     implementation(project(":platform"))
     implementation(project(":shared"))

@@ -16,7 +16,7 @@ import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButton
 import com.eevdf.capabilities.remindernotifier.NotificationHelper
-import com.eevdf.feature.shared.prefs.HardwareKeyPrefs
+import com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs
 import com.eevdf.contract.nav.AppRoutes
 
 /**
@@ -92,10 +92,10 @@ class AlarmActivity : AppCompatActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != Intent.ACTION_SCREEN_OFF) return
             // Only react if the user actually assigned the Power key to an action.
-            val action = com.eevdf.feature.shared.prefs.HardwareKeyPrefs
-                .actionForKey(context, com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_POWER)
-            if (action == com.eevdf.feature.shared.prefs.HardwareKeyPrefs.ACTION_NONE) return
-            handleExpireKey(com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_POWER)
+            val action = com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs
+                .actionForKey(context, com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_POWER)
+            if (action == com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.ACTION_NONE) return
+            handleExpireKey(com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_POWER)
         }
     }
 
@@ -207,11 +207,11 @@ class AlarmActivity : AppCompatActivity() {
         if (event.action == android.view.KeyEvent.ACTION_DOWN) {
             val keyId = when (event.keyCode) {
                 android.view.KeyEvent.KEYCODE_VOLUME_UP   ->
-                    com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_VOLUME_UP
+                    com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_VOLUME_UP
                 android.view.KeyEvent.KEYCODE_VOLUME_DOWN ->
-                    com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_VOLUME_DOWN
+                    com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_VOLUME_DOWN
                 android.view.KeyEvent.KEYCODE_POWER       ->
-                    com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_POWER
+                    com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_POWER
                 else                                      -> null
             }
             if (keyId != null && handleExpireKey(keyId)) return true
@@ -224,8 +224,8 @@ class AlarmActivity : AppCompatActivity() {
      * Shared by dispatchKeyEvent and onKeyDown.
      */
     private fun handleExpireKey(keyId: String): Boolean {
-        return when (com.eevdf.feature.shared.prefs.HardwareKeyPrefs.actionForKey(this, keyId)) {
-            com.eevdf.feature.shared.prefs.HardwareKeyPrefs.ACTION_STOP -> {
+        return when (com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.actionForKey(this, keyId)) {
+            com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.ACTION_STOP -> {
                 sendBroadcast(
                     Intent(this, AlarmStopReceiver::class.java).apply {
                         action = AlarmStopReceiver.ACTION_TIMER_EXPIRED
@@ -234,7 +234,7 @@ class AlarmActivity : AppCompatActivity() {
                 finish()
                 true
             }
-            com.eevdf.feature.shared.prefs.HardwareKeyPrefs.ACTION_RESTART -> {
+            com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.ACTION_RESTART -> {
                 // Do NOT fire the stop receiver here — that would broadcast
                 // ACTION_STOP_ALARM and cause MainActivity's VM to null the
                 // in-memory restore-task before restartAfterExpire() runs, so
@@ -258,11 +258,11 @@ class AlarmActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
         val keyId = when (keyCode) {
             android.view.KeyEvent.KEYCODE_VOLUME_UP   ->
-                com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_VOLUME_UP
+                com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_VOLUME_UP
             android.view.KeyEvent.KEYCODE_VOLUME_DOWN ->
-                com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_VOLUME_DOWN
+                com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_VOLUME_DOWN
             android.view.KeyEvent.KEYCODE_POWER       ->
-                com.eevdf.feature.shared.prefs.HardwareKeyPrefs.KEY_POWER
+                com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs.KEY_POWER
             else                                      -> null
         }
         if (keyId != null && handleExpireKey(keyId)) return true

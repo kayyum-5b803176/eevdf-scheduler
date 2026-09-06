@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 import com.eevdf.feature.shared.signals.CallEvents
 
 /**

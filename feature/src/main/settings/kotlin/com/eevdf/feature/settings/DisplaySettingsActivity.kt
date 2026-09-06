@@ -15,7 +15,7 @@ import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.feature.shared.prefs.DisplayPrefs
+import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 
 class DisplaySettingsActivity : AppCompatActivity() {
 

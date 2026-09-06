@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
+import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 import com.eevdf.capabilities.taskscheduling.LoadAverage
 import com.eevdf.capabilities.taskscheduling.LoadEwmaReconstructor
 import com.github.mikephil.charting.components.LimitLine

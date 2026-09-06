@@ -1,4 +1,4 @@
-package com.eevdf.feature.shared.prefs
+package com.eevdf.capabilities.settingsstorage.state
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -18,7 +18,7 @@ import android.content.SharedPreferences
  *     being locked means no app is meaningfully "in front" anyway.
  *
  * Both are irrelevant while the EEVDF app itself is foreground: that case is
- * governed unconditionally by [com.eevdf.platform.notification.AppForegroundTracker]
+ * governed unconditionally by [com.eevdf.capabilities.remindernotifier.AppForegroundTracker]
  * and always suppresses both styles, regardless of these prefs.
  */
 object NotificationPrefs {

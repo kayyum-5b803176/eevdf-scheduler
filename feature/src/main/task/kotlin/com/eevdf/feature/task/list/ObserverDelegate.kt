@@ -5,8 +5,8 @@ import android.view.View
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
-import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
-import com.eevdf.feature.shared.prefs.DisplayPrefs
+import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
+import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.feature.shared.signals.CallEvents
 import com.eevdf.feature.task.notice.NoticePhase

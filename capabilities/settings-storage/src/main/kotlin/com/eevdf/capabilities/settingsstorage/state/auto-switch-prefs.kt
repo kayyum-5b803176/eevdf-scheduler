@@ -1,8 +1,7 @@
-package com.eevdf.feature.shared.prefs
+package com.eevdf.capabilities.settingsstorage.state
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.eevdf.feature.shared.signals.CallEvents
 
 /**
  * Thin helpers around the "auto_switch" SharedPreferences file.
@@ -89,7 +88,7 @@ object AutoSwitchPrefs {
      *
      * true  → [CallSwitchService] handles call events in the background;
      *          [BubbleOverlayService] can show the hover bubble (if also enabled).
-     * false → Original behaviour: switch only fires via [CallEvents] LiveData,
+     * false → Original behaviour: switch only fires via the `phone.call-state-changed` bus topic,
      *          which requires MainActivity to be alive and observing.
      *          No background service, no hover bubble.
      */
