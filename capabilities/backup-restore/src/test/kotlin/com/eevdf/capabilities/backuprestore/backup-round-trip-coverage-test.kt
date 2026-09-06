@@ -1,6 +1,6 @@
 package com.eevdf.capabilities.backuprestore
 
-import com.eevdf.data.task.Task
+import com.eevdf.capabilities.taskstorage.Task
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

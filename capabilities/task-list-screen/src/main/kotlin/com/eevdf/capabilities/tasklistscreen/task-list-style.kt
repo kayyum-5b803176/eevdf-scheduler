@@ -21,7 +21,7 @@ enum class ArrivedVia { REAL, SYMLINK, HARDLINK }
  * [doorMembershipId] is the "door" every REAL descendant rendered under this
  * frame (and every frame pushed below it, until a nested door overrides it)
  * should be credited through when run — see
- * [com.eevdf.data.task.TaskDisplayItem.entryMembershipId] and
+ * TaskDisplayItem.entryMembershipId and
  * [TaskRepository.updateVruntimeAfterRun]'s door parameter for why this must
  * be threaded all the way down to whichever leaf actually runs, not just
  * applied to this frame's own top row. Set when [arrivedVia] is HARDLINK

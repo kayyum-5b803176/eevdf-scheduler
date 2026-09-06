@@ -87,7 +87,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
     /**
      * Builds a Running state, persists it to DB, then hands off to the timer engine.
      * Single entry point for starting an execute countdown — called by the ViewModel
-     * directly and by [com.eevdf.capabilities.noticephase.NoticeStateMachine.startExecutePhase].
+     * directly and by NoticeStateMachine.startExecutePhase (same package now).
      *
      * @param remaining  Execute-slice seconds remaining — drives the engine countdown and
      *                   the notification chronometer.

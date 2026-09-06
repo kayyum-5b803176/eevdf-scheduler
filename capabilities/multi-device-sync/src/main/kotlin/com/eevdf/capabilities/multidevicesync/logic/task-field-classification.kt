@@ -1,7 +1,7 @@
 package com.eevdf.capabilities.multidevicesync.logic
 
 /**
- * Single source of truth for how each persisted [com.eevdf.data.task.Task]
+ * Single source of truth for how each persisted [com.eevdf.capabilities.taskstorage.Task]
  * field behaves during a multi-user sync.
  *
  * WHY THIS EXISTS

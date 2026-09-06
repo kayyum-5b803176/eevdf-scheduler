@@ -38,7 +38,7 @@ import android.os.Bundle
  */
 object AppForegroundTracker {
 
-    private const val ALARM_ACTIVITY_CLASS_NAME = "com.eevdf.feature.alarm.AlarmActivity"
+    private const val ALARM_ACTIVITY_CLASS_NAME = "com.eevdf.capabilities.alarmringer.AlarmActivity"
 
     @Volatile
     private var startedActivityCount = 0

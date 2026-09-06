@@ -24,7 +24,7 @@ import com.google.android.material.tabs.TabLayout
  *
  * Three tabs: "template" (default) — demo instances of every catalog
  * template, built through the closed template construction API in
- * com.eevdf.feature.ui, the same classes any real settings screen uses to
+ * com.eevdf.capabilities.designsystem, the same classes any real settings screen uses to
  * build its rows; "scale" — the four live token-scale sliders, moved to
  * their own tab so template previews and scale controls don't share one
  * scrolling section; and "model", a single global box-model diagram read
