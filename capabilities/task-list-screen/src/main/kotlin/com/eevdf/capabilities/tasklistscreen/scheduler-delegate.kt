@@ -4,8 +4,8 @@ import com.eevdf.capabilities.taskstorage.logic.SortHelper
 import androidx.lifecycle.viewModelScope
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
-import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
-import com.eevdf.capabilities.taskscheduling.RtScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 import kotlinx.coroutines.launch
 
 /**

@@ -5,7 +5,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.TextView
 import com.eevdf.capabilities.taskstorage.Task
-import com.eevdf.capabilities.taskscheduling.RtScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Date

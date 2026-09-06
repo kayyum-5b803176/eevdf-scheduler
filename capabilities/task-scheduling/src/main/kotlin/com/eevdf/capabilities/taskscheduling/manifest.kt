@@ -4,6 +4,34 @@ import com.eevdf.kernel.eventbus.CapabilityManifest
 import com.eevdf.kernel.eventbus.Topic
 import com.eevdf.kernel.eventbus.Topics
 
+/**
+ * CORRECTED IN v6.10.2 — the Phase 2 split created a dependency CYCLE.
+ *
+ * The redesign spec §4 said to keep the Task <-> SchedTask bridge and put it
+ * in task-scheduling. Taken literally that is impossible: the bridge must
+ * know Task (owned by task-storage), while task-storage must know SchedTask
+ * and the schedulers (owned here). Gradle rejected the resulting cycle, and
+ * it would not have been fixable by any build-file tweak — it was a real
+ * layering mistake, not a wiring one.
+ *
+ * The fix restores the layering the original :core / :data split already had:
+ *
+ *   task-scheduling  = PURE domain. SchedTask, SchedConfig, EevdfScheduler,
+ *                      CpuShares, RtPolicy, rank-tasks. Knows nothing about
+ *                      Task, RunLog, Room or Android. Depends on no capability.
+ *                      (This is what lived in :core/scheduler.)
+ *
+ *   task-storage     = owns Task, and therefore owns every Task-aware adapter:
+ *                      task-schedule-bridge, scheduler-facade, load-average,
+ *                      load-ewma-reconstructor, run-eevdf-scheduler,
+ *                      run-rt-scheduler — all now in
+ *                      task-storage/scheduling/. (This is what lived in
+ *                      :data/scheduler.)
+ *
+ * So the sanctioned exception from the spec still exists and is still exactly
+ * one edge — but it points task-storage -> task-scheduling, one way, and the
+ * bridge file sits on the task-storage side where Task already lives.
+ */
 object TaskSchedulingManifest : CapabilityManifest {
     override val capabilityId = "task-scheduling"
     override val publishes = setOf(Topics.REALTIME_WINDOW_EXPIRED)
@@ -18,7 +46,7 @@ object TaskSchedulingManifest : CapabilityManifest {
 }
 
 /**
- * DEFERRED, not done this phase:
+ * DEFERRED, still not done:
  * - `eevdf-scheduler.kt`'s class is still named `EevdfScheduler` (rule 8
  *   flags this as the canonical *bad* example — should become something
  *   like `RankFairShareTasks`). Renaming the class (not just the file)

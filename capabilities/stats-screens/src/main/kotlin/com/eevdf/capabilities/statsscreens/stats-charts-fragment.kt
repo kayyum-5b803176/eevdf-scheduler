@@ -30,8 +30,8 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
-import com.eevdf.capabilities.taskscheduling.LoadAverage
-import com.eevdf.capabilities.taskscheduling.LoadEwmaReconstructor
+import com.eevdf.capabilities.taskstorage.scheduling.LoadAverage
+import com.eevdf.capabilities.taskstorage.scheduling.LoadEwmaReconstructor
 import com.github.mikephil.charting.components.LimitLine
 
 @AndroidEntryPoint

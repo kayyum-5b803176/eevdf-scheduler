@@ -2,7 +2,7 @@ package com.eevdf.capabilities.addtaskscreen
 
 import android.view.View
 import com.eevdf.capabilities.taskstorage.Task
-import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
 
 /**
  * Realtime share and pinned share section for [AddTaskActivity].

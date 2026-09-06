@@ -1,6 +1,7 @@
 plugins {
     id("com.eevdf.android-library-convention")
     alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 android {
     namespace = "com.eevdf.capabilities.runhistory"
@@ -13,4 +14,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.kotlinx.coroutines.android)
+    // v6.10.2: RunLogRepository has an @Inject constructor and is @Singleton.
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 }

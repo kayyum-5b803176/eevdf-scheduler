@@ -1,11 +1,12 @@
-package com.eevdf.capabilities.taskscheduling
+package com.eevdf.capabilities.taskstorage.scheduling
 
-import com.eevdf.capabilities.taskscheduling.CpuShares
+import com.eevdf.capabilities.taskscheduling.SchedTask
 import com.eevdf.capabilities.taskscheduling.EevdfScheduler
+import com.eevdf.capabilities.taskscheduling.CpuShares
+
 import com.eevdf.capabilities.taskscheduling.DlBudget
 import com.eevdf.capabilities.taskscheduling.QuotaBudget
 import com.eevdf.capabilities.taskscheduling.RtConfig
-import com.eevdf.capabilities.taskscheduling.SchedTask
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskMembership
 

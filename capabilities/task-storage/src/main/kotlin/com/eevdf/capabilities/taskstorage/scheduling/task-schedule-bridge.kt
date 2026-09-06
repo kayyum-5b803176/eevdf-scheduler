@@ -1,8 +1,10 @@
-package com.eevdf.capabilities.taskscheduling
+package com.eevdf.capabilities.taskstorage.scheduling
+
+import com.eevdf.capabilities.taskscheduling.SchedTask
+import com.eevdf.capabilities.taskscheduling.RtPolicy
 
 import android.content.SharedPreferences
 import com.eevdf.capabilities.taskscheduling.RtConfig
-import com.eevdf.capabilities.taskscheduling.RtPolicy
 import com.eevdf.capabilities.taskstorage.Task
 import java.util.Calendar
 

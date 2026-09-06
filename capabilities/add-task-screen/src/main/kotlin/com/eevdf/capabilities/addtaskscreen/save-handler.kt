@@ -4,8 +4,8 @@ import android.view.View
 import android.widget.Toast
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
-import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
-import com.eevdf.capabilities.taskscheduling.RtScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 import java.util.UUID
 
 /**

@@ -5,8 +5,8 @@ import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import androidx.lifecycle.LiveData
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.Task
-import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
-import com.eevdf.capabilities.taskscheduling.RtScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -663,7 +663,7 @@ class TaskRepository @Inject constructor(
 
     /**
      * Advances the task's load average to reflect a completed run, mirroring the
-     * Linux load-average EWMA (see [com.eevdf.capabilities.taskscheduling.LoadAverage]).
+     * Linux load-average EWMA (see [com.eevdf.capabilities.taskstorage.scheduling.LoadAverage]).
      *
      * Two-step integration so the run window is captured exactly:
      *   1. decay toward 0 (idle) over the gap from the last update → session start,
@@ -697,12 +697,12 @@ class TaskRepository @Inject constructor(
         val tE = loadFactorEntry?.emotional?.let { TaskLoadFactor.dimensionPercent(it) } ?: approxPerDim
 
         // Step 1: idle decay up to the moment the run began (targets = 0)
-        val atStart = com.eevdf.capabilities.taskscheduling.LoadAverage.advanced(
+        val atStart = com.eevdf.capabilities.taskstorage.scheduling.LoadAverage.advanced(
             task, session.startEpochMs, isRunning = false,
             targetCognitive = 0.0, targetPhysical = 0.0, targetEmotional = 0.0,
         )
         // Step 2: running integration across the real run window
-        val atEnd = com.eevdf.capabilities.taskscheduling.LoadAverage.advanced(
+        val atEnd = com.eevdf.capabilities.taskstorage.scheduling.LoadAverage.advanced(
             atStart, session.endEpochMs, isRunning = true,
             targetCognitive = tC, targetPhysical = tP, targetEmotional = tE,
         )

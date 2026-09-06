@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.taskscheduling
+package com.eevdf.capabilities.taskstorage.scheduling
 
 import android.content.SharedPreferences
 import com.eevdf.capabilities.taskstorage.Task

@@ -4,7 +4,7 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.withTimerState
-import com.eevdf.capabilities.taskscheduling.EEVDFScheduler
+import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 
