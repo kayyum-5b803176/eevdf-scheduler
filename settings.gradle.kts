@@ -15,4 +15,5 @@ include(
     ":app", ":contract", ":core", ":data", ":feature", ":kernel", ":platform", ":shared",
     ":capabilities:feedback-cues", ":capabilities:design-system",
     ":capabilities:task-storage", ":capabilities:task-scheduling", ":capabilities:run-history",
+    ":capabilities:reminder-notifier",
 )

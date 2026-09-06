@@ -11,7 +11,7 @@ import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.feature.shared.signals.CallEvents
 import com.eevdf.feature.task.notice.NoticePhase
 import com.eevdf.feature.task.timer.TimerCardAction
-import com.eevdf.platform.notification.NotificationHelper
+import com.eevdf.capabilities.remindernotifier.NotificationHelper
 
 /**
  * Wires every LiveData observer.

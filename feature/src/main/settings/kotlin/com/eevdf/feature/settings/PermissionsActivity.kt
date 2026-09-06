@@ -15,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
-import com.eevdf.platform.notification.AlarmReliabilityChecker
+import com.eevdf.capabilities.remindernotifier.AlarmReliabilityChecker
 
 /**
  * Every permission/capability the app relies on, in one place, backed

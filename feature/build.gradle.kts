@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":capabilities:task-storage"))
     implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))
+    implementation(project(":capabilities:reminder-notifier"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

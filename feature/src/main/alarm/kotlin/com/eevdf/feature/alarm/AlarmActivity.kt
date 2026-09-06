@@ -15,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButton
-import com.eevdf.platform.notification.NotificationHelper
+import com.eevdf.capabilities.remindernotifier.NotificationHelper
 import com.eevdf.feature.shared.prefs.HardwareKeyPrefs
 import com.eevdf.contract.nav.AppRoutes
 

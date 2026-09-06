@@ -1,4 +1,4 @@
-package com.eevdf.platform.notification
+package com.eevdf.capabilities.remindernotifier
 
 import android.app.AlarmManager
 import android.app.NotificationManager

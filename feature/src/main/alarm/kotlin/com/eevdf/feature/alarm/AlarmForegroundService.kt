@@ -19,10 +19,10 @@ import androidx.core.app.ServiceCompat
 import com.eevdf.feature.R
 import com.eevdf.capabilities.feedbackcues.output.SoundManager
 import com.eevdf.capabilities.feedbackcues.output.VibrationManager
-import com.eevdf.platform.notification.AlarmNotificationPolicy
-import com.eevdf.platform.notification.AlarmReliabilityChecker
-import com.eevdf.platform.notification.AppForegroundTracker
-import com.eevdf.platform.notification.ForegroundAppDetector
+import com.eevdf.capabilities.remindernotifier.AlarmNotificationPolicy
+import com.eevdf.capabilities.remindernotifier.AlarmReliabilityChecker
+import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
+import com.eevdf.capabilities.remindernotifier.ForegroundAppDetector
 import com.eevdf.feature.shared.prefs.NotificationPrefs
 import com.eevdf.contract.nav.AppRoutes
 

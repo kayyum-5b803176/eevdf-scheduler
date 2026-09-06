@@ -14,7 +14,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import com.eevdf.feature.shared.AppPreferences
-import com.eevdf.platform.notification.NotificationHelper
+import com.eevdf.capabilities.remindernotifier.NotificationHelper
 
 /**
  * Provides Android framework services as injectable dependencies.

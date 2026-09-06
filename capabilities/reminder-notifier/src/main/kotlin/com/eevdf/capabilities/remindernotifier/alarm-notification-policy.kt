@@ -1,4 +1,4 @@
-package com.eevdf.platform.notification
+package com.eevdf.capabilities.remindernotifier
 
 /**
  * Pure decision: given the current situation, which notification style(s)
