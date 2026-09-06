@@ -30,6 +30,10 @@ import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.LatestValue
+import com.eevdf.kernel.eventbus.TimerRunningState
+import com.eevdf.kernel.eventbus.Topics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +42,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
-import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.contract.control.AlarmController
 
 /**
@@ -66,7 +69,7 @@ import com.eevdf.contract.control.AlarmController
  *                     (tap will switch to the call task)
  *
  * Tap behaviour:
- *   Fires [BubbleEventBus.onBubbleTap] which is wired in MainActivity to
+ *   Fires the `overlay.bubble-tapped` bus topic which is wired in MainActivity to
  *   [TaskViewModel.handleBubbleTap] — that method decides whether to
  *   pause-current-and-start-call-task or toggle-call-task-timer.
  *
@@ -74,13 +77,23 @@ import com.eevdf.contract.control.AlarmController
  *   A short confirmation buzz is produced on every tap so the user gets
  *   tactile acknowledgement even while looking at another app.
  *
- * Timer state / tap are communicated through [BubbleEventBus] — a volatile
+ * Timer state / tap are communicated through the kernel event bus — a volatile
  * in-process singleton — so no IPC or broadcast overhead is needed.
  */
 @AndroidEntryPoint
 class BubbleOverlayService : Service() {
 
     /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
+    @Inject lateinit var bus: EventBus
+
+    /**
+     * call-autoswitch's own copy of the timer-running snapshot, kept current
+     * by a bus subscription (see wiring in onCreate). Replaces the former
+     * global BubbleEventBus flags — reads here are synchronous and mid-draw,
+     * so this capability holds its own value rather than awaiting an event.
+     */
+    private val timerState = LatestValue(TimerRunningState())
+
     @Inject lateinit var repository: TaskRepository
     @Inject lateinit var alarms: AlarmController
 
@@ -111,6 +124,7 @@ class BubbleOverlayService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val job     = SupervisorJob()
     private val scope   = CoroutineScope(Dispatchers.IO + job)
+    private val CAPABILITY_ID = "call-autoswitch"
     private val pollRunnable = object : Runnable {
         override fun run() {
             if (callActive) recheckVisibility()
@@ -124,6 +138,7 @@ class BubbleOverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
+        timerState.trackedOn(bus, Topics.TIMER_RUNNING_CHANGED, CAPABILITY_ID)
         super.onCreate()
         isRunning     = true
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -269,7 +284,7 @@ class BubbleOverlayService : Service() {
     /**
      * Single dispatch point for all bubble taps.
      *
-     * [BubbleEventBus.onBubbleTap] is non-null only while MainActivity is in
+     * the `overlay.bubble-tapped` bus topic is non-null only while MainActivity is in
      * STARTED/RESUMED state (set in onStart, cleared in onStop).  When it is
      * non-null the Activity is on screen, its LiveData observers are active, and
      * the ViewModel's in-memory timer engine is authoritative — use that path.
@@ -278,10 +293,13 @@ class BubbleOverlayService : Service() {
      * timerCardAction won't fire, callTaskRunning won't update, and the ViewModel
      * state may be stale from before syncFromDb() last ran.  Fall through to
      * [handleTapInBackground] which reads and writes Room directly, credits
-     * vruntime + RunLog, and updates BubbleEventBus fields immediately.
+     * vruntime + RunLog, and updates the local timerState snapshot immediately.
      */
     private fun dispatchTap() {
-        val tap = BubbleEventBus.onBubbleTap
+        // Was: a nullable global callback MainActivity had to null out in
+        // onDestroy (its own KDoc carried a LEAK WARNING). Now an event.
+        scope.launch { bus.publish(Topics.BUBBLE_TAPPED, Unit) }
+        val tap: (() -> Unit)? = null
         if (tap != null) {
             tap.invoke()          // Activity visible — ViewModel path
         } else {
@@ -299,7 +317,7 @@ class BubbleOverlayService : Service() {
      *
      * vruntime and RunLog are credited on every pause — same pattern as
      * CallSwitchService — so stats are never lost regardless of Activity state.
-     * BubbleEventBus.callTaskRunning is updated synchronously before the handler
+     * the local timerState snapshot is updated synchronously before the handler
      * post so updateDotColor() sees the new value on the very next frame.
      */
     private fun handleTapInBackground() {
@@ -321,9 +339,11 @@ class BubbleOverlayService : Service() {
                 if (session.wallClockSeconds > 0 && startEpoch > 0L)
                     repo.updateVruntimeAfterRun(paused, session)
 
-                BubbleEventBus.callTaskRunning = false
-                BubbleEventBus.anyTimerRunning = false
-                BubbleEventBus.timerRunning    = false
+                scope.launch {
+                    timerState.setAndPublish(
+                        bus, Topics.TIMER_RUNNING_CHANGED, TimerRunningState(),
+                    )
+                }
                 alarms.timerPause()
 
             } else {
@@ -346,9 +366,12 @@ class BubbleOverlayService : Service() {
                 val runningCallTask = callTask.withTimerState(runState)
                 repo.update(runningCallTask)
 
-                BubbleEventBus.callTaskRunning = true
-                BubbleEventBus.anyTimerRunning = true
-                BubbleEventBus.timerRunning    = true
+                scope.launch {
+                    timerState.setAndPublish(
+                        bus, Topics.TIMER_RUNNING_CHANGED,
+                        TimerRunningState(true, true, true),
+                    )
+                }
                 alarms.timerStart(
                     callTask.name,
                     runningCallTask.remainingSeconds,
@@ -398,7 +421,7 @@ class BubbleOverlayService : Service() {
     // ── Dot colour ────────────────────────────────────────────────────────────
 
     /**
-     * Reads [BubbleEventBus.callTaskRunning] and tints the status dot:
+     * Reads the local timerState snapshot and tints the status dot:
      *
      *   callTaskRunning = true  → green (#4CAF50)
      *     The call-assigned task is the active timer.
@@ -413,7 +436,7 @@ class BubbleOverlayService : Service() {
      */
     private fun updateDotColor(view: View? = bubbleView) {
         val dot = view?.findViewById<View>(R.id.bubbleDot) ?: return
-        val color = if (BubbleEventBus.callTaskRunning)
+        val color = if (timerState.value.callTaskRunning)
             Color.parseColor("#4CAF50")   // green  — call task is active
         else
             Color.parseColor("#1565C0")   // blue   — another task / switch needed

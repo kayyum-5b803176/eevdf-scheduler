@@ -1,7 +1,7 @@
 package com.eevdf.feature.task.list
 
 import android.app.Application
-import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
+import com.eevdf.feature.shared.prefs.AutoSwitchPrefs
 
 /**
  * Handles a tap on the hover bubble during a phone call — pause/resume the
@@ -17,7 +17,7 @@ import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 internal class BubbleTapDelegate(private val vm: TaskViewModel) {
 
     /**
-     * Called from [com.eevdf.feature.shared.signals.BubbleEventBus.onBubbleTap]
+     * Called from the `overlay.bubble-tapped` bus topic
      * when the user taps the hover bubble during a call.
      *
      * Behaviour depends on which task is currently active:

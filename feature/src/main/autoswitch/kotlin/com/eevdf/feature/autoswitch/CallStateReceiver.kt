@@ -1,12 +1,20 @@
 package com.eevdf.feature.autoswitch
 
 import android.content.BroadcastReceiver
+import com.eevdf.kernel.eventbus.CallState
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 import android.content.Context
 import android.content.Intent
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
-import com.eevdf.feature.shared.signals.CallEvents
 
 /**
  * Listens for phone state changes and starts [CallSwitchService] to perform
@@ -17,11 +25,11 @@ import com.eevdf.feature.shared.signals.CallEvents
  *
  * ── Architecture change ───────────────────────────────────────────────────────
  *
- * Previously this receiver posted to [CallEvents] LiveData, which required
+ * Previously this receiver posted to the `phone.call-state-changed` bus topic, which required
  * MainActivity to be alive and observing.  The flow is now:
  *
  *   CallStateReceiver → CallSwitchService (foreground service, does DB work)
- *                     → CallEvents.postValue() (to sync ViewModel if Activity alive)
+ *                     → the phone.call-state-changed topic (to sync ViewModel if Activity alive)
  *
  * This means:
  *   • Call arrives while app is completely dead → process starts for the
@@ -30,7 +38,7 @@ import com.eevdf.feature.shared.signals.CallEvents
  *     reads the correct DB state on onResume().
  *   • Call arrives while app is backgrounded → same path, no Activity needed.
  *   • Call arrives while app is in foreground → CallSwitchService does the
- *     DB work AND posts to CallEvents; ViewModel receives both paths (service
+ *     DB work AND publishes phone.call-state-changed; ViewModel receives both paths (service
  *     posts first, then its CALL_STARTED post is consumed and ignored by the
  *     guard in CallSwitchDelegate because callInProgress is already true
  *     from the service's DB write being reflected on the next DB read).
@@ -38,7 +46,7 @@ import com.eevdf.feature.shared.signals.CallEvents
  * ── "Open once" ───────────────────────────────────────────────────────────────
  *
  * After the user opens the app once, MainActivity registers its LiveData
- * observers.  From that point on, CallEvents keeps the ViewModel's in-memory
+ * observers.  From that point on, that topic keeps the ViewModel's in-memory
  * state (savedTaskBeforeCall, wasTimerRunning) in sync so that when the user
  * later opens the app mid-call or after a call, the displayed state matches DB.
  *
@@ -55,7 +63,19 @@ import com.eevdf.feature.shared.signals.CallEvents
  * mid-call, or prefs cleared), we treat it as a call-started transition so the
  * switch still fires rather than being silently skipped.
  */
+@AndroidEntryPoint
 class CallStateReceiver : BroadcastReceiver() {
+
+    @Inject lateinit var bus: EventBus
+
+    /**
+     * A BroadcastReceiver's onReceive runs on the main thread and must return
+     * quickly, but bus.publish is a suspend function. goAsync() would be
+     * overkill here: publishing is in-process and near-instant, and nothing
+     * downstream needs the receiver kept alive. A short-lived scope is enough.
+     */
+    private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
+
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
@@ -85,7 +105,7 @@ class CallStateReceiver : BroadcastReceiver() {
                     } else {
                         // Quick Switch OFF: original path — post to LiveData;
                         // MainActivity observer fires the switch only when the app is open.
-                        CallEvents.event.postValue(CallEvents.Type.CALL_STARTED)
+                        scope.launch { bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.STARTED) }
                     }
                 }
             }
@@ -99,7 +119,7 @@ class CallStateReceiver : BroadcastReceiver() {
                             CallSwitchService.intentEnded(context)
                         )
                     } else {
-                        CallEvents.event.postValue(CallEvents.Type.CALL_ENDED)
+                        scope.launch { bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.ENDED) }
                     }
                 }
             }

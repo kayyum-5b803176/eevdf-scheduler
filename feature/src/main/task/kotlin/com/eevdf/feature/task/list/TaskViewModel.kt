@@ -2,6 +2,8 @@ package com.eevdf.feature.task.list
 
 import com.eevdf.capabilities.taskstorage.logic.SortHelper
 import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.LatestValue
+import com.eevdf.kernel.eventbus.TimerRunningState
 import com.eevdf.kernel.eventbus.Topics
 import android.app.Application
 import android.content.SharedPreferences
@@ -25,7 +27,6 @@ import com.eevdf.feature.task.timer.InterruptDelegate
 import com.eevdf.feature.task.notice.NoticeStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.eevdf.feature.shared.signals.BubbleEventBus
 import com.eevdf.contract.control.AlarmController
 import com.eevdf.contract.control.OverlayController
 
@@ -83,6 +84,15 @@ class TaskViewModel @Inject constructor(
     //
     // Injected from PlatformModule (@AppPreferences → "eevdf_prefs"); previously
     // built inline via application.getSharedPreferences(...).
+
+    /**
+     * task-list-screen's own copy of the timer-running snapshot. Replaces the
+     * former global BubbleEventBus flags: this capability publishes changes
+     * and also tracks the ones call-autoswitch publishes, so both stay in
+     * sync without either reaching into the other's state.
+     */
+    internal val timerState = LatestValue(TimerRunningState())
+        .trackedOn(bus, Topics.TIMER_RUNNING_CHANGED, CAPABILITY_ID)
 
     /** Convenience accessor for delegates that need an Application context. */
     internal val app: Application = application
@@ -570,7 +580,7 @@ class TaskViewModel @Inject constructor(
     fun toggleAllScheduleGroupsExpanded() = groupExpand.toggleAllScheduleGroupsExpanded()
 
     /**
-     * Called from [BubbleEventBus.onBubbleTap] when the user taps the hover
+     * Called on the `overlay.bubble-tapped` topic when the user taps the hover
      * bubble during a call. See [BubbleTapDelegate.handleBubbleTap] for the
      * full case breakdown.
      */
@@ -648,7 +658,7 @@ class TaskViewModel @Inject constructor(
      *   1. Reads the currently running task from DB.
      *   2. If it differs from what _currentTask holds, updates the LiveData so
      *      the timer card shows the correct task and time.
-     *   3. Syncs [BubbleEventBus] volatile fields so the bubble dot colour is
+     *   3. Publishes timer.running-changed so the bubble dot colour is
      *      correct immediately — no waiting for the next POLL_MS tick.
      *
      * This is intentionally lightweight — it does NOT restart the CountDownTimer

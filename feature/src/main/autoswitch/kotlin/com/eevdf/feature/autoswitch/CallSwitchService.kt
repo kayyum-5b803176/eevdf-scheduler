@@ -16,6 +16,11 @@ import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.kernel.eventbus.CallState
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.LatestValue
+import com.eevdf.kernel.eventbus.TimerRunningState
+import com.eevdf.kernel.eventbus.Topics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,8 +29,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
-import com.eevdf.feature.shared.signals.BubbleEventBus
-import com.eevdf.feature.shared.signals.CallEvents
 import com.eevdf.contract.control.AlarmController
 
 /**
@@ -35,7 +38,7 @@ import com.eevdf.contract.control.AlarmController
  * ── Why a Service? ────────────────────────────────────────────────────────────
  *
  * The original flow was:
- *   CallStateReceiver → CallEvents.postValue() → MainActivity observer
+ *   CallStateReceiver → the phone.call-state-changed topic → MainActivity observer
  *   → CallSwitchDelegate → pauseTimer() / startTimer()
  *
  * This chain has two failure modes:
@@ -47,7 +50,7 @@ import com.eevdf.contract.control.AlarmController
  *      the app.
  *
  * This service fixes both by running the switch directly against Room in
- * a coroutine, then posting to [CallEvents] so that IF MainActivity is alive,
+ * a coroutine, then publishing `phone.call-state-changed` so that IF MainActivity is alive,
  * its ViewModel in-memory state (savedTaskBeforeCall etc.) stays consistent
  * with what we wrote to DB.
  *
@@ -74,7 +77,7 @@ import com.eevdf.contract.control.AlarmController
  *     4. Write Running state for call task to DB.
  *     5. Start AlarmForegroundService with call task countdown.
  *     6. Start BubbleOverlayService (if bubble enabled).
- *     7. Post CallEvents.CALL_STARTED so ViewModel in-memory state syncs.
+ *     7. Post phone.call-state-changed(STARTED) so ViewModel in-memory state syncs.
  *     8. stopSelf().
  *
  *   CALL_ENDED intent → onStartCommand:
@@ -83,13 +86,18 @@ import com.eevdf.contract.control.AlarmController
  *     3. If saved task exists, restore it (resume if wasRunning).
  *     4. Stop AlarmForegroundService.
  *     5. Stop BubbleOverlayService.
- *     6. Post CallEvents.CALL_ENDED.
+ *     6. Post phone.call-state-changed(ENDED).
  *     7. stopSelf().
  */
 @AndroidEntryPoint
 class CallSwitchService : Service() {
 
     /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
+    @Inject lateinit var bus: EventBus
+
+    /** Local snapshot; see BubbleOverlayService for why this is not shared. */
+    private val timerState = LatestValue(TimerRunningState())
+
     @Inject lateinit var repository: TaskRepository
     @Inject lateinit var alarms: AlarmController
 
@@ -222,16 +230,16 @@ class CallSwitchService : Service() {
                 )
             }
 
-            // ── 4. Sync BubbleEventBus ────────────────────────────────────────
-            BubbleEventBus.anyTimerRunning  = true
-            BubbleEventBus.callTaskRunning  = true
-            BubbleEventBus.timerRunning     = true
+            // ── 4. Publish timer.running-changed ────────────────────────────────────────
+            timerState.setAndPublish(
+                bus, Topics.TIMER_RUNNING_CHANGED, TimerRunningState(true, true, true),
+            )
 
             // ── 5. Notify ViewModel (if Activity is alive) ────────────────────
-            // CallEvents uses postValue so it's safe from a background thread.
+            // bus.publish is a suspend fn, called from the service scope.
             // If MainActivity is dead this is a no-op; ViewModel will reconcile
             // via syncFromDb() on the next onResume().
-            CallEvents.event.postValue(CallEvents.Type.CALL_STARTED)
+            bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.STARTED)
 
             stopSelf(startId)
         }
@@ -304,14 +312,15 @@ class CallSwitchService : Service() {
                     .apply { action = BubbleOverlayService.ACTION_CALL_ENDED }
             )
 
-            // ── 4. Sync BubbleEventBus ────────────────────────────────────────
+            // ── 4. Publish timer.running-changed ────────────────────────────────────────
             val restoredRunning = wasRunning && savedTaskId != null
-            BubbleEventBus.anyTimerRunning = restoredRunning
-            BubbleEventBus.callTaskRunning = false
-            BubbleEventBus.timerRunning    = restoredRunning
+            timerState.setAndPublish(
+                bus, Topics.TIMER_RUNNING_CHANGED,
+                TimerRunningState(restoredRunning, false, restoredRunning),
+            )
 
             // ── 5. Notify ViewModel ───────────────────────────────────────────
-            CallEvents.event.postValue(CallEvents.Type.CALL_ENDED)
+            bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.ENDED)
 
             stopSelf(startId)
         }

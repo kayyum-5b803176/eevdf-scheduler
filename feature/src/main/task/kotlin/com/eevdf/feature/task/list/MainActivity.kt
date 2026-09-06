@@ -14,7 +14,10 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.feature.task.addtask.AddTaskActivity
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
-import com.eevdf.feature.shared.signals.BubbleEventBus
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.eevdf.kernel.eventbus.TimerRunningState
+import com.eevdf.kernel.eventbus.Topics
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs
 import android.view.KeyEvent
@@ -47,6 +50,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  */
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
+    private companion object {
+        const val CAPABILITY_ID = "task-list-screen"
+    }
+
 
     internal val viewModel: TaskViewModel by viewModels()
 
@@ -267,8 +275,13 @@ class MainActivity : AppCompatActivity() {
         // Cleared in onStop() so BubbleOverlayService falls back to its own DB
         // path when the Activity is in the background — avoiding stale ViewModel
         // state and inactive LiveData observers causing wrong colour + no-op taps.
-        BubbleEventBus.onBubbleTap = { viewModel.handleBubbleTap() }
-        // Sync BubbleEventBus volatile fields immediately so the bubble dot
+        // Was: assigning a global callback that had to be nulled out in
+        // onDestroy or the Activity leaked. Now a bus subscription, torn down
+        // by capability id instead of by remembering to null a field.
+        viewModel.bus.subscribe(Topics.BUBBLE_TAPPED, CAPABILITY_ID) {
+            viewModel.handleBubbleTap()
+        }
+        // Publish the timer snapshot immediately so the bubble dot
         // colour is correct if the service is already running (e.g. screen rotation
         // or returning from another app).
         val action = viewModel.timerCardAction.value
@@ -279,18 +292,27 @@ class MainActivity : AppCompatActivity() {
             "B"  -> viewModel.interruptTaskB.value
             else -> viewModel.interruptTask.value
         }
-        BubbleEventBus.timerRunning    = running
-        BubbleEventBus.anyTimerRunning = running
-        BubbleEventBus.callTaskRunning = running &&
+        val callTaskRunning = running &&
             callSlot != null && callTask != null &&
             viewModel.currentTask.value?.id == callTask.id
+        lifecycleScope.launch {
+            viewModel.timerState.setAndPublish(
+                viewModel.bus,
+                Topics.TIMER_RUNNING_CHANGED,
+                TimerRunningState(
+                    anyTimerRunning = running,
+                    callTaskRunning = callTaskRunning,
+                    timerRunning = running,
+                ),
+            )
+        }
     }
 
     override fun onStop() {
         super.onStop()
-        // Clear the tap callback — Activity is no longer visible.
-        // BubbleOverlayService detects null and uses its direct DB path instead.
-        BubbleEventBus.onBubbleTap = null
+        // Drop this capability's subscriptions — Activity is no longer visible.
+        // call-autoswitch falls back to its direct DB path (see its manifest).
+        viewModel.bus.unsubscribeAll(CAPABILITY_ID)
     }
 
     override fun onDestroy() {

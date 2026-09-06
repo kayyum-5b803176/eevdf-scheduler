@@ -5,10 +5,13 @@ import android.view.View
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.eevdf.feature.R
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
+import com.eevdf.kernel.eventbus.CallState
+import com.eevdf.kernel.eventbus.TimerRunningState
+import com.eevdf.kernel.eventbus.Topics
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
-import com.eevdf.feature.shared.signals.BubbleEventBus
-import com.eevdf.feature.shared.signals.CallEvents
 import com.eevdf.feature.task.notice.NoticePhase
 import com.eevdf.feature.task.timer.TimerCardAction
 import com.eevdf.capabilities.remindernotifier.NotificationHelper
@@ -28,6 +31,11 @@ import com.eevdf.capabilities.remindernotifier.NotificationHelper
  * No behavior changed — every line is the original, moved as-is.
  */
 internal class ObserverDelegate(private val activity: MainActivity) {
+
+    private companion object {
+        const val CAPABILITY_ID = "task-list-screen"
+    }
+
 
     fun setupObservers() {
         observeCallEvents()
@@ -56,11 +64,11 @@ internal class ObserverDelegate(private val activity: MainActivity) {
      * sync when the Activity is alive; CallSwitchService owns the DB writes. */
     private fun observeCallEvents() {
         // ── Auto Switch — Call Detection ──────────────────────────────────────
-        CallEvents.event.observe(activity) { type ->
+        activity.viewModel.bus.subscribe(Topics.PHONE_CALL_STATE_CHANGED, CAPABILITY_ID) { type ->
             if (type == null) return@observe
             val slot = AutoSwitchPrefs.getCallSlot(activity) ?: return@observe
             when (type) {
-                CallEvents.Type.CALL_STARTED -> {
+                CallState.STARTED -> {
                     // CallSwitchService has already written the DB switch and
                     // started the bubble. We call handleCallStarted here only
                     // to keep the ViewModel in-memory state (savedTaskBeforeCall,
@@ -68,9 +76,9 @@ internal class ObserverDelegate(private val activity: MainActivity) {
                     // if the Activity is alive for the whole call.
                     activity.viewModel.handleCallStarted(slot)
                 }
-                CallEvents.Type.CALL_ENDED -> activity.viewModel.handleCallEnded()
+                CallState.ENDED -> activity.viewModel.handleCallEnded()
             }
-            CallEvents.event.value = null   // consume
+            // No manual 'consume' step: bus events are delivered once, not held.
         }
     }
 
@@ -173,11 +181,16 @@ internal class ObserverDelegate(private val activity: MainActivity) {
                 "B"  -> activity.viewModel.interruptTaskB.value
                 else -> activity.viewModel.interruptTask.value
             }
-            BubbleEventBus.timerRunning    = isRunning
-            BubbleEventBus.anyTimerRunning = isRunning
-            BubbleEventBus.callTaskRunning = isRunning &&
+            val callTaskRunning = isRunning &&
                 callSlot2 != null && callTask2 != null &&
                 activity.viewModel.currentTask.value?.id == callTask2.id
+            activity.lifecycleScope.launch {
+                activity.viewModel.timerState.setAndPublish(
+                    activity.viewModel.bus,
+                    Topics.TIMER_RUNNING_CHANGED,
+                    TimerRunningState(isRunning, callTaskRunning, isRunning),
+                )
+            }
         }
     }
 
