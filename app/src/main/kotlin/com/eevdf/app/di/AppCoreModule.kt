@@ -1,8 +1,8 @@
 package com.eevdf.app.di
 
 import android.content.Context
-import com.eevdf.app.core.SharedPrefsFeatureFlags
-import com.eevdf.shared.FeatureFlags
+import com.eevdf.capabilities.featuretoggles.SharedPrefsFeatureFlags
+import com.eevdf.capabilities.featuretoggles.FeatureFlags
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

@@ -7,7 +7,7 @@ import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
-import com.eevdf.contract.nav.AppRoutes
+import com.eevdf.capabilities.navigationroutes.AppRoutes
 import com.eevdf.data.sync.SyncState
 import com.eevdf.feature.R
 import com.eevdf.feature.task.timer.TimerCardAction

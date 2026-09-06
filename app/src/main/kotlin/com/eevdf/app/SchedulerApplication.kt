@@ -1,10 +1,10 @@
 package com.eevdf.app
 
 import android.app.Application
-import com.eevdf.app.core.LogcatCrashReporter
+import com.eevdf.capabilities.featuretoggles.LogcatCrashReporter
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
-import com.eevdf.shared.CrashIsolation
+import com.eevdf.kernel.crashguard.CrashIsolation
 import dagger.hilt.android.HiltAndroidApp
 
 /**

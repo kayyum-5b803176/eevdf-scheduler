@@ -409,7 +409,7 @@ class MainActivity : AppCompatActivity() {
         statsBar    = findViewById(R.id.statsBar)
         // Hold the stats bar → open the Task Statistics page
         statsBar.setOnLongClickListener {
-            startActivity(com.eevdf.contract.nav.AppRoutes.stats(this))
+            startActivity(com.eevdf.capabilities.navigationroutes.AppRoutes.stats(this))
             true
         }
         supportActionBar?.title = "EEVDF Task Scheduler"
@@ -456,7 +456,7 @@ class MainActivity : AppCompatActivity() {
         // statsBar's long click above.
         fabAdd.setOnLongClickListener {
             haptic(it)
-            startActivity(com.eevdf.contract.nav.AppRoutes.links(this))
+            startActivity(com.eevdf.capabilities.navigationroutes.AppRoutes.links(this))
             true
         }
 

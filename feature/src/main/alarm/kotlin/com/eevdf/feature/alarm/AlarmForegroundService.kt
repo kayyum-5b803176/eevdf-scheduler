@@ -24,7 +24,7 @@ import com.eevdf.capabilities.remindernotifier.AlarmReliabilityChecker
 import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
 import com.eevdf.capabilities.remindernotifier.ForegroundAppDetector
 import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
-import com.eevdf.contract.nav.AppRoutes
+import com.eevdf.capabilities.navigationroutes.AppRoutes
 
 /**
  * Foreground service that owns the notification UI and alarm sound/wake.

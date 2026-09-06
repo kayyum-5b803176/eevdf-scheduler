@@ -1,5 +1,6 @@
 package com.eevdf.kernel.crashguard
 
+import com.eevdf.kernel.supervisor.CapabilityHangException
 import com.eevdf.kernel.supervisor.Supervisor
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -30,12 +31,14 @@ suspend fun runIsolated(
             true
         }
         if (completed == null) {
+            CrashIsolation.report(capabilityId, CapabilityHangException(capabilityId))
             supervisor.recordHang(capabilityId)
         } else {
             supervisor.recordSuccess(capabilityId)
         }
     } catch (e: Throwable) {
         if (e is VirtualMachineError || e is LinkageError || e is ThreadDeath) throw e
+        CrashIsolation.report(capabilityId, e)
         supervisor.recordFailure(capabilityId, e)
     }
 }

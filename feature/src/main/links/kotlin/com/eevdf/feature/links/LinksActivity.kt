@@ -16,7 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.feature.R
-import com.eevdf.feature.task.group.PickerDialog
+import com.eevdf.capabilities.grouppicker.output.PickerDialog
 import com.eevdf.feature.task.list.SortHelper
 import com.eevdf.feature.task.list.TaskViewModel
 import com.google.android.material.button.MaterialButton

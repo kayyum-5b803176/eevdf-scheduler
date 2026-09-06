@@ -17,7 +17,7 @@ import com.eevdf.feature.R
 import com.google.android.material.button.MaterialButton
 import com.eevdf.capabilities.remindernotifier.NotificationHelper
 import com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs
-import com.eevdf.contract.nav.AppRoutes
+import com.eevdf.capabilities.navigationroutes.AppRoutes
 
 /**
  * Full-screen alarm activity — shown over the lock screen when a task timer expires.

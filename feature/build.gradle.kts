@@ -36,7 +36,6 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":data"))
     implementation(project(":platform"))
-    implementation(project(":shared"))
     implementation(project(":capabilities:feedback-cues"))
     implementation(project(":capabilities:design-system"))
     implementation(project(":capabilities:task-storage"))
@@ -44,6 +43,9 @@ dependencies {
     implementation(project(":capabilities:run-history"))
     implementation(project(":capabilities:reminder-notifier"))
     implementation(project(":capabilities:settings-storage"))
+    implementation(project(":capabilities:group-picker"))
+    implementation(project(":capabilities:navigation-routes"))
+    implementation(project(":capabilities:feature-toggles"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
