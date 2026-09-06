@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-capability manifest fragment; AGP merges these at build time. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="com.eevdf.capabilities.callautoswitch.AutoSwitchActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName="com.eevdf.capabilities.settingsscreens.SettingsActivity" />
+
+        <!-- exported=true required for the system PHONE_STATE broadcast on API 26+ -->
+        <receiver
+            android:name="com.eevdf.capabilities.callautoswitch.CallStateReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.eevdf.capabilities.callautoswitch.BubbleOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name="com.eevdf.capabilities.callautoswitch.CallSwitchService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
+</manifest>

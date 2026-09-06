@@ -11,7 +11,10 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
-import com.eevdf.platform.media.SoundManager
+import com.eevdf.capabilities.feedbackcues.output.SoundManager
+import com.eevdf.kernel.eventbus.AlarmDelayStartRequest
+import com.eevdf.kernel.eventbus.AlarmTimerExpireRequest
+import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.launch
 import com.eevdf.capabilities.tasklistscreen.TaskViewModel
 
@@ -267,7 +270,9 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                 resolveAfterDelay(task, remaining)
             }
         }.start()
-        vm.alarms.delayStart(task.name, delaySecs)
+        vm.viewModelScope.launch {
+            vm.bus.publish(Topics.ALARM_DELAY_START_REQUESTED, AlarmDelayStartRequest(task.name, delaySecs))
+        }
     }
 
     /** Step 2: the actual timed work window. Hands off to the engine in ViewModel. */
@@ -297,7 +302,9 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         _noticePhase.value          = NoticePhase.Wait(waitSecs, currentRepeatIteration)
         val waitStart = System.currentTimeMillis()
         SoundManager.playWaitSound(vm.app, vm.prefs)
-        vm.alarms.delayStart(task.name, waitSecs)
+        vm.viewModelScope.launch {
+            vm.bus.publish(Topics.ALARM_DELAY_START_REQUESTED, AlarmDelayStartRequest(task.name, waitSecs))
+        }
         waitTimer?.cancel()
         waitTimer = object : CountDownTimer(waitSecs * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
@@ -350,7 +357,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                 totalPhaseSecs = elapsed
             ))
         }
-        vm.alarms.timerPause()
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit) }
     }
 
     fun cancelWaitPhase() {
@@ -394,7 +401,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             vm._currentTask.value = reset
             vm.viewModelScope.launch { vm.repository.update(reset) }
         }
-        vm.alarms.timerPause()
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit) }
     }
 
     // ── Alarm expiry ──────────────────────────────────────────────────────────
@@ -419,7 +426,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // When the app IS dead the CountDownTimer never runs — the AlarmManager fires alone,
         // onAlarmFired() finds AlarmState==Scheduled, transitions to Ringing, and the
         // service rings normally.  No conflict in that path.
-        vm.alarms.cancelScheduledAlarm()
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_CANCEL_SCHEDULED_REQUESTED, Unit) }
 
         val sessionSecs  = noticeSessionSeconds
         noticeSessionSeconds = 0L
@@ -446,7 +453,9 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             vm.refreshSchedule()
         }
 
-        vm.alarms.timerExpire(task.name, task.taskType)
+        vm.viewModelScope.launch {
+            vm.bus.publish(Topics.ALARM_TIMER_EXPIRE_REQUESTED, AlarmTimerExpireRequest(task.name, task.taskType))
+        }
         vm._alarmTaskName.postValue(task.name)
         vm._alarmElapsedSeconds.postValue(0L)
         vm.startInAppOverrunCounter(task.name)
@@ -530,7 +539,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
      *   = 10 + 5 + (10 + 5) × (1 − 0) = 30 s
      *   Alarm fires 30 s from now, after: execute(10) → wait(5) → execute(10) → wait(5).
      *
-     * On pause: the caller cancels the alarm via [com.eevdf.contract.control.AlarmController.timerPause].
+     * On pause: the caller cancels the alarm via the `alarm.timer-pause-requested` bus topic.
      * On resume: [startExecutePhase] is called with the actual remaining execute seconds
      * so the formula always produces a precise, up-to-date trigger time.
      *

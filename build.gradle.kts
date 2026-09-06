@@ -11,12 +11,9 @@ plugins {
 }
 
 // ── Static analysis ──────────────────────────────────────────────────────────
-// Runs across every module's Kotlin source from the root, so there is one
-// command and one config file rather than per-module duplication.
-//
-// ignoreFailures is TRUE for now: turning detekt on against 20k existing lines
-// would fail the build on day one and you would disable it. Fix the baseline
-// issues, then flip this to false so new violations block merges.
+// v6.9.0: the per-module source list is gone. Every capability follows the same
+// layout, so one glob covers all of them and adding capability N+1 needs no
+// edit here — consistent with rule 6 (only composition knows the full list).
 detekt {
     buildUponDefaultConfig = true
     allRules = false
@@ -25,26 +22,13 @@ detekt {
         files(
             "app/src/main/kotlin",
             "contract/src/main/kotlin",
-            "core/src/main/kotlin",
-            "data/src/main/kotlin",
-            "feature/src/main/task/kotlin",
-            "feature/src/main/alarm/kotlin",
-            "feature/src/main/autoswitch/kotlin",
-            "feature/src/main/backup/kotlin",
-            "feature/src/main/settings/kotlin",
-            "feature/src/main/stats/kotlin",
-            "feature/src/main/sync/kotlin",
-            "platform/src/main/kotlin",
-            "shared/src/main/kotlin",
             "kernel/src/main/kotlin",
-            "capabilities/feedback-cues/src/main/kotlin",
-            "capabilities/design-system/src/main/kotlin",
-            "capabilities/task-storage/src/main/kotlin",
-            "capabilities/task-scheduling/src/main/kotlin",
-            "capabilities/run-history/src/main/kotlin",
-            // "feature/src/main/ui/kotlin" removed v6.1.0 — moved to
-            // capabilities/design-system.
-        )
+        ) + file("capabilities")
+            .listFiles()
+            .orEmpty()
+            .filter { it.isDirectory }
+            .map { File(it, "src/main/kotlin") }
+            .filter { it.exists() }
     )
     parallel = true
     ignoreFailures = true
@@ -61,21 +45,18 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
 }
 
 // ── Architecture guard ───────────────────────────────────────────────────────
-// Enforces the boundaries that the compiler cannot yet enforce, because the
-// feature packages still live inside :app rather than being real modules.
-// Once Phase 2 splits them out, most of this becomes redundant and the Gradle
-// dependency graph does the work instead.
+// The old script checked "does feature A import feature B's internals" against
+// an allowlist, because the feature packages were not real modules. They are
+// now: an illegal import is a Gradle/compile error, not something a grep has to
+// catch. What the rewritten script checks instead is the rules the compiler
+// still cannot see — bus-only communication, no hardcoded topic strings, and
+// the DB version/migration/schema agreement it always checked.
 val checkArchitecture by tasks.registering(Exec::class) {
     group = "verification"
-    description = "Fails if a feature package imports another feature's internals, " +
-        "or if the DB version, migration count and exported schemas disagree."
+    description = "Checks bus-only communication, topic-constant usage, and DB schema agreement."
     workingDir = rootDir
     commandLine("bash", "$rootDir/scripts/check_architecture.sh")
 
-    // Windows without Git Bash on PATH: skip rather than fail the whole build.
-    // CI runs on Linux, so the guard is still enforced before any merge.
-    // Deliberately avoids org.gradle.internal.* — internal APIs break between
-    // Gradle versions and this file must be boring.
     onlyIf {
         val isWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
         val exe = if (isWindows) "bash.exe" else "bash"
@@ -91,13 +72,14 @@ tasks.register("verifyAll") {
     group = "verification"
     description = "Everything CI runs: architecture guard, detekt, and all unit tests."
     dependsOn(checkArchitecture)
-    // v6.2.0: ":testing" retired (fully absorbed into :capabilities:task-scheduling's
-    // own test source set — see settings.gradle.kts).
     dependsOn(
+        ":kernel:test",
         ":capabilities:task-scheduling:test",
         ":capabilities:task-storage:test",
         ":capabilities:run-history:test",
-        ":data:testDebugUnitTest",
+        ":capabilities:backup-restore:test",
+        ":capabilities:multi-device-sync:test",
+        ":capabilities:navigation-routes:test",
         ":app:testDebugUnitTest",
     )
     dependsOn("detekt")

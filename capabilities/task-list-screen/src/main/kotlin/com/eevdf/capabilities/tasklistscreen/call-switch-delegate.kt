@@ -1,5 +1,6 @@
 package com.eevdf.capabilities.tasklistscreen
 
+import com.eevdf.kernel.eventbus.Topics
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.feature.shared.signals.CallEvents
@@ -122,7 +123,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
 
             // Bubble: the controller owns both the enablement check and the
             // foreground-start details.
-            vm.overlay.onCallStarted()
+            vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_STARTED_REQUESTED, Unit) }
         }
     }
 
@@ -173,7 +174,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
                 vm._currentTask.value  = null
                 vm._toastMessage.value = "Call ended"
 
-                vm.overlay.onCallEnded()
+                vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_ENDED_REQUESTED, Unit) }
                 return
             }
 
@@ -187,7 +188,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
                 vm._toastMessage.value = "Call ended → \"${returnTo.name}\" (paused)"
             }
 
-            vm.overlay.onCallEnded()
+            vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_ENDED_REQUESTED, Unit) }
         }
     }
 }

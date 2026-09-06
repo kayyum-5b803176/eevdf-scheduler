@@ -3,6 +3,9 @@ package com.eevdf.capabilities.tasklistscreen
 import androidx.lifecycle.viewModelScope
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.kernel.eventbus.AlarmTimerExpireRequest
+import com.eevdf.kernel.eventbus.AlarmTimerStartRequest
+import com.eevdf.kernel.eventbus.Topics
 import com.eevdf.capabilities.countdowntimer.TimerStartEvent
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
@@ -111,7 +114,12 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             vm.repository.update(updated)
             vm.triggerSyncExport()          // notify other users: timer started
         }
-        vm.alarms.timerStart(task.name, remaining, task.taskType, alarmSecs)
+        vm.viewModelScope.launch {
+            vm.bus.publish(
+                Topics.ALARM_TIMER_START_REQUESTED,
+                AlarmTimerStartRequest(task.name, remaining, task.taskType, alarmSecs),
+            )
+        }
         vm.timerEngine.start(updated)
     }
 
@@ -143,7 +151,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         } else if (session != null && session.wallClockSeconds > 0) {
             applyVruntimeUpdate(session)
         }
-        vm.alarms.timerPause()
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit) }
         vm.triggerSyncExport()               // notify other users: timer paused
     }
 
@@ -352,7 +360,12 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             if (task.taskType == "NOTIFICATION") {
                 vm.notice.handleExpiredNotificationTask(freshTask)
             } else {
-                vm.alarms.timerExpire(task.name, task.taskType)
+                vm.viewModelScope.launch {
+                    vm.bus.publish(
+                        Topics.ALARM_TIMER_EXPIRE_REQUESTED,
+                        AlarmTimerExpireRequest(task.name, task.taskType),
+                    )
+                }
                 vm._alarmTaskName.postValue(task.name)
                 vm._alarmElapsedSeconds.postValue(elapsedSinceExpiry)
                 vm.startInAppOverrunCounter(task.name, elapsedSinceExpiry)

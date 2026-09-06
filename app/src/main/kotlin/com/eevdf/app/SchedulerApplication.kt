@@ -4,6 +4,8 @@ import android.app.Application
 import com.eevdf.capabilities.featuretoggles.LogcatCrashReporter
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
+import com.eevdf.capabilities.alarmringer.AlarmCommandHandler
+import com.eevdf.capabilities.callautoswitch.OverlayCommandHandler
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
 import com.eevdf.kernel.crashguard.CrashIsolation
 import javax.inject.Inject
@@ -31,6 +33,11 @@ class SchedulerApplication : Application() {
      * BackupCheckpointHandler's KDoc for why the ordering matters.
      */
     @Inject lateinit var backupCheckpointHandler: BackupCheckpointHandler
+
+    /** Constructing these registers their bus subscriptions at startup — see
+     *  AlarmCommandHandler / OverlayCommandHandler KDoc. */
+    @Inject lateinit var alarmCommandHandler: AlarmCommandHandler
+    @Inject lateinit var overlayCommandHandler: OverlayCommandHandler
 
 
     override fun onCreate() {

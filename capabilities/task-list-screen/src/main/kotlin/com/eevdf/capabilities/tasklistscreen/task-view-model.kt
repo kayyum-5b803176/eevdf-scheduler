@@ -27,8 +27,7 @@ import com.eevdf.capabilities.countdowntimer.InterruptDelegate
 import com.eevdf.capabilities.noticephase.NoticeStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.eevdf.contract.control.AlarmController
-import com.eevdf.contract.control.OverlayController
+import com.eevdf.contract.control.AlarmRingingQuery
 
 /**
  * Root coordinator ViewModel.
@@ -74,8 +73,8 @@ class TaskViewModel @Inject constructor(
      * autoswitch feature classes. `internal` so the delegates in this package
      * (notice state machine, call-switch) can use them without re-injecting.
      */
-    internal val alarms: AlarmController,
-    internal val overlay: OverlayController,
+    /** The one sanctioned query exception — see AlarmRingingQuery's KDoc. */
+    internal val alarmQuery: AlarmRingingQuery,
     /** Kernel event bus — the only channel to other capabilities (rule 3). */
     internal val bus: EventBus,
 ) : AndroidViewModel(application) {

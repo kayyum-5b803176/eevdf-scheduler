@@ -95,4 +95,35 @@ object Topics {
      * cannot retain an Activity.
      */
     val BUBBLE_TAPPED = Topic<Unit>("overlay.bubble-tapped")
+
+    // ── Alarm commands (published by countdown-timer / notice-phase, ─────────
+    // subscribed by alarm-ringer). Replace the 6 one-way methods of the old
+    // AlarmController contract interface — see alarm-ringer's
+    // AlarmCommandHandler for the subscriber side and its manifest.kt for why
+    // the 7th method (ringingAlarm(), a genuine synchronous query) did NOT
+    // become a topic.
+
+    val ALARM_TIMER_START_REQUESTED = Topic<AlarmTimerStartRequest>("alarm.timer-start-requested")
+    val ALARM_TIMER_PAUSE_REQUESTED = Topic<Unit>("alarm.timer-pause-requested")
+    val ALARM_TIMER_EXPIRE_REQUESTED = Topic<AlarmTimerExpireRequest>("alarm.timer-expire-requested")
+    val ALARM_STOP_REQUESTED = Topic<Unit>("alarm.stop-requested")
+    val ALARM_CANCEL_SCHEDULED_REQUESTED = Topic<Unit>("alarm.cancel-scheduled-requested")
+    val ALARM_DELAY_START_REQUESTED = Topic<AlarmDelayStartRequest>("alarm.delay-start-requested")
+
+    // ── Overlay commands (published by task-list-screen, subscribed by ───────
+    // call-autoswitch). Replace the 2 methods of the old OverlayController.
+
+    val OVERLAY_CALL_STARTED_REQUESTED = Topic<Unit>("overlay.call-started-requested")
+    val OVERLAY_CALL_ENDED_REQUESTED = Topic<Unit>("overlay.call-ended-requested")
 }
+
+data class AlarmTimerStartRequest(
+    val taskName: String,
+    val remainingSecs: Long,
+    val taskType: String = "DEFAULT",
+    val alarmSecs: Long = remainingSecs,
+)
+
+data class AlarmTimerExpireRequest(val taskName: String, val taskType: String = "DEFAULT")
+
+data class AlarmDelayStartRequest(val taskName: String, val delaySecs: Long)

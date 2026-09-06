@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-capability manifest fragment; AGP merges these at build time. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="com.eevdf.capabilities.alarmringer.AlarmActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:resizeableActivity="false"
+            android:taskAffinity=""
+            android:launchMode="singleInstance" />
+
+        <receiver
+            android:name="com.eevdf.capabilities.alarmringer.AlarmStopReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.eevdf.scheduler.ACTION_TIMER_EXPIRED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.eevdf.capabilities.alarmringer.TimerAlarmReceiver"
+            android:exported="false" />
+
+        <service
+            android:name="com.eevdf.capabilities.alarmringer.AlarmForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Used to ring and display the timer-expiry alarm" />
+        </service>
+    </application>
+</manifest>

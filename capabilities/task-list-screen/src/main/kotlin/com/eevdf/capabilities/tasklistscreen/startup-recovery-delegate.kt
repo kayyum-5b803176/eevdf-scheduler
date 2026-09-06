@@ -34,7 +34,7 @@ internal class StartupRecoveryDelegate(private val vm: TaskViewModel) {
         vm.interrupt.postInterruptTaskB(vm.repository.getInterruptTaskB())
 
         // Step 1: check if alarm is already ringing (app killed mid-alarm)
-        val ringing = vm.alarms.ringingAlarm()
+        val ringing = vm.alarmQuery.ringingAlarm()
         if (ringing != null) {
             // The alarm fired via AlarmManager (e.g. in Doze / background), so the
             // in-app onTimerFinished() never ran: the run was never credited and the

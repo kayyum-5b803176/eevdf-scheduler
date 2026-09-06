@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "6.8.0"
+        versionName = "6.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -95,18 +95,34 @@ android {
     }
 }
 dependencies {
+    // v6.9.0: :core, :data, :feature, :platform, :shared are gone — every one
+    // of their files now lives in the capability that owns it. :app depends on
+    // the full capability list because it is the composition root: it is the
+    // one place allowed to know every capability that exists (rule 6).
     implementation(project(":contract"))
-    implementation(project(":core"))
-    implementation(project(":data"))
+    implementation(project(":kernel"))
+
+    implementation(project(":capabilities:feedback-cues"))
+    implementation(project(":capabilities:design-system"))
     implementation(project(":capabilities:task-storage"))
+    implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))
     implementation(project(":capabilities:reminder-notifier"))
     implementation(project(":capabilities:settings-storage"))
     implementation(project(":capabilities:group-picker"))
     implementation(project(":capabilities:navigation-routes"))
     implementation(project(":capabilities:feature-toggles"))
-    implementation(project(":feature"))
-    implementation(project(":platform"))
+    implementation(project(":capabilities:task-list-screen"))
+    implementation(project(":capabilities:add-task-screen"))
+    implementation(project(":capabilities:countdown-timer"))
+    implementation(project(":capabilities:notice-phase"))
+    implementation(project(":capabilities:links-screen"))
+    implementation(project(":capabilities:backup-restore"))
+    implementation(project(":capabilities:alarm-ringer"))
+    implementation(project(":capabilities:call-autoswitch"))
+    implementation(project(":capabilities:settings-screens"))
+    implementation(project(":capabilities:stats-screens"))
+    implementation(project(":capabilities:multi-device-sync"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

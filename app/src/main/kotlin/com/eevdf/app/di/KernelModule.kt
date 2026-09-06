@@ -1,6 +1,8 @@
 package com.eevdf.app.di
 
 import android.content.Context
+import com.eevdf.capabilities.alarmringer.AlarmCommandHandler
+import com.eevdf.capabilities.callautoswitch.OverlayCommandHandler
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
 import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.clock.SystemClock
@@ -62,4 +64,20 @@ object KernelModule {
         @ApplicationContext context: Context,
         bus: EventBus,
     ): BackupCheckpointHandler = BackupCheckpointHandler(context, bus)
+
+    /** Replaces AlarmControlModule's AlarmController binding — see AlarmCommandHandler's KDoc. */
+    @Provides
+    @Singleton
+    fun provideAlarmCommandHandler(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+    ): AlarmCommandHandler = AlarmCommandHandler(context, bus)
+
+    /** Replaces OverlayControlModule's OverlayController binding — see OverlayCommandHandler's KDoc. */
+    @Provides
+    @Singleton
+    fun provideOverlayCommandHandler(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+    ): OverlayCommandHandler = OverlayCommandHandler(context, bus)
 }
