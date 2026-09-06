@@ -8,6 +8,12 @@ dependencyResolutionManagement {
 }
 rootProject.name = "EEVDFScheduler"
 
+// v6.10.3 — ":capabilities:notice-phase" retired, merged into
+// task-list-screen. NoticeStateMachine takes TaskViewModel directly and
+// reaches into ~15 of its internals (bus, repository, _currentTask,
+// pauseTimer, etc.) — the two were never actually separable, the same
+// mistake class as the v6.10.2 task-scheduling/task-storage cycle.
+//
 // v6.10.0 — the microkernel layout is complete.
 //
 // Every original ownership module is now retired: ":testing" (v6.2.0),
@@ -38,7 +44,6 @@ include(
     ":capabilities:task-list-screen",
     ":capabilities:add-task-screen",
     ":capabilities:countdown-timer",
-    ":capabilities:notice-phase",
     ":capabilities:links-screen",
     ":capabilities:backup-restore",
     ":capabilities:alarm-ringer",

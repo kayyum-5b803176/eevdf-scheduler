@@ -14,7 +14,6 @@ dependencies {
     implementation(project(":capabilities:settings-storage"))
     implementation(project(":capabilities:navigation-routes"))
     implementation(project(":capabilities:run-history"))
-    implementation(project(":capabilities:notice-phase"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.ktx)

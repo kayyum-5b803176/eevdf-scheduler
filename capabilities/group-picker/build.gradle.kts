@@ -5,6 +5,7 @@ android {
 }
 dependencies {
     implementation(project(":kernel"))
+    implementation(project(":capabilities:design-system"))
     implementation(project(":capabilities:task-storage"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

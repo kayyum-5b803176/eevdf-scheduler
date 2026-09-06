@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.noticephase
+package com.eevdf.capabilities.tasklistscreen
 
 /**
  * Models every legal state of a NOTIFICATION-type task's state machine.

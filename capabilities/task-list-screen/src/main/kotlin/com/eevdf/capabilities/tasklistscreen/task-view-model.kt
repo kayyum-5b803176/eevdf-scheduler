@@ -14,7 +14,6 @@ import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.capabilities.settingsstorage.state.AppPreferences
-import com.eevdf.capabilities.noticephase.NoticePhase
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.countdowntimer.TimerCardAction
 import com.eevdf.capabilities.countdowntimer.NextButtonState
@@ -24,10 +23,9 @@ import com.eevdf.capabilities.countdowntimer.TimerEngine
 import kotlinx.coroutines.launch
 import com.eevdf.data.sync.MultiUserSyncManager
 import com.eevdf.capabilities.countdowntimer.InterruptDelegate
-import com.eevdf.capabilities.noticephase.NoticeStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.eevdf.kernel.contracts.AlarmRingingQuery
+import com.eevdf.contract.control.AlarmRingingQuery
 
 /**
  * Root coordinator ViewModel.
