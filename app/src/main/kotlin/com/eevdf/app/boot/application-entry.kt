@@ -1,4 +1,4 @@
-package com.eevdf.composition.boot
+package com.eevdf.app.boot
 
 import android.app.Application
 import com.eevdf.capabilities.alarmringer.AlarmCommandHandler
@@ -17,12 +17,16 @@ import javax.inject.Inject
  * `@HiltAndroidApp` triggers Hilt code generation, creating the
  * application-level dependency container that every `@AndroidEntryPoint`
  * (Activity / Service / Fragment / BroadcastReceiver) and `@HiltViewModel`
- * draws from. The bindings themselves live in one file next door:
- * `composition/capability-bindings.kt`.
+ * draws from. The bindings themselves live in `:composition`'s
+ * `capability-bindings.kt` -- a separate module is fine for a Hilt @Module,
+ * only the @HiltAndroidApp entry point below has the same-module restriction.
  *
- * Was `app/SchedulerApplication.kt`. Renamed per rule 8 — the file name now
- * says what it does (this is where the application starts) rather than which
- * framework class it happens to extend.
+ * Was `app/SchedulerApplication.kt`, then briefly lived at
+ * `composition/boot/application-entry.kt` — moved back to `:app` because Hilt
+ * requires the `@HiltAndroidApp` class to be compiled inside the actual
+ * `com.android.application` module, not a library module composition depends
+ * on. `composition/capability-bindings.kt` (a plain `@Module`, not the entry
+ * point itself) has no such restriction and stays where it is.
  */
 @HiltAndroidApp
 class ApplicationEntry : Application() {
