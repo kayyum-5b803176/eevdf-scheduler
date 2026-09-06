@@ -3,7 +3,7 @@ package com.eevdf.feature.task.addtask
 import android.view.View
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.grouppicker.output.PickerDialog
-import com.eevdf.feature.task.list.SortHelper
+import com.eevdf.capabilities.taskstorage.logic.SortHelper
 
 /**
  * Parent group picker section for [AddTaskActivity].

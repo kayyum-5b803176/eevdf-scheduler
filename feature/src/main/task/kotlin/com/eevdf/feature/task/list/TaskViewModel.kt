@@ -1,5 +1,8 @@
 package com.eevdf.feature.task.list
 
+import com.eevdf.capabilities.taskstorage.logic.SortHelper
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
 import android.app.Application
 import android.content.SharedPreferences
 import android.os.CountDownTimer
@@ -72,6 +75,8 @@ class TaskViewModel @Inject constructor(
      */
     internal val alarms: AlarmController,
     internal val overlay: OverlayController,
+    /** Kernel event bus — the only channel to other capabilities (rule 3). */
+    internal val bus: EventBus,
 ) : AndroidViewModel(application) {
 
     // ── Shared preferences (internal so delegates can access prefs directly) ──
@@ -308,11 +313,18 @@ class TaskViewModel @Inject constructor(
 
     // ── init ──────────────────────────────────────────────────────────────────
 
+    private companion object {
+        const val CAPABILITY_ID = "task-list-screen"
+    }
+
     init {
         allTasks       = repository.allTasks
         activeTasks    = repository.activeTasks
         completedTasks = repository.completedTasks
         activeGroups   = repository.activeGroups
+        // Registered after the LiveData vals are assigned, so a bus event
+        // delivered during construction can never observe them uninitialised.
+        subscribeToBackupRequests()
 
         // ── Wire TimerEngine outputs via named observers ───────────────────────
         tickObserver = Observer { remainingSecs: Long ->
@@ -697,23 +709,32 @@ class TaskViewModel @Inject constructor(
      * handle (the old `getDatabase()` auto-reinit no longer covers the cached
      * reference). Export never replaces the file, so there is no need to close.
      */
-    fun prepareForDbExport() {
-        pauseTimer()
-        _currentTask.postValue(null)
-        TaskDatabase.checkpointWal(app)
-    }
-
     /**
-     * Prepares the database for a **destructive import** that overwrites the
-     * `.db` file on disk. Checkpoints and CLOSES Room so no file locks are held
-     * during the swap. Safe to close the cached Hilt handle here only because
-     * every import path restarts the process (`killProcess`) immediately after,
-     * rebuilding the Hilt graph — the closed instance is never reused.
+     * task-list-screen's half of a backup export/import.
+     *
+     * The old `prepareForDbExport()`/`prepareForDbImport()` methods that lived
+     * here did three things owned by three different capabilities, and were
+     * called directly by DataBackupActivity — the cross-capability violation
+     * named in the redesign spec §4. The database half (checkpointWal /
+     * checkpointAndClose) now lives in task-storage's
+     * BackupCheckpointHandler; what remains below is only what this screen
+     * genuinely owns: stopping its own timer and clearing its own selection.
+     *
+     * Registered in init{} rather than called directly, so backup-restore no
+     * longer holds a reference to this ViewModel at all.
+     *
+     * FALLBACK (per this capability's manifest): if task-list-screen is not
+     * attached, there is no in-memory timer or selection to clear, and the
+     * backup still proceeds correctly — task-storage's checkpoint is the part
+     * that actually protects data integrity.
      */
-    fun prepareForDbImport() {
-        pauseTimer()
-        _currentTask.postValue(null)
-        TaskDatabase.checkpointAndClose(app)
+    private fun subscribeToBackupRequests() {
+        val clearForBackup: suspend (Unit) -> Unit = {
+            pauseTimer()
+            _currentTask.postValue(null)
+        }
+        bus.subscribe(Topics.BACKUP_EXPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
+        bus.subscribe(Topics.BACKUP_IMPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
     }
 
     // =========================================================================

@@ -4,7 +4,9 @@ import android.app.Application
 import com.eevdf.capabilities.featuretoggles.LogcatCrashReporter
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
+import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
 import com.eevdf.kernel.crashguard.CrashIsolation
+import javax.inject.Inject
 import dagger.hilt.android.HiltAndroidApp
 
 /**
@@ -21,6 +23,15 @@ import dagger.hilt.android.HiltAndroidApp
  */
 @HiltAndroidApp
 class SchedulerApplication : Application() {
+
+    /**
+     * Requesting this at startup constructs task-storage's backup subscriber,
+     * which registers its bus subscriptions. It must exist before any
+     * backup-restore screen can publish to those topics — see
+     * BackupCheckpointHandler's KDoc for why the ordering matters.
+     */
+    @Inject lateinit var backupCheckpointHandler: BackupCheckpointHandler
+
 
     override fun onCreate() {
         super.onCreate()

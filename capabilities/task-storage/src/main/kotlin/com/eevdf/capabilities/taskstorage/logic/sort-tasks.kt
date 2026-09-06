@@ -1,4 +1,4 @@
-package com.eevdf.feature.task.list
+package com.eevdf.capabilities.taskstorage.logic
 
 import com.eevdf.capabilities.taskstorage.Task
 
@@ -31,7 +31,7 @@ import com.eevdf.capabilities.taskstorage.Task
  *  • New emoji or prefix to skip     → edit [findSortAnchor] only.
  *  All call sites pick up changes via [nameComparator] / [taskNameComparator].
  */
-internal object SortHelper {
+public object SortHelper {
 
     // ── Anchor finder ─────────────────────────────────────────────────────────
 

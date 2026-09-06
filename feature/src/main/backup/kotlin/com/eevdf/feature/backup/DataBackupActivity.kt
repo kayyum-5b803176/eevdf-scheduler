@@ -8,7 +8,8 @@ import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -17,7 +18,6 @@ import com.eevdf.feature.R
 import com.eevdf.data.backup.BackupManager
 import com.eevdf.capabilities.taskstorage.TaskDatabase
 import com.eevdf.capabilities.taskstorage.TaskDao
-import com.eevdf.feature.task.list.TaskViewModel
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,7 +35,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class DataBackupActivity : AppCompatActivity() {
 
-    private val viewModel: TaskViewModel by viewModels()
+    @Inject lateinit var bus: EventBus
 
     @Inject lateinit var taskDao: TaskDao
 
@@ -94,7 +94,8 @@ class DataBackupActivity : AppCompatActivity() {
                 val manifestJson = BackupManager.manifestJson(tasks.size)
 
                 // 2. Checkpoint + close so the raw .db file on disk is consistent.
-                viewModel.prepareForDbExport()
+                // Suspends until task-storage has checkpointed (see BackupCheckpointHandler).
+                bus.publish(Topics.BACKUP_EXPORT_REQUESTED, Unit)
                 val dbFile: File = withContext(Dispatchers.IO) {
                     TaskDatabase.getDatabaseFile(applicationContext)
                 }
@@ -152,7 +153,8 @@ class DataBackupActivity : AppCompatActivity() {
         setBusy(true, "Importing…")
         lifecycleScope.launch {
             try {
-                viewModel.prepareForDbImport()
+                // Suspends until task-storage has checkpointed AND closed Room.
+                bus.publish(Topics.BACKUP_IMPORT_REQUESTED, Unit)
                 val dbFile: File = withContext(Dispatchers.IO) {
                     TaskDatabase.getDatabaseFile(applicationContext)
                 }
@@ -188,7 +190,7 @@ class DataBackupActivity : AppCompatActivity() {
                 kotlinx.coroutines.delay(300)
                 finish()
                 // Fully restart the process so the Hilt @Singleton graph (which
-                // cached the now-closed Room instance from prepareForDbImport())
+                // cached the now-closed Room instance from the import checkpoint)
                 // is rebuilt against the freshly-replaced .db file. Relaunching
                 // the activity alone is not enough — the closed DB handle would
                 // survive in the Hilt container and every DAO call would fail.

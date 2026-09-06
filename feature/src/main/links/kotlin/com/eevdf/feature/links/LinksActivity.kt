@@ -9,7 +9,6 @@ import android.widget.ImageButton
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -17,8 +16,9 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.feature.R
 import com.eevdf.capabilities.grouppicker.output.PickerDialog
-import com.eevdf.feature.task.list.SortHelper
-import com.eevdf.feature.task.list.TaskViewModel
+import com.eevdf.capabilities.taskstorage.TaskRepository
+import javax.inject.Inject
+import com.eevdf.capabilities.taskstorage.logic.SortHelper
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import dagger.hilt.android.AndroidEntryPoint
@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class LinksActivity : AppCompatActivity() {
 
-    private val viewModel: TaskViewModel by viewModels()
+    @Inject lateinit var repository: TaskRepository
 
     private lateinit var toggleLinkType: MaterialButtonToggleGroup
     private lateinit var tvLinkTypeDesc: TextView
@@ -61,7 +61,7 @@ class LinksActivity : AppCompatActivity() {
     private var selectedTargetId: String? = null
     private var selectedHostId:   String? = null
 
-    private val existingLinksAdapter = ExistingLinksAdapter { link -> viewModel.deleteSymlink(link.id) }
+    private val existingLinksAdapter = ExistingLinksAdapter { link -> lifecycleScope.launch { repository.deleteSymlink(link.id) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -123,15 +123,15 @@ class LinksActivity : AppCompatActivity() {
 
         btnCreateLink.setOnClickListener { createLink() }
 
-        viewModel.activeTasks.observe(this) { tasks ->
+        repository.activeTasks.observe(this) { tasks ->
             allTasksSnapshot = tasks
             existingLinksAdapter.setTasks(tasks)
         }
-        viewModel.allTaskLinks.observe(this) { links ->
+        repository.allTaskLinks.observe(this) { links ->
             tvNoLinks.visibility = if (links.isEmpty()) View.VISIBLE else View.GONE
             existingLinksAdapter.setLinks(links)
         }
-        viewModel.allTaskMemberships.observe(this) { memberships ->
+        repository.allTaskMemberships.observe(this) { memberships ->
             allMembershipsSnapshot = memberships
         }
     }
@@ -166,9 +166,9 @@ class LinksActivity : AppCompatActivity() {
         tvLinkError.visibility = View.GONE
 
         if (toggleLinkType.checkedButtonId == R.id.btnTypeHardlink) {
-            viewModel.createHardlink(targetId, hostId)
+            lifecycleScope.launch { repository.createHardlink(targetId, hostId) }
         } else {
-            viewModel.createSymlink(targetId, hostId)
+            lifecycleScope.launch { repository.createSymlink(targetId, hostId) }
         }
         selectedTargetId = null
         selectedHostId   = null
