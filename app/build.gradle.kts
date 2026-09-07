@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "6.11.2"
+        versionName = "6.12.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -129,6 +129,7 @@ dependencies {
     implementation(project(":capabilities:settings-screens"))
     implementation(project(":capabilities:stats-screens"))
     implementation(project(":capabilities:multi-device-sync"))
+    implementation(project(":capabilities:event-log"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

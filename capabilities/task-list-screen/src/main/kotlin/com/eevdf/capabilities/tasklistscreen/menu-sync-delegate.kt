@@ -162,6 +162,10 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
                 activity.startActivity(AppRoutes.settings(activity))
                 true
             }
+            R.id.action_event_log -> {
+                activity.startActivity(AppRoutes.eventLog(activity))
+                true
+            }
             else -> false
         }
     }

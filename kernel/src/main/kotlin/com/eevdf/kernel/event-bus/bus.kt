@@ -3,6 +3,7 @@ package com.eevdf.kernel.eventbus
 import com.eevdf.kernel.crashguard.runIsolated
 import com.eevdf.kernel.supervisor.Supervisor
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -39,7 +40,7 @@ fun interface Handler<T> {
  * another, and an unavailable capability is simply skipped rather than
  * blocking the publish.
  */
-class EventBus(private val supervisor: Supervisor) {
+class EventBus(private val supervisor: Supervisor, private val eventLog: BusEventLog = BusEventLog()) {
 
     private data class Subscription<T>(val capabilityId: String, val handler: Handler<T>)
 
@@ -49,13 +50,20 @@ class EventBus(private val supervisor: Supervisor) {
      * Backing store for [Topic.retained] topics: the most recent payload
      * published on each retained topic's name, keyed by [Topic.name] rather
      * than by the [Topic] instance itself so [getLast] works even when called
-     * with a distinct `Topic` value carrying the same name (data class
+     * with a distinct [Topic] value carrying the same name (data class
      * equality already covers this, but keying by name matches how
      * [Topics] are actually declared — one canonical `val` per name — and
      * keeps this map trivially inspectable from tests without needing the
      * exact object reference).
      */
     private val lastValue = mutableMapOf<String, Any?>()
+
+    /**
+     * Read-only diagnostic feed of every [publish] call, newest first — see
+     * [BusEventLog]. Not itself a bus channel; introspection only, for the
+     * event-log screen.
+     */
+    val log: StateFlow<List<BusEventRecord>> get() = eventLog.events
 
     /** Registers [handler] under [capabilityId] for [topic]. */
     fun <T> subscribe(topic: Topic<T>, capabilityId: String, handler: Handler<T>) {
@@ -90,6 +98,14 @@ class EventBus(private val supervisor: Supervisor) {
      * delivery to any other subscriber, nor to the publisher.
      */
     suspend fun <T> publish(topic: Topic<T>, payload: T) = coroutineScope {
+        // Recorded unconditionally — including topics with zero live
+        // subscribers — so the event-log screen reflects everything
+        // actually published, not just what something happened to be
+        // listening for. toString() rather than the typed payload: this is
+        // a diagnostic record for a human to read, not a re-dispatch.
+        // Unit payloads (pure signal topics like backup.export-requested)
+        // record as an empty string rather than the unhelpful "kotlin.Unit".
+        eventLog.record(topic.name, if (payload == Unit) "" else payload.toString())
         if (topic.retained) lastValue[topic.name] = payload
         @Suppress("UNCHECKED_CAST")
         val subs = subscriptions[topic] as? List<Subscription<T>> ?: return@coroutineScope

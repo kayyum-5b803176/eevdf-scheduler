@@ -51,4 +51,5 @@ include(
     ":capabilities:settings-screens",
     ":capabilities:stats-screens",
     ":capabilities:multi-device-sync",
+    ":capabilities:event-log",
 )

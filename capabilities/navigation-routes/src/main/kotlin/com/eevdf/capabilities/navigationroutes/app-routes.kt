@@ -41,9 +41,10 @@ public object AppRoutes {
     public const val AUTO_SWITCH: String = "com.eevdf.capabilities.callautoswitch.AutoSwitchActivity"
     public const val SYNC: String        = "com.eevdf.capabilities.multidevicesync.MultiUserSyncActivity"
     public const val LINKS: String       = "com.eevdf.capabilities.linksscreen.LinksActivity"
+    public const val EVENT_LOG: String   = "com.eevdf.capabilities.eventlog.EventLogActivity"
 
     /** Every route, for the resolution test. Keep in step with the constants. */
-    public val ALL_ROUTES: List<String> = listOf(MAIN, ADD_TASK, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC, LINKS)
+    public val ALL_ROUTES: List<String> = listOf(MAIN, ADD_TASK, STATS, SETTINGS, BACKUP, AUTO_SWITCH, SYNC, LINKS, EVENT_LOG)
 
     /**
      * Builds an explicit Intent for [className] within this application.
@@ -62,4 +63,5 @@ public object AppRoutes {
     public fun autoSwitch(context: Context): Intent = intent(context, AUTO_SWITCH)
     public fun sync(context: Context): Intent = intent(context, SYNC)
     public fun links(context: Context): Intent = intent(context, LINKS)
+    public fun eventLog(context: Context): Intent = intent(context, EVENT_LOG)
 }

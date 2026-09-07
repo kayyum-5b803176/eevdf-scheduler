@@ -130,4 +130,28 @@ class EventBusTest {
 
         assertEquals(null, bus.getLast(timerExpired))
     }
+
+    @Test
+    fun `publish records every event in the log, regardless of subscribers`() = runTest {
+        val supervisor = Supervisor()
+        val bus = EventBus(supervisor)
+
+        bus.publish(timerExpired, "task-1")
+
+        val records = bus.log.value
+        assertEquals(1, records.size)
+        assertEquals("test.timer.expired", records[0].topicName)
+        assertEquals("task-1", records[0].payload)
+    }
+
+    @Test
+    fun `publish records a Unit payload as an empty string, not kotlin Unit`() = runTest {
+        val supervisor = Supervisor()
+        val bus = EventBus(supervisor)
+        val signal = Topic<Unit>("test.signal")
+
+        bus.publish(signal, Unit)
+
+        assertEquals("", bus.log.value.single().payload)
+    }
 }
