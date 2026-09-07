@@ -13,7 +13,7 @@ import com.eevdf.kernel.eventbus.TimerRunningState
 import com.eevdf.kernel.eventbus.Topics
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.countdowntimer.TimerCardAction
-import com.eevdf.capabilities.remindernotifier.NotificationHelper
+import com.eevdf.capabilities.notification.NotificationHelper
 
 /**
  * Wires every LiveData observer.

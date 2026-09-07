@@ -16,7 +16,7 @@ dependencies {
     implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))
     implementation(project(":capabilities:countdown-timer"))
-    implementation(project(":capabilities:reminder-notifier"))
+    implementation(project(":capabilities:notification"))
     // v6.10.8 (flagged, not a cycle): TaskViewModel calls MultiUserSyncManager
     // and reads SyncState directly (triggerSyncExport, sync icon state).
     // multi-device-sync has no dependency back on task-list-screen, so this

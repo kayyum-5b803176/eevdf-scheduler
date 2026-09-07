@@ -11,7 +11,7 @@ dependencies {
     implementation(project(":kernel"))
     implementation(project(":capabilities:settings-storage"))
     implementation(project(":capabilities:design-system"))
-    implementation(project(":capabilities:reminder-notifier"))
+    implementation(project(":capabilities:notification"))
     implementation(project(":capabilities:navigation-routes"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

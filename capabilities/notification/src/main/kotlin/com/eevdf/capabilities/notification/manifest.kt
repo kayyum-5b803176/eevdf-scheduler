@@ -1,18 +1,18 @@
-package com.eevdf.capabilities.remindernotifier
+package com.eevdf.capabilities.notification
 
 import com.eevdf.kernel.eventbus.CapabilityManifest
 import com.eevdf.kernel.eventbus.Topic
 import com.eevdf.kernel.eventbus.Topics
 
-object ReminderNotifierManifest : CapabilityManifest {
-    override val capabilityId = "reminder-notifier"
+object NotificationManifest : CapabilityManifest {
+    override val capabilityId = "notification"
     override val publishes: Set<Topic<*>> = emptySet()
     override val subscribes = setOf(Topics.ALARM_RINGING, Topics.ALARM_STOPPED)
 
     override fun fallbackWhenUnavailable(topic: Topic<*>) {
         // No notification posted/cleared for this alarm event. The alarm's
         // own foreground service/activity (alarm-ringer) still rings and
-        // displays independently — reminder-notifier is a secondary channel,
+        // displays independently — notification is a secondary channel,
         // not the alarm's only signal to the user.
     }
 }

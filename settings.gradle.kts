@@ -37,7 +37,7 @@ include(
     ":capabilities:task-storage",
     ":capabilities:task-scheduling",
     ":capabilities:run-history",
-    ":capabilities:reminder-notifier",
+    ":capabilities:notification",
     ":capabilities:settings-storage",
     ":capabilities:group-picker",
     ":capabilities:navigation-routes",

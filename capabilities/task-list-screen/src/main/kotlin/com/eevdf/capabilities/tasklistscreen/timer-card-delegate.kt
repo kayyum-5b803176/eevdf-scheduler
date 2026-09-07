@@ -6,7 +6,7 @@ import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.tasklistscreen.R
 import com.eevdf.capabilities.countdowntimer.NextButtonState
 import com.eevdf.capabilities.countdowntimer.TimerCardAction
-import com.eevdf.capabilities.remindernotifier.NotificationHelper
+import com.eevdf.capabilities.notification.NotificationHelper
 
 /**
  * Renders the merged timer card from a single [TimerCardAction] and wires its

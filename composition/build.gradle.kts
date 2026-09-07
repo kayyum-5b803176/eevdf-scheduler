@@ -19,7 +19,7 @@ dependencies {
     implementation(project(":capabilities:task-storage"))
     implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))
-    implementation(project(":capabilities:reminder-notifier"))
+    implementation(project(":capabilities:notification"))
     implementation(project(":capabilities:settings-storage"))
     implementation(project(":capabilities:group-picker"))
     implementation(project(":capabilities:navigation-routes"))

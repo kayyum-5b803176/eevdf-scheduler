@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.remindernotifier
+package com.eevdf.capabilities.notification
 
 import android.content.Context
 import androidx.core.app.NotificationManagerCompat

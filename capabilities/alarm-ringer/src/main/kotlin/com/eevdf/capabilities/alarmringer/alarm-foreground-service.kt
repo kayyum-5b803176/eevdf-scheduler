@@ -17,14 +17,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.eevdf.capabilities.alarmringer.R
-import com.eevdf.capabilities.remindernotifier.AlarmNotificationPolicy
-import com.eevdf.capabilities.remindernotifier.AlarmReliabilityChecker
-import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
-import com.eevdf.capabilities.remindernotifier.ForegroundAppDetector
-import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
 import com.eevdf.capabilities.navigationroutes.AppRoutes
+import com.eevdf.kernel.eventbus.AlarmNotificationDecision
 import com.eevdf.kernel.eventbus.AlarmRingingEvent
 import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.RequestTopics
 import com.eevdf.kernel.eventbus.Topics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -301,29 +298,26 @@ class AlarmForegroundService : Service() {
                     Log.d(TAG, "EXPIRE fired: taskName=$taskName isDeviceLocked=${isDeviceLocked()}")
                     acquireWakeLock()
 
-                    // Foreground-app detection is a best-effort UsageStatsManager
-                    // read for the Exclude App feature only. Isolated in its own
-                    // try/catch: if it throws on some OEM/edge case, that must
-                    // degrade to "no match" — it must never take down the alarm
-                    // itself, which is a far worse failure than one missed
-                    // Exclude App check.
-                    val appForeground = AppForegroundTracker.isAppInForeground
-                    val foregroundPkg = if (appForeground) null else try {
-                        ForegroundAppDetector.getForegroundPackage(this)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "getForegroundPackage failed, treating as no match", e)
-                        null
+                    // alarm.notification-decision (rule 3): one request,
+                    // answered entirely by notification — replaces four
+                    // separate direct imports (AppForegroundTracker,
+                    // ForegroundAppDetector, AlarmNotificationPolicy,
+                    // AlarmReliabilityChecker) that used to live right here.
+                    // Blocking is safe and bounded: request() routes through
+                    // the same runIsolated 5s timeout publish() does, and
+                    // this is a live, in-process call (not process teardown)
+                    // — same reasoning as stopEverything()'s blocking publish.
+                    // Null (no responder / unavailable / timed out) falls
+                    // back to the safest default: show a normal banner,
+                    // nothing suppressed, no full-screen — the alarm is never
+                    // silently hidden just because this one request failed.
+                    val response = runBlocking {
+                        bus.request(RequestTopics.ALARM_NOTIFICATION_DECISION, Unit, "alarm-ringer")
                     }
-                    val excludeAppMatch = !appForeground &&
-                        NotificationPrefs.isAppExcluded(this, foregroundPkg)
-
-                    // Pure decision — see AlarmNotificationPolicy for the full
-                    // rationale. Extracted out of this method so the decision
-                    // itself is unit-testable independent of the service.
-                    val decision = AlarmNotificationPolicy.decide(
-                        appForeground = appForeground,
-                        excludeAppMatch = excludeAppMatch,
-                        lockScreenOverlayEnabled = NotificationPrefs.isLockScreenOverlayEnabled(this)
+                    val decision = response ?: AlarmNotificationDecision(
+                        suppressBanner = false,
+                        attachFullScreenIntent = false,
+                        canUseFullScreenIntent = false,
                     )
 
                     // Diagnostic snapshot only — never gates behavior. Channel
@@ -337,11 +331,11 @@ class AlarmForegroundService : Service() {
                     }
                     Log.d(
                         TAG,
-                        "EXPIRE decision: appForeground=$appForeground foregroundPkg=$foregroundPkg " +
-                            "excludeAppMatch=$excludeAppMatch suppressBanner=${decision.suppressBanner} " +
+                        "EXPIRE decision: suppressBanner=${decision.suppressBanner} " +
                             "attachFullScreenIntent=${decision.attachFullScreenIntent} " +
-                            "canUseFullScreenIntent=${AlarmReliabilityChecker.canUseFullScreenIntent(this)} " +
-                            "channelImportance=$channelImportance"
+                            "canUseFullScreenIntent=${decision.canUseFullScreenIntent} " +
+                            "channelImportance=$channelImportance " +
+                            "(answered=${response != null})"
                     )
 
                     showExpiredNotification(taskName, decision.suppressBanner, decision.attachFullScreenIntent)

@@ -15,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.alarmringer.R
 import com.google.android.material.button.MaterialButton
-import com.eevdf.capabilities.remindernotifier.NotificationHelper
+import com.eevdf.capabilities.notification.NotificationHelper
 import com.eevdf.capabilities.settingsstorage.state.HardwareKeyPrefs
 import com.eevdf.capabilities.navigationroutes.AppRoutes
 

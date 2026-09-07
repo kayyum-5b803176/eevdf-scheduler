@@ -8,8 +8,9 @@ import com.eevdf.capabilities.featuretoggles.LogcatCrashReporter
 import com.eevdf.capabilities.sound.SoundCueHandler
 import com.eevdf.capabilities.vibration.VibrationCueHandler
 import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
-import com.eevdf.capabilities.remindernotifier.AlarmDeliveryHandler
-import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
+import com.eevdf.capabilities.notification.AlarmDeliveryHandler
+import com.eevdf.capabilities.notification.AlarmNotificationDecisionResponder
+import com.eevdf.capabilities.notification.AppForegroundTracker
 import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
@@ -42,11 +43,12 @@ class ApplicationEntry : Application() {
      * which is what registers its subscriptions. They must exist before any
      * publisher can fire — see BackupCheckpointHandler's KDoc for why ordering
      * matters in the backup case specifically. The same ordering requirement
-     * applies to [soundCueHandler]/[vibrationCueHandler]/[alarmDeliveryHandler]:
-     * `Application.onCreate()` always runs before any `Service` (including
-     * `AlarmForegroundService`, `alarm.ringing`'s publisher) is created in
-     * this process, so listing them here guarantees they exist before the
-     * first alarm can ever ring.
+     * applies to [soundCueHandler]/[vibrationCueHandler]/[alarmDeliveryHandler]/
+     * [alarmNotificationDecisionResponder]: `Application.onCreate()` always
+     * runs before any `Service` (including `AlarmForegroundService`,
+     * `alarm.ringing`'s publisher AND `alarm.notification-decision`'s
+     * requester) is created in this process, so listing them here guarantees
+     * they exist before the first alarm can ever ring.
      *
      * This list, and `capability-bindings.kt`, are the only two places that
      * know which capabilities participate in the bus (rule 6).
@@ -59,6 +61,7 @@ class ApplicationEntry : Application() {
     @Inject lateinit var soundCueHandler: SoundCueHandler
     @Inject lateinit var vibrationCueHandler: VibrationCueHandler
     @Inject lateinit var alarmDeliveryHandler: AlarmDeliveryHandler
+    @Inject lateinit var alarmNotificationDecisionResponder: AlarmNotificationDecisionResponder
     @Inject lateinit var timerExpiryHandler: TimerExpiryHandler
 
     override fun onCreate() {

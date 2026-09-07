@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.remindernotifier
+package com.eevdf.capabilities.notification
 
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
