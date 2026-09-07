@@ -44,4 +44,25 @@ class BusEventLogTest {
         val values = log.events.value
         assertTrue(values[1].id < values[0].id)
     }
+
+    @Test
+    fun `clear empties the log`() {
+        val log = BusEventLog()
+        log.record("topic.a", "x")
+        log.record("topic.b", "y")
+
+        log.clear()
+
+        assertTrue(log.events.value.isEmpty())
+    }
+
+    @Test
+    fun `clear does not stop future recording`() {
+        val log = BusEventLog()
+        log.record("topic.a", "x")
+        log.clear()
+        log.record("topic.b", "y")
+
+        assertEquals(listOf("topic.b"), log.events.value.map { it.topicName })
+    }
 }

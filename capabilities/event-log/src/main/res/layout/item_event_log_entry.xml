@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
     android:paddingStart="@dimen/app_spacing_xl"
     android:paddingEnd="@dimen/app_spacing_xl"
     android:paddingTop="@dimen/app_spacing_md"
@@ -35,6 +39,11 @@
 
     </LinearLayout>
 
+    <!--
+      maxLines toggles 2 <-> unlimited from code depending on this row's
+      expanded state — see EventLogAdapter.onBindViewHolder. No separate
+      "collapsed" vs "expanded" layout: same TextView, different maxLines.
+    -->
     <TextView
         android:id="@+id/tvEventLogPayload"
         android:layout_width="match_parent"
@@ -45,6 +54,33 @@
         android:fontFamily="monospace"
         android:maxLines="2"
         android:ellipsize="end" />
+
+    <LinearLayout
+        android:id="@+id/rowEventLogCopy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/app_spacing_sm"
+        android:orientation="horizontal"
+        android:gravity="end|center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvEventLogCopy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy"
+            android:textSize="@dimen/app_text_size_sm"
+            android:textColor="@color/app_text_label"
+            android:drawablePadding="@dimen/app_spacing_sm"
+            android:gravity="center_vertical"
+            android:background="?attr/selectableItemBackground"
+            android:paddingStart="@dimen/app_spacing_sm"
+            android:paddingEnd="@dimen/app_spacing_sm"
+            android:paddingTop="@dimen/app_spacing_cs"
+            android:paddingBottom="@dimen/app_spacing_cs"
+            app:drawableEndCompat="@drawable/ic_content_copy" />
+
+    </LinearLayout>
 
     <View
         android:layout_width="match_parent"

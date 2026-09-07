@@ -65,6 +65,9 @@ class EventBus(private val supervisor: Supervisor, private val eventLog: BusEven
      */
     val log: StateFlow<List<BusEventRecord>> get() = eventLog.events
 
+    /** Wipes the event log — see [BusEventLog.clear]. */
+    fun clearLog() = eventLog.clear()
+
     /** Registers [handler] under [capabilityId] for [topic]. */
     fun <T> subscribe(topic: Topic<T>, capabilityId: String, handler: Handler<T>) {
         @Suppress("UNCHECKED_CAST")

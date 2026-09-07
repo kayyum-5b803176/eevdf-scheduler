@@ -48,4 +48,15 @@ class BusEventLog(private val capacity: Int = 500) {
         val updated = listOf(record) + _events.value
         _events.value = if (updated.size > capacity) updated.subList(0, capacity) else updated
     }
+
+    /**
+     * Wipes every recorded event. Does not affect [Topic.retained] values
+     * (a separate mechanism — see [EventBus.getLast]) and does not stop
+     * future [record] calls; it only resets what's currently held. Exists
+     * for the event-log screen's "Clear log" action.
+     */
+    @Synchronized
+    fun clear() {
+        _events.value = emptyList()
+    }
 }

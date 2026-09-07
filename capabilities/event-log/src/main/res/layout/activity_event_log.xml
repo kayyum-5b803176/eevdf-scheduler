@@ -18,22 +18,95 @@
             app:titleTextColor="@android:color/white" />
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvEventLog"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:clipToPadding="false"
-        android:paddingBottom="@dimen/app_spacing_xl"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        android:orientation="vertical"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-    <TextView
-        android:id="@+id/tvEventLogEmpty"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:text="No events yet"
-        android:textSize="@dimen/app_text_size_lg"
-        android:textColor="@color/app_text_hint"
-        android:visibility="visible" />
+        <!--
+          Deliberately a plain clickable row styled to read as a dropdown
+          field, not the framework TextInputLayout+AutoCompleteTextView
+          "exposed dropdown" — that component is built for single-select
+          from a plain list; this filter is multi-select with its own
+          search box (see dialog_event_log_filter.xml), which the framework
+          component doesn't support. The dialog it opens is where the real
+          picking happens.
+        -->
+        <LinearLayout
+            android:id="@+id/rowEventLogFilter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@color/app_white"
+            android:foreground="?attr/selectableItemBackground"
+            android:paddingStart="@dimen/app_spacing_xl"
+            android:paddingEnd="@dimen/app_spacing_xl"
+            android:paddingTop="@dimen/app_spacing_md"
+            android:paddingBottom="@dimen/app_spacing_md"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:id="@+id/tvEventLogFilterLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Topic: All"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_body" />
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_arrow_drop_down"
+                android:contentDescription="@null" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvEventLog"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingBottom="@dimen/app_spacing_xl" />
+
+            <TextView
+                android:id="@+id/tvEventLogEmpty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:text="No events yet"
+                android:textSize="@dimen/app_text_size_lg"
+                android:textColor="@color/app_text_hint"
+                android:visibility="visible" />
+
+            <TextView
+                android:id="@+id/tvEventLogClearFilter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal|bottom"
+                android:layout_marginBottom="@dimen/app_spacing_cl"
+                android:text="Clear filter"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_label"
+                android:background="?attr/selectableItemBackground"
+                android:padding="@dimen/app_spacing_md"
+                android:visibility="gone" />
+
+        </FrameLayout>
+
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
