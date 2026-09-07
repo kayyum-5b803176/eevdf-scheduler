@@ -97,6 +97,22 @@ class RunLogRepository @Inject constructor(
     // ── Compaction ────────────────────────────────────────────────────────────
 
     /**
+     * Runs compaction if 24 h have elapsed since the last run, WITHOUT
+     * recording a new run-log entry first.
+     *
+     * [recordRun] already triggers this on every completed timer session, but
+     * a device that's idle on timers (only creating/editing/completing tasks,
+     * never actually running one) previously never called [maybeCompact] at
+     * all — the three-tier retention/rollup this class exists to enforce
+     * would silently stop happening. Wired to `task.saved` (see
+     * `TaskSavedCompactionHandler`) so any save opportunistically ticks the
+     * same throttled check, independent of whether a run ever completed.
+     */
+    suspend fun compactIfDue() = withContext(Dispatchers.IO) {
+        maybeCompact()
+    }
+
+    /**
      * Runs the full two-stage compaction pipeline if 24 h have elapsed since the
      * last run.  Safe to call frequently — the timestamp check is O(1).
      */

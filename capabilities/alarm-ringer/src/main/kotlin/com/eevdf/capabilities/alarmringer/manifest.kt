@@ -26,3 +26,14 @@ object AlarmRingerManifest : CapabilityManifest {
         // deliberately not dependent on this capability being attached.
     }
 }
+
+/**
+ * RESOLVED — both `TIMER_EXPIRED` and `REALTIME_WINDOW_EXPIRED` (previously
+ * dead) now have real, deliberately diagnostic-only subscribers; see
+ * [TimerExpiryHandler]'s KDoc for why neither re-triggers or stops the
+ * alarm — `TIMER_EXPIRED` would double-fire against the already-real
+ * `ALARM_TIMER_EXPIRE_REQUESTED`, and `REALTIME_WINDOW_EXPIRED`'s
+ * task-id payload can't be safely matched against this capability's
+ * name-only `AlarmState` without a task-storage dependency this capability
+ * deliberately doesn't have.
+ */

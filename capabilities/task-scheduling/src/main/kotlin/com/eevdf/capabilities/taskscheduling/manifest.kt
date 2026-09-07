@@ -46,6 +46,34 @@ object TaskSchedulingManifest : CapabilityManifest {
 }
 
 /**
+ * RESOLVED, but NOT from this capability — `Topics.REALTIME_WINDOW_EXPIRED`
+ * is now genuinely published, from `task-list-screen`'s
+ * `ListBuilderDelegate` (see its `rtResortRunnable`), not from anywhere in
+ * `task-scheduling` itself.
+ *
+ * WHY THAT'S THE CORRECT PLACE, NOT A WORKAROUND
+ * -------------------------------------------------
+ * This manifest's own KDoc above states the layering explicitly: this
+ * capability is PURE domain — "knows nothing about Task, RunLog, Room or
+ * Android," "depends on no capability." Publishing to the kernel event bus
+ * needs a live `EventBus` instance and a place to detect the actual
+ * activation/deactivation TRANSITION, not just evaluate the current window
+ * state — `RtPolicy.isWindowActive` here is a stateless, side-effect-free
+ * function; it has no notion of "was active a moment ago" to compare
+ * against. `ListBuilderDelegate` already has exactly that: a one-shot
+ * `Handler` callback armed for the precise millisecond `RtScheduler`
+ * (task-storage's Task-aware wrapper around this capability's `RtPolicy`)
+ * computes as the next activation-or-deactivation boundary, plus the task
+ * ids that were active when that callback was armed — the actual
+ * transition-detection state this capability was never meant to hold.
+ *
+ * `publishes` above stays as declared: this capability's domain logic
+ * (`RtPolicy.isWindowActive`) is still what task-list-screen's real-owner
+ * code calls to answer the question the publish depends on, even though the
+ * `bus.publish()` call itself lives one layer up.
+ */
+
+/**
  * DEFERRED, still not done:
  * - `eevdf-scheduler.kt`'s class is still named `EevdfScheduler` (rule 8
  *   flags this as the canonical *bad* example — should become something

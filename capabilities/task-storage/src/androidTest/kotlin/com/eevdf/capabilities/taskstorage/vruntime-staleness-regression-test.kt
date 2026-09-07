@@ -9,6 +9,8 @@ import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.supervisor.Supervisor
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -64,6 +66,14 @@ class VruntimeStalenessRegressionTest {
             runLog = runLogRepository,
             interruptReturnDao = db.interruptReturnDao(),
             loadFactorDao = db.taskLoadFactorDao(),
+            taskLinkDao = db.taskLinkDao(),
+            taskMembershipDao = db.taskMembershipDao(),
+            // A real (not Fake) bus: this is an androidTest, not a capability
+            // unit test, so it isn't covered by kernel/testing's FakeBus
+            // exception — a real EventBus over a real Supervisor is just as
+            // cheap here and exercises the actual publish path this test's
+            // writes now go through.
+            bus = EventBus(Supervisor()),
         )
     }
 

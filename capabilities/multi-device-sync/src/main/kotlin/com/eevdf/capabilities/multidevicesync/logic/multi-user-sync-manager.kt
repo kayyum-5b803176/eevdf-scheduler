@@ -9,6 +9,8 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.eevdf.capabilities.taskstorage.TaskDatabase
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
@@ -133,15 +135,42 @@ object MultiUserSyncManager {
 
     private lateinit var appContext: Context
 
+    /**
+     * Optional so existing callers (and this object's own internal callers,
+     * e.g. tests that never call [init]) keep compiling unchanged. When
+     * supplied, [publishConflictsDetected] uses it to publish
+     * `Topics.TASK_CONFLICT_DETECTED` — the real wiring for the topic this
+     * capability's manifest.kt declares as published.
+     */
+    private var bus: EventBus? = null
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    fun init(context: Context) {
+    fun init(context: Context, bus: EventBus? = null) {
         appContext = context.applicationContext
+        this.bus = bus
         if (isEnabled()) {
             _syncState.postValue(SyncState.Idle)
             startPolling()
         } else {
             _syncState.postValue(SyncState.Disabled)
+        }
+    }
+
+    /**
+     * Publishes `Topics.TASK_CONFLICT_DETECTED` for every conflicting task,
+     * right after [SyncState.ConflictPending] is posted for the UI. Best
+     * effort: if [init] was never called with a [bus] (e.g. in a test that
+     * exercises this object directly), this silently does nothing — the
+     * conflict is still fully surfaced via [syncState] either way, since
+     * that LiveData is this object's original, primary mechanism and does
+     * not depend on the bus.
+     */
+    private fun publishConflictsDetected(conflicts: List<SyncConflict>) {
+        val b = bus ?: return
+        val s = scope ?: return
+        conflicts.forEach { conflict ->
+            s.launch { b.publish(Topics.TASK_CONFLICT_DETECTED, conflict.taskId) }
         }
     }
 
@@ -330,6 +359,12 @@ object MultiUserSyncManager {
                         pendingToken = PendingImportToken(syncDir, meta, remoteVersion),
                     )
                 )
+                // task.conflict-detected (rule 3): fires alongside the
+                // ConflictPending LiveData above, not instead of it — see
+                // publishConflictsDetected's KDoc for why the bus publish is
+                // best-effort and the LiveData stays this object's primary,
+                // always-working mechanism.
+                publishConflictsDetected(conflicts)
                 // Return here — the UI will call forceAcceptPendingImport or
                 // skipPendingImport to resume.
                 return

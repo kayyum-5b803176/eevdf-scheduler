@@ -17,12 +17,20 @@ object FeedbackCuesManifest : CapabilityManifest {
 }
 
 /**
- * NOTE (flagged, not silently fixed): `sound-manager.kt`/`vibration-manager.kt`
- * are still called via direct import from `feature/task`, `feature/alarm`, and
- * `feature/settings` (5 call sites) rather than through the bus above. That is
- * the "ports pattern" DI-style call this migration ultimately replaces with
- * `Topics.ALARM_RINGING`/`Topics.ALARM_STOPPED` events — but the callers
- * (alarm-ringer, countdown-timer, settings-screens) don't migrate until
- * Phase 3/5. This phase only relocates the package; the direct-call edge is
- * left in place and will be bus-ified when those capabilities move.
+ * RESOLVED for the two topics this manifest declares (was flagged since
+ * Phase 1): `SUBSCRIBES = [ALARM_RINGING, ALARM_STOPPED]` above is now real.
+ * `AlarmForegroundService` no longer calls `SoundManager`/`VibrationManager`
+ * directly to start the alarm sound — it only publishes `Topics.ALARM_RINGING`,
+ * and [AlarmCueHandler] in this capability is what actually starts/stops
+ * playback in response. See [AlarmCueHandler]'s KDoc for why the stop side
+ * additionally keeps a direct fallback call in alarm-ringer itself.
+ *
+ * STILL DIRECT, OUT OF SCOPE FOR THIS PAIR OF TOPICS: task-list-screen's
+ * NOTIFICATION-task action sounds (`notice-state-machine.kt`'s
+ * playExecuteSound/playWaitSound) and settings-screens' sound/vibration
+ * preview screens both call `SoundManager`/`VibrationManager` directly too —
+ * neither is an alarm ringing/stopping, so neither is what
+ * `ALARM_RINGING`/`ALARM_STOPPED` cover. Whether those deserve their own
+ * topics is a separate design question, not something implied by this pair
+ * being wired now.
  */

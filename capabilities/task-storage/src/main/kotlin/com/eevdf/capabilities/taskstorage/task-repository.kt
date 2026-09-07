@@ -7,6 +7,8 @@ import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -20,6 +22,8 @@ class TaskRepository @Inject constructor(
     private val loadFactorDao: TaskLoadFactorDao,
     private val taskLinkDao: TaskLinkDao,               // ← new: symlinks
     private val taskMembershipDao: TaskMembershipDao,   // ← new: hardlinks
+    /** Kernel event bus — publishes `task.saved` (rule 3: bus-only, never a direct call out). */
+    private val bus: EventBus,
 ) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
@@ -110,12 +114,19 @@ class TaskRepository @Inject constructor(
         EEVDFScheduler.recalculate(existing)
         dao.insert(task)
         existing.forEach { dao.update(it) }
+        // task.saved (rule 3): lets any capability react to a new task without
+        // task-storage knowing who's listening — e.g. task-list-screen
+        // refreshing its EEVDF stats even when the write came from a
+        // capability that never touches TaskViewModel (group-picker,
+        // links-screen, backup-restore's restore path).
+        bus.publish(Topics.TASK_SAVED, task.id)
     }
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
         dao.update(task)
         propagateInheritedLoadFactor(task.id, task.loadFactor)
         propagateInheritedTimeSlice(task.id, task.timeSliceSeconds)
+        bus.publish(Topics.TASK_SAVED, task.id)
     }
 
     /**
@@ -305,6 +316,7 @@ class TaskRepository @Inject constructor(
         dao.update(updated)
         // A completed task is no longer a valid return-to target.
         interruptReturnDao.clearByTask(task.id)
+        bus.publish(Topics.TASK_SAVED, task.id)
     }
 
     suspend fun stopAll() = withContext(Dispatchers.IO) { dao.stopAllRunning() }

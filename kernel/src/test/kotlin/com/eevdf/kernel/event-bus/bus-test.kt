@@ -85,4 +85,49 @@ class EventBusTest {
         assertTrue(supervisor.isAvailable("healthy-capability"))
         assertEquals(3, healthyCallCount)
     }
+
+    @Test
+    fun `getLast returns null until a retained topic has been published`() = runTest {
+        val supervisor = Supervisor()
+        val bus = EventBus(supervisor)
+        val retained = Topic<String>("test.retained", retained = true)
+
+        assertEquals(null, bus.getLast(retained))
+    }
+
+    @Test
+    fun `getLast returns the most recent payload of a retained topic`() = runTest {
+        val supervisor = Supervisor()
+        val bus = EventBus(supervisor)
+        val retained = Topic<String>("test.retained", retained = true)
+
+        bus.publish(retained, "first")
+        bus.publish(retained, "second")
+
+        assertEquals("second", bus.getLast(retained))
+    }
+
+    @Test
+    fun `getLast still delivers to live subscribers as normal`() = runTest {
+        val supervisor = Supervisor()
+        val bus = EventBus(supervisor)
+        val retained = Topic<String>("test.retained", retained = true)
+        var received: String? = null
+
+        bus.subscribe(retained, "late-joiner") { payload -> received = payload }
+        bus.publish(retained, "task-9")
+
+        assertEquals("task-9", received)
+        assertEquals("task-9", bus.getLast(retained))
+    }
+
+    @Test
+    fun `getLast returns null for a non-retained topic even after publish`() = runTest {
+        val supervisor = Supervisor()
+        val bus = EventBus(supervisor)
+
+        bus.publish(timerExpired, "task-1")
+
+        assertEquals(null, bus.getLast(timerExpired))
+    }
 }

@@ -191,6 +191,13 @@ class BubbleOverlayService : Service() {
         wireTouch(view, lp)
 
         windowManager.addView(view, lp)
+
+        // overlay.shown (rule 3): fires once per genuine show — the early
+        // return above means this doesn't refire on every poll tick while
+        // the bubble is already up, only on the transition to visible.
+        AutoSwitchPrefs.getCallTaskId(this)?.let { callTaskId ->
+            scope.launch { bus.publish(Topics.OVERLAY_SHOWN, callTaskId) }
+        }
     }
 
     private fun hideBubble() {

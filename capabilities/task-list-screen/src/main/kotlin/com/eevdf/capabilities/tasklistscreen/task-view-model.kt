@@ -1,6 +1,7 @@
 package com.eevdf.capabilities.tasklistscreen
 
 import com.eevdf.capabilities.taskstorage.logic.SortHelper
+import com.eevdf.kernel.eventbus.CallState
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.LatestValue
 import com.eevdf.kernel.eventbus.TimerRunningState
@@ -22,6 +23,7 @@ import com.eevdf.capabilities.taskstorage.scheduling.SchedulerStats
 import com.eevdf.capabilities.countdowntimer.TimerEngine
 import kotlinx.coroutines.launch
 import com.eevdf.capabilities.multidevicesync.logic.MultiUserSyncManager
+import com.eevdf.capabilities.multidevicesync.logic.SyncState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.eevdf.kernel.contracts.AlarmRingingQuery
@@ -129,6 +131,29 @@ class TaskViewModel @Inject constructor(
     internal val _alarmElapsedSeconds  = MutableLiveData<Long>(0L)
     val           alarmElapsedSeconds: LiveData<Long> = _alarmElapsedSeconds
 
+    /**
+     * The task id the call-autoswitch bubble overlay currently shows, or
+     * null if it isn't up. Backed by `Topics.OVERLAY_SHOWN` — see
+     * [subscribeToOverlayShown]. Exposed so the task list can, e.g., badge
+     * or highlight that row while the bubble is visible; nothing currently
+     * observes it, this is the real data plumbing for that.
+     */
+    internal val _overlayShownTaskId   = MutableLiveData<String?>(null)
+    val           overlayShownTaskId: LiveData<String?> = _overlayShownTaskId
+
+    /**
+     * Ids of tasks with an unresolved multi-device-sync conflict, backed by
+     * `Topics.TASK_CONFLICT_DETECTED` — see [subscribeToTaskConflictDetected].
+     * Secondary to [syncState]'s own `ConflictPending.conflicts` (which
+     * carries the full detail — field name, local/remote values — for the
+     * warning dialog); this is coarser but lets the task list badge the
+     * specific rows involved. Cleared whenever [syncState] moves off
+     * `ConflictPending` (accepted or skipped), since that's the single
+     * authoritative signal for "resolved," not a separate bus topic.
+     */
+    internal val _conflictedTaskIds    = MutableLiveData<Set<String>>(emptySet())
+    val           conflictedTaskIds: LiveData<Set<String>> = _conflictedTaskIds
+
     // ── Auto mode state ───────────────────────────────────────────────────────
 
     /** Mirrors MainActivity's active tab so onTimerFinished can auto-advance correctly. */
@@ -190,7 +215,7 @@ class TaskViewModel @Inject constructor(
 
     // ── Timer engine ──────────────────────────────────────────────────────────
 
-    internal val timerEngine = TimerEngine()
+    internal val timerEngine = TimerEngine(bus)
 
     // Named observer references — removed in onCleared() to prevent accumulation.
     private var tickObserver:           Observer<Long> = Observer {}
@@ -331,6 +356,9 @@ class TaskViewModel @Inject constructor(
         // Registered after the LiveData vals are assigned, so a bus event
         // delivered during construction can never observe them uninitialised.
         subscribeToBackupRequests()
+        subscribeToTaskSaved()
+        subscribeToOverlayShown()
+        subscribeToTaskConflictDetected()
 
         // ── Wire TimerEngine outputs via named observers ───────────────────────
         tickObserver = Observer { remainingSecs: Long ->
@@ -363,7 +391,7 @@ class TaskViewModel @Inject constructor(
         flatScheduleOrder = listBuilder.flatScheduleOrder
 
         // ── Multi-user sync ───────────────────────────────────────────────────
-        MultiUserSyncManager.init(application)
+        MultiUserSyncManager.init(application, bus)
 
         // When a remote sync import completes, the local DB file has been
         // replaced. Signal MainActivity to restart the app so Room opens the
@@ -741,6 +769,68 @@ class TaskViewModel @Inject constructor(
         }
         bus.subscribe(Topics.BACKUP_EXPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
         bus.subscribe(Topics.BACKUP_IMPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
+    }
+
+    /**
+     * Keeps the EEVDF stats/schedule fresh even when a save didn't go through
+     * this ViewModel's own CRUD facade — group-picker and links-screen both
+     * write to `TaskRepository` directly (see their manifests), and
+     * backup-restore's restore path does too. `allTasks`/`activeTasks`/etc.
+     * are Room's own LiveData, so the flat lists always reflect the DB either
+     * way; what doesn't self-update from those is [refreshSchedule]'s derived
+     * `SchedulerStats`, which is only recomputed where this ViewModel's own
+     * mutation sites explicitly call it. Subscribing to `task.saved` closes
+     * that gap for every save, regardless of which capability made it.
+     */
+    private fun subscribeToTaskSaved() {
+        bus.subscribe(Topics.TASK_SAVED, CAPABILITY_ID) {
+            refreshSchedule()
+        }
+    }
+
+    /**
+     * Keeps [_overlayShownTaskId] in sync with the call-autoswitch bubble's
+     * real visibility. `Topics.OVERLAY_SHOWN` only fires on the show
+     * transition (see `BubbleOverlayService.showBubble`'s early-return
+     * guard), so there's no separate "hidden" event to subscribe to — this
+     * clears the value on `PHONE_CALL_STATE_CHANGED` ENDED instead, since
+     * the bubble is always torn down when the call ends
+     * (`BubbleOverlayService.onStartCommand`'s `ACTION_CALL_ENDED` branch).
+     * Deliberately a second, ViewModel-scoped subscription to
+     * `PHONE_CALL_STATE_CHANGED` alongside `ObserverDelegate`'s
+     * Activity-scoped one for the actual call-switch logic — the two are
+     * independent concerns and multiple subscriptions under the same
+     * capability id are already normal here (see [subscribeToBackupRequests]).
+     */
+    private fun subscribeToOverlayShown() {
+        bus.subscribe(Topics.OVERLAY_SHOWN, CAPABILITY_ID) { taskId ->
+            _overlayShownTaskId.postValue(taskId)
+        }
+        bus.subscribe(Topics.PHONE_CALL_STATE_CHANGED, CAPABILITY_ID) { type ->
+            if (type == CallState.ENDED) {
+                _overlayShownTaskId.postValue(null)
+            }
+        }
+    }
+
+    /**
+     * See [_conflictedTaskIds]'s KDoc. The bus subscription only ever adds;
+     * clearing observes `MultiUserSyncManager.syncState` directly (not this
+     * ViewModel's own `syncState` property, which is declared later in this
+     * file and would still be uninitialized this early in `init{}`) — that
+     * object's LiveData, not a bus event, is this app's one authoritative
+     * "conflict resolved" signal.
+     */
+    private fun subscribeToTaskConflictDetected() {
+        bus.subscribe(Topics.TASK_CONFLICT_DETECTED, CAPABILITY_ID) { taskId ->
+            _conflictedTaskIds.postValue(_conflictedTaskIds.value.orEmpty() + taskId)
+        }
+        MultiUserSyncManager.syncState.observeForever { state ->
+            if (state !is SyncState.ConflictPending &&
+                _conflictedTaskIds.value?.isNotEmpty() == true) {
+                _conflictedTaskIds.postValue(emptySet())
+            }
+        }
     }
 
     // =========================================================================

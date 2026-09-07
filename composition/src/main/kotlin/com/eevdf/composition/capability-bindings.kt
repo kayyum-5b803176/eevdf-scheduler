@@ -8,10 +8,16 @@ import android.content.SharedPreferences
 import android.os.Vibrator
 import androidx.core.content.getSystemService
 import com.eevdf.capabilities.alarmringer.AlarmCommandHandler
+import com.eevdf.capabilities.alarmringer.TimerExpiryHandler
 import com.eevdf.capabilities.callautoswitch.OverlayCommandHandler
+import com.eevdf.capabilities.feedbackcues.AlarmCueHandler
 import com.eevdf.capabilities.featuretoggles.FeatureFlags
 import com.eevdf.capabilities.featuretoggles.SharedPrefsFeatureFlags
+import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
+import com.eevdf.capabilities.remindernotifier.AlarmDeliveryHandler
 import com.eevdf.capabilities.runhistory.RunLogDao
+import com.eevdf.capabilities.runhistory.RunLogRepository
+import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
 import com.eevdf.capabilities.settingsstorage.state.AppPreferences
 import com.eevdf.capabilities.taskstorage.InterruptReturnDao
 import com.eevdf.capabilities.taskstorage.TaskDao
@@ -108,6 +114,44 @@ object CapabilityBindings {
         @ApplicationContext context: Context,
         bus: EventBus,
     ): OverlayCommandHandler = OverlayCommandHandler(context, bus)
+
+    /** multi-device-sync: schedules a debounced export on every task.saved. */
+    @Provides
+    @Singleton
+    fun provideTaskSavedSyncHandler(bus: EventBus): TaskSavedSyncHandler =
+        TaskSavedSyncHandler(bus)
+
+    /** run-history: opportunistic tier-compaction check on every task.saved. */
+    @Provides
+    @Singleton
+    fun provideTaskSavedCompactionHandler(
+        runLog: RunLogRepository,
+        bus: EventBus,
+    ): TaskSavedCompactionHandler = TaskSavedCompactionHandler(runLog, bus)
+
+    /** feedback-cues: plays/stops alarm sound + vibration on alarm.ringing/stopped. */
+    @Provides
+    @Singleton
+    fun provideAlarmCueHandler(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+    ): AlarmCueHandler = AlarmCueHandler(context, bus)
+
+    /** reminder-notifier: delivery logging + notification cancel on alarm.ringing/stopped. */
+    @Provides
+    @Singleton
+    fun provideAlarmDeliveryHandler(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+    ): AlarmDeliveryHandler = AlarmDeliveryHandler(context, bus)
+
+    /** alarm-ringer: diagnostic-only log on timer.expired / realtime-window.expired. */
+    @Provides
+    @Singleton
+    fun provideTimerExpiryHandler(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+    ): TimerExpiryHandler = TimerExpiryHandler(context, bus)
 
     // ── task-storage: database + DAOs ────────────────────────────────────────
 

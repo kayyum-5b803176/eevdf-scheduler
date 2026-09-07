@@ -28,3 +28,16 @@ object CallAutoswitchManifest : CapabilityManifest {
         // happens when the user simply turns the feature off in settings.
     }
 }
+
+/**
+ * RESOLVED — `OVERLAY_SHOWN` (was dead) is now published for real, from
+ * `BubbleOverlayService.showBubble()`, exactly once per genuine show
+ * transition (the method's existing `bubbleView?.isAttachedToWindow == true`
+ * early return already prevented re-showing an already-visible bubble, so it
+ * also naturally prevents re-publishing on every poll tick). Payload is the
+ * call task's id, read from `AutoSwitchPrefs.getCallTaskId`. Consumed by
+ * task-list-screen's `TaskViewModel._overlayShownTaskId` — see that
+ * capability's `subscribeToOverlayShown` for why the corresponding "hidden"
+ * transition is inferred from `PHONE_CALL_STATE_CHANGED` ENDED rather than a
+ * second topic.
+ */

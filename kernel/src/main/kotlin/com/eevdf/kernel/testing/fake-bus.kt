@@ -25,10 +25,20 @@ class FakeBus {
         (handlers.getOrPut(topic) { mutableListOf() } as MutableList<Handler<T>>).add(handler)
     }
 
+    private val lastValue = mutableMapOf<String, Any?>()
+
     suspend fun <T> publish(topic: Topic<T>, payload: T) {
         published += topic to payload
+        if (topic.retained) lastValue[topic.name] = payload
         @Suppress("UNCHECKED_CAST")
         (handlers[topic] as? List<Handler<T>>)?.forEach { it.handle(payload) }
+    }
+
+    /** Mirrors [com.eevdf.kernel.eventbus.EventBus.getLast] for retained-topic tests. */
+    fun <T> getLast(topic: Topic<T>): T? {
+        if (!topic.retained) return null
+        @Suppress("UNCHECKED_CAST")
+        return lastValue[topic.name] as T?
     }
 
     /** Convenience for assertions: every payload published on [topic], in order. */
@@ -41,5 +51,6 @@ class FakeBus {
     fun reset() {
         published.clear()
         handlers.clear()
+        lastValue.clear()
     }
 }

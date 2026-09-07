@@ -4,8 +4,15 @@ package com.eevdf.kernel.eventbus
  * A type-safe event topic. [T] is the payload type carried by this topic —
  * the compiler, not a convention, enforces that a subscriber's handler
  * matches what a publisher actually sends.
+ *
+ * @param retained When true, [EventBus.publish] keeps the most recent payload
+ *   so a capability that subscribes *after* the event already fired can still
+ *   ask for it via [EventBus.getLast] — e.g. a screen that attaches after
+ *   `task.saved` already happened once. Fan-out to live subscribers is
+ *   unaffected either way; this only adds a synchronous "what's the last
+ *   value" read path on top of the same publish call.
  */
-data class Topic<T>(val name: String)
+data class Topic<T>(val name: String, val retained: Boolean = false)
 
 /**
  * Payload for [Topics.PHONE_CALL_STATE_CHANGED].
@@ -44,13 +51,33 @@ object Topics {
     /** Published by countdown-timer. Payload: the expired task's id. */
     val TIMER_EXPIRED = Topic<String>("timer.expired")
 
-    /** Published by alarm-ringer. Payload: the ringing task's id. */
-    val ALARM_RINGING = Topic<String>("alarm.ringing")
+    /**
+     * Published by alarm-ringer. Payload: [AlarmRingingEvent] (task name + type).
+     *
+     * Retained: a best-effort echo of the last alarm that started ringing, so
+     * a subscriber attaching after the fact (rather than being live at the
+     * moment of the event) has something to read via
+     * `bus.getLast(Topics.ALARM_RINGING)`. NOT the authoritative "is an alarm
+     * ringing right now" check — that already exists as
+     * `kernel/contracts/AlarmRingingQuery`, a synchronous query against
+     * AlarmScheduler's real persisted state, used specifically for cold-start
+     * recovery. This retained value can go stale (e.g. after
+     * `Topics.ALARM_STOPPED`, since retention isn't cleared on a different
+     * topic firing) — treat it as "the last alarm.ringing payload", not as
+     * live ringing state.
+     */
+    val ALARM_RINGING = Topic<AlarmRingingEvent>("alarm.ringing", retained = true)
 
     /** Published by alarm-ringer. Payload: the stopped task's id. */
     val ALARM_STOPPED = Topic<String>("alarm.stopped")
 
-    /** Published by task-scheduling. Payload: the task id whose RT window closed. */
+    /**
+     * Published by task-list-screen's `ListBuilderDelegate` (the RT-window
+     * transition-detection point — see its own KDoc), not by task-scheduling
+     * despite the name suggesting otherwise; see task-scheduling's
+     * manifest.kt for why that capability structurally can't be the
+     * publisher. Payload: the task id whose RT window closed.
+     */
     val REALTIME_WINDOW_EXPIRED = Topic<String>("realtime-window.expired")
 
     /** Published by task-storage. Payload: the saved task's id. */
@@ -127,3 +154,14 @@ data class AlarmTimerStartRequest(
 data class AlarmTimerExpireRequest(val taskName: String, val taskType: String = "DEFAULT")
 
 data class AlarmDelayStartRequest(val taskName: String, val delaySecs: Long)
+
+/**
+ * Payload for [Topics.ALARM_RINGING].
+ *
+ * Carries [taskType] (not just the task name) because the two real
+ * subscribers this topic exists for — feedback-cues' sound/vibration and any
+ * future per-profile reaction — need it to pick the right ALARM/NOTIFICATION/
+ * CUSTOM preference profile, exactly like [AlarmTimerExpireRequest] already
+ * does for the same reason.
+ */
+data class AlarmRingingEvent(val taskName: String, val taskType: String = "DEFAULT")

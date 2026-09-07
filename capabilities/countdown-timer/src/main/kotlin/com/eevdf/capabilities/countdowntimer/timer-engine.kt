@@ -8,6 +8,12 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Owns ALL running-timer mechanics for one active task.
@@ -33,7 +39,34 @@ import com.eevdf.capabilities.taskstorage.withTimerState
  *  reset()  when already idle           → returns null.
  *  clear()  always safe.
  */
-class TimerEngine {
+class TimerEngine(
+    /**
+     * Optional so existing/test construction (`TimerEngine()`) keeps working
+     * unchanged. When supplied, this engine publishes `Topics.TIMER_EXPIRED`
+     * on every genuine expiry (see [attachTicker]'s `onFinish` and
+     * [restoreFromDb]) — the one real publish site for the topic this
+     * capability's manifest.kt declares. It is deliberately UNCONDITIONAL,
+     * unlike `Topics.ALARM_TIMER_EXPIRE_REQUESTED` (published by
+     * task-list-screen's `TimerLifecycleDelegate`, and skipped for
+     * NOTIFICATION-type tasks) — so `TIMER_EXPIRED` is the one signal that
+     * fires for every task type's slice hitting zero, regardless of what
+     * happens next.
+     */
+    private val bus: EventBus? = null,
+) {
+
+    /**
+     * Backs [bus]-published events. Lives as long as this engine instance
+     * (itself owned for the lifetime of the ViewModel that constructs it,
+     * same as `TimerEngine` overall) — `onFinish`/`restoreFromDb` are not
+     * `suspend` (CountDownTimer callbacks, a plain method call from
+     * ViewModel.init), so publishing needs its own scope rather than the
+     * caller's. Deliberately not tied to [clear] below: `clear()` is a
+     * routine reset called many times over this engine's life (pause,
+     * task-switch), not a one-time teardown — cancelling this scope there
+     * would silently kill every publish after the very first reset.
+     */
+    private val publishScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
     // ── Output LiveData ───────────────────────────────────────────────────────
 
@@ -187,6 +220,7 @@ class TimerEngine {
             pendingExpiredSession = session
             _expiredSession.postValue(session)
             _expiredTask.postValue(expired)
+            bus?.let { b -> publishScope.launch { b.publish(Topics.TIMER_EXPIRED, task.id) } }
         }
     }
 
@@ -237,6 +271,7 @@ class TimerEngine {
                 pendingExpiredSession = session   // set BEFORE posting expiredTask (no race)
                 _expiredSession.postValue(session)
                 _expiredTask.postValue(task.withTimerState(expired))
+                bus?.let { b -> publishScope.launch { b.publish(Topics.TIMER_EXPIRED, task.id) } }
             }
         }.start()
     }

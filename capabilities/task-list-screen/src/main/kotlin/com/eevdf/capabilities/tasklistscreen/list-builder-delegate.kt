@@ -12,6 +12,8 @@ import com.eevdf.capabilities.taskstorage.TaskMembership
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
 import com.eevdf.capabilities.taskstorage.scheduling.MEMBERSHIP_SYNTHETIC_PREFIX
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
+import com.eevdf.kernel.eventbus.Topics
+import kotlinx.coroutines.launch
 
 /**
  * Builds and maintains the two flat [TaskDisplayItem] lists observed by the UI:
@@ -111,13 +113,41 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
     private val _rtResortTick = MutableLiveData<Unit>()
 
+    /**
+     * Ids of RT-configured tasks that were window-active as of the most
+     * recent [rescheduleRtResort] call — captured so the callback below can
+     * tell WHICH of them just deactivated, not just that "something" did.
+     */
+    private var rtActiveTaskIdsAtSchedule: List<String> = emptyList()
+
     private val rtResortHandler  = Handler(Looper.getMainLooper())
     private val rtResortRunnable = Runnable {
+        // Topics.REALTIME_WINDOW_EXPIRED (rule 3): this callback fires at the
+        // exact millisecond RtScheduler computed as the next activation OR
+        // deactivation boundary among the tasks captured at schedule time —
+        // the one well-defined, non-polled instant a window transition
+        // actually happens, rather than something inferred by comparing
+        // snapshots across unrelated recompute passes. Only tasks that were
+        // active then and are NOT active now count as "just expired"; a
+        // fire caused by a different task's ACTIVATION is correctly not
+        // reported here.
+        val justExpired = rtActiveTaskIdsAtSchedule.filter { taskId ->
+            val task = vm.activeTasks.value?.find { it.id == taskId } ?: return@filter false
+            !RtScheduler.isRtWindowActive(task)
+        }
+        if (justExpired.isNotEmpty()) {
+            vm.viewModelScope.launch {
+                justExpired.forEach { taskId -> vm.bus.publish(Topics.REALTIME_WINDOW_EXPIRED, taskId) }
+            }
+        }
         _rtResortTick.value = Unit
     }
 
     private fun rescheduleRtResort(tasks: List<Task>) {
         rtResortHandler.removeCallbacks(rtResortRunnable)
+        rtActiveTaskIdsAtSchedule = tasks
+            .filter { it.isRtConfigured && !it.isCompleted && RtScheduler.isRtWindowActive(it) }
+            .map { it.id }
         val nextMs = RtScheduler.nextResortMs(tasks)
         if (nextMs < Long.MAX_VALUE) {
             rtResortHandler.postDelayed(rtResortRunnable, nextMs + 100L)

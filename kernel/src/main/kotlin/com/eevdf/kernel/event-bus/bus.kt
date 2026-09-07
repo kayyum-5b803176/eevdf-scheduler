@@ -45,11 +45,36 @@ class EventBus(private val supervisor: Supervisor) {
 
     private val subscriptions = mutableMapOf<Topic<*>, MutableList<Subscription<*>>>()
 
+    /**
+     * Backing store for [Topic.retained] topics: the most recent payload
+     * published on each retained topic's name, keyed by [Topic.name] rather
+     * than by the [Topic] instance itself so [getLast] works even when called
+     * with a distinct `Topic` value carrying the same name (data class
+     * equality already covers this, but keying by name matches how
+     * [Topics] are actually declared — one canonical `val` per name — and
+     * keeps this map trivially inspectable from tests without needing the
+     * exact object reference).
+     */
+    private val lastValue = mutableMapOf<String, Any?>()
+
     /** Registers [handler] under [capabilityId] for [topic]. */
     fun <T> subscribe(topic: Topic<T>, capabilityId: String, handler: Handler<T>) {
         @Suppress("UNCHECKED_CAST")
         val list = subscriptions.getOrPut(topic) { mutableListOf() } as MutableList<Subscription<T>>
         list.add(Subscription(capabilityId, handler))
+    }
+
+    /**
+     * Returns the most recent payload published on [topic], or null if
+     * nothing has been published yet — or if [topic] isn't [Topic.retained]
+     * (retention is opt-in per topic; a non-retained topic always reads back
+     * null here regardless of publish history, so callers don't silently
+     * depend on retention no one declared).
+     */
+    fun <T> getLast(topic: Topic<T>): T? {
+        if (!topic.retained) return null
+        @Suppress("UNCHECKED_CAST")
+        return lastValue[topic.name] as T?
     }
 
     /** Removes every subscription owned by [capabilityId] (e.g. on detach). */
@@ -65,6 +90,7 @@ class EventBus(private val supervisor: Supervisor) {
      * delivery to any other subscriber, nor to the publisher.
      */
     suspend fun <T> publish(topic: Topic<T>, payload: T) = coroutineScope {
+        if (topic.retained) lastValue[topic.name] = payload
         @Suppress("UNCHECKED_CAST")
         val subs = subscriptions[topic] as? List<Subscription<T>> ?: return@coroutineScope
         for (sub in subs) {

@@ -25,6 +25,16 @@ import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
 import com.eevdf.capabilities.remindernotifier.ForegroundAppDetector
 import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
 import com.eevdf.capabilities.navigationroutes.AppRoutes
+import com.eevdf.kernel.eventbus.AlarmRingingEvent
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Foreground service that owns the notification UI and alarm sound/wake.
@@ -56,7 +66,18 @@ import com.eevdf.capabilities.navigationroutes.AppRoutes
  *  Cancelling in onDestroy would silently remove the alarm on process death,
  *  which is exactly the bug that caused random alarm disappearance.
  */
+@AndroidEntryPoint
 class AlarmForegroundService : Service() {
+
+    @Inject lateinit var bus: EventBus
+
+    /**
+     * Started at [onCreate] because [Service] callbacks (`onStartCommand`,
+     * `onDestroy`) are not `suspend`, but [EventBus.publish] is. Cancelled in
+     * [onDestroy] — the service is short-lived per ring, so this scope's
+     * lifetime matches it exactly; nothing here needs to outlive the service.
+     */
+    private lateinit var scope: CoroutineScope
 
     companion object {
         private const val TAG = "EEVDFAlarm"
@@ -225,6 +246,7 @@ class AlarmForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
         Log.d(TAG, "onCreate: posting placeholder notification (fresh service instance)")
         createChannels()
         // Must call startForeground() in onCreate() within 5 seconds of
@@ -324,9 +346,26 @@ class AlarmForegroundService : Service() {
                     )
 
                     showExpiredNotification(taskName, decision.suppressBanner, decision.attachFullScreenIntent)
-                    val prefs = getSharedPreferences("eevdf_prefs", MODE_PRIVATE)
-                    SoundManager.startAlarmForType(this, prefs, taskType)
-                    VibrationManager.startAlarmForType(this, prefs, taskType)
+
+                    // alarm.ringing (rule 3): feedback-cues owns sound/vibration
+                    // playback now — this used to be a direct
+                    // SoundManager.startAlarmForType()/VibrationManager.
+                    // startAlarmForType() call right here (the exact debt
+                    // flagged, not fixed, in feedback-cues' manifest.kt since
+                    // Phase 1). The visual alarm (this notification, plus
+                    // AlarmActivity's full-screen intent below) does NOT
+                    // depend on feedback-cues being available — only the
+                    // sound/vibration layer does, matching feedback-cues'
+                    // own fallbackWhenUnavailable KDoc ("never load-bearing
+                    // for alarm delivery").
+                    scope.launch { bus.publish(Topics.ALARM_RINGING, AlarmRingingEvent(taskName, taskType)) }
+
+                    // alarm.ringing (rule 3): the direct-call replacement for what
+                    // used to be feedback-cues/reminder-notifier reading this
+                    // service's state via direct import. Those two capabilities'
+                    // manifests have declared this subscription since Phase 1/3 —
+                    // this is the publish side that finally makes it real.
+                    scope.launch { bus.publish(Topics.ALARM_RINGING, taskName) }
 
                     // AOSP-parity: broadcast that the alarm started ringing so any
                     // listener (overlay, external apps / Tasker) can react.  Sent
@@ -387,6 +426,7 @@ class AlarmForegroundService : Service() {
         VibrationManager.stop(this)
         SoundManager.stop(this)
         releaseWakeLock()
+        scope.cancel()
     }
 
     // ── WakeLock ──────────────────────────────────────────────────────────────
