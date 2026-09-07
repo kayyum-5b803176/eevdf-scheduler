@@ -158,6 +158,9 @@ class MainActivity : AppCompatActivity() {
     internal var globalRotateMenuItem: MenuItem? = null
     internal var allowEditMenuItem:    MenuItem? = null
     internal var autoScrollMenuItem:   MenuItem? = null
+    internal var settingsMenuItem:      MenuItem? = null
+    internal var eventLogMenuItem:      MenuItem? = null
+    internal var clearCompletedMenuItem: MenuItem? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -605,6 +608,7 @@ class MainActivity : AppCompatActivity() {
                 updateScheduleRankBadge()
                 updateBreadcrumb()
                 refreshDrillBackCallback()
+                menuSyncDelegate.syncTabVisibility()
             }
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             override fun onTabReselected(tab: TabLayout.Tab) {}

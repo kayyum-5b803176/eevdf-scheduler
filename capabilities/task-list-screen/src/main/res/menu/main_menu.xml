@@ -16,15 +16,57 @@
         app:showAsAction="always"
         app:actionLayout="@layout/menu_action_schedule_next" />
 
+    <!--
+      Declaration order below IS display order for whichever of these are
+      visible at once — visibility is entirely tab-driven, set at runtime by
+      MenuSyncDelegate.syncTabVisibility(), not by anything in this file.
+      See that function's KDoc for the full per-tab breakdown. Reordering
+      an item here changes where it appears within its tab's menu; moving it
+      relative to the "queue/schedule vs. completed" boundary below would
+      change which tab(s) it can ever appear on, which needs a matching
+      change in syncTabVisibility() too.
+    -->
+
+    <!-- ── Queue + Schedule shared base sequence ──────────────────────────── -->
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="Settings"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_event_log"
+        android:title="Event Log"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_allow_edit"
+        android:title="Allow Edit"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_auto_scroll"
+        android:title="Auto Scroll"
+        android:checkable="true"
+        app:showAsAction="never" />
+
     <item
         android:id="@+id/action_toggle_groups"
         android:title="Enable Groups"
         android:checkable="true"
         app:showAsAction="never" />
 
-    <!-- Links feature: per-tab display style. Only meaningful (and only
-         shown) when groups are enabled — visibility kept in sync with
-         action_toggle_groups in MenuSyncDelegate. -->
+    <item
+        android:id="@+id/action_toggle_global_rotate"
+        android:title="Global Rotate"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <!-- ── Per-tab append: each tab's own drill-down toggle ───────────────── -->
+    <!-- Only meaningful (and only shown) when groups are enabled AND its own
+         tab is the current one — see syncTabVisibility(). -->
+
     <item
         android:id="@+id/action_toggle_queue_drill"
         android:title="Queue: Drill-down"
@@ -39,35 +81,11 @@
         android:visible="false"
         app:showAsAction="never" />
 
-    <item
-        android:id="@+id/action_toggle_global_rotate"
-        android:title="Global Rotate"
-        android:checkable="true"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_auto_scroll"
-        android:title="Auto Scroll"
-        android:checkable="true"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_allow_edit"
-        android:title="Allow Edit"
-        android:checkable="true"
-        app:showAsAction="never" />
+    <!-- ── Completed tab only ──────────────────────────────────────────────── -->
 
     <item
         android:id="@+id/action_clear_completed"
         android:title="Clear Completed"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/action_settings"
-        android:title="Settings"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/action_event_log"
-        android:title="Event Log"
         app:showAsAction="never" />
 
 </menu>

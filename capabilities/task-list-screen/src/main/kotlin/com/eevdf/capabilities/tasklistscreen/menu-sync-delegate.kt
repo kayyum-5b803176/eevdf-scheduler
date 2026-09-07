@@ -17,11 +17,10 @@ import android.widget.Toast
  * Owns the options menu — inflation, item-selection handling, the sync status
  * icon (color + spin animation), and the key1 "Schedule Next" status dot.
  *
- * Extracted from MainActivity (Phase 10). `onCreateOptionsMenu`/
- * `onOptionsItemSelected` stay as thin overrides on MainActivity itself —
- * Android calls those directly on the Activity, they can't be delegated away
- * — and forward into [inflateMenu]/[handleItemSelected] here. No behavior
- * changed — every line is the original, moved as-is.
+ * The overflow menu is tab-aware: [syncTabVisibility] decides which items
+ * show on which of the three tabs (Queue/Schedule share a base sequence plus
+ * their own drill-down toggle; Completed shows only Clear Completed) — see
+ * that function's KDoc for the full breakdown.
  */
 internal class MenuSyncDelegate(private val activity: MainActivity) {
 
@@ -31,13 +30,16 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
         activity.groupsMenuItem?.isChecked = activity.viewModel.groupsEnabled.value ?: false
         activity.queueDrillMenuItem    = menu.findItem(R.id.action_toggle_queue_drill)
         activity.scheduleDrillMenuItem = menu.findItem(R.id.action_toggle_schedule_drill)
-        syncDrillMenuItems()
         activity.globalRotateMenuItem = menu.findItem(R.id.action_toggle_global_rotate)
         activity.globalRotateMenuItem?.isChecked = activity.viewModel.globalRotateEnabled.value ?: false
         activity.allowEditMenuItem    = menu.findItem(R.id.action_allow_edit)
         activity.allowEditMenuItem?.isChecked = activity.viewModel.allowEditEnabled.value ?: false
         activity.autoScrollMenuItem   = menu.findItem(R.id.action_auto_scroll)
         activity.autoScrollMenuItem?.isChecked = activity.viewModel.autoScrollEnabled.value ?: false
+        activity.settingsMenuItem       = menu.findItem(R.id.action_settings)
+        activity.eventLogMenuItem       = menu.findItem(R.id.action_event_log)
+        activity.clearCompletedMenuItem = menu.findItem(R.id.action_clear_completed)
+        syncTabVisibility()
 
         // ── Sync icon action view ─────────────────────────────────────────────
         menu.findItem(R.id.action_sync)?.actionView?.let { syncView ->
@@ -129,7 +131,7 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
             R.id.action_toggle_groups -> {
                 activity.viewModel.toggleGroupsEnabled()
                 item.isChecked = activity.viewModel.groupsEnabled.value ?: false
-                syncDrillMenuItems()
+                syncTabVisibility()
                 true
             }
             R.id.action_toggle_queue_drill -> {
@@ -170,20 +172,47 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
         }
     }
 
-    // ── Links feature: per-tab display style menu items ─────────────────────
+    // ── Tab-aware overflow menu ───────────────────────────────────────────────
+    //
+    // Queue (tab 0) and Schedule (tab 1) share one base sequence — Settings,
+    // Event Log, Allow Edit, Auto Scroll, Enable Group, Global Rotate — with
+    // each tab appending its own drill-down toggle after that sequence.
+    // Completed (tab 2) shows only Clear Completed; none of the settings-ish
+    // toggles are relevant there. Sync and Schedule Next are pinned toolbar
+    // action icons, not overflow items, and are unaffected by tab — they stay
+    // visible on every tab, including Completed.
+    //
+    // Called from inflateMenu() (initial state) and from MainActivity's
+    // TabLayout.OnTabSelectedListener on every tab change, so the menu always
+    // reflects whichever tab is currently open — not just whatever was true
+    // when the menu was first inflated.
 
-    /** Visibility + checked state for the two drill-down toggles — only shown
-     *  at all when groups are enabled (no hierarchy to drill into otherwise). */
-    private fun syncDrillMenuItems() {
+    fun syncTabVisibility() {
+        val onCompleted = activity.currentTab == 2
         val groupsOn = activity.viewModel.groupsEnabled.value ?: false
+
+        // Queue/Schedule shared base sequence — hidden entirely on Completed.
+        activity.settingsMenuItem?.isVisible      = !onCompleted
+        activity.eventLogMenuItem?.isVisible      = !onCompleted
+        activity.allowEditMenuItem?.isVisible     = !onCompleted
+        activity.autoScrollMenuItem?.isVisible    = !onCompleted
+        activity.groupsMenuItem?.isVisible        = !onCompleted
+        activity.globalRotateMenuItem?.isVisible  = !onCompleted
+
+        // Per-tab drill-down toggle: each tab shows only its own, and only
+        // when groups are enabled (same "no hierarchy to drill into
+        // otherwise" gating as before this menu became tab-aware).
         activity.queueDrillMenuItem?.apply {
-            isVisible = groupsOn
+            isVisible = activity.currentTab == 0 && groupsOn
             isChecked = activity.viewModel.queueListStyle.value == TaskListStyle.DRILL_DOWN
         }
         activity.scheduleDrillMenuItem?.apply {
-            isVisible = groupsOn
+            isVisible = activity.currentTab == 1 && groupsOn
             isChecked = activity.viewModel.scheduleListStyle.value == TaskListStyle.DRILL_DOWN
         }
+
+        // Clear Completed: the mirror image — only meaningful on Completed.
+        activity.clearCompletedMenuItem?.isVisible = onCompleted
     }
 
     // ── Key1 (Schedule Next) dot update ──────────────────────────────────────
