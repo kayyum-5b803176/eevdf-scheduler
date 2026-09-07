@@ -270,7 +270,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             }
         }.start()
         vm.viewModelScope.launch {
-            vm.bus.publish(Topics.ALARM_DELAY_START_REQUESTED, AlarmDelayStartRequest(task.name, delaySecs))
+            vm.bus.publish(Topics.ALARM_DELAY_START_REQUESTED, AlarmDelayStartRequest(task.name, delaySecs), "task-list-screen")
         }
     }
 
@@ -283,7 +283,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // sound.cue-requested (rule 3): replaces the old direct
         // SoundManager.playExecuteSound() call — task-list-screen has zero
         // dependency on the `sound` capability now.
-        vm.viewModelScope.launch { vm.bus.publish(Topics.SOUND_CUE_REQUESTED, SoundCue.EXECUTE) }
+        vm.viewModelScope.launch { vm.bus.publish(Topics.SOUND_CUE_REQUESTED, SoundCue.EXECUTE, "task-list-screen") }
         // Compute total alarm time covering all remaining (execute + wait) cycles so
         // the AlarmManager entry is set ONCE and never cancelled between phases.
         // On pause the alarm is cancelled normally; on resume startExecutePhase is
@@ -305,9 +305,9 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         val waitStart = System.currentTimeMillis()
         // sound.cue-requested (rule 3): replaces the old direct
         // SoundManager.playWaitSound() call.
-        vm.viewModelScope.launch { vm.bus.publish(Topics.SOUND_CUE_REQUESTED, SoundCue.WAIT) }
+        vm.viewModelScope.launch { vm.bus.publish(Topics.SOUND_CUE_REQUESTED, SoundCue.WAIT, "task-list-screen") }
         vm.viewModelScope.launch {
-            vm.bus.publish(Topics.ALARM_DELAY_START_REQUESTED, AlarmDelayStartRequest(task.name, waitSecs))
+            vm.bus.publish(Topics.ALARM_DELAY_START_REQUESTED, AlarmDelayStartRequest(task.name, waitSecs), "task-list-screen")
         }
         waitTimer?.cancel()
         waitTimer = object : CountDownTimer(waitSecs * 1000L, 1000L) {
@@ -361,7 +361,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                 totalPhaseSecs = elapsed
             ))
         }
-        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit) }
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, "task-list-screen") }
     }
 
     fun cancelWaitPhase() {
@@ -405,7 +405,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             vm._currentTask.value = reset
             vm.viewModelScope.launch { vm.repository.update(reset) }
         }
-        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit) }
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, "task-list-screen") }
     }
 
     // ── Alarm expiry ──────────────────────────────────────────────────────────
@@ -430,7 +430,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // When the app IS dead the CountDownTimer never runs — the AlarmManager fires alone,
         // onAlarmFired() finds AlarmState==Scheduled, transitions to Ringing, and the
         // service rings normally.  No conflict in that path.
-        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_CANCEL_SCHEDULED_REQUESTED, Unit) }
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_CANCEL_SCHEDULED_REQUESTED, Unit, "task-list-screen") }
 
         val sessionSecs  = noticeSessionSeconds
         noticeSessionSeconds = 0L
@@ -458,7 +458,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         }
 
         vm.viewModelScope.launch {
-            vm.bus.publish(Topics.ALARM_TIMER_EXPIRE_REQUESTED, AlarmTimerExpireRequest(task.name, task.taskType))
+            vm.bus.publish(Topics.ALARM_TIMER_EXPIRE_REQUESTED, AlarmTimerExpireRequest(task.name, task.taskType), "task-list-screen")
         }
         vm._alarmTaskName.postValue(task.name)
         vm._alarmElapsedSeconds.postValue(0L)

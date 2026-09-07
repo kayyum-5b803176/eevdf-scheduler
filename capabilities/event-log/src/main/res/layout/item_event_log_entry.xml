@@ -40,6 +40,21 @@
     </LinearLayout>
 
     <!--
+      "by <publisherId>" — the whole point of Topic.publisherId being
+      mandatory: every row answers who caused it, not just what happened.
+      Own line under the topic name rather than crammed next to the
+      timestamp, since it's the second most important fact about a row
+      after the topic itself.
+    -->
+    <TextView
+        android:id="@+id/tvEventLogPublisher"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="@dimen/app_text_size_xs"
+        android:textColor="@color/app_text_hint"
+        android:fontFamily="monospace" />
+
+    <!--
       maxLines toggles 2 <-> unlimited from code depending on this row's
       expanded state — see EventLogAdapter.onBindViewHolder. No separate
       "collapsed" vs "expanded" layout: same TextView, different maxLines.

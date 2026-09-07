@@ -138,7 +138,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         }
         if (justExpired.isNotEmpty()) {
             vm.viewModelScope.launch {
-                justExpired.forEach { taskId -> vm.bus.publish(Topics.REALTIME_WINDOW_EXPIRED, taskId) }
+                justExpired.forEach { taskId -> vm.bus.publish(Topics.REALTIME_WINDOW_EXPIRED, taskId, "task-list-screen") }
             }
         }
         _rtResortTick.value = Unit

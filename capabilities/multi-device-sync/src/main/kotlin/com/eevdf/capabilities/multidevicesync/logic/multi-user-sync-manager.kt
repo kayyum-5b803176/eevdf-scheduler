@@ -170,7 +170,7 @@ object MultiUserSyncManager {
         val b = bus ?: return
         val s = scope ?: return
         conflicts.forEach { conflict ->
-            s.launch { b.publish(Topics.TASK_CONFLICT_DETECTED, conflict.taskId) }
+            s.launch { b.publish(Topics.TASK_CONFLICT_DETECTED, conflict.taskId, "multi-device-sync") }
         }
     }
 

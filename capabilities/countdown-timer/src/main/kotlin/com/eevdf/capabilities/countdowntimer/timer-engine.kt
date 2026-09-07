@@ -220,7 +220,7 @@ class TimerEngine(
             pendingExpiredSession = session
             _expiredSession.postValue(session)
             _expiredTask.postValue(expired)
-            bus?.let { b -> publishScope.launch { b.publish(Topics.TIMER_EXPIRED, task.id) } }
+            bus?.let { b -> publishScope.launch { b.publish(Topics.TIMER_EXPIRED, task.id, "countdown-timer") } }
         }
     }
 
@@ -271,7 +271,7 @@ class TimerEngine(
                 pendingExpiredSession = session   // set BEFORE posting expiredTask (no race)
                 _expiredSession.postValue(session)
                 _expiredTask.postValue(task.withTimerState(expired))
-                bus?.let { b -> publishScope.launch { b.publish(Topics.TIMER_EXPIRED, task.id) } }
+                bus?.let { b -> publishScope.launch { b.publish(Topics.TIMER_EXPIRED, task.id, "countdown-timer") } }
             }
         }.start()
     }

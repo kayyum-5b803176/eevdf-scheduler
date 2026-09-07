@@ -119,14 +119,14 @@ class TaskRepository @Inject constructor(
         // refreshing its EEVDF stats even when the write came from a
         // capability that never touches TaskViewModel (group-picker,
         // links-screen, backup-restore's restore path).
-        bus.publish(Topics.TASK_SAVED, task.id)
+        bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
     }
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
         dao.update(task)
         propagateInheritedLoadFactor(task.id, task.loadFactor)
         propagateInheritedTimeSlice(task.id, task.timeSliceSeconds)
-        bus.publish(Topics.TASK_SAVED, task.id)
+        bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
     }
 
     /**
@@ -316,7 +316,7 @@ class TaskRepository @Inject constructor(
         dao.update(updated)
         // A completed task is no longer a valid return-to target.
         interruptReturnDao.clearByTask(task.id)
-        bus.publish(Topics.TASK_SAVED, task.id)
+        bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
     }
 
     suspend fun stopAll() = withContext(Dispatchers.IO) { dao.stopAllRunning() }

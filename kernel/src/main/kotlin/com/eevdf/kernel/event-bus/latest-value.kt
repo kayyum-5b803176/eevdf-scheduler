@@ -47,8 +47,8 @@ class LatestValue<T>(initial: T) {
      * capability's own synchronous reads are correct immediately, without
      * waiting for the dispatch round trip.
      */
-    suspend fun setAndPublish(bus: EventBus, topic: Topic<T>, newValue: T) {
+    suspend fun setAndPublish(bus: EventBus, topic: Topic<T>, newValue: T, publisherId: String) {
         ref.set(newValue)
-        bus.publish(topic, newValue)
+        bus.publish(topic, newValue, publisherId)
     }
 }

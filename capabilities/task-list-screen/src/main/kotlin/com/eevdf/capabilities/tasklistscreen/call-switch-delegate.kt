@@ -124,7 +124,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
 
             // Bubble: the controller owns both the enablement check and the
             // foreground-start details.
-            vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_STARTED_REQUESTED, Unit) }
+            vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_STARTED_REQUESTED, Unit, "task-list-screen") }
         }
     }
 
@@ -175,7 +175,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
                 vm._currentTask.value  = null
                 vm._toastMessage.value = "Call ended"
 
-                vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_ENDED_REQUESTED, Unit) }
+                vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_ENDED_REQUESTED, Unit, "task-list-screen") }
                 return
             }
 
@@ -189,7 +189,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
                 vm._toastMessage.value = "Call ended → \"${returnTo.name}\" (paused)"
             }
 
-            vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_ENDED_REQUESTED, Unit) }
+            vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_ENDED_REQUESTED, Unit, "task-list-screen") }
         }
     }
 }

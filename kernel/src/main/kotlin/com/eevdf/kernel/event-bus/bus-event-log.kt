@@ -6,18 +6,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * One recorded [EventBus.publish] call.
+ * One recorded [EventBus.publish] or [EventBus.request]/[EventBus.respondTo]
+ * call.
  *
  * [payload] is [Any.toString] of the actual payload, not the typed value —
  * this is a diagnostic record for a human to read (the event-log screen),
  * not something re-dispatched or type-checked later, so a plain string is
  * both simplest and safest (no risk of holding a reference to, say, a large
  * or capability-owned object past its useful lifetime).
+ *
+ * [publisherId] is who caused this record to exist — the capability that
+ * called [EventBus.publish], or (for a request/response pair) the requester
+ * for the outbound record and the responder for the inbound one. Mandatory:
+ * an event with no attributable source defeats the entire point of this log
+ * — "who called this" is exactly what [publisherId] answers.
  */
 data class BusEventRecord(
     /** Monotonically increasing, unique within one process run — stable RecyclerView item id. */
     val id: Long,
     val topicName: String,
+    val publisherId: String,
     val payload: String,
     val timestampMs: Long,
 )
@@ -43,8 +51,8 @@ class BusEventLog(private val capacity: Int = 500) {
     val events: StateFlow<List<BusEventRecord>> = _events.asStateFlow()
 
     @Synchronized
-    fun record(topicName: String, payload: String, nowMs: Long = System.currentTimeMillis()) {
-        val record = BusEventRecord(nextId.getAndIncrement(), topicName, payload, nowMs)
+    fun record(topicName: String, publisherId: String, payload: String, nowMs: Long = System.currentTimeMillis()) {
+        val record = BusEventRecord(nextId.getAndIncrement(), topicName, publisherId, payload, nowMs)
         val updated = listOf(record) + _events.value
         _events.value = if (updated.size > capacity) updated.subList(0, capacity) else updated
     }

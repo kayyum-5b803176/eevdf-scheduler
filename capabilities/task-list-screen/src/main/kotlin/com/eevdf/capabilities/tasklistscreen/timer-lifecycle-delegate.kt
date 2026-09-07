@@ -118,6 +118,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             vm.bus.publish(
                 Topics.ALARM_TIMER_START_REQUESTED,
                 AlarmTimerStartRequest(task.name, remaining, task.taskType, alarmSecs),
+                "task-list-screen",
             )
         }
         vm.timerEngine.start(updated)
@@ -151,7 +152,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         } else if (session != null && session.wallClockSeconds > 0) {
             applyVruntimeUpdate(session)
         }
-        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit) }
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, "task-list-screen") }
         vm.triggerSyncExport()               // notify other users: timer paused
     }
 
@@ -364,6 +365,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
                     vm.bus.publish(
                         Topics.ALARM_TIMER_EXPIRE_REQUESTED,
                         AlarmTimerExpireRequest(task.name, task.taskType),
+                        "task-list-screen",
                     )
                 }
                 vm._alarmTaskName.postValue(task.name)

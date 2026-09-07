@@ -105,7 +105,7 @@ class CallStateReceiver : BroadcastReceiver() {
                     } else {
                         // Quick Switch OFF: original path — post to LiveData;
                         // MainActivity observer fires the switch only when the app is open.
-                        scope.launch { bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.STARTED) }
+                        scope.launch { bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.STARTED, "call-autoswitch") }
                     }
                 }
             }
@@ -119,7 +119,7 @@ class CallStateReceiver : BroadcastReceiver() {
                             CallSwitchService.intentEnded(context)
                         )
                     } else {
-                        scope.launch { bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.ENDED) }
+                        scope.launch { bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.ENDED, "call-autoswitch") }
                     }
                 }
             }

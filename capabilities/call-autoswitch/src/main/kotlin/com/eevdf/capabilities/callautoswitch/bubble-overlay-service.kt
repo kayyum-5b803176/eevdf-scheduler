@@ -196,7 +196,7 @@ class BubbleOverlayService : Service() {
         // return above means this doesn't refire on every poll tick while
         // the bubble is already up, only on the transition to visible.
         AutoSwitchPrefs.getCallTaskId(this)?.let { callTaskId ->
-            scope.launch { bus.publish(Topics.OVERLAY_SHOWN, callTaskId) }
+            scope.launch { bus.publish(Topics.OVERLAY_SHOWN, callTaskId, CAPABILITY_ID) }
         }
     }
 
@@ -304,7 +304,7 @@ class BubbleOverlayService : Service() {
     private fun dispatchTap() {
         // Was: a nullable global callback MainActivity had to null out in
         // onDestroy (its own KDoc carried a LEAK WARNING). Now an event.
-        scope.launch { bus.publish(Topics.BUBBLE_TAPPED, Unit) }
+        scope.launch { bus.publish(Topics.BUBBLE_TAPPED, Unit, CAPABILITY_ID) }
         val tap: (() -> Unit)? = null
         if (tap != null) {
             tap.invoke()          // Activity visible — ViewModel path
@@ -347,10 +347,10 @@ class BubbleOverlayService : Service() {
 
                 scope.launch {
                     timerState.setAndPublish(
-                        bus, Topics.TIMER_RUNNING_CHANGED, TimerRunningState(),
+                        bus, Topics.TIMER_RUNNING_CHANGED, TimerRunningState(), CAPABILITY_ID,
                     )
                 }
-                scope.launch { bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit) }
+                scope.launch { bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, CAPABILITY_ID) }
 
             } else {
                 // ── Switch to call task ───────────────────────────────────────
@@ -376,6 +376,7 @@ class BubbleOverlayService : Service() {
                     timerState.setAndPublish(
                         bus, Topics.TIMER_RUNNING_CHANGED,
                         TimerRunningState(true, true, true),
+                        CAPABILITY_ID,
                     )
                 }
                 scope.launch {
@@ -387,6 +388,7 @@ class BubbleOverlayService : Service() {
                             callTask.taskType,
                             runningCallTask.remainingSeconds,
                         ),
+                        CAPABILITY_ID,
                     )
                 }
             }

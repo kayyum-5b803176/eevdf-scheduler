@@ -104,6 +104,8 @@ class CallSwitchService : Service() {
         const val ACTION_CALL_STARTED = "com.eevdf.callswitch.CALL_STARTED"
         const val ACTION_CALL_ENDED   = "com.eevdf.callswitch.CALL_ENDED"
 
+        private const val CAPABILITY_ID = "call-autoswitch"
+
         private const val CHANNEL_ID = "eevdf_callswitch_channel"
         private const val NOTIF_ID   = 9_003
 
@@ -218,6 +220,7 @@ class CallSwitchService : Service() {
                         callTask.name, runningTask.remainingSeconds,
                         callTask.taskType, runningTask.remainingSeconds,
                     ),
+                    CAPABILITY_ID,
                 )
             }
 
@@ -232,14 +235,14 @@ class CallSwitchService : Service() {
 
             // ── 4. Publish timer.running-changed ────────────────────────────────────────
             timerState.setAndPublish(
-                bus, Topics.TIMER_RUNNING_CHANGED, TimerRunningState(true, true, true),
+                bus, Topics.TIMER_RUNNING_CHANGED, TimerRunningState(true, true, true), CAPABILITY_ID,
             )
 
             // ── 5. Notify ViewModel (if Activity is alive) ────────────────────
             // bus.publish is a suspend fn, called from the service scope.
             // If MainActivity is dead this is a no-op; ViewModel will reconcile
             // via syncFromDb() on the next onResume().
-            bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.STARTED)
+            bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.STARTED, CAPABILITY_ID)
 
             stopSelf(startId)
         }
@@ -296,15 +299,16 @@ class CallSwitchService : Service() {
                                 savedTask.name, resumed.remainingSeconds,
                                 savedTask.taskType, resumed.remainingSeconds,
                             ),
+                            CAPABILITY_ID,
                         )
                     }
                     // If paused before — leave it paused (no AlarmForegroundService start)
                 } else {
                     // Saved task gone — stop foreground service notification
-                    bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit)
+                    bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, CAPABILITY_ID)
                 }
             } else {
-                bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit)
+                bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, CAPABILITY_ID)
             }
 
             // ── 3. Stop bubble ────────────────────────────────────────────────
@@ -318,10 +322,11 @@ class CallSwitchService : Service() {
             timerState.setAndPublish(
                 bus, Topics.TIMER_RUNNING_CHANGED,
                 TimerRunningState(restoredRunning, false, restoredRunning),
+                CAPABILITY_ID,
             )
 
             // ── 5. Notify ViewModel ───────────────────────────────────────────
-            bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.ENDED)
+            bus.publish(Topics.PHONE_CALL_STATE_CHANGED, CallState.ENDED, CAPABILITY_ID)
 
             stopSelf(startId)
         }

@@ -38,6 +38,15 @@ import javax.inject.Inject
  * newest first, live-updating, with a multi-topic filter, expandable
  * payloads, and a way to clear the in-memory log.
  *
+ * Every row shows who published it (`BusEventRecord.publisherId`, mandatory
+ * on every [EventBus.publish] call) alongside the topic and payload — the
+ * whole point of that field being mandatory rather than optional is that
+ * this screen never has a row with an unexplained source. A
+ * [com.eevdf.kernel.eventbus.RequestTopic] round trip (via
+ * [EventBus.request]/[EventBus.respondTo]) shows up as two rows under the
+ * same topic name: one from the requester ("→ …") and one from the
+ * responder ("← …").
+ *
  * Reads [EventBus.log] — a plain diagnostic feed of every [EventBus.publish]
  * call, not a [com.eevdf.kernel.eventbus.Topic] subscription — see this
  * capability's manifest.kt for why that isn't a rule-3 exception.
@@ -280,6 +289,7 @@ private class EventLogAdapter(
         val row = rows[position]
         holder.topic.text        = row.record.topicName
         holder.timestamp.text    = timeFormat.format(Date(row.record.timestampMs))
+        holder.publisher.text    = "by ${row.record.publisherId}"
         holder.payload.text      = row.record.payload.ifBlank { "(no payload)" }
         holder.payload.maxLines  = if (row.expanded) Int.MAX_VALUE else 2
         holder.copyRow.visibility = if (row.expanded) View.VISIBLE else View.GONE
@@ -292,6 +302,7 @@ private class EventLogAdapter(
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val topic:     TextView = v.findViewById(R.id.tvEventLogTopic)
         val timestamp: TextView = v.findViewById(R.id.tvEventLogTimestamp)
+        val publisher: TextView = v.findViewById(R.id.tvEventLogPublisher)
         val payload:   TextView = v.findViewById(R.id.tvEventLogPayload)
         val copyRow:   View     = v.findViewById(R.id.rowEventLogCopy)
         val copyText:  TextView = v.findViewById(R.id.tvEventLogCopy)

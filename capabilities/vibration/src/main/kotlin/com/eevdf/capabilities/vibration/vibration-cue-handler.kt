@@ -18,15 +18,15 @@ class VibrationCueHandler(
     init {
         bus.subscribe(Topics.ALARM_RINGING, CAPABILITY_ID) { event ->
             VibrationManager.startAlarmForType(appContext, prefs(), event.taskType)
-            bus.publish(Topics.VIBRATION_STARTED, "alarm:${event.taskType}")
+            bus.publish(Topics.VIBRATION_STARTED, "alarm:${event.taskType}", CAPABILITY_ID)
         }
         bus.subscribe(Topics.ALARM_STOPPED, CAPABILITY_ID) {
             VibrationManager.stop(appContext)
-            bus.publish(Topics.VIBRATION_STOPPED, Unit)
+            bus.publish(Topics.VIBRATION_STOPPED, Unit, CAPABILITY_ID)
         }
         bus.subscribe(Topics.VIBRATION_PREVIEW_REQUESTED, CAPABILITY_ID) { patternId ->
             VibrationManager.preview(appContext, patternId)
-            bus.publish(Topics.VIBRATION_STARTED, "preview:$patternId")
+            bus.publish(Topics.VIBRATION_STARTED, "preview:$patternId", CAPABILITY_ID)
         }
     }
 

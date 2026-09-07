@@ -29,18 +29,18 @@ class SoundCueHandler(
     init {
         bus.subscribe(Topics.ALARM_RINGING, CAPABILITY_ID) { event ->
             SoundManager.startAlarmForType(appContext, prefs(), event.taskType)
-            bus.publish(Topics.SOUND_STARTED, "alarm:${event.taskType}")
+            bus.publish(Topics.SOUND_STARTED, "alarm:${event.taskType}", CAPABILITY_ID)
         }
         bus.subscribe(Topics.ALARM_STOPPED, CAPABILITY_ID) {
             SoundManager.stop(appContext)
-            bus.publish(Topics.SOUND_STOPPED, Unit)
+            bus.publish(Topics.SOUND_STOPPED, Unit, CAPABILITY_ID)
         }
         bus.subscribe(Topics.SOUND_CUE_REQUESTED, CAPABILITY_ID) { cue ->
             when (cue) {
                 SoundCue.EXECUTE -> SoundManager.playExecuteSound(appContext, prefs())
                 SoundCue.WAIT    -> SoundManager.playWaitSound(appContext, prefs())
             }
-            bus.publish(Topics.SOUND_STARTED, "cue:${cue.name}")
+            bus.publish(Topics.SOUND_STARTED, "cue:${cue.name}", CAPABILITY_ID)
         }
     }
 

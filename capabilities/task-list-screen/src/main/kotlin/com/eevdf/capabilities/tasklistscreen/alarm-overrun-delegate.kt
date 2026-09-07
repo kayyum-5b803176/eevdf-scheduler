@@ -42,7 +42,7 @@ internal class AlarmOverrunDelegate(private val vm: TaskViewModel) {
         stopOverrunCounter()
         vm._alarmTaskName.postValue(null)
         vm._alarmElapsedSeconds.postValue(0L)
-        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_STOP_REQUESTED, Unit) }
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_STOP_REQUESTED, Unit, "task-list-screen") }
         vm.taskToRestoreAfterExpire?.let { resetTask ->
             // The just-expired task is being re-seated on the card. For a
             // NOTIFICATION task, triggerAlarmExpire() left _noticePhase == Expired

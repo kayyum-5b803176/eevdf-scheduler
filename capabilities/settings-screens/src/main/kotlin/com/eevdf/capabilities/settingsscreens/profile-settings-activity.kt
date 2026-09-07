@@ -190,7 +190,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
             // VibrationManager.preview() call — this screen has zero
             // dependency on the `vibration` capability now.
             val patternId = prefs.getInt(vibPatternKeyFor(currentProfileIdx), VibrationPrefs.DEFAULT_PATTERN)
-            lifecycleScope.launch { bus.publish(Topics.VIBRATION_PREVIEW_REQUESTED, patternId) }
+            lifecycleScope.launch { bus.publish(Topics.VIBRATION_PREVIEW_REQUESTED, patternId, "settings-screens") }
         }
         sliderVibTimeout.addOnChangeListener { _, v, _ ->
             prefs.edit().putInt(vibTimeoutKeyFor(currentProfileIdx), v.toInt()).apply()

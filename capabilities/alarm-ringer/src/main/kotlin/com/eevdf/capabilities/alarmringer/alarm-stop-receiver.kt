@@ -49,7 +49,7 @@ class AlarmStopReceiver : BroadcastReceiver() {
         context.sendBroadcast(Intent(ACTION_STOP_ALARM))
 
         if (ringingTaskName != null) {
-            scope.launch { bus.publish(Topics.ALARM_STOPPED, ringingTaskName) }
+            scope.launch { bus.publish(Topics.ALARM_STOPPED, ringingTaskName, "alarm-ringer") }
         }
     }
 

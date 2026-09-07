@@ -357,7 +357,7 @@ class AlarmForegroundService : Service() {
                     // — only the sound/vibration layers do, matching their
                     // own fallbackWhenUnavailable KDocs ("never load-bearing
                     // for alarm delivery").
-                    scope.launch { bus.publish(Topics.ALARM_RINGING, AlarmRingingEvent(taskName, taskType)) }
+                    scope.launch { bus.publish(Topics.ALARM_RINGING, AlarmRingingEvent(taskName, taskType), "alarm-ringer") }
 
                     // AOSP-parity: broadcast that the alarm started ringing so any
                     // listener (overlay, external apps / Tasker) can react.  Sent
@@ -660,7 +660,7 @@ class AlarmForegroundService : Service() {
             // own stop() is idempotent; this call is what makes the guarantee
             // unconditional rather than dependent on that receiver's async,
             // fire-and-forget publish happening to land in time.
-            runBlocking { bus.publish(Topics.ALARM_STOPPED, ringingTaskName) }
+            runBlocking { bus.publish(Topics.ALARM_STOPPED, ringingTaskName, "alarm-ringer") }
         }
 
         isAlarmRinging = false

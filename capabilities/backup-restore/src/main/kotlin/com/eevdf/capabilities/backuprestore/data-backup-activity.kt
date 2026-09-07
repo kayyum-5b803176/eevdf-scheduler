@@ -95,7 +95,7 @@ class DataBackupActivity : AppCompatActivity() {
 
                 // 2. Checkpoint + close so the raw .db file on disk is consistent.
                 // Suspends until task-storage has checkpointed (see BackupCheckpointHandler).
-                bus.publish(Topics.BACKUP_EXPORT_REQUESTED, Unit)
+                bus.publish(Topics.BACKUP_EXPORT_REQUESTED, Unit, "backup-restore")
                 val dbFile: File = withContext(Dispatchers.IO) {
                     TaskDatabase.getDatabaseFile(applicationContext)
                 }
@@ -154,7 +154,7 @@ class DataBackupActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 // Suspends until task-storage has checkpointed AND closed Room.
-                bus.publish(Topics.BACKUP_IMPORT_REQUESTED, Unit)
+                bus.publish(Topics.BACKUP_IMPORT_REQUESTED, Unit, "backup-restore")
                 val dbFile: File = withContext(Dispatchers.IO) {
                     TaskDatabase.getDatabaseFile(applicationContext)
                 }

@@ -188,6 +188,7 @@ internal class ObserverDelegate(private val activity: MainActivity) {
                     activity.viewModel.bus,
                     Topics.TIMER_RUNNING_CHANGED,
                     TimerRunningState(isRunning, callTaskRunning, isRunning),
+                    "task-list-screen",
                 )
             }
         }

@@ -15,8 +15,8 @@ class BusEventLogTest {
     @Test
     fun `record prepends newest first`() {
         val log = BusEventLog()
-        log.record("topic.a", "first")
-        log.record("topic.b", "second")
+        log.record("topic.a", "test-publisher", "first")
+        log.record("topic.b", "test-publisher", "second")
 
         val values = log.events.value
         assertEquals(2, values.size)
@@ -27,7 +27,7 @@ class BusEventLogTest {
     @Test
     fun `record trims to capacity, dropping the oldest`() {
         val log = BusEventLog(capacity = 3)
-        repeat(5) { i -> log.record("topic.$i", "payload-$i") }
+        repeat(5) { i -> log.record("topic.$i", "test-publisher", "payload-$i") }
 
         val values = log.events.value
         assertEquals(3, values.size)
@@ -38,8 +38,8 @@ class BusEventLogTest {
     @Test
     fun `each record gets a unique, increasing id`() {
         val log = BusEventLog()
-        log.record("topic.a", "x")
-        log.record("topic.b", "y")
+        log.record("topic.a", "test-publisher", "x")
+        log.record("topic.b", "test-publisher", "y")
 
         val values = log.events.value
         assertTrue(values[1].id < values[0].id)
@@ -48,8 +48,8 @@ class BusEventLogTest {
     @Test
     fun `clear empties the log`() {
         val log = BusEventLog()
-        log.record("topic.a", "x")
-        log.record("topic.b", "y")
+        log.record("topic.a", "test-publisher", "x")
+        log.record("topic.b", "test-publisher", "y")
 
         log.clear()
 
@@ -59,9 +59,9 @@ class BusEventLogTest {
     @Test
     fun `clear does not stop future recording`() {
         val log = BusEventLog()
-        log.record("topic.a", "x")
+        log.record("topic.a", "test-publisher", "x")
         log.clear()
-        log.record("topic.b", "y")
+        log.record("topic.b", "test-publisher", "y")
 
         assertEquals(listOf("topic.b"), log.events.value.map { it.topicName })
     }
