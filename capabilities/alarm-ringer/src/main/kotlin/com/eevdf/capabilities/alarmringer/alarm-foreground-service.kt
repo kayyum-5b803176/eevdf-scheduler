@@ -360,13 +360,6 @@ class AlarmForegroundService : Service() {
                     // for alarm delivery").
                     scope.launch { bus.publish(Topics.ALARM_RINGING, AlarmRingingEvent(taskName, taskType)) }
 
-                    // alarm.ringing (rule 3): the direct-call replacement for what
-                    // used to be feedback-cues/reminder-notifier reading this
-                    // service's state via direct import. Those two capabilities'
-                    // manifests have declared this subscription since Phase 1/3 —
-                    // this is the publish side that finally makes it real.
-                    scope.launch { bus.publish(Topics.ALARM_RINGING, taskName) }
-
                     // AOSP-parity: broadcast that the alarm started ringing so any
                     // listener (overlay, external apps / Tasker) can react.  Sent
                     // unrestricted (exported, no permission) for max interop.
