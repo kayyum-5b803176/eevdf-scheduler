@@ -9,7 +9,7 @@ import androidx.appcompat.widget.Toolbar
 import com.eevdf.capabilities.settingsscreens.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
-import com.eevdf.capabilities.feedbackcues.output.VibrationManager
+import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
 
 class SoundVibrationActivity : AppCompatActivity() {
 
@@ -31,9 +31,9 @@ class SoundVibrationActivity : AppCompatActivity() {
 
         // Haptic switch
         val switchHaptic = findViewById<SwitchMaterial>(R.id.switchSvHaptic)
-        switchHaptic.isChecked = prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)
+        switchHaptic.isChecked = prefs.getBoolean(VibrationPrefs.KEY_HAPTIC, VibrationPrefs.DEFAULT_HAPTIC)
         switchHaptic.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean(VibrationManager.KEY_HAPTIC, checked).apply()
+            prefs.edit().putBoolean(VibrationPrefs.KEY_HAPTIC, checked).apply()
         }
     }
 

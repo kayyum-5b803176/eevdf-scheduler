@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "6.13.2"
+        versionName = "6.14.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -110,7 +110,8 @@ dependencies {
     // dependency declared here directly.
     implementation(project(":capabilities:design-system"))
 
-    implementation(project(":capabilities:feedback-cues"))
+    implementation(project(":capabilities:sound"))
+    implementation(project(":capabilities:vibration"))
     implementation(project(":capabilities:task-storage"))
     implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))

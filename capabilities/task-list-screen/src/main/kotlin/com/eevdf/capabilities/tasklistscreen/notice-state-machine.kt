@@ -10,9 +10,9 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
-import com.eevdf.capabilities.feedbackcues.output.SoundManager
 import com.eevdf.kernel.eventbus.AlarmDelayStartRequest
 import com.eevdf.kernel.eventbus.AlarmTimerExpireRequest
+import com.eevdf.kernel.eventbus.SoundCue
 import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.launch
 import com.eevdf.capabilities.tasklistscreen.TaskViewModel
@@ -280,7 +280,10 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // and cancelWaitPhase() can advance past this cycle. (Bug fix #2)
         lastExecuteIteration = iteration
         _noticePhase.value = NoticePhase.Execute(iteration)
-        SoundManager.playExecuteSound(vm.app, vm.prefs)
+        // sound.cue-requested (rule 3): replaces the old direct
+        // SoundManager.playExecuteSound() call — task-list-screen has zero
+        // dependency on the `sound` capability now.
+        vm.viewModelScope.launch { vm.bus.publish(Topics.SOUND_CUE_REQUESTED, SoundCue.EXECUTE) }
         // Compute total alarm time covering all remaining (execute + wait) cycles so
         // the AlarmManager entry is set ONCE and never cancelled between phases.
         // On pause the alarm is cancelled normally; on resume startExecutePhase is
@@ -300,7 +303,9 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         _waitSecondsRemaining.value = waitSecs
         _noticePhase.value          = NoticePhase.Wait(waitSecs, currentRepeatIteration)
         val waitStart = System.currentTimeMillis()
-        SoundManager.playWaitSound(vm.app, vm.prefs)
+        // sound.cue-requested (rule 3): replaces the old direct
+        // SoundManager.playWaitSound() call.
+        vm.viewModelScope.launch { vm.bus.publish(Topics.SOUND_CUE_REQUESTED, SoundCue.WAIT) }
         vm.viewModelScope.launch {
             vm.bus.publish(Topics.ALARM_DELAY_START_REQUESTED, AlarmDelayStartRequest(task.name, waitSecs))
         }

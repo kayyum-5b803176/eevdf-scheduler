@@ -14,14 +14,23 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.lifecycleScope
 import com.eevdf.capabilities.settingsscreens.R
+import com.eevdf.capabilities.settingsstorage.state.SoundPrefs
+import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
+import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.eventbus.Topics
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.slider.Slider
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.capabilities.feedbackcues.output.SoundManager
-import com.eevdf.capabilities.feedbackcues.output.VibrationManager
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class ProfileSettingsActivity : AppCompatActivity() {
+
+    @Inject lateinit var bus: EventBus
 
     private data class Profile(val label: String, val taskType: String)
     private val profiles = listOf(
@@ -83,7 +92,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
             else
                 @Suppress("DEPRECATION")
                 result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            prefs.edit().putString(SoundManager.KEY_EXECUTE_SOUND_URI, uri?.toString()).apply()
+            prefs.edit().putString(SoundPrefs.KEY_EXECUTE_SOUND_URI, uri?.toString()).apply()
             updateExecuteSoundName()
         }
     }
@@ -96,7 +105,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
             else
                 @Suppress("DEPRECATION")
                 result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            prefs.edit().putString(SoundManager.KEY_WAIT_SOUND_URI, uri?.toString()).apply()
+            prefs.edit().putString(SoundPrefs.KEY_WAIT_SOUND_URI, uri?.toString()).apply()
             updateWaitSoundName()
         }
     }
@@ -151,7 +160,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
 
     // ── Setup ──────────────────────────────────────────────────────────────────
     private fun setupVibSpinner() {
-        val labels = VibrationManager.PATTERNS.map { it.name }
+        val labels = VibrationPrefs.PATTERNS.map { it.name }
         spinnerVibPattern.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, labels))
     }
 
@@ -177,7 +186,11 @@ class ProfileSettingsActivity : AppCompatActivity() {
             prefs.edit().putInt(vibPatternKeyFor(currentProfileIdx), pos).apply()
         }
         btnPreviewVib.setOnClickListener {
-            VibrationManager.preview(this, prefs.getInt(vibPatternKeyFor(currentProfileIdx), VibrationManager.DEFAULT_PATTERN))
+            // vibration.preview-requested (rule 3): replaces the old direct
+            // VibrationManager.preview() call — this screen has zero
+            // dependency on the `vibration` capability now.
+            val patternId = prefs.getInt(vibPatternKeyFor(currentProfileIdx), VibrationPrefs.DEFAULT_PATTERN)
+            lifecycleScope.launch { bus.publish(Topics.VIBRATION_PREVIEW_REQUESTED, patternId) }
         }
         sliderVibTimeout.addOnChangeListener { _, v, _ ->
             prefs.edit().putInt(vibTimeoutKeyFor(currentProfileIdx), v.toInt()).apply()
@@ -186,16 +199,16 @@ class ProfileSettingsActivity : AppCompatActivity() {
         // Action section
         btnPickExecuteSound.setOnClickListener {
             launchRingtonePicker(executeSoundLauncher,
-                prefs.getString(SoundManager.KEY_EXECUTE_SOUND_URI, null),
+                prefs.getString(SoundPrefs.KEY_EXECUTE_SOUND_URI, null),
                 RingtoneManager.TYPE_NOTIFICATION, "Select Execute Sound")
         }
         btnPickWaitSound.setOnClickListener {
             launchRingtonePicker(waitSoundLauncher,
-                prefs.getString(SoundManager.KEY_WAIT_SOUND_URI, null),
+                prefs.getString(SoundPrefs.KEY_WAIT_SOUND_URI, null),
                 RingtoneManager.TYPE_NOTIFICATION, "Select Wait Sound")
         }
         sliderActionVolume.addOnChangeListener { _, v, _ ->
-            prefs.edit().putInt(SoundManager.KEY_ACTION_VOLUME, v.toInt()).apply()
+            prefs.edit().putInt(SoundPrefs.KEY_ACTION_VOLUME, v.toInt()).apply()
             tvActionVolumeLabel.text = "${v.toInt()}%"
         }
     }
@@ -203,22 +216,22 @@ class ProfileSettingsActivity : AppCompatActivity() {
     // ── Load profile ───────────────────────────────────────────────────────────
     private fun loadProfile(idx: Int) {
         updateSoundName()
-        sliderSoundTimeout.value = prefs.getInt(soundTimeoutKeyFor(idx), SoundManager.DEFAULT_SOUND_TIMEOUT).toFloat().coerceIn(0f, 900f)
+        sliderSoundTimeout.value = prefs.getInt(soundTimeoutKeyFor(idx), SoundPrefs.DEFAULT_SOUND_TIMEOUT).toFloat().coerceIn(0f, 900f)
         tvSoundTimeoutLabel.text = formatTimeout(sliderSoundTimeout.value.toInt())
-        sliderVolume.value       = prefs.getInt(soundVolumeKeyFor(idx), SoundManager.DEFAULT_SOUND_VOLUME).toFloat().coerceIn(0f, 100f)
+        sliderVolume.value       = prefs.getInt(soundVolumeKeyFor(idx), SoundPrefs.DEFAULT_SOUND_VOLUME).toFloat().coerceIn(0f, 100f)
         tvVolumeLabel.text       = "${sliderVolume.value.toInt()}%"
-        val fade = prefs.getInt(soundFadeInKeyFor(idx), SoundManager.DEFAULT_FADE_IN)
+        val fade = prefs.getInt(soundFadeInKeyFor(idx), SoundPrefs.DEFAULT_FADE_IN)
         sliderFadeIn.value       = fade.toFloat().coerceIn(0f, 300f)
         tvFadeInLabel.text       = if (fade == 0) "Off" else formatTimeout(fade)
 
-        val patId = prefs.getInt(vibPatternKeyFor(idx), VibrationManager.DEFAULT_PATTERN)
-        spinnerVibPattern.setText(VibrationManager.PATTERNS[patId.coerceIn(0, VibrationManager.PATTERNS.size - 1)].name, false)
-        sliderVibTimeout.value   = prefs.getInt(vibTimeoutKeyFor(idx), VibrationManager.DEFAULT_TIMEOUT_SEC).toFloat().coerceIn(0f, 900f)
+        val patId = prefs.getInt(vibPatternKeyFor(idx), VibrationPrefs.DEFAULT_PATTERN)
+        spinnerVibPattern.setText(VibrationPrefs.PATTERNS[patId.coerceIn(0, VibrationPrefs.PATTERNS.size - 1)].name, false)
+        sliderVibTimeout.value   = prefs.getInt(vibTimeoutKeyFor(idx), VibrationPrefs.DEFAULT_TIMEOUT_SEC).toFloat().coerceIn(0f, 900f)
         tvVibTimeoutLabel.text   = formatTimeout(sliderVibTimeout.value.toInt())
 
         if (profiles[idx].taskType == "NOTIFICATION") {
             updateExecuteSoundName(); updateWaitSoundName()
-            val av = prefs.getInt(SoundManager.KEY_ACTION_VOLUME, SoundManager.DEFAULT_ACTION_VOLUME)
+            val av = prefs.getInt(SoundPrefs.KEY_ACTION_VOLUME, SoundPrefs.DEFAULT_ACTION_VOLUME)
             sliderActionVolume.value  = av.toFloat().coerceIn(0f, 100f)
             tvActionVolumeLabel.text  = "$av%"
         }
@@ -229,10 +242,10 @@ class ProfileSettingsActivity : AppCompatActivity() {
         tvSoundName.text = resolveRingtoneName(prefs.getString(soundUriKeyFor(currentProfileIdx), null), "System alarm tone")
     }
     private fun updateExecuteSoundName() {
-        tvExecuteSoundName.text = resolveRingtoneName(prefs.getString(SoundManager.KEY_EXECUTE_SOUND_URI, null), "System notification tone")
+        tvExecuteSoundName.text = resolveRingtoneName(prefs.getString(SoundPrefs.KEY_EXECUTE_SOUND_URI, null), "System notification tone")
     }
     private fun updateWaitSoundName() {
-        tvWaitSoundName.text = resolveRingtoneName(prefs.getString(SoundManager.KEY_WAIT_SOUND_URI, null), "System notification tone")
+        tvWaitSoundName.text = resolveRingtoneName(prefs.getString(SoundPrefs.KEY_WAIT_SOUND_URI, null), "System notification tone")
     }
     private fun resolveRingtoneName(uriStr: String?, fallback: String): String {
         if (uriStr.isNullOrBlank()) return fallback
@@ -242,13 +255,13 @@ class ProfileSettingsActivity : AppCompatActivity() {
     }
 
     // ── Key helpers ────────────────────────────────────────────────────────────
-    private fun prefixFor(idx: Int) = SoundManager.prefixFor(profiles[idx].taskType)
-    private fun soundUriKeyFor(idx: Int)     = SoundManager.soundUriKey(prefixFor(idx))
-    private fun soundTimeoutKeyFor(idx: Int) = SoundManager.soundTimeoutKey(prefixFor(idx))
-    private fun soundVolumeKeyFor(idx: Int)  = SoundManager.soundVolumeKey(prefixFor(idx))
-    private fun soundFadeInKeyFor(idx: Int)  = SoundManager.soundFadeInKey(prefixFor(idx))
-    private fun vibPatternKeyFor(idx: Int)   = VibrationManager.vibPatternKey(prefixFor(idx))
-    private fun vibTimeoutKeyFor(idx: Int)   = VibrationManager.vibTimeoutKey(prefixFor(idx))
+    private fun prefixFor(idx: Int) = SoundPrefs.prefixFor(profiles[idx].taskType)
+    private fun soundUriKeyFor(idx: Int)     = SoundPrefs.soundUriKey(prefixFor(idx))
+    private fun soundTimeoutKeyFor(idx: Int) = SoundPrefs.soundTimeoutKey(prefixFor(idx))
+    private fun soundVolumeKeyFor(idx: Int)  = SoundPrefs.soundVolumeKey(prefixFor(idx))
+    private fun soundFadeInKeyFor(idx: Int)  = SoundPrefs.soundFadeInKey(prefixFor(idx))
+    private fun vibPatternKeyFor(idx: Int)   = VibrationPrefs.vibPatternKey(prefixFor(idx))
+    private fun vibTimeoutKeyFor(idx: Int)   = VibrationPrefs.vibTimeoutKey(prefixFor(idx))
 
     // ── Helpers ────────────────────────────────────────────────────────────────
     private fun launchRingtonePicker(

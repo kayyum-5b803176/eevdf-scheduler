@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.feedbackcues.output
+package com.eevdf.capabilities.sound
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -9,24 +9,19 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import com.eevdf.capabilities.settingsstorage.state.SoundPrefs
 
+/**
+ * Moved from the old `feedback-cues` capability (deleted — see
+ * `scripts/delete-feedback-cues.sh`). Behavior is unchanged; only the prefs
+ * key constants (`KEY_*`, `DEFAULT_*`, `prefixFor`, the `*Key()` helpers)
+ * moved out to [SoundPrefs] in settings-storage, since settings-screens needs
+ * those same names without needing this capability's playback behavior.
+ *
+ * Reached ONLY via the bus now — see [SoundCueHandler]. Nothing calls this
+ * object directly from outside this capability.
+ */
 object SoundManager {
-
-    // ── Alarm prefs keys ──────────────────────────────────────────────────────
-    const val KEY_SOUND_URI        = "sound_uri"
-    const val KEY_SOUND_TIMEOUT    = "sound_timeout_sec"
-    const val KEY_SOUND_VOLUME     = "sound_volume"
-    const val KEY_SOUND_FADE_IN    = "sound_fade_in_sec"
-
-    const val DEFAULT_SOUND_TIMEOUT = 60
-    const val DEFAULT_SOUND_VOLUME  = 80
-    const val DEFAULT_FADE_IN       = 0
-
-    // ── Action sound prefs keys (Notice profile) ──────────────────────────────
-    const val KEY_EXECUTE_SOUND_URI = "notif_delay_sound_uri"
-    const val KEY_WAIT_SOUND_URI    = "notif_rest_sound_uri"
-    const val KEY_ACTION_VOLUME     = "notif_action_volume"
-    const val DEFAULT_ACTION_VOLUME = 80
 
     // ── Internal alarm state ──────────────────────────────────────────────────
     private var player: MediaPlayer? = null
@@ -42,21 +37,9 @@ object SoundManager {
     private var actionPlayer: MediaPlayer? = null
     private var savedNotifStreamVol: Int = -1
 
-    // ── Profile key helpers ───────────────────────────────────────────────────
-    fun prefixFor(taskType: String): String = when (taskType) {
-        "NOTIFICATION" -> "notif_"
-        "ALARM"        -> "alarm_"
-        "CUSTOM"       -> "custom_"
-        else           -> ""
-    }
-    fun soundUriKey(prefix: String)     = "${prefix}${KEY_SOUND_URI}"
-    fun soundTimeoutKey(prefix: String) = "${prefix}${KEY_SOUND_TIMEOUT}"
-    fun soundVolumeKey(prefix: String)  = "${prefix}${KEY_SOUND_VOLUME}"
-    fun soundFadeInKey(prefix: String)  = "${prefix}${KEY_SOUND_FADE_IN}"
-
     // ── Alarm public API ──────────────────────────────────────────────────────
     fun startAlarmForType(context: Context, prefs: SharedPreferences, taskType: String) =
-        startAlarmWithPrefix(context, prefs, prefixFor(taskType))
+        startAlarmWithPrefix(context, prefs, SoundPrefs.prefixFor(taskType))
 
     fun startAlarm(context: Context, prefs: SharedPreferences) =
         startAlarmWithPrefix(context, prefs, "")
@@ -76,17 +59,17 @@ object SoundManager {
 
     // ── Action sound API (Notice only) ────────────────────────────────────────
     fun playExecuteSound(context: Context, prefs: SharedPreferences) =
-        playActionSound(context, prefs.getString(KEY_EXECUTE_SOUND_URI, null), prefs)
+        playActionSound(context, prefs.getString(SoundPrefs.KEY_EXECUTE_SOUND_URI, null), prefs)
 
     fun playWaitSound(context: Context, prefs: SharedPreferences) =
-        playActionSound(context, prefs.getString(KEY_WAIT_SOUND_URI, null), prefs)
+        playActionSound(context, prefs.getString(SoundPrefs.KEY_WAIT_SOUND_URI, null), prefs)
 
     private fun playActionSound(context: Context, uriStr: String?, prefs: SharedPreferences) {
         actionPlayer?.let { try { it.stop(); it.release() } catch (_: Exception) {} }
         actionPlayer = null
         restoreNotifVolume(context)
 
-        val volumePct = prefs.getInt(KEY_ACTION_VOLUME, DEFAULT_ACTION_VOLUME).coerceIn(0, 100)
+        val volumePct = prefs.getInt(SoundPrefs.KEY_ACTION_VOLUME, SoundPrefs.DEFAULT_ACTION_VOLUME).coerceIn(0, 100)
         val uri: Uri = if (!uriStr.isNullOrBlank()) Uri.parse(uriStr)
         else RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_NOTIFICATION)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -113,14 +96,14 @@ object SoundManager {
     // ── Private alarm helpers ─────────────────────────────────────────────────
     private fun startAlarmWithPrefix(context: Context, prefs: SharedPreferences, prefix: String) {
         stop(context)
-        val uriStr    = prefs.getString(soundUriKey(prefix), null)
-            ?: if (prefix.isNotEmpty()) prefs.getString(KEY_SOUND_URI, null) else null
-        val timeoutSec = prefs.getInt(soundTimeoutKey(prefix), -1)
-            .let { if (it == -1) prefs.getInt(KEY_SOUND_TIMEOUT, DEFAULT_SOUND_TIMEOUT) else it }
-        val volumePct  = run { val v = prefs.getInt(soundVolumeKey(prefix), -1)
-            if (v == -1) prefs.getInt(KEY_SOUND_VOLUME, DEFAULT_SOUND_VOLUME) else v }.coerceIn(0, 100)
-        val fadeInSec  = run { val f = prefs.getInt(soundFadeInKey(prefix), -1)
-            if (f == -1) prefs.getInt(KEY_SOUND_FADE_IN, DEFAULT_FADE_IN) else f }.coerceIn(0, 300)
+        val uriStr    = prefs.getString(SoundPrefs.soundUriKey(prefix), null)
+            ?: if (prefix.isNotEmpty()) prefs.getString(SoundPrefs.KEY_SOUND_URI, null) else null
+        val timeoutSec = prefs.getInt(SoundPrefs.soundTimeoutKey(prefix), -1)
+            .let { if (it == -1) prefs.getInt(SoundPrefs.KEY_SOUND_TIMEOUT, SoundPrefs.DEFAULT_SOUND_TIMEOUT) else it }
+        val volumePct  = run { val v = prefs.getInt(SoundPrefs.soundVolumeKey(prefix), -1)
+            if (v == -1) prefs.getInt(SoundPrefs.KEY_SOUND_VOLUME, SoundPrefs.DEFAULT_SOUND_VOLUME) else v }.coerceIn(0, 100)
+        val fadeInSec  = run { val f = prefs.getInt(SoundPrefs.soundFadeInKey(prefix), -1)
+            if (f == -1) prefs.getInt(SoundPrefs.KEY_SOUND_FADE_IN, SoundPrefs.DEFAULT_FADE_IN) else f }.coerceIn(0, 300)
 
         targetVolume   = volumePct / 100f
         fadeDurationMs = fadeInSec * 1000L

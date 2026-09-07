@@ -31,7 +31,7 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
-import com.eevdf.capabilities.feedbackcues.output.VibrationManager
+import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
 import dagger.hilt.android.AndroidEntryPoint
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -145,7 +145,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Convenience: fire haptic feedback on [v] if enabled in prefs. */
     internal fun haptic(v: View) {
-        if (!prefs.getBoolean(VibrationManager.KEY_HAPTIC, VibrationManager.DEFAULT_HAPTIC)) return
+        if (!prefs.getBoolean(VibrationPrefs.KEY_HAPTIC, VibrationPrefs.DEFAULT_HAPTIC)) return
         v.performHapticFeedback(
             android.view.HapticFeedbackConstants.VIRTUAL_KEY,
             @Suppress("DEPRECATION")

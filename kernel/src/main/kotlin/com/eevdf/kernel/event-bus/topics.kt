@@ -142,7 +142,55 @@ object Topics {
 
     val OVERLAY_CALL_STARTED_REQUESTED = Topic<Unit>("overlay.call-started-requested")
     val OVERLAY_CALL_ENDED_REQUESTED = Topic<Unit>("overlay.call-ended-requested")
+
+    // ── Sound / vibration (published+subscribed by capabilities/sound and ────
+    // capabilities/vibration respectively — the two capabilities never call
+    // each other or anything else directly; every trigger and every actual
+    // playback action is a topic, specifically so the event-log screen shows
+    // the real thing that happened, not just the upstream request for it.
+
+    /**
+     * Published by task-list-screen's `NoticeStateMachine` (replaces the old
+     * direct `SoundManager.playExecuteSound()`/`playWaitSound()` calls).
+     * Subscribed by `sound`.
+     */
+    val SOUND_CUE_REQUESTED = Topic<SoundCue>("sound.cue-requested")
+
+    /**
+     * Published by settings-screens' `ProfileSettingsActivity` (replaces the
+     * old direct `VibrationManager.preview()` call). Payload: the pattern id
+     * being previewed — see `VibrationPrefs.PATTERNS` in settings-storage for
+     * what that id indexes into. Subscribed by `vibration`.
+     */
+    val VIBRATION_PREVIEW_REQUESTED = Topic<Int>("vibration.preview-requested")
+
+    /**
+     * Published by `sound` itself, right after a sound genuinely starts
+     * playing — whether triggered by [ALARM_RINGING] or [SOUND_CUE_REQUESTED].
+     * Payload: a short human-readable description of what started, e.g.
+     * `"alarm:ALARM"` or `"cue:EXECUTE"` — not itself meant to be parsed by
+     * another capability, just to be legible in the event log.
+     */
+    val SOUND_STARTED = Topic<String>("sound.started")
+
+    /**
+     * Published by `sound`, right after it stops playing in response to
+     * [ALARM_STOPPED]. Payload: unused (Unit) — a pure signal. NOT published
+     * for [SOUND_CUE_REQUESTED] playback, which is one-shot and
+     * self-terminating with no explicit stop call to hang this off of (see
+     * `SoundCueHandler`'s KDoc).
+     */
+    val SOUND_STOPPED = Topic<Unit>("sound.stopped")
+
+    /** Vibration's equivalent of [SOUND_STARTED] — same payload shape and reasoning. */
+    val VIBRATION_STARTED = Topic<String>("vibration.started")
+
+    /** Vibration's equivalent of [SOUND_STOPPED] — same payload shape and reasoning. */
+    val VIBRATION_STOPPED = Topic<Unit>("vibration.stopped")
 }
+
+/** Which short, built-in UI cue to play — see [Topics.SOUND_CUE_REQUESTED]. */
+enum class SoundCue { EXECUTE, WAIT }
 
 data class AlarmTimerStartRequest(
     val taskName: String,
@@ -159,9 +207,8 @@ data class AlarmDelayStartRequest(val taskName: String, val delaySecs: Long)
  * Payload for [Topics.ALARM_RINGING].
  *
  * Carries [taskType] (not just the task name) because the two real
- * subscribers this topic exists for — feedback-cues' sound/vibration and any
- * future per-profile reaction — need it to pick the right ALARM/NOTIFICATION/
- * CUSTOM preference profile, exactly like [AlarmTimerExpireRequest] already
- * does for the same reason.
+ * subscribers this topic exists for — `sound` and `vibration` — need it to
+ * pick the right ALARM/NOTIFICATION/CUSTOM preference profile, exactly like
+ * [AlarmTimerExpireRequest] already does for the same reason.
  */
 data class AlarmRingingEvent(val taskName: String, val taskType: String = "DEFAULT")

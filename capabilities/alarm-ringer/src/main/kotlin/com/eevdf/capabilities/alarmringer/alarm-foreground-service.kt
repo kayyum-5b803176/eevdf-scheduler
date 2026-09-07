@@ -17,8 +17,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.eevdf.capabilities.alarmringer.R
-import com.eevdf.capabilities.feedbackcues.output.SoundManager
-import com.eevdf.capabilities.feedbackcues.output.VibrationManager
 import com.eevdf.capabilities.remindernotifier.AlarmNotificationPolicy
 import com.eevdf.capabilities.remindernotifier.AlarmReliabilityChecker
 import com.eevdf.capabilities.remindernotifier.AppForegroundTracker
@@ -34,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
 /**
@@ -347,16 +346,16 @@ class AlarmForegroundService : Service() {
 
                     showExpiredNotification(taskName, decision.suppressBanner, decision.attachFullScreenIntent)
 
-                    // alarm.ringing (rule 3): feedback-cues owns sound/vibration
-                    // playback now — this used to be a direct
-                    // SoundManager.startAlarmForType()/VibrationManager.
-                    // startAlarmForType() call right here (the exact debt
-                    // flagged, not fixed, in feedback-cues' manifest.kt since
-                    // Phase 1). The visual alarm (this notification, plus
-                    // AlarmActivity's full-screen intent below) does NOT
-                    // depend on feedback-cues being available — only the
-                    // sound/vibration layer does, matching feedback-cues'
-                    // own fallbackWhenUnavailable KDoc ("never load-bearing
+                    // alarm.ringing (rule 3): `sound` and `vibration` (two
+                    // fully independent capabilities, each reachable ONLY via
+                    // the bus) own this playback now — this used to be a
+                    // direct SoundManager.startAlarmForType()/VibrationManager.
+                    // startAlarmForType() call right here. This service has
+                    // zero import of either capability. The visual alarm
+                    // (this notification, plus AlarmActivity's full-screen
+                    // intent below) does NOT depend on either being available
+                    // — only the sound/vibration layers do, matching their
+                    // own fallbackWhenUnavailable KDocs ("never load-bearing
                     // for alarm delivery").
                     scope.launch { bus.publish(Topics.ALARM_RINGING, AlarmRingingEvent(taskName, taskType)) }
 
@@ -410,14 +409,17 @@ class AlarmForegroundService : Service() {
         // Release resources only.  Must NOT cancel AlarmManager here.
         //
         // onDestroy fires in two cases:
-        //   1. Explicit stop (ACTION_STOP, ACTION_TIMER_PAUSE): alarm was already
-        //      cancelled by AlarmScheduler.cancel() before this was called.
+        //   1. Explicit stop (ACTION_STOP, ACTION_TIMER_PAUSE): stopEverything()
+        //      already published Topics.ALARM_STOPPED (blocking, so sound and
+        //      vibration are confirmed stopped) before this runs.
         //   2. OOM kill by Android: alarm MUST remain scheduled so it fires later.
+        //      No direct SoundManager/VibrationManager calls belong here any
+        //      more, and none are missed — a killed process cannot keep a
+        //      MediaPlayer or Vibrator running regardless of whether stop()
+        //      was called first, so there was never a real gap to cover here.
         //
         // Calling AlarmScheduler.cancel() here would silently remove the alarm
         // in case 2, which is the root cause of the random alarm disappearance bug.
-        VibrationManager.stop(this)
-        SoundManager.stop(this)
         releaseWakeLock()
         scope.cancel()
     }
@@ -633,8 +635,34 @@ class AlarmForegroundService : Service() {
     private fun stopEverything() {
         val wasRinging = isAlarmRinging
         Log.d(TAG, "stopEverything: wasRinging=$wasRinging")
-        VibrationManager.stop(this)
-        SoundManager.stop(this)
+
+        if (wasRinging) {
+            // Own lookup of the ringing task's name, same as
+            // AlarmStopReceiver's — needed BEFORE stopForegroundCompat()/
+            // stopSelf() below, since stopping clears the persisted
+            // AlarmState. Falls back to empty string on the (rare) chance
+            // persisted state and this service's own isAlarmRinging flag
+            // have drifted — sound/vibration's stop() takes no taskName
+            // argument at all, so an empty name here costs nothing.
+            val ringingTaskName = (AlarmScheduler.currentState(this) as? AlarmState.Ringing)?.taskName.orEmpty()
+
+            // sound/vibration (rule 3): a BLOCKING publish, not a direct call —
+            // this capability has zero import of `sound`/`vibration` at all.
+            // Reliability comes from runIsolated's bounded 5s timeout inside
+            // EventBus.publish, not from calling SoundManager/VibrationManager
+            // directly: publish() (structured concurrency) does not return
+            // until every subscriber's handler has completed or been cut off,
+            // so blocking on it here gives the exact same "confirmed stopped
+            // before we proceed" guarantee the old direct calls gave, entirely
+            // through the bus. AlarmStopReceiver ALSO publishes this same
+            // topic independently (with its own taskName lookup) when the
+            // user taps Stop — a harmless duplicate, since sound/vibration's
+            // own stop() is idempotent; this call is what makes the guarantee
+            // unconditional rather than dependent on that receiver's async,
+            // fire-and-forget publish happening to land in time.
+            runBlocking { bus.publish(Topics.ALARM_STOPPED, ringingTaskName) }
+        }
+
         isAlarmRinging = false
         releaseWakeLock()
         stopForegroundCompat()

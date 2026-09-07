@@ -31,7 +31,8 @@ include(
     ":kernel",
     ":composition",
 
-    ":capabilities:feedback-cues",
+    ":capabilities:sound",
+    ":capabilities:vibration",
     ":capabilities:design-system",
     ":capabilities:task-storage",
     ":capabilities:task-scheduling",

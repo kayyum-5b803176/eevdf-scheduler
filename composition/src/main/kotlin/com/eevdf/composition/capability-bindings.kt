@@ -10,7 +10,8 @@ import androidx.core.content.getSystemService
 import com.eevdf.capabilities.alarmringer.AlarmCommandHandler
 import com.eevdf.capabilities.alarmringer.TimerExpiryHandler
 import com.eevdf.capabilities.callautoswitch.OverlayCommandHandler
-import com.eevdf.capabilities.feedbackcues.AlarmCueHandler
+import com.eevdf.capabilities.sound.SoundCueHandler
+import com.eevdf.capabilities.vibration.VibrationCueHandler
 import com.eevdf.capabilities.featuretoggles.FeatureFlags
 import com.eevdf.capabilities.featuretoggles.SharedPrefsFeatureFlags
 import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
@@ -129,13 +130,21 @@ object CapabilityBindings {
         bus: EventBus,
     ): TaskSavedCompactionHandler = TaskSavedCompactionHandler(runLog, bus)
 
-    /** feedback-cues: plays/stops alarm sound + vibration on alarm.ringing/stopped. */
+    /** sound: plays/stops alarm sound on alarm.ringing/stopped, plays cue sounds. */
     @Provides
     @Singleton
-    fun provideAlarmCueHandler(
+    fun provideSoundCueHandler(
         @ApplicationContext context: Context,
         bus: EventBus,
-    ): AlarmCueHandler = AlarmCueHandler(context, bus)
+    ): SoundCueHandler = SoundCueHandler(context, bus)
+
+    /** vibration: vibrates/stops on alarm.ringing/stopped, plays pattern previews. */
+    @Provides
+    @Singleton
+    fun provideVibrationCueHandler(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+    ): VibrationCueHandler = VibrationCueHandler(context, bus)
 
     /** reminder-notifier: delivery logging + notification cancel on alarm.ringing/stopped. */
     @Provides

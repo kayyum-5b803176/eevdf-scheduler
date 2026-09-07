@@ -13,7 +13,8 @@ dependencies {
     // The composition layer is the one place allowed to know the full list of
     // capabilities that exist (rule 6). This list IS that knowledge — adding
     // capability N+1 means one line here and one in settings.gradle.kts.
-    implementation(project(":capabilities:feedback-cues"))
+    implementation(project(":capabilities:sound"))
+    implementation(project(":capabilities:vibration"))
     implementation(project(":capabilities:design-system"))
     implementation(project(":capabilities:task-storage"))
     implementation(project(":capabilities:task-scheduling"))
