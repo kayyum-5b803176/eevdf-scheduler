@@ -9,6 +9,7 @@ android {
 }
 dependencies {
     implementation(project(":kernel"))
+    implementation(project(":capabilities:app-foreground"))
     implementation(project(":capabilities:notification"))
     implementation(project(":capabilities:permissions"))
     implementation(project(":capabilities:settings-storage"))

@@ -15,6 +15,7 @@ import com.eevdf.capabilities.vibration.VibrationCueHandler
 import com.eevdf.capabilities.featuretoggles.FeatureFlags
 import com.eevdf.capabilities.featuretoggles.SharedPrefsFeatureFlags
 import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
+import com.eevdf.capabilities.appforeground.AppForegroundTracker
 import com.eevdf.capabilities.notification.NotificationCancelHandler
 import com.eevdf.capabilities.runhistory.RunLogDao
 import com.eevdf.capabilities.runhistory.RunLogRepository
@@ -153,6 +154,11 @@ object CapabilityBindings {
         @ApplicationContext context: Context,
         bus: EventBus,
     ): NotificationCancelHandler = NotificationCancelHandler(context, bus)
+
+    /** app-foreground: publishes app.foreground-changed on every 0<->1 Activity-count transition. */
+    @Provides
+    @Singleton
+    fun provideAppForegroundTracker(bus: EventBus): AppForegroundTracker = AppForegroundTracker(bus)
 
     /** alarm-ringer: diagnostic-only log on timer.expired / realtime-window.expired. */
     @Provides

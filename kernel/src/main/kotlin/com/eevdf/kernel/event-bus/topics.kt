@@ -206,6 +206,19 @@ object Topics {
 
     /** Published by `notification`, right after it actually cancels. Payload: the notification id. */
     val NOTIFICATION_CANCELLED = Topic<Int>("notification.cancelled")
+
+    // ── App foreground (published by capabilities/app-foreground) ────────────
+    //
+    // Retained: unlike a one-shot event, "is the app foreground right now" is
+    // exactly the kind of durable state a late-attaching reader needs the
+    // CURRENT answer to, not just future transitions — the same reasoning
+    // ALARM_RINGING's retained flag already documents. Unlike that topic's
+    // cold-start caveat, there's no false-negative risk here: before the
+    // first activity ever starts, "not foreground" is the correct answer,
+    // not a stale one, so `getLast(...) ?: false` is safe from process start.
+
+    /** Payload: true the instant the started-activity count leaves 0, false the instant it returns to 0. */
+    val APP_FOREGROUND_CHANGED = Topic<Boolean>("app.foreground-changed", retained = true)
 }
 
 /** Which short, built-in UI cue to play — see [Topics.SOUND_CUE_REQUESTED]. */

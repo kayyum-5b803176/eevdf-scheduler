@@ -9,7 +9,7 @@ import com.eevdf.capabilities.sound.SoundCueHandler
 import com.eevdf.capabilities.vibration.VibrationCueHandler
 import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
 import com.eevdf.capabilities.notification.NotificationCancelHandler
-import com.eevdf.capabilities.alarmringer.AppForegroundTracker
+import com.eevdf.capabilities.appforeground.AppForegroundTracker
 import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
@@ -61,6 +61,7 @@ class ApplicationEntry : Application() {
     @Inject lateinit var vibrationCueHandler: VibrationCueHandler
     @Inject lateinit var notificationCancelHandler: NotificationCancelHandler
     @Inject lateinit var timerExpiryHandler: TimerExpiryHandler
+    @Inject lateinit var appForegroundTracker: AppForegroundTracker
 
     override fun onCreate() {
         super.onCreate()
@@ -69,8 +70,8 @@ class ApplicationEntry : Application() {
         // Route crash-guard-contained failures to logcat. The kernel contains
         // them; this decides what to do with the report.
         CrashIsolation.install(LogcatCrashReporter)
-        // Needed by AlarmForegroundService to suppress the timer-expired
-        // overlay while this app itself is already in the foreground.
-        AppForegroundTracker.install(this)
+        // Publishes Topics.APP_FOREGROUND_CHANGED — alarm-ringer (and any
+        // future reader) consumes it via the bus, not this call.
+        appForegroundTracker.install(this)
     }
 }

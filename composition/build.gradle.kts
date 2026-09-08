@@ -29,6 +29,7 @@ dependencies {
     implementation(project(":capabilities:countdown-timer"))
     implementation(project(":capabilities:links-screen"))
     implementation(project(":capabilities:backup-restore"))
+    implementation(project(":capabilities:app-foreground"))
     implementation(project(":capabilities:alarm-ringer"))
     implementation(project(":capabilities:call-autoswitch"))
     implementation(project(":capabilities:settings-screens"))

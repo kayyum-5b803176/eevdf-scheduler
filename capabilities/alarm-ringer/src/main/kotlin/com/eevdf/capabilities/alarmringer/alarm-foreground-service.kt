@@ -299,16 +299,19 @@ class AlarmForegroundService : Service() {
                     Log.d(TAG, "EXPIRE fired: taskName=$taskName isDeviceLocked=${isDeviceLocked()}")
                     acquireWakeLock()
 
-                    // RESOLVED: this used to be a bus request/response
-                    // (RequestTopics.ALARM_NOTIFICATION_DECISION,
-                    // answered by `notification`) specifically because
-                    // AppForegroundTracker/ForegroundAppDetector/
-                    // AlarmNotificationPolicy lived in a different capability
-                    // back then. All three now live in alarm-ringer itself
-                    // (see the redecomposition note in `notification`'s
-                    // manifest.kt) — a bus round trip was only ever needed to
-                    // cross a capability boundary that no longer exists for
-                    // this decision, so this is a plain local call chain again.
+                    // app.foreground-changed (rule 3): app-foreground is a
+                    // genuinely generic capability now (no per-Activity
+                    // exceptions — see its manifest.kt) — reached via the bus
+                    // retained value, never a direct import. AlarmActivity
+                    // itself would otherwise flip that flag true while the
+                    // alarm overlay is showing and could suppress the very
+                    // notification whose full-screen intent launched it, or a
+                    // second alarm racing shortly after the first is
+                    // dismissed — see AlarmOverlayTracker's KDoc for the full
+                    // history of that bug. The fix stays local to this
+                    // capability: AND the bus value with our own overlay
+                    // signal, rather than the generic tracker learning our
+                    // screen names.
                     //
                     // Foreground-app detection is a best-effort UsageStatsManager
                     // read for the Exclude App feature only. Isolated in its own
@@ -316,7 +319,8 @@ class AlarmForegroundService : Service() {
                     // degrade to "no match" — it must never take down the alarm
                     // itself, which is a far worse failure than one missed
                     // Exclude App check.
-                    val appForeground = AppForegroundTracker.isAppInForeground
+                    val appForeground = (bus.getLast(Topics.APP_FOREGROUND_CHANGED) ?: false) &&
+                        !AlarmOverlayTracker.isShowing
                     val foregroundPkg = if (appForeground) null else try {
                         ForegroundAppDetector.getForegroundPackage(this)
                     } catch (e: Exception) {

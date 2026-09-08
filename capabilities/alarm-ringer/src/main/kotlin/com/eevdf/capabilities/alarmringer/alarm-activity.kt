@@ -153,6 +153,16 @@ class AlarmActivity : AppCompatActivity() {
         )
     }
 
+    override fun onStart() {
+        super.onStart()
+        AlarmOverlayTracker.markShowing()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        AlarmOverlayTracker.markHidden()
+    }
+
     override fun onResume() {
         super.onResume()
         val filter = IntentFilter().apply {

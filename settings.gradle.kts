@@ -48,6 +48,7 @@ include(
     ":capabilities:countdown-timer",
     ":capabilities:links-screen",
     ":capabilities:backup-restore",
+    ":capabilities:app-foreground",
     ":capabilities:alarm-ringer",
     ":capabilities:call-autoswitch",
     ":capabilities:settings-screens",
