@@ -31,85 +31,25 @@
         <LinearLayout style="@style/App.PageContent">
 
             <!-- ── Quick Action ─────────────────────────────────────────────── -->
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!--
+              RESOLVED (typed-entity + centralized-renderer redesign): was a
+              hand-authored MaterialCardView duplicating ToggleCardView's
+              internal layout. Now a plain, empty container —
+              ButtonActionActivity.kt populates it via
+              renderToggleCard(ToggleCardEntity).
+            -->
+            <FrameLayout
+                android:id="@+id/quickActionContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-
-                <LinearLayout style="@style/App.SettingsCard.Body">
-
-                    <LinearLayout style="@style/App.Row.Toggle.Flush">
-
-                        <LinearLayout style="@style/App.Row.TextBlock">
-                            <TextView style="@style/App.Row.Title"
-                                android:text="Quick Action" />
-                        </LinearLayout>
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchQuickAction"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="@dimen/app_row_action_gap" />
-
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvQuickActionDesc"
-                        style="@style/App.SwitchRow.Description"
-                        android:layout_marginTop="@dimen/app_spacing_md"
-                        android:text="Adds a floating button above the Add Task button. Tap it to instantly select the current interrupt task (INT-A or INT-B) and start the timer."
-                        android:lineSpacingMultiplier="1.3" />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
             <!-- ── Hardware Keys ────────────────────────────────────────────── -->
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
-                android:id="@+id/cardHardwareKeys"
+            <!-- RESOLVED: was a hand-authored NavCard lookalike; now a real
+                 NavCard via renderNavCard(NavCardEntity). -->
+            <FrameLayout
+                android:id="@+id/hardwareKeysContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clickable="true"
-                android:focusable="true"
-                app:cardUseCompatPadding="false"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-
-                <LinearLayout style="@style/App.Row.Nav"
-                    android:paddingStart="@dimen/app_card_padding_lg"
-                    android:paddingEnd="@dimen/app_card_padding_lg"
-                    android:paddingTop="@dimen/app_card_padding_lg"
-                    android:paddingBottom="@dimen/app_card_padding_lg"
-                    android:minHeight="0dp">
-
-                    <LinearLayout style="@style/App.Row.TextBlock">
-
-                        <TextView style="@style/App.Row.Title"
-                            android:text="Hardware Keys" />
-
-                        <TextView
-                            style="@style/App.Row.Subtitle"
-                            android:layout_width="match_parent"
-                            android:layout_marginTop="@dimen/app_spacing_md"
-                            android:text="Use Volume Up, Volume Down, or the Power button to Stop or Restart a task when its timer expires."
-                            android:lineSpacingMultiplier="1.3" />
-
-                    </LinearLayout>
-
-                    <TextView style="@style/App.Text.Chevron"
-                        android:layout_marginStart="@dimen/app_spacing_lg"
-                        android:text="&#8250;" />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
         </LinearLayout>
     </ScrollView>

@@ -3,15 +3,18 @@ package com.eevdf.capabilities.settingsscreens
 import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.widget.FrameLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.capabilities.settingsscreens.R
 import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
 import com.eevdf.capabilities.permissions.PermissionChecker
-import com.google.android.material.switchmaterial.SwitchMaterial
+import com.eevdf.capabilities.designsystem.entities.NavCardEntity
+import com.eevdf.capabilities.designsystem.entities.ToggleCardEntity
+import com.eevdf.capabilities.designsystem.output.NavCardView
+import com.eevdf.capabilities.designsystem.renderers.renderNavCard
+import com.eevdf.capabilities.designsystem.renderers.renderToggleCard
 
 /**
  * Notification settings screen.
@@ -31,12 +34,16 @@ import com.google.android.material.switchmaterial.SwitchMaterial
  * this screen only owns the two feature preferences themselves, and nudges
  * to that screen when a feature's prerequisite isn't met, rather than
  * duplicating the check-and-dialog logic here.
+ *
+ * RESOLVED (typed-entity + centralized-renderer redesign): both rows used
+ * to be hand-authored View trees duplicating design-system's ToggleCard/
+ * NavCard shapes by hand. Now real instances via the shared renderers —
+ * see `activity_notification.xml`'s comments for the matching XML-side
+ * change.
  */
 class NotificationSettingsActivity : AppCompatActivity() {
 
-    private lateinit var switchLockScreenOverlay: SwitchMaterial
-    private lateinit var rowExcludeApp: LinearLayout
-    private lateinit var tvExcludeApp: TextView
+    private lateinit var excludeAppNavCard: NavCardView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,35 +54,47 @@ class NotificationSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Notification"
 
-        switchLockScreenOverlay = findViewById(R.id.switchLockScreenOverlay)
-        rowExcludeApp           = findViewById(R.id.rowExcludeApp)
-        tvExcludeApp            = findViewById(R.id.tvExcludeApp)
+        findViewById<FrameLayout>(R.id.lockScreenOverlayContainer).addView(
+            renderToggleCard(
+                this,
+                ToggleCardEntity(
+                    title = "Lock Screen Overlay",
+                    description = "When on, a timer expiry shows the full-screen alarm overlay while the device is locked, like the Clock app. When off, it always shows a normal notification instead, even while locked.",
+                    checked = NotificationPrefs.isLockScreenOverlayEnabled(this),
+                    onCheckedChange = { isChecked ->
+                        NotificationPrefs.setLockScreenOverlayEnabled(this, isChecked)
+                        // Nudge to the Permissions page rather than duplicating the
+                        // check and dialog here — that page is now the single
+                        // source of truth for "is this actually going to work".
+                        if (isChecked && !PermissionChecker.canUseFullScreenIntent(this)) {
+                            showGoToPermissionsDialog(
+                                "Full-screen access needed",
+                                "Lock Screen Overlay needs the \"Full screen intents\" permission to actually launch over the lock screen. Check it on the Permissions page."
+                            )
+                        }
+                    },
+                ),
+            )
+        )
 
-        switchLockScreenOverlay.isChecked = NotificationPrefs.isLockScreenOverlayEnabled(this)
-        refreshExcludeAppSummary()
-
-        switchLockScreenOverlay.setOnCheckedChangeListener { _, isChecked ->
-            NotificationPrefs.setLockScreenOverlayEnabled(this, isChecked)
-            // Nudge to the Permissions page rather than duplicating the check
-            // and dialog here — that page is now the single source of truth
-            // for "is this actually going to work".
-            if (isChecked && !PermissionChecker.canUseFullScreenIntent(this)) {
-                showGoToPermissionsDialog(
-                    "Full-screen access needed",
-                    "Lock Screen Overlay needs the \"Full screen intents\" permission to actually launch over the lock screen. Check it on the Permissions page."
-                )
-            }
-        }
-        rowExcludeApp.setOnClickListener {
-            if (!PermissionChecker.hasUsageStatsPermission(this)) {
-                showGoToPermissionsDialog(
-                    "Usage access needed",
-                    "Exclude App needs Usage Access to detect which app is in the foreground when a timer expires. Grant it on the Permissions page, then come back."
-                )
-            } else {
-                showExcludeAppPicker()
-            }
-        }
+        excludeAppNavCard = renderNavCard(
+            this,
+            NavCardEntity(
+                title = "Exclude App",
+                subtitle = excludeAppSummary(),
+                onNavigate = {
+                    if (!PermissionChecker.hasUsageStatsPermission(this)) {
+                        showGoToPermissionsDialog(
+                            "Usage access needed",
+                            "Exclude App needs Usage Access to detect which app is in the foreground when a timer expires. Grant it on the Permissions page, then come back."
+                        )
+                    } else {
+                        showExcludeAppPicker()
+                    }
+                },
+            ),
+        )
+        findViewById<FrameLayout>(R.id.excludeAppCardContainer).addView(excludeAppNavCard)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -134,8 +153,12 @@ class NotificationSettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshExcludeAppSummary() {
+        excludeAppNavCard.subtitle = excludeAppSummary()
+    }
+
+    private fun excludeAppSummary(): String {
         val list = NotificationPrefs.getExcludeAppList(this)
-        tvExcludeApp.text = if (list.isEmpty()) "No apps selected"
+        return if (list.isEmpty()) "No apps selected"
         else list.joinToString(", ") { pkg ->
             try {
                 packageManager.getApplicationLabel(

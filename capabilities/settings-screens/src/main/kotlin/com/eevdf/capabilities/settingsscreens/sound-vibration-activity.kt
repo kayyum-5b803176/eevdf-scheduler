@@ -7,8 +7,9 @@ import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.capabilities.settingsscreens.R
+import com.eevdf.capabilities.designsystem.entities.ToggleCardEntity
+import com.eevdf.capabilities.designsystem.renderers.renderToggleCard
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.switchmaterial.SwitchMaterial
 import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
 
 class SoundVibrationActivity : AppCompatActivity() {
@@ -29,12 +30,21 @@ class SoundVibrationActivity : AppCompatActivity() {
             startActivity(Intent(this, ProfileSettingsActivity::class.java))
         }
 
-        // Haptic switch
-        val switchHaptic = findViewById<SwitchMaterial>(R.id.switchSvHaptic)
-        switchHaptic.isChecked = prefs.getBoolean(VibrationPrefs.KEY_HAPTIC, VibrationPrefs.DEFAULT_HAPTIC)
-        switchHaptic.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean(VibrationPrefs.KEY_HAPTIC, checked).apply()
-        }
+        // Haptic toggle — RESOLVED: was a hand-built SwitchMaterial card,
+        // now a real ToggleCard instance via the shared renderer.
+        findViewById<android.widget.FrameLayout>(R.id.hapticCardContainer).addView(
+            renderToggleCard(
+                this,
+                ToggleCardEntity(
+                    title = "Haptic Feedback on Buttons",
+                    description = "Short vibration on every UI button tap",
+                    checked = prefs.getBoolean(VibrationPrefs.KEY_HAPTIC, VibrationPrefs.DEFAULT_HAPTIC),
+                    onCheckedChange = { checked ->
+                        prefs.edit().putBoolean(VibrationPrefs.KEY_HAPTIC, checked).apply()
+                    },
+                ),
+            )
+        )
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

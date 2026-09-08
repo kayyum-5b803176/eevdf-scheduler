@@ -65,28 +65,17 @@
             <!-- ── Haptic Feedback ───────────────────────────────────────── -->
             <View style="@style/App.Divider.Section" />
 
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!--
+              RESOLVED (typed-entity + centralized-renderer redesign): this
+              used to be a hand-authored MaterialCardView duplicating
+              ToggleCardView's internal layout by hand. Now a plain,
+              empty container — SoundVibrationActivity.kt populates it via
+              renderToggleCard(ToggleCardEntity).
+            -->
+            <FrameLayout
+                android:id="@+id/hapticCardContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-
-                <LinearLayout style="@style/App.SettingsCard.Body">
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchSvHaptic"
-                        style="@style/App.SwitchRow"
-                        android:text="Haptic Feedback on Buttons"
-                        android:checked="true" />
-
-                    <TextView style="@style/App.SwitchRow.Description"
-                        android:text="Short vibration on every UI button tap" />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
         </LinearLayout>
     </ScrollView>

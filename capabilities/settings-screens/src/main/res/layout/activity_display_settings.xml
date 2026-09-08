@@ -97,52 +97,25 @@
             <!-- ══ SIMPLE MODE ═════════════════════════════════════════════ -->
             <View style="@style/App.Divider.Section" />
 
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!--
+              RESOLVED (typed-entity + centralized-renderer redesign): was a
+              hand-authored MaterialCardView duplicating ToggleCardView's
+              internal layout. Now a plain, empty container —
+              DisplaySettingsActivity.kt populates it via
+              renderToggleCard(ToggleCardEntity).
+            -->
+            <FrameLayout
+                android:id="@+id/simpleModeContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-
-                <LinearLayout style="@style/App.SettingsCard.Body">
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchSimpleMode"
-                        style="@style/App.SwitchRow"
-                        android:text="Simple Mode" />
-
-                    <TextView style="@style/App.SwitchRow.Description"
-                        android:text="Unselected cards show name only. Tap to expand. Running task stays expanded." />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
             <!-- ══ UNIT FORMAT ══════════════════════════════════════════════ -->
             <View style="@style/App.Divider.Section" />
 
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <FrameLayout
+                android:id="@+id/unitFormatContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-
-                <LinearLayout style="@style/App.SettingsCard.Body">
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchUnitFormat"
-                        style="@style/App.SwitchRow"
-                        android:text="SI Unit Format" />
-
-                    <TextView style="@style/App.SwitchRow.Description"
-                        android:text="VRT, VDL, Runs, TRT use SI suffixes. Floats: 88191 → 88.19K. Integers: 1800 → 1.8K. Time: 3d 28h 3s → 3d 28h." />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
             <!-- ══ WINDOW CALIBRATE ═════════════════════════════════════════ -->
             <View style="@style/App.Divider.Section" />
@@ -338,46 +311,19 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <!-- NavCard: Layout — (0) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <!-- NavCard: Layout — (0). RESOLVED: was a hand-authored row
+                     inside a MaterialCardView; now an empty container,
+                     populated via renderNavCard(NavCardEntity) in Kotlin. -->
+                <FrameLayout
+                    android:id="@+id/layoutDemoCardContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowLayoutDemo"
-                        style="@style/App.Row.Nav">
-                        <LinearLayout style="@style/App.Row.TextBlock">
-                            <TextView style="@style/App.Row.Title"
-                                android:text="layout" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Text.Chevron"
-                            android:text="&#8250;" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
-                <!-- NavCard: Color — (0) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <!-- NavCard: Color — (0). Same resolution as above. -->
+                <FrameLayout
+                    android:id="@+id/colorMatrixCardContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout
-                        android:id="@+id/rowColorMatrix"
-                        style="@style/App.Row.Nav">
-                        <LinearLayout style="@style/App.Row.TextBlock">
-                            <TextView style="@style/App.Row.Title"
-                                android:text="color" />
-                        </LinearLayout>
-                        <TextView style="@style/App.Text.Chevron"
-                            android:text="&#8250;" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
             </LinearLayout><!-- end tabContentRender -->
 

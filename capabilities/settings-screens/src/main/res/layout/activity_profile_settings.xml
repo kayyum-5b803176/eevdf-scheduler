@@ -56,172 +56,43 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Sound timeout -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!-- Sound timeout — RESOLVED: was a hand-authored label+value+
+                 slider+caption row duplicating ValueCardView's layout. Now
+                 an empty container, populated via
+                 renderValueCard(ValueCardEntity) in Kotlin. -->
+            <FrameLayout
+                android:id="@+id/soundTimeoutContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-                <LinearLayout style="@style/App.SettingsCard.Body">
-                    <LinearLayout style="@style/App.ValueRow">
-                        <TextView style="@style/App.ValueRow.Label"
-                            android:layout_width="@dimen/app_label_slot_md" android:layout_weight="0"
-                            android:text="Sound Timeout" />
-                        <TextView
-                            android:id="@+id/tvProfileSoundTimeoutLabel"
-                            style="@style/App.ValueRow.Value"
-                            android:layout_width="0dp" android:layout_weight="1"
-                            android:text="1 min" />
-                    </LinearLayout>
-                    <TextView style="@style/App.SwitchRow.Description"
-                        android:text="How long sound plays after timer expires (0 = no timeout)"
-                        android:layout_marginTop="@dimen/app_spacing_cs"
-                        android:layout_marginBottom="@dimen/app_spacing_md" />
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderProfileSoundTimeout"
-                        style="@style/App.Slider"
-                        android:layout_marginTop="0dp"
-                        android:valueFrom="0" android:valueTo="900" android:stepSize="15" android:value="60" />
-                    <LinearLayout style="@style/App.Slider.CaptionRow">
-                        <TextView style="@style/App.Slider.CaptionStart" android:text="No timeout" />
-                        <TextView style="@style/App.Slider.CaptionEnd" android:text="15 min" />
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
-            <!-- Default volume -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!-- Default volume — same resolution as above. -->
+            <FrameLayout
+                android:id="@+id/volumeContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-                <LinearLayout style="@style/App.SettingsCard.Body">
-                    <LinearLayout style="@style/App.ValueRow">
-                        <TextView style="@style/App.ValueRow.Label"
-                            android:layout_width="@dimen/app_label_slot_md" android:layout_weight="0"
-                            android:text="Default Volume" />
-                        <TextView
-                            android:id="@+id/tvProfileVolumeLabel"
-                            style="@style/App.ValueRow.Value"
-                            android:layout_width="0dp" android:layout_weight="1"
-                            android:text="80%" />
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderProfileVolume"
-                        style="@style/App.Slider"
-                        android:valueFrom="0" android:valueTo="100" android:stepSize="5" android:value="80" />
-                    <LinearLayout style="@style/App.Slider.CaptionRow">
-                        <TextView style="@style/App.Slider.CaptionStart" android:text="0%" />
-                        <TextView style="@style/App.Slider.CaptionEnd" android:text="100%" />
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
-            <!-- Gradual volume increase -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!-- Gradual volume increase — same resolution as above. -->
+            <FrameLayout
+                android:id="@+id/fadeInContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-                <LinearLayout style="@style/App.SettingsCard.Body">
-                    <LinearLayout style="@style/App.ValueRow">
-                        <TextView style="@style/App.ValueRow.Label"
-                            android:layout_width="@dimen/app_label_slot_lg" android:layout_weight="0"
-                            android:text="Gradual Volume Increase" />
-                        <TextView
-                            android:id="@+id/tvProfileFadeInLabel"
-                            style="@style/App.ValueRow.Value"
-                            android:layout_width="0dp" android:layout_weight="1"
-                            android:text="Off" />
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderProfileFadeIn"
-                        style="@style/App.Slider"
-                        android:valueFrom="0" android:valueTo="300" android:stepSize="15" android:value="0" />
-                    <LinearLayout style="@style/App.Slider.CaptionRow">
-                        <TextView style="@style/App.Slider.CaptionStart" android:text="Off" />
-                        <TextView style="@style/App.Slider.CaptionEnd" android:text="5 min" />
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
             <View style="@style/App.Divider.Section" />
 
-            <!-- Vibration pattern spinner -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!-- Vibration pattern spinner — RESOLVED: was a hand-authored
+                 title+AutoCompleteTextView+button card duplicating
+                 DropdownCardView's layout. Now an empty container,
+                 populated via renderDropdownCard(DropdownCardEntity). -->
+            <FrameLayout
+                android:id="@+id/vibPatternContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-                <LinearLayout style="@style/App.SettingsCard.Body">
-                    <TextView style="@style/App.SwitchRow"
-                        android:text="Vibration Pattern"
-                        android:layout_marginBottom="@dimen/app_spacing_lg" />
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/App.TextInput.Dropdown"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
+                android:layout_height="wrap_content" />
 
-                        <AutoCompleteTextView
-                            android:id="@+id/actvProfileVibPattern"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="none"
-                            android:focusable="false"
-                            android:focusableInTouchMode="false"
-                            android:cursorVisible="false" />
-
-                    </com.google.android.material.textfield.TextInputLayout>
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnProfilePreviewVib"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="Preview" android:layout_marginTop="@dimen/app_spacing_lg"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Vibration timeout -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/App.Card"
+            <!-- Vibration timeout — same resolution as the other ValueCards. -->
+            <FrameLayout
+                android:id="@+id/vibTimeoutContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/app_card_gap"
-                android:layout_marginEnd="@dimen/app_card_gap"
-                android:layout_marginTop="@dimen/app_card_gap"
-                android:layout_marginBottom="@dimen/app_card_gap">
-                <LinearLayout style="@style/App.SettingsCard.Body">
-                    <LinearLayout style="@style/App.ValueRow">
-                        <TextView style="@style/App.ValueRow.Label"
-                            android:layout_width="@dimen/app_label_slot_md" android:layout_weight="0"
-                            android:text="Vibration Timeout" />
-                        <TextView
-                            android:id="@+id/tvProfileVibTimeoutLabel"
-                            style="@style/App.ValueRow.Value"
-                            android:layout_width="0dp" android:layout_weight="1"
-                            android:text="1 min" />
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderProfileVibTimeout"
-                        style="@style/App.Slider"
-                        android:valueFrom="0" android:valueTo="900" android:stepSize="15" android:value="60" />
-                    <LinearLayout style="@style/App.Slider.CaptionRow">
-                        <TextView style="@style/App.Slider.CaptionStart" android:text="No timeout" />
-                        <TextView style="@style/App.Slider.CaptionEnd" android:text="15 min" />
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                android:layout_height="wrap_content" />
 
             <!-- ══ ACTION (Notice profile only) ══════════════════════════ -->
             <LinearLayout
@@ -292,41 +163,11 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Action volume -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/App.Card"
+                <!-- Action volume — same resolution as the other ValueCards. -->
+                <FrameLayout
+                    android:id="@+id/actionVolumeContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/app_card_gap"
-                    android:layout_marginEnd="@dimen/app_card_gap"
-                    android:layout_marginTop="@dimen/app_card_gap"
-                    android:layout_marginBottom="@dimen/app_card_gap">
-                    <LinearLayout style="@style/App.SettingsCard.Body">
-                        <LinearLayout style="@style/App.ValueRow">
-                            <TextView style="@style/App.ValueRow.Label"
-                                android:layout_width="@dimen/app_label_slot_md" android:layout_weight="0"
-                                android:text="Action Volume" />
-                            <TextView
-                                android:id="@+id/tvActionVolumeLabel"
-                                style="@style/App.ValueRow.Value"
-                                android:layout_width="0dp" android:layout_weight="1"
-                                android:text="80%" />
-                        </LinearLayout>
-                        <TextView style="@style/App.SwitchRow.Description"
-                            android:text="System notification volume for execute &amp; wait sounds. Restored after playback."
-                            android:layout_marginTop="@dimen/app_spacing_cs"
-                            android:layout_marginBottom="@dimen/app_spacing_md" />
-                        <com.google.android.material.slider.Slider
-                            android:id="@+id/sliderActionVolume"
-                            style="@style/App.Slider"
-                            android:layout_marginTop="0dp"
-                            android:valueFrom="0" android:valueTo="100" android:stepSize="5" android:value="80" />
-                        <LinearLayout style="@style/App.Slider.CaptionRow">
-                            <TextView style="@style/App.Slider.CaptionStart" android:text="0%" />
-                            <TextView style="@style/App.Slider.CaptionEnd" android:text="100%" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_height="wrap_content" />
 
             </LinearLayout><!-- end layoutActionSection -->
 

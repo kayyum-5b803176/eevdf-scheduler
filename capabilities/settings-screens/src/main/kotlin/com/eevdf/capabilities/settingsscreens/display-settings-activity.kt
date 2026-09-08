@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -12,6 +13,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.cardview.widget.CardView
 import com.eevdf.capabilities.settingsscreens.R
+import com.eevdf.capabilities.designsystem.entities.NavCardEntity
+import com.eevdf.capabilities.designsystem.entities.ToggleCardEntity
+import com.eevdf.capabilities.designsystem.renderers.renderNavCard
+import com.eevdf.capabilities.designsystem.renderers.renderToggleCard
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.tabs.TabLayout
@@ -27,8 +32,6 @@ class DisplaySettingsActivity : AppCompatActivity() {
 
 
     private lateinit var switchAutoAdjust:   SwitchMaterial
-    private lateinit var switchSimpleMode:   SwitchMaterial
-    private lateinit var switchUnitFormat:   SwitchMaterial
 
     // ── Window Calibrate: live stats + profile cards ──────────────────────────
     private lateinit var tvWindowLiveStats:  TextView
@@ -66,17 +69,21 @@ class DisplaySettingsActivity : AppCompatActivity() {
             override fun onTabReselected(tab: TabLayout.Tab) {}
         })
 
-        findViewById<LinearLayout>(R.id.rowLayoutDemo).setOnClickListener {
-            startActivity(Intent(this, LayoutDemoActivity::class.java))
-        }
+        findViewById<FrameLayout>(R.id.layoutDemoCardContainer).addView(
+            renderNavCard(this, NavCardEntity(
+                title = "layout",
+                onNavigate = { startActivity(Intent(this, LayoutDemoActivity::class.java)) },
+            ))
+        )
 
-        findViewById<LinearLayout>(R.id.rowColorMatrix).setOnClickListener {
-            startActivity(Intent(this, ColorMatrixActivity::class.java))
-        }
+        findViewById<FrameLayout>(R.id.colorMatrixCardContainer).addView(
+            renderNavCard(this, NavCardEntity(
+                title = "color",
+                onNavigate = { startActivity(Intent(this, ColorMatrixActivity::class.java)) },
+            ))
+        )
 
         switchAutoAdjust  = findViewById(R.id.switchAutoAdjust)
-        switchSimpleMode  = findViewById(R.id.switchSimpleMode)
-        switchUnitFormat  = findViewById(R.id.switchUnitFormat)
 
         darkModeToggleGroup = findViewById(R.id.darkModeToggleGroup)
 
@@ -107,19 +114,37 @@ class DisplaySettingsActivity : AppCompatActivity() {
 
         // ── Load saved prefs ──────────────────────────────────────────────────
         switchAutoAdjust.isChecked = DisplayPrefs.isAutoAdjustEnabled(this)
-        switchSimpleMode.isChecked = DisplayPrefs.isSimpleModeEnabled(this)
-        switchUnitFormat.isChecked = DisplayPrefs.isUnitFormatEnabled(this)
 
         // ── Switches ─────────────────────────────────────────────────────────
         switchAutoAdjust.setOnCheckedChangeListener { _, isChecked ->
             DisplayPrefs.setAutoAdjustEnabled(this, isChecked)
         }
-        switchSimpleMode.setOnCheckedChangeListener { _, isChecked ->
-            DisplayPrefs.setSimpleModeEnabled(this, isChecked)
-        }
-        switchUnitFormat.setOnCheckedChangeListener { _, isChecked ->
-            DisplayPrefs.setUnitFormatEnabled(this, isChecked)
-        }
+
+        // RESOLVED: Simple Mode / SI Unit Format were hand-authored
+        // MaterialCardView + SwitchMaterial pairs; now real ToggleCard
+        // instances via the shared renderer.
+        findViewById<FrameLayout>(R.id.simpleModeContainer).addView(
+            renderToggleCard(
+                this,
+                ToggleCardEntity(
+                    title = "Simple Mode",
+                    description = "Unselected cards show name only. Tap to expand. Running task stays expanded.",
+                    checked = DisplayPrefs.isSimpleModeEnabled(this),
+                    onCheckedChange = { isChecked -> DisplayPrefs.setSimpleModeEnabled(this, isChecked) },
+                ),
+            )
+        )
+        findViewById<FrameLayout>(R.id.unitFormatContainer).addView(
+            renderToggleCard(
+                this,
+                ToggleCardEntity(
+                    title = "SI Unit Format",
+                    description = "VRT, VDL, Runs, TRT use SI suffixes. Floats: 88191 → 88.19K. Integers: 1800 → 1.8K. Time: 3d 28h 3s → 3d 28h.",
+                    checked = DisplayPrefs.isUnitFormatEnabled(this),
+                    onCheckedChange = { isChecked -> DisplayPrefs.setUnitFormatEnabled(this, isChecked) },
+                ),
+            )
+        )
 
         // ── Calibrate profile cards ───────────────────────────────────────────
         setupCalibrateCard(cardCalFloat,  DisplayPrefs.CalibrateProfile.FLOAT)

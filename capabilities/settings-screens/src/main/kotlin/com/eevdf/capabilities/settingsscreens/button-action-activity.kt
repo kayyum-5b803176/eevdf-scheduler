@@ -3,12 +3,14 @@ package com.eevdf.capabilities.settingsscreens
 import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
-import android.widget.TextView
+import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.cardview.widget.CardView
 import com.eevdf.capabilities.settingsscreens.R
-import com.google.android.material.switchmaterial.SwitchMaterial
+import com.eevdf.capabilities.designsystem.entities.NavCardEntity
+import com.eevdf.capabilities.designsystem.entities.ToggleCardEntity
+import com.eevdf.capabilities.designsystem.renderers.renderNavCard
+import com.eevdf.capabilities.designsystem.renderers.renderToggleCard
 import com.eevdf.capabilities.settingsstorage.state.QuickActionPrefs
 
 /**
@@ -19,11 +21,12 @@ import com.eevdf.capabilities.settingsstorage.state.QuickActionPrefs
  *     MainActivity above the "Add Task" FAB.  Tapping it selects the active
  *     interrupt task (INT-A or INT-B, whichever is currently shown) and then
  *     immediately starts the timer.
+ *
+ * RESOLVED (typed-entity + centralized-renderer redesign): both rows used
+ * to be hand-authored View trees duplicating ToggleCardView's/NavCardView's
+ * internal layouts by hand. Now real instances via the shared renderers.
  */
 class ButtonActionActivity : AppCompatActivity() {
-
-    private lateinit var switchQuickAction: SwitchMaterial
-    private lateinit var tvQuickActionDesc: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,21 +37,28 @@ class ButtonActionActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Button Action"
 
-        switchQuickAction = findViewById(R.id.switchQuickAction)
-        tvQuickActionDesc = findViewById(R.id.tvQuickActionDesc)
+        findViewById<FrameLayout>(R.id.quickActionContainer).addView(
+            renderToggleCard(
+                this,
+                ToggleCardEntity(
+                    title = "Quick Action",
+                    description = "Adds a floating button above the Add Task button. Tap it to instantly select the current interrupt task (INT-A or INT-B) and start the timer.",
+                    checked = QuickActionPrefs.isQuickActionEnabled(this),
+                    onCheckedChange = { isChecked -> QuickActionPrefs.setQuickActionEnabled(this, isChecked) },
+                ),
+            )
+        )
 
-        // ── Load saved state ──────────────────────────────────────────────────
-        switchQuickAction.isChecked = QuickActionPrefs.isQuickActionEnabled(this)
-
-        // ── Persist changes immediately ───────────────────────────────────────
-        switchQuickAction.setOnCheckedChangeListener { _, isChecked ->
-            QuickActionPrefs.setQuickActionEnabled(this, isChecked)
-        }
-
-        // ── Hardware Keys sub-page ────────────────────────────────────────────
-        findViewById<CardView>(R.id.cardHardwareKeys).setOnClickListener {
-            startActivity(Intent(this, HardwareKeyActionActivity::class.java))
-        }
+        findViewById<FrameLayout>(R.id.hardwareKeysContainer).addView(
+            renderNavCard(
+                this,
+                NavCardEntity(
+                    title = "Hardware Keys",
+                    subtitle = "Use Volume Up, Volume Down, or the Power button to Stop or Restart a task when its timer expires.",
+                    onNavigate = { startActivity(Intent(this, HardwareKeyActionActivity::class.java)) },
+                ),
+            )
+        )
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

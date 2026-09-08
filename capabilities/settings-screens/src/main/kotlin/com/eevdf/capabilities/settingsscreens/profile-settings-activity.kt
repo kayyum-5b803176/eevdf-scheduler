@@ -7,9 +7,8 @@ import android.media.RingtoneManager
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
-import android.widget.ArrayAdapter
+import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.AutoCompleteTextView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -18,15 +17,31 @@ import androidx.lifecycle.lifecycleScope
 import com.eevdf.capabilities.settingsscreens.R
 import com.eevdf.capabilities.settingsstorage.state.SoundPrefs
 import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
+import com.eevdf.capabilities.designsystem.entities.DropdownCardEntity
+import com.eevdf.capabilities.designsystem.entities.ValueCardEntity
+import com.eevdf.capabilities.designsystem.output.DropdownCardView
+import com.eevdf.capabilities.designsystem.output.ValueCardView
+import com.eevdf.capabilities.designsystem.renderers.renderDropdownCard
+import com.eevdf.capabilities.designsystem.renderers.renderValueCard
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.slider.Slider
 import com.google.android.material.tabs.TabLayout
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * RESOLVED (typed-entity + centralized-renderer redesign): the 5 slider
+ * rows (Sound Timeout, Default Volume, Gradual Volume Increase, Vibration
+ * Timeout, Action Volume) and the Vibration Pattern row used to be
+ * hand-authored View trees duplicating ValueCardView's/DropdownCardView's
+ * internal layouts by hand. Now real instances via the shared renderers —
+ * see `activity_profile_settings.xml`'s comments for the matching XML-side
+ * change. The 3 sound-picker rows (Timer/Execute/Wait Sound) stay
+ * hand-built: title+subtitle+trailing-button with no dropdown and no
+ * chevron doesn't match any of the 4 confirmed templates.
+ */
 @AndroidEntryPoint
 class ProfileSettingsActivity : AppCompatActivity() {
 
@@ -45,18 +60,13 @@ class ProfileSettingsActivity : AppCompatActivity() {
     private lateinit var tabLayout:            TabLayout
     private lateinit var tvSoundName:          TextView
     private lateinit var btnPickSound:         MaterialButton
-    private lateinit var sliderSoundTimeout:   Slider
-    private lateinit var tvSoundTimeoutLabel:  TextView
-    private lateinit var sliderVolume:         Slider
-    private lateinit var tvVolumeLabel:        TextView
-    private lateinit var sliderFadeIn:         Slider
-    private lateinit var tvFadeInLabel:        TextView
+    private lateinit var valueCardSoundTimeout: ValueCardView
+    private lateinit var valueCardVolume:       ValueCardView
+    private lateinit var valueCardFadeIn:       ValueCardView
 
     // ── Vibration widgets ─────────────────────────────────────────────────────
-    private lateinit var spinnerVibPattern:    AutoCompleteTextView
-    private lateinit var btnPreviewVib:        MaterialButton
-    private lateinit var sliderVibTimeout:     Slider
-    private lateinit var tvVibTimeoutLabel:    TextView
+    private lateinit var dropdownVibPattern:   DropdownCardView
+    private lateinit var valueCardVibTimeout:  ValueCardView
 
     // ── Action section (Notice only) ──────────────────────────────────────────
     private lateinit var layoutActionSection:  LinearLayout
@@ -64,8 +74,7 @@ class ProfileSettingsActivity : AppCompatActivity() {
     private lateinit var btnPickExecuteSound:  MaterialButton
     private lateinit var tvWaitSoundName:      TextView
     private lateinit var btnPickWaitSound:     MaterialButton
-    private lateinit var sliderActionVolume:   Slider
-    private lateinit var tvActionVolumeLabel:  TextView
+    private lateinit var valueCardActionVolume: ValueCardView
 
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
 
@@ -122,23 +131,11 @@ class ProfileSettingsActivity : AppCompatActivity() {
         tabLayout           = findViewById(R.id.profileTabLayout)
         tvSoundName         = findViewById(R.id.tvProfileSoundName)
         btnPickSound        = findViewById(R.id.btnProfilePickSound)
-        sliderSoundTimeout  = findViewById(R.id.sliderProfileSoundTimeout)
-        tvSoundTimeoutLabel = findViewById(R.id.tvProfileSoundTimeoutLabel)
-        sliderVolume        = findViewById(R.id.sliderProfileVolume)
-        tvVolumeLabel       = findViewById(R.id.tvProfileVolumeLabel)
-        sliderFadeIn        = findViewById(R.id.sliderProfileFadeIn)
-        tvFadeInLabel       = findViewById(R.id.tvProfileFadeInLabel)
-        spinnerVibPattern   = findViewById(R.id.actvProfileVibPattern)
-        btnPreviewVib       = findViewById(R.id.btnProfilePreviewVib)
-        sliderVibTimeout    = findViewById(R.id.sliderProfileVibTimeout)
-        tvVibTimeoutLabel   = findViewById(R.id.tvProfileVibTimeoutLabel)
         layoutActionSection = findViewById(R.id.layoutActionSection)
         tvExecuteSoundName  = findViewById(R.id.tvExecuteSoundName)
         btnPickExecuteSound = findViewById(R.id.btnPickExecuteSound)
         tvWaitSoundName     = findViewById(R.id.tvWaitSoundName)
         btnPickWaitSound    = findViewById(R.id.btnPickWaitSound)
-        sliderActionVolume  = findViewById(R.id.sliderActionVolume)
-        tvActionVolumeLabel = findViewById(R.id.tvActionVolumeLabel)
 
         // Build tabs
         profiles.forEach { tabLayout.addTab(tabLayout.newTab().setText(it.label)) }
@@ -153,15 +150,111 @@ class ProfileSettingsActivity : AppCompatActivity() {
             override fun onTabReselected(t: TabLayout.Tab) {}
         })
 
-        setupVibSpinner()
+        buildCards()
         setupListeners()
         loadProfile(0)
     }
 
     // ── Setup ──────────────────────────────────────────────────────────────────
-    private fun setupVibSpinner() {
-        val labels = VibrationPrefs.PATTERNS.map { it.name }
-        spinnerVibPattern.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, labels))
+
+    /**
+     * Every ValueCard/DropdownCard on this screen — built once here, kept
+     * alive as fields so [loadProfile] can update their displayed value on
+     * every tab switch without rebuilding them (same pattern
+     * `layout-demo-activity.kt`'s `scaleSlider` self-referencing callback
+     * uses: `.slider = slider?.copy(...)` updates the slider's position
+     * without disturbing the callback attached to it).
+     */
+    private fun buildCards() {
+        valueCardSoundTimeout = renderValueCard(this, ValueCardEntity(
+            label = "Sound Timeout",
+            value = "1 min",
+            description = "How long sound plays after timer expires (0 = no timeout)",
+            slider = ValueCardEntity.SliderSpec(
+                valueFrom = 0f, valueTo = 900f, stepSize = 15f, value = 60f,
+                captionStart = "No timeout", captionEnd = "15 min",
+                onValueChange = { v ->
+                    prefs.edit().putInt(soundTimeoutKeyFor(currentProfileIdx), v.toInt()).apply()
+                    valueCardSoundTimeout.value = formatTimeout(v.toInt())
+                },
+            ),
+        ))
+        findViewById<FrameLayout>(R.id.soundTimeoutContainer).addView(valueCardSoundTimeout)
+
+        valueCardVolume = renderValueCard(this, ValueCardEntity(
+            label = "Default Volume",
+            value = "80%",
+            slider = ValueCardEntity.SliderSpec(
+                valueFrom = 0f, valueTo = 100f, stepSize = 5f, value = 80f,
+                captionStart = "0%", captionEnd = "100%",
+                onValueChange = { v ->
+                    prefs.edit().putInt(soundVolumeKeyFor(currentProfileIdx), v.toInt()).apply()
+                    valueCardVolume.value = "${v.toInt()}%"
+                },
+            ),
+        ))
+        findViewById<FrameLayout>(R.id.volumeContainer).addView(valueCardVolume)
+
+        valueCardFadeIn = renderValueCard(this, ValueCardEntity(
+            label = "Gradual Volume Increase",
+            value = "Off",
+            slider = ValueCardEntity.SliderSpec(
+                valueFrom = 0f, valueTo = 300f, stepSize = 15f, value = 0f,
+                captionStart = "Off", captionEnd = "5 min",
+                onValueChange = { v ->
+                    prefs.edit().putInt(soundFadeInKeyFor(currentProfileIdx), v.toInt()).apply()
+                    valueCardFadeIn.value = if (v.toInt() == 0) "Off" else formatTimeout(v.toInt())
+                },
+            ),
+        ))
+        findViewById<FrameLayout>(R.id.fadeInContainer).addView(valueCardFadeIn)
+
+        dropdownVibPattern = renderDropdownCard(this, DropdownCardEntity(
+            title = "Vibration Pattern",
+            options = VibrationPrefs.PATTERNS.map { it.name },
+            helperActionText = "Preview",
+            onOptionSelected = { name ->
+                val pos = VibrationPrefs.PATTERNS.indexOfFirst { it.name == name }.coerceAtLeast(0)
+                prefs.edit().putInt(vibPatternKeyFor(currentProfileIdx), pos).apply()
+            },
+            onHelperAction = {
+                // vibration.preview-requested (rule 3): replaces the old direct
+                // VibrationManager.preview() call — this screen has zero
+                // dependency on the `vibration` capability now.
+                val patternId = prefs.getInt(vibPatternKeyFor(currentProfileIdx), VibrationPrefs.DEFAULT_PATTERN)
+                lifecycleScope.launch { bus.publish(Topics.VIBRATION_PREVIEW_REQUESTED, patternId, "settings-screens") }
+            },
+        ))
+        findViewById<FrameLayout>(R.id.vibPatternContainer).addView(dropdownVibPattern)
+
+        valueCardVibTimeout = renderValueCard(this, ValueCardEntity(
+            label = "Vibration Timeout",
+            value = "1 min",
+            slider = ValueCardEntity.SliderSpec(
+                valueFrom = 0f, valueTo = 900f, stepSize = 15f, value = 60f,
+                captionStart = "No timeout", captionEnd = "15 min",
+                onValueChange = { v ->
+                    prefs.edit().putInt(vibTimeoutKeyFor(currentProfileIdx), v.toInt()).apply()
+                    valueCardVibTimeout.value = formatTimeout(v.toInt())
+                },
+            ),
+        ))
+        findViewById<FrameLayout>(R.id.vibTimeoutContainer).addView(valueCardVibTimeout)
+
+        valueCardActionVolume = renderValueCard(this, ValueCardEntity(
+            label = "Action Volume",
+            value = "80%",
+            description = "System notification volume for execute & wait sounds. Restored after playback.",
+            slider = ValueCardEntity.SliderSpec(
+                valueFrom = 0f, valueTo = 100f, stepSize = 5f, value = 80f,
+                captionStart = "0%", captionEnd = "100%",
+                onValueChange = { v ->
+                    prefs.edit().putInt(SoundPrefs.KEY_ACTION_VOLUME, v.toInt()).apply()
+                    valueCardActionVolume.value = "${v.toInt()}%"
+                },
+            ),
+        ))
+        findViewById<FrameLayout>(R.id.actionVolumeContainer).addView(valueCardActionVolume)
     }
 
     private fun setupListeners() {
@@ -169,32 +262,6 @@ class ProfileSettingsActivity : AppCompatActivity() {
             launchRingtonePicker(profileSoundLauncher,
                 prefs.getString(soundUriKeyFor(currentProfileIdx), null),
                 RingtoneManager.TYPE_ALARM, "Select Timer Sound")
-        }
-        sliderSoundTimeout.addOnChangeListener { _, v, _ ->
-            prefs.edit().putInt(soundTimeoutKeyFor(currentProfileIdx), v.toInt()).apply()
-            tvSoundTimeoutLabel.text = formatTimeout(v.toInt())
-        }
-        sliderVolume.addOnChangeListener { _, v, _ ->
-            prefs.edit().putInt(soundVolumeKeyFor(currentProfileIdx), v.toInt()).apply()
-            tvVolumeLabel.text = "${v.toInt()}%"
-        }
-        sliderFadeIn.addOnChangeListener { _, v, _ ->
-            prefs.edit().putInt(soundFadeInKeyFor(currentProfileIdx), v.toInt()).apply()
-            tvFadeInLabel.text = if (v.toInt() == 0) "Off" else formatTimeout(v.toInt())
-        }
-        spinnerVibPattern.setOnItemClickListener { _, _, pos, _ ->
-            prefs.edit().putInt(vibPatternKeyFor(currentProfileIdx), pos).apply()
-        }
-        btnPreviewVib.setOnClickListener {
-            // vibration.preview-requested (rule 3): replaces the old direct
-            // VibrationManager.preview() call — this screen has zero
-            // dependency on the `vibration` capability now.
-            val patternId = prefs.getInt(vibPatternKeyFor(currentProfileIdx), VibrationPrefs.DEFAULT_PATTERN)
-            lifecycleScope.launch { bus.publish(Topics.VIBRATION_PREVIEW_REQUESTED, patternId, "settings-screens") }
-        }
-        sliderVibTimeout.addOnChangeListener { _, v, _ ->
-            prefs.edit().putInt(vibTimeoutKeyFor(currentProfileIdx), v.toInt()).apply()
-            tvVibTimeoutLabel.text = formatTimeout(v.toInt())
         }
         // Action section
         btnPickExecuteSound.setOnClickListener {
@@ -207,33 +274,36 @@ class ProfileSettingsActivity : AppCompatActivity() {
                 prefs.getString(SoundPrefs.KEY_WAIT_SOUND_URI, null),
                 RingtoneManager.TYPE_NOTIFICATION, "Select Wait Sound")
         }
-        sliderActionVolume.addOnChangeListener { _, v, _ ->
-            prefs.edit().putInt(SoundPrefs.KEY_ACTION_VOLUME, v.toInt()).apply()
-            tvActionVolumeLabel.text = "${v.toInt()}%"
-        }
     }
 
     // ── Load profile ───────────────────────────────────────────────────────────
     private fun loadProfile(idx: Int) {
         updateSoundName()
-        sliderSoundTimeout.value = prefs.getInt(soundTimeoutKeyFor(idx), SoundPrefs.DEFAULT_SOUND_TIMEOUT).toFloat().coerceIn(0f, 900f)
-        tvSoundTimeoutLabel.text = formatTimeout(sliderSoundTimeout.value.toInt())
-        sliderVolume.value       = prefs.getInt(soundVolumeKeyFor(idx), SoundPrefs.DEFAULT_SOUND_VOLUME).toFloat().coerceIn(0f, 100f)
-        tvVolumeLabel.text       = "${sliderVolume.value.toInt()}%"
-        val fade = prefs.getInt(soundFadeInKeyFor(idx), SoundPrefs.DEFAULT_FADE_IN)
-        sliderFadeIn.value       = fade.toFloat().coerceIn(0f, 300f)
-        tvFadeInLabel.text       = if (fade == 0) "Off" else formatTimeout(fade)
+
+        val soundTimeout = prefs.getInt(soundTimeoutKeyFor(idx), SoundPrefs.DEFAULT_SOUND_TIMEOUT).coerceIn(0, 900)
+        valueCardSoundTimeout.value  = formatTimeout(soundTimeout)
+        valueCardSoundTimeout.slider = valueCardSoundTimeout.slider?.copy(value = soundTimeout.toFloat())
+
+        val volume = prefs.getInt(soundVolumeKeyFor(idx), SoundPrefs.DEFAULT_SOUND_VOLUME).coerceIn(0, 100)
+        valueCardVolume.value  = "$volume%"
+        valueCardVolume.slider = valueCardVolume.slider?.copy(value = volume.toFloat())
+
+        val fade = prefs.getInt(soundFadeInKeyFor(idx), SoundPrefs.DEFAULT_FADE_IN).coerceIn(0, 300)
+        valueCardFadeIn.value  = if (fade == 0) "Off" else formatTimeout(fade)
+        valueCardFadeIn.slider = valueCardFadeIn.slider?.copy(value = fade.toFloat())
 
         val patId = prefs.getInt(vibPatternKeyFor(idx), VibrationPrefs.DEFAULT_PATTERN)
-        spinnerVibPattern.setText(VibrationPrefs.PATTERNS[patId.coerceIn(0, VibrationPrefs.PATTERNS.size - 1)].name, false)
-        sliderVibTimeout.value   = prefs.getInt(vibTimeoutKeyFor(idx), VibrationPrefs.DEFAULT_TIMEOUT_SEC).toFloat().coerceIn(0f, 900f)
-        tvVibTimeoutLabel.text   = formatTimeout(sliderVibTimeout.value.toInt())
+        dropdownVibPattern.selectedOption = VibrationPrefs.PATTERNS[patId.coerceIn(0, VibrationPrefs.PATTERNS.size - 1)].name
+
+        val vibTimeout = prefs.getInt(vibTimeoutKeyFor(idx), VibrationPrefs.DEFAULT_TIMEOUT_SEC).coerceIn(0, 900)
+        valueCardVibTimeout.value  = formatTimeout(vibTimeout)
+        valueCardVibTimeout.slider = valueCardVibTimeout.slider?.copy(value = vibTimeout.toFloat())
 
         if (profiles[idx].taskType == "NOTIFICATION") {
             updateExecuteSoundName(); updateWaitSoundName()
-            val av = prefs.getInt(SoundPrefs.KEY_ACTION_VOLUME, SoundPrefs.DEFAULT_ACTION_VOLUME)
-            sliderActionVolume.value  = av.toFloat().coerceIn(0f, 100f)
-            tvActionVolumeLabel.text  = "$av%"
+            val av = prefs.getInt(SoundPrefs.KEY_ACTION_VOLUME, SoundPrefs.DEFAULT_ACTION_VOLUME).coerceIn(0, 100)
+            valueCardActionVolume.value  = "$av%"
+            valueCardActionVolume.slider = valueCardActionVolume.slider?.copy(value = av.toFloat())
         }
     }
 
