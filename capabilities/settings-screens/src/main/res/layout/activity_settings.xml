@@ -4,17 +4,19 @@
     Abbreviations and acronyms stay uppercase (UI, API, ID, EEVDF, SI, DL, RT).
     See docs/UI_TEXT_CONVENTIONS.md for the full rule and checklist.
 
-    MIGRATED onto NavCardView (see ARCHITECTURE.md's "universal adoption"
-    phase): every card below is a single <com.eevdf.capabilities.designsystem.output.NavCardView>
-    tag, not hand-authored MaterialCardView boilerplate. title/subtitle/
-    navigable/onNavigate are set in SettingsActivity.kt, not as XML
-    attributes — NavCardView has no custom attrs defined, only Kotlin
-    properties, matching how the Layout demo page already builds these same
-    instances via NavCardView.create(). No inter-card divider views: each
-    NavCardView's own outer margin (CardDensity.applyOuterGap, live-token-
-    driven since Phase 8) is now what separates cards, uniformly, the same
-    mechanism controlling every other card in the app — a static divider
-    view here would add an untracked, non-uniform extra gap on top of it.
+    RESOLVED (typed-entity + centralized-renderer redesign): this used to
+    declare each row as a <com.eevdf.capabilities.designsystem.output.NavCardView>
+    XML tag directly — itself a construction reference to a design-system
+    output class living in this capability's own resources, which the
+    redesign's rule 3 doesn't allow. The four tab-content LinearLayouts
+    below are now plain, empty containers; SettingsActivity.kt populates
+    each with NavCardView instances built via renderNavCard(NavCardEntity)
+    and addView(), in the same order these tags used to appear. No
+    inter-card divider views: each NavCardView's own outer margin
+    (CardDensity.applyOuterGap, live-token-driven) is what separates
+    cards, uniformly, the same mechanism controlling every other card in
+    the app — a static divider view here would add an untracked,
+    non-uniform extra gap on top of it.
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -48,115 +50,37 @@
 
         <LinearLayout style="@style/App.PageContent">
 
-            <!-- TAB: platform -->
+            <!-- TAB: platform — populated by SettingsActivity.bindCards() -->
             <LinearLayout
                 android:id="@+id/tabContentPlatform"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="visible">
+                android:visibility="visible" />
 
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowVisual"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowSoundVibration"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowNotification"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowPermissions"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-            </LinearLayout>
-
-            <!-- TAB: app -->
+            <!-- TAB: app — populated by SettingsActivity.bindCards() -->
             <LinearLayout
                 android:id="@+id/tabContentApp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="gone">
+                android:visibility="gone" />
 
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowButtonAction"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowEventHandleService"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowAutoSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-            </LinearLayout>
-
-            <!-- TAB: core -->
+            <!-- TAB: core — populated by SettingsActivity.bindCards() -->
             <LinearLayout
                 android:id="@+id/tabContentCore"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="gone">
+                android:visibility="gone" />
 
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowSystemConfig"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowCoreAlgorithm"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowRules"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-            </LinearLayout>
-
-            <!-- TAB: data -->
+            <!-- TAB: data — populated by SettingsActivity.bindCards() -->
             <LinearLayout
                 android:id="@+id/tabContentData"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="gone">
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowDataBackup"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowMultiUserSync"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowLogs"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <com.eevdf.capabilities.designsystem.output.NavCardView
-                    android:id="@+id/rowAbout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-            </LinearLayout>
+                android:visibility="gone" />
 
         </LinearLayout>
     </ScrollView>

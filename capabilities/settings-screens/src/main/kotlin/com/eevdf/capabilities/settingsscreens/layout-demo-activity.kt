@@ -11,28 +11,35 @@ import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.navigationroutes.AppRoutes
 import com.eevdf.capabilities.settingsscreens.R
 import com.eevdf.capabilities.designsystem.output.DesignTokens
-import com.eevdf.capabilities.designsystem.output.DropdownCardView
+import com.eevdf.capabilities.designsystem.entities.DropdownCardEntity
+import com.eevdf.capabilities.designsystem.entities.NavCardEntity
+import com.eevdf.capabilities.designsystem.entities.ToggleCardEntity
+import com.eevdf.capabilities.designsystem.entities.ValueCardEntity
 import com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs
 import com.eevdf.capabilities.designsystem.output.ModelDiagramView
-import com.eevdf.capabilities.designsystem.output.NavCardView
-import com.eevdf.capabilities.designsystem.output.ToggleCardView
 import com.eevdf.capabilities.designsystem.output.ValueCardView
+import com.eevdf.capabilities.designsystem.renderers.renderDropdownCard
+import com.eevdf.capabilities.designsystem.renderers.renderNavCard
+import com.eevdf.capabilities.designsystem.renderers.renderToggleCard
+import com.eevdf.capabilities.designsystem.renderers.renderValueCard
 import com.google.android.material.tabs.TabLayout
 
 /**
  * Layout demo catalog, opened from Display -> render -> "Layout" card.
  *
  * Three tabs: "template" (default) — demo instances of every catalog
- * template, built through the closed template construction API in
- * com.eevdf.capabilities.designsystem, the same classes any real settings screen uses to
- * build its rows; "scale" — the four live token-scale sliders, moved to
- * their own tab so template previews and scale controls don't share one
- * scrolling section; and "model", a single global box-model diagram read
- * from the same live tokens. There is no hand-authored demo card XML
- * anywhere in this module; what renders in "template" is not an
- * approximation of production output, it is production output. See
- * TEMPLATE_CATALOG.md for the piece-sequence rules each class enforces
- * structurally.
+ * template, built as typed entities handed to design-system's renderers
+ * (`renderNavCard`/`renderToggleCard`/`renderValueCard`/`renderDropdownCard`
+ * — the same functions any real settings screen calls to build its rows,
+ * per the typed-entity + centralized-renderer redesign); "scale" — the
+ * four live token-scale sliders, moved to their own tab so template
+ * previews and scale controls don't share one scrolling section; and
+ * "model", a single global box-model diagram read from the same live
+ * tokens. There is no hand-authored demo card XML anywhere in this
+ * module; what renders in "template" is not an approximation of
+ * production output, it is production output. See TEMPLATE_CATALOG.md
+ * for the piece-sequence rules each renderer's underlying View class
+ * enforces structurally.
  *
  * PERSISTENT, NOT SANDBOXED: the four sliders on the "scale" tab write to the
  * real [LayoutTokenPrefs] — the same preferences [com.eevdf.capabilities.designsystem.output.CardDensity]
@@ -204,13 +211,15 @@ class LayoutDemoActivity : AppCompatActivity() {
     }
 
     private fun scaleSlider(label: String, initial: Int, onChange: (Int) -> Unit): ValueCardView =
-        ValueCardView.create(
+        renderValueCard(
             this,
-            label = label,
-            value = initial.toString(),
-            slider = ValueCardView.SliderConfig(
-                valueFrom = 1f, valueTo = DesignTokens.SCALE_POINTS.toFloat(), stepSize = 1f, value = initial.toFloat(),
-                captionStart = "1 (smallest)", captionEnd = "${DesignTokens.SCALE_POINTS} (largest)",
+            ValueCardEntity(
+                label = label,
+                value = initial.toString(),
+                slider = ValueCardEntity.SliderSpec(
+                    valueFrom = 1f, valueTo = DesignTokens.SCALE_POINTS.toFloat(), stepSize = 1f, value = initial.toFloat(),
+                    captionStart = "1 (smallest)", captionEnd = "${DesignTokens.SCALE_POINTS} (largest)",
+                ),
             ),
         ).apply {
             slider = slider?.copy(
@@ -251,46 +260,48 @@ class LayoutDemoActivity : AppCompatActivity() {
         )
 
         addLabel(demoContainer, "Jump to a real screen")
-        demoContainer.addView(NavCardView.create(
-            this, title = "Main task list",
+        demoContainer.addView(renderNavCard(this, NavCardEntity(
+            title = "Main task list",
             onNavigate = { startActivity(AppRoutes.main(this)) },
-        ))
-        demoContainer.addView(NavCardView.create(
-            this, title = "Add / edit task",
+        )))
+        demoContainer.addView(renderNavCard(this, NavCardEntity(
+            title = "Add / edit task",
             onNavigate = { startActivity(AppRoutes.addTask(this)) },
-        ))
-        demoContainer.addView(NavCardView.create(
-            this, title = "Statistics",
+        )))
+        demoContainer.addView(renderNavCard(this, NavCardEntity(
+            title = "Statistics",
             onNavigate = { startActivity(AppRoutes.stats(this)) },
-        ))
+        )))
         addDivider(demoContainer)
 
         addLabel(demoContainer, "NavCard — (0)")
-        demoContainer.addView(NavCardView.create(this, title = "demo title"))
+        demoContainer.addView(renderNavCard(this, NavCardEntity(title = "demo title")))
         addDivider(demoContainer)
 
         addLabel(demoContainer, "NavCard — (0,1)")
         demoContainer.addView(
-            NavCardView.create(this, title = "demo title", subtitle = "demo subtitle text")
+            renderNavCard(this, NavCardEntity(title = "demo title", subtitle = "demo subtitle text"))
         )
         addDivider(demoContainer)
 
         addLabel(demoContainer, "ToggleCard — (0,1)")
         demoContainer.addView(
-            ToggleCardView.create(this, title = "demo toggle", description = "demo description text")
+            renderToggleCard(this, ToggleCardEntity(title = "demo toggle", description = "demo description text"))
         )
         addDivider(demoContainer)
 
         addLabel(demoContainer, "ValueCard — (0,1,2,3)")
         demoContainer.addView(
-            ValueCardView.create(
+            renderValueCard(
                 this,
-                label = "demo label",
-                value = "42",
-                description = "demo description text",
-                slider = ValueCardView.SliderConfig(
-                    valueFrom = 0f, valueTo = 100f, stepSize = 1f, value = 42f,
-                    captionStart = "0", captionEnd = "100"
+                ValueCardEntity(
+                    label = "demo label",
+                    value = "42",
+                    description = "demo description text",
+                    slider = ValueCardEntity.SliderSpec(
+                        valueFrom = 0f, valueTo = 100f, stepSize = 1f, value = 42f,
+                        captionStart = "0", captionEnd = "100"
+                    ),
                 ),
             )
         )
@@ -298,7 +309,7 @@ class LayoutDemoActivity : AppCompatActivity() {
 
         addLabel(demoContainer, "DropdownCard — (0,1)")
         demoContainer.addView(
-            DropdownCardView.create(this, title = "demo label", options = listOf("demo option"))
+            renderDropdownCard(this, DropdownCardEntity(title = "demo label", options = listOf("demo option")))
         )
     }
 
