@@ -24,19 +24,18 @@ import javax.inject.Inject
  * signal instead, and `AlarmActions` is retired entirely — `ACTION_STOP_ALARM`
  * becomes a private, capability-local constant again.
  *
- * RESOLVED: this used to also call `NotificationHelper.cancelExpired(context)`
- * directly (a real import of notification) as a "guaranteed" path,
- * because the `Topics.ALARM_STOPPED` publish only fired conditionally (only
- * when a ringing task name was found) and asynchronously (`scope.launch`,
- * not awaited). Both of those are fixed now: the publish is unconditional
- * (empty string when no task name is found — notification's
- * `AlarmDeliveryHandler` doesn't need one to cancel a notification) and
- * blocking (`runBlocking`, bounded by the same `runIsolated` 5s timeout
- * every bus dispatch has), so the bus path alone gives the same "cancelled
- * before this method returns" guarantee the direct call used to. This
- * capability now has zero import of notification for any action —
- * only `NotificationHelper.formatElapsed` remains anywhere in alarm-ringer,
- * a pure string-formatting utility, not a notification action.
+ * RESOLVED (twice): this used to call `NotificationHelper.cancelExpired(context)`
+ * directly — a real cross-capability import — because that method existed
+ * specifically to know "cancel notification id 3001." After notification's
+ * redecomposition (see its manifest.kt), it has no alarm-specific knowledge
+ * left at all, so cancelling now goes through the fully generic
+ * `Topics.NOTIFICATION_CANCEL_REQUESTED` (any capability, any notification
+ * id) instead — this capability supplies the id, notification just cancels
+ * whatever id it's given. Blocking, not fire-and-forget, for the same
+ * reason `Topics.ALARM_STOPPED` below is: `EventBus.publish` (structured
+ * concurrency, bounded by `runIsolated`'s 5s timeout) does not return until
+ * every subscriber has run, so this still gives a "cancelled before this
+ * method returns" guarantee without a direct import.
  */
 @AndroidEntryPoint
 class AlarmStopReceiver : BroadcastReceiver() {
@@ -47,9 +46,8 @@ class AlarmStopReceiver : BroadcastReceiver() {
         // Capture the ringing task's name BEFORE stopping — stopping clears
         // the persisted AlarmState, and Topics.ALARM_STOPPED's payload is the
         // stopped task's name per the known-topics table. Falls back to an
-        // empty string rather than skipping the publish: notification's
-        // subscriber only needs to know an alarm stopped, not which one, to
-        // cancel the one notification it manages.
+        // empty string rather than skipping the publish: sound/vibration's
+        // subscribers only need to know an alarm stopped, not which one.
         val ringingTaskName = (AlarmScheduler.currentState(context) as? AlarmState.Ringing)?.taskName.orEmpty()
 
         // Stop the foreground service (releases WakeLock too)
@@ -57,9 +55,10 @@ class AlarmStopReceiver : BroadcastReceiver() {
         // Local broadcast so AlarmActivity (same capability) can close itself
         context.sendBroadcast(Intent(ACTION_STOP_ALARM))
 
-        // Blocking, not fire-and-forget: see this class's KDoc for why this
-        // is what makes the direct NotificationHelper call safe to remove.
-        runBlocking { bus.publish(Topics.ALARM_STOPPED, ringingTaskName, "alarm-ringer") }
+        runBlocking {
+            bus.publish(Topics.ALARM_STOPPED, ringingTaskName, "alarm-ringer")
+            bus.publish(Topics.NOTIFICATION_CANCEL_REQUESTED, AlarmForegroundService.NOTIF_ID_EXPIRE, "alarm-ringer")
+        }
     }
 
     companion object {

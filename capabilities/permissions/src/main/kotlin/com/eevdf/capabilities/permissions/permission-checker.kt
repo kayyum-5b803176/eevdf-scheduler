@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.notification
+package com.eevdf.capabilities.permissions
 
 import android.app.AlarmManager
 import android.app.NotificationManager
@@ -23,7 +23,7 @@ import androidx.core.content.ContextCompat
  * Every function here is a plain, side-effect-free read of current system
  * state — safe to call from anywhere, any time, no caching.
  */
-object AlarmReliabilityChecker {
+object PermissionChecker {
 
     /** POST_NOTIFICATIONS — runtime permission on Android 13+, normal (always granted) before. */
     fun hasNotificationPermission(context: Context): Boolean {

@@ -15,8 +15,7 @@ import com.eevdf.capabilities.vibration.VibrationCueHandler
 import com.eevdf.capabilities.featuretoggles.FeatureFlags
 import com.eevdf.capabilities.featuretoggles.SharedPrefsFeatureFlags
 import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
-import com.eevdf.capabilities.notification.AlarmDeliveryHandler
-import com.eevdf.capabilities.notification.AlarmNotificationDecisionResponder
+import com.eevdf.capabilities.notification.NotificationCancelHandler
 import com.eevdf.capabilities.runhistory.RunLogDao
 import com.eevdf.capabilities.runhistory.RunLogRepository
 import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
@@ -147,21 +146,13 @@ object CapabilityBindings {
         bus: EventBus,
     ): VibrationCueHandler = VibrationCueHandler(context, bus)
 
-    /** notification: delivery logging + notification cancel on alarm.ringing/stopped. */
+    /** notification: cancels a notification on notification.cancel-requested. */
     @Provides
     @Singleton
-    fun provideAlarmDeliveryHandler(
+    fun provideNotificationCancelHandler(
         @ApplicationContext context: Context,
         bus: EventBus,
-    ): AlarmDeliveryHandler = AlarmDeliveryHandler(context, bus)
-
-    /** notification: answers alarm.notification-decision requests from alarm-ringer. */
-    @Provides
-    @Singleton
-    fun provideAlarmNotificationDecisionResponder(
-        @ApplicationContext context: Context,
-        bus: EventBus,
-    ): AlarmNotificationDecisionResponder = AlarmNotificationDecisionResponder(context, bus)
+    ): NotificationCancelHandler = NotificationCancelHandler(context, bus)
 
     /** alarm-ringer: diagnostic-only log on timer.expired / realtime-window.expired. */
     @Provides

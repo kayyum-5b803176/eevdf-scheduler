@@ -15,11 +15,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.settingsscreens.R
-import com.eevdf.capabilities.notification.AlarmReliabilityChecker
+import com.eevdf.capabilities.permissions.PermissionChecker
 
 /**
  * Every permission/capability the app relies on, in one place, backed
- * entirely by [AlarmReliabilityChecker] — the same object the service uses
+ * entirely by [PermissionChecker] — the same object the service uses
  * for logging, so this screen and the service can never silently disagree
  * about what's actually granted.
  *
@@ -73,37 +73,37 @@ class PermissionsActivity : AppCompatActivity() {
         PermissionEntry(
             title = "Notifications",
             description = "Required for any alarm or timer notification to show at all.",
-            isGranted = { AlarmReliabilityChecker.hasNotificationPermission(this) },
+            isGranted = { PermissionChecker.hasNotificationPermission(this) },
             onFix = { openAppNotificationSettings() }
         ),
         PermissionEntry(
             title = "Full screen intents",
             description = "Lets a timer expiry launch the full-screen alarm overlay while the device is locked. Without it, a locked-device expiry falls back to a normal notification.",
-            isGranted = { AlarmReliabilityChecker.canUseFullScreenIntent(this) },
+            isGranted = { PermissionChecker.canUseFullScreenIntent(this) },
             onFix = { openFullScreenIntentSettings() }
         ),
         PermissionEntry(
             title = "Alarms & reminders",
             description = "Lets timers fire at the exact scheduled second instead of being delayed by the system.",
-            isGranted = { AlarmReliabilityChecker.hasExactAlarmPermission(this) },
+            isGranted = { PermissionChecker.hasExactAlarmPermission(this) },
             onFix = { openExactAlarmSettings() }
         ),
         PermissionEntry(
             title = "Battery optimization",
             description = "While optimized, the system can throttle how alarms alert — including the full-screen overlay — especially on repeated firings close together. Set to Unrestricted for reliable alarms.",
-            isGranted = { AlarmReliabilityChecker.isIgnoringBatteryOptimizations(this) },
+            isGranted = { PermissionChecker.isIgnoringBatteryOptimizations(this) },
             onFix = { openBatteryOptimizationSettings() }
         ),
         PermissionEntry(
             title = "Usage access",
             description = "Needed by the Exclude App feature (Notification settings) to detect which app is in the foreground when a timer expires.",
-            isGranted = { AlarmReliabilityChecker.hasUsageStatsPermission(this) },
+            isGranted = { PermissionChecker.hasUsageStatsPermission(this) },
             onFix = { openUsageAccessSettings() }
         ),
         PermissionEntry(
             title = "Display over other apps",
             description = "Used by the bubble/auto-switch overlay feature to draw over other apps.",
-            isGranted = { AlarmReliabilityChecker.hasOverlayPermission(this) },
+            isGranted = { PermissionChecker.hasOverlayPermission(this) },
             onFix = { openOverlaySettings() }
         )
     )

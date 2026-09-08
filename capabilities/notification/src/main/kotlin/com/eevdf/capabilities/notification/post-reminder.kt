@@ -1,16 +1,21 @@
 package com.eevdf.capabilities.notification
 
-import android.content.Context
-import androidx.core.app.NotificationManagerCompat
-
+/**
+ * RESOLVED: `cancelExpired` used to live here as a hardcoded, alarm-specific
+ * cancel (notification id 3001, "owned by AlarmForegroundService"). That's
+ * exactly the kind of alarm-specific knowledge this capability isn't
+ * supposed to have any more — see this capability's manifest.kt. Cancelling
+ * any notification, by any capability, now goes through the generic
+ * `Topics.NOTIFICATION_CANCEL_REQUESTED` bus topic (see
+ * [NotificationCancelHandler]) instead of a capability-specific method here.
+ *
+ * [formatElapsed] stays: a pure, side-effect-free "seconds as m:ss" string
+ * formatter, shared by alarm-ringer (`AlarmActivity`) and task-list-screen
+ * (both display an alarm's elapsed ringing time) — the same category as
+ * settings-storage's `SoundPrefs`/`VibrationPrefs`: deterministic data
+ * formatting, not a capability action, safe to share directly.
+ */
 object NotificationHelper {
-
-    // These IDs are now owned by AlarmForegroundService — kept here for cancellation
-    private const val NOTIFICATION_ID_EXPIRED = 3001
-
-    fun cancelExpired(context: Context) {
-        NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID_EXPIRED)
-    }
 
     /** Format seconds as "0:05", "1:23", "1:02:34" — same style as Google Clock */
     fun formatElapsed(seconds: Long): String {

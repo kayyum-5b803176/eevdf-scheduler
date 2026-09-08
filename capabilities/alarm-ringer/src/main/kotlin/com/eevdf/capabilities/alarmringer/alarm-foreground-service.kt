@@ -18,10 +18,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.eevdf.capabilities.alarmringer.R
 import com.eevdf.capabilities.navigationroutes.AppRoutes
-import com.eevdf.kernel.eventbus.AlarmNotificationDecision
+import com.eevdf.capabilities.permissions.PermissionChecker
+import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
 import com.eevdf.kernel.eventbus.AlarmRingingEvent
 import com.eevdf.kernel.eventbus.EventBus
-import com.eevdf.kernel.eventbus.RequestTopics
 import com.eevdf.kernel.eventbus.Topics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -114,9 +114,10 @@ class AlarmForegroundService : Service() {
         // (us or the platform) for "updating" the expiry notification, and
         // vice versa — each has its own independent lifecycle.
         private const val NOTIF_ID_ONGOING = 3000   // placeholder / countdown / delay
-        private const val NOTIF_ID_EXPIRE  = 3001   // timer-expired alarm (unchanged —
-                                                     // NotificationHelper.cancelExpired()
-                                                     // targets this exact value)
+        const val NOTIF_ID_EXPIRE  = 3001   // timer-expired alarm (non-private:
+                                                     // AlarmStopReceiver references this
+                                                     // when publishing Topics.
+                                                     // NOTIFICATION_CANCEL_REQUESTED)
 
         /** How long to wait for AlarmActivity to actually appear before falling
          *  back to a manual screen wake. See the fallback comment in
@@ -298,27 +299,39 @@ class AlarmForegroundService : Service() {
                     Log.d(TAG, "EXPIRE fired: taskName=$taskName isDeviceLocked=${isDeviceLocked()}")
                     acquireWakeLock()
 
-                    // alarm.notification-decision (rule 3): one request,
-                    // answered entirely by notification — replaces four
-                    // separate direct imports (AppForegroundTracker,
-                    // ForegroundAppDetector, AlarmNotificationPolicy,
-                    // AlarmReliabilityChecker) that used to live right here.
-                    // Blocking is safe and bounded: request() routes through
-                    // the same runIsolated 5s timeout publish() does, and
-                    // this is a live, in-process call (not process teardown)
-                    // — same reasoning as stopEverything()'s blocking publish.
-                    // Null (no responder / unavailable / timed out) falls
-                    // back to the safest default: show a normal banner,
-                    // nothing suppressed, no full-screen — the alarm is never
-                    // silently hidden just because this one request failed.
-                    val response = runBlocking {
-                        bus.request(RequestTopics.ALARM_NOTIFICATION_DECISION, Unit, "alarm-ringer")
+                    // RESOLVED: this used to be a bus request/response
+                    // (RequestTopics.ALARM_NOTIFICATION_DECISION,
+                    // answered by `notification`) specifically because
+                    // AppForegroundTracker/ForegroundAppDetector/
+                    // AlarmNotificationPolicy lived in a different capability
+                    // back then. All three now live in alarm-ringer itself
+                    // (see the redecomposition note in `notification`'s
+                    // manifest.kt) — a bus round trip was only ever needed to
+                    // cross a capability boundary that no longer exists for
+                    // this decision, so this is a plain local call chain again.
+                    //
+                    // Foreground-app detection is a best-effort UsageStatsManager
+                    // read for the Exclude App feature only. Isolated in its own
+                    // try/catch: if it throws on some OEM/edge case, that must
+                    // degrade to "no match" — it must never take down the alarm
+                    // itself, which is a far worse failure than one missed
+                    // Exclude App check.
+                    val appForeground = AppForegroundTracker.isAppInForeground
+                    val foregroundPkg = if (appForeground) null else try {
+                        ForegroundAppDetector.getForegroundPackage(this)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "getForegroundPackage failed, treating as no match", e)
+                        null
                     }
-                    val decision = response ?: AlarmNotificationDecision(
-                        suppressBanner = false,
-                        attachFullScreenIntent = false,
-                        canUseFullScreenIntent = false,
+                    val excludeAppMatch = !appForeground &&
+                        NotificationPrefs.isAppExcluded(this, foregroundPkg)
+
+                    val decision = AlarmNotificationPolicy.decide(
+                        appForeground = appForeground,
+                        excludeAppMatch = excludeAppMatch,
+                        lockScreenOverlayEnabled = NotificationPrefs.isLockScreenOverlayEnabled(this),
                     )
+                    AlarmDeliveryLog.recordRinging(this, taskName)
 
                     // Diagnostic snapshot only — never gates behavior. Channel
                     // lookup wrapped defensively; a query failure here must not
@@ -331,11 +344,11 @@ class AlarmForegroundService : Service() {
                     }
                     Log.d(
                         TAG,
-                        "EXPIRE decision: suppressBanner=${decision.suppressBanner} " +
+                        "EXPIRE decision: appForeground=$appForeground foregroundPkg=$foregroundPkg " +
+                            "excludeAppMatch=$excludeAppMatch suppressBanner=${decision.suppressBanner} " +
                             "attachFullScreenIntent=${decision.attachFullScreenIntent} " +
-                            "canUseFullScreenIntent=${decision.canUseFullScreenIntent} " +
-                            "channelImportance=$channelImportance " +
-                            "(answered=${response != null})"
+                            "canUseFullScreenIntent=${PermissionChecker.canUseFullScreenIntent(this)} " +
+                            "channelImportance=$channelImportance"
                     )
 
                     showExpiredNotification(taskName, decision.suppressBanner, decision.attachFullScreenIntent)

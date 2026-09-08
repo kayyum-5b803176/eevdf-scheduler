@@ -38,6 +38,7 @@ include(
     ":capabilities:task-scheduling",
     ":capabilities:run-history",
     ":capabilities:notification",
+    ":capabilities:permissions",
     ":capabilities:settings-storage",
     ":capabilities:group-picker",
     ":capabilities:navigation-routes",

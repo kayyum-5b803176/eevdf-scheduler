@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.notification
+package com.eevdf.capabilities.alarmringer
 
 import android.app.Activity
 import android.app.Application
@@ -31,14 +31,17 @@ import android.os.Bundle
  * second alarm racing shortly after the first is dismissed (this is exactly
  * what caused the reported "works once, then never shows full-screen again"
  * bug: the count could still read >0 from the first alarm's AlarmActivity at
- * the moment the second alarm's suppression decision was made). AlarmActivity
- * is intentionally referenced by string class name, not by import — `platform`
- * cannot and should not depend on `feature:alarm`; see AppRoutes.kt for the
- * same string-based decoupling rationale used elsewhere in this codebase.
+ * the moment the second alarm's suppression decision was made).
+ *
+ * RESOLVED: this class used to live in a different capability (`notification`)
+ * that could not import `AlarmActivity` directly, so the exclusion checked a
+ * string class name instead — see AppRoutes.kt for that same string-based
+ * decoupling pattern used where it's still genuinely needed. Now that this
+ * class lives inside alarm-ringer itself, alongside AlarmActivity, that
+ * constraint no longer applies: a direct class check is simpler and doesn't
+ * silently break if AlarmActivity is ever renamed or moved.
  */
 object AppForegroundTracker {
-
-    private const val ALARM_ACTIVITY_CLASS_NAME = "com.eevdf.capabilities.alarmringer.AlarmActivity"
 
     @Volatile
     private var startedActivityCount = 0
@@ -67,6 +70,5 @@ object AppForegroundTracker {
         })
     }
 
-    private fun isTracked(activity: Activity): Boolean =
-        activity.javaClass.name != ALARM_ACTIVITY_CLASS_NAME
+    private fun isTracked(activity: Activity): Boolean = activity !is AlarmActivity
 }

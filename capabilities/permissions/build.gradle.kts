@@ -2,7 +2,7 @@ plugins {
     id("com.eevdf.android-library-convention")
 }
 android {
-    namespace = "com.eevdf.capabilities.notification"
+    namespace = "com.eevdf.capabilities.permissions"
     defaultConfig { minSdk = 26 }
 }
 dependencies {

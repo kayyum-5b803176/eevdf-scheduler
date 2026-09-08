@@ -187,6 +187,25 @@ object Topics {
 
     /** Vibration's equivalent of [SOUND_STOPPED] — same payload shape and reasoning. */
     val VIBRATION_STOPPED = Topic<Unit>("vibration.stopped")
+
+    // ── Notification (published+subscribed by capabilities/notification) ─────
+    //
+    // Deliberately just cancel, not "build"/"post": building a Notification
+    // needs Android types (Notification, PendingIntent) that can never
+    // appear in a kernel-declared Topic's payload (rule 1 — kernel stays
+    // pure Kotlin/JVM, no Android import is ever valid here, permanently).
+    // notification's builder classes are reached as plain direct calls
+    // instead (see NotificationManifest's KDoc) — the same category as
+    // SoundPrefs/VibrationPrefs: deterministic, side-effect-free
+    // construction, not a capability action. Cancelling an already-posted
+    // notification IS a real action with a plain (Int id) payload, so that
+    // part fits the bus exactly like sound/vibration's stop.
+
+    /** Published by whoever wants a notification gone. Payload: the notification id. */
+    val NOTIFICATION_CANCEL_REQUESTED = Topic<Int>("notification.cancel-requested")
+
+    /** Published by `notification`, right after it actually cancels. Payload: the notification id. */
+    val NOTIFICATION_CANCELLED = Topic<Int>("notification.cancelled")
 }
 
 /** Which short, built-in UI cue to play — see [Topics.SOUND_CUE_REQUESTED]. */

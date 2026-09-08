@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.notification
+package com.eevdf.capabilities.alarmringer
 
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager

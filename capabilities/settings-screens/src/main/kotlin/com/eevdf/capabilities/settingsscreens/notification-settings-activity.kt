@@ -10,7 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.eevdf.capabilities.settingsscreens.R
 import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
-import com.eevdf.capabilities.notification.AlarmReliabilityChecker
+import com.eevdf.capabilities.permissions.PermissionChecker
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 /**
@@ -59,7 +59,7 @@ class NotificationSettingsActivity : AppCompatActivity() {
             // Nudge to the Permissions page rather than duplicating the check
             // and dialog here — that page is now the single source of truth
             // for "is this actually going to work".
-            if (isChecked && !AlarmReliabilityChecker.canUseFullScreenIntent(this)) {
+            if (isChecked && !PermissionChecker.canUseFullScreenIntent(this)) {
                 showGoToPermissionsDialog(
                     "Full-screen access needed",
                     "Lock Screen Overlay needs the \"Full screen intents\" permission to actually launch over the lock screen. Check it on the Permissions page."
@@ -67,7 +67,7 @@ class NotificationSettingsActivity : AppCompatActivity() {
             }
         }
         rowExcludeApp.setOnClickListener {
-            if (!AlarmReliabilityChecker.hasUsageStatsPermission(this)) {
+            if (!PermissionChecker.hasUsageStatsPermission(this)) {
                 showGoToPermissionsDialog(
                     "Usage access needed",
                     "Exclude App needs Usage Access to detect which app is in the foreground when a timer expires. Grant it on the Permissions page, then come back."

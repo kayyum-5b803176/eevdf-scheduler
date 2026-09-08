@@ -39,8 +39,8 @@ import com.eevdf.kernel.eventbus.Topics
  * observed the event, independent of whatever triggering/stopping decision
  * gets made through the topics that already own that responsibility — the
  * same "logging or future adaptive behavior" use this capability's own
- * [AlarmReliabilityChecker]-adjacent tooling already exists for (see
- * notification's `AlarmDeliveryLog`, the same pattern applied here).
+ * [PermissionChecker]-adjacent tooling already exists for (see
+ * this capability's own AlarmDeliveryLog, the same pattern used for alarm.ringing itself).
  */
 class TimerExpiryHandler(
     appContext: Context,
@@ -63,7 +63,7 @@ class TimerExpiryHandler(
 /**
  * The most recent `timer.expired` / `realtime-window.expired` observations —
  * single last-value records, not a history, same shape and same reasoning as
- * notification's `AlarmDeliveryLog`. Nothing reads these yet; they exist
+ * this capability's own AlarmDeliveryLog. Nothing reads these yet; they exist
  * so [TimerExpiryHandler]'s subscriptions do real work instead of being
  * empty placeholders.
  */

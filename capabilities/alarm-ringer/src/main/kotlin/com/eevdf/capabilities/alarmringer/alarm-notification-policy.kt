@@ -1,4 +1,4 @@
-package com.eevdf.capabilities.notification
+package com.eevdf.capabilities.alarmringer
 
 /**
  * Pure decision: given the current situation, which notification style(s)
