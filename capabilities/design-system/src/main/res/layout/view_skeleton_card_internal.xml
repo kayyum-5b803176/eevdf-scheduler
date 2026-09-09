@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    EXPERIMENTAL — internal to SkeletonCardView, demo-only (Layout demo
+    page's existing "template" tab, alongside the 4 real templates). Not
+    one of the 9 catalog templates yet; not
+    used by any real screen. See SkeletonCardView.kt's KDoc.
+
+    Fixed slot order, same discipline as NavCard's internal layout: a
+    caller can only choose WHETHER a slot is populated, never reorder the
+    5 slots relative to each other.
+      1. Title      2. Subtitle/category      3. Action (switch / slider /
+      dropdown / chevron / progress-bar stack)      4. Metric
+      5. Button row
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/skeletonCardRoot"
+        style="@style/App.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/app_card_gap"
+        android:layout_marginEnd="@dimen/app_card_gap"
+        android:layout_marginTop="@dimen/app_card_gap"
+        android:layout_marginBottom="@dimen/app_card_gap">
+
+        <LinearLayout
+            android:id="@+id/skeletonBody"
+            style="@style/App.SettingsCard.Body"
+            android:orientation="vertical">
+
+            <!-- Slot 1 [F] — title -->
+            <TextView
+                android:id="@+id/skeletonTitle"
+                style="@style/App.Row.Title" />
+
+            <!-- Slot 2 [O] — subtitle / category / group -->
+            <TextView
+                android:id="@+id/skeletonSubtitle"
+                style="@style/App.Row.Subtitle"
+                android:layout_width="match_parent"
+                android:layout_marginTop="@dimen/app_spacing_cs"
+                android:visibility="gone" />
+
+            <!-- Slot 3 [O] — action: whichever single widget applies is
+                 inflated into this container at runtime; never more than
+                 one at a time. -->
+            <FrameLayout
+                android:id="@+id/skeletonActionContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:visibility="gone" />
+
+            <!-- Slot 4 [O] — metric / changeable readout -->
+            <TextView
+                android:id="@+id/skeletonMetric"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/app_spacing_sm"
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_body"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+            <!-- Slot 5 [O] — button row -->
+            <LinearLayout
+                android:id="@+id/skeletonButtonRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:orientation="horizontal"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</merge>

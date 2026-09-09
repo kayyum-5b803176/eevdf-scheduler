@@ -5,6 +5,8 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
@@ -15,11 +17,16 @@ import com.eevdf.capabilities.designsystem.entities.DropdownCardEntity
 import com.eevdf.capabilities.designsystem.entities.NavCardEntity
 import com.eevdf.capabilities.designsystem.entities.ToggleCardEntity
 import com.eevdf.capabilities.designsystem.entities.ValueCardEntity
+import com.eevdf.capabilities.designsystem.entities.SkeletonAction
+import com.eevdf.capabilities.designsystem.entities.SkeletonButton
+import com.eevdf.capabilities.designsystem.entities.SkeletonCardEntity
+import com.eevdf.capabilities.designsystem.output.SkeletonCardView
 import com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs
 import com.eevdf.capabilities.designsystem.output.ModelDiagramView
 import com.eevdf.capabilities.designsystem.output.ValueCardView
 import com.eevdf.capabilities.designsystem.renderers.renderDropdownCard
 import com.eevdf.capabilities.designsystem.renderers.renderNavCard
+import com.eevdf.capabilities.designsystem.renderers.renderSkeletonCard
 import com.eevdf.capabilities.designsystem.renderers.renderToggleCard
 import com.eevdf.capabilities.designsystem.renderers.renderValueCard
 import com.google.android.material.tabs.TabLayout
@@ -310,6 +317,103 @@ class LayoutDemoActivity : AppCompatActivity() {
         addLabel(demoContainer, "DropdownCard — (0,1)")
         demoContainer.addView(
             renderDropdownCard(this, DropdownCardEntity(title = "demo label", options = listOf("demo option")))
+        )
+        addDivider(demoContainer)
+
+        // ── EXPERIMENTAL: proposed unified 5-slot skeleton ─────────────────────
+        // Title, subtitle, action, metric, buttons — tested here, in the same
+        // tab and at the same live scale as the 4 real templates above, so
+        // they can be compared directly. Deliberately does NOT include a
+        // task-card comparison: the real task card is staying exactly as it
+        // is, not a candidate for this shape.
+        addIntro(
+            demoContainer,
+            "Below: the proposed unified skeleton (title, subtitle, action, " +
+            "metric, buttons), same scale as everything above it. Each mirrors " +
+            "a real row already migrated elsewhere in the app."
+        )
+
+        addLabel(demoContainer, "Skeleton — toggle-shaped (cf. Lock Screen Overlay)")
+        val toggleCard = renderSkeletonCard(this, SkeletonCardEntity(
+            title = "Lock Screen Overlay",
+            subtitle = "When on, a timer expiry shows the full-screen alarm overlay while the device is locked.",
+            action = SkeletonAction.Switch(checked = true),
+            metric = "Enabled",
+        ))
+        toggleCard.action = SkeletonAction.Switch(
+            checked = true,
+            onChange = { checked -> toggleCard.metric = if (checked) "Enabled" else "Disabled" },
+        )
+        demoContainer.addView(toggleCard)
+        addDivider(demoContainer)
+
+        addLabel(demoContainer, "Skeleton — nav-shaped (cf. Exclude App)")
+        val excludeAppOptions = listOf("Chrome", "Messages", "Camera", "Maps")
+        val excludeAppSelected = mutableSetOf<String>()
+        lateinit var excludeAppCard: SkeletonCardView
+        excludeAppCard = renderSkeletonCard(this, SkeletonCardEntity(
+            title = "Exclude App",
+            subtitle = "Tap to choose which apps suppress the banner.",
+            action = SkeletonAction.Chevron,
+            metric = "No apps selected",
+            onClick = {
+                val checks = excludeAppOptions.map { it in excludeAppSelected }.toBooleanArray()
+                AlertDialog.Builder(this)
+                    .setTitle("Hide banner on these apps")
+                    .setMultiChoiceItems(excludeAppOptions.toTypedArray(), checks) { _, which, checked ->
+                        if (checked) excludeAppSelected.add(excludeAppOptions[which])
+                        else excludeAppSelected.remove(excludeAppOptions[which])
+                    }
+                    .setPositiveButton("Save") { _, _ ->
+                        excludeAppCard.metric = if (excludeAppSelected.isEmpty()) "No apps selected"
+                            else excludeAppSelected.joinToString(", ")
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            },
+        ))
+        demoContainer.addView(excludeAppCard)
+        addDivider(demoContainer)
+
+        addLabel(demoContainer, "Skeleton — value-shaped (cf. Default Volume)")
+        val valueCard = renderSkeletonCard(this, SkeletonCardEntity(
+            title = "Default Volume",
+            action = SkeletonAction.Slider(valueFrom = 0f, valueTo = 100f, stepSize = 5f, value = 80f),
+            metric = "80%",
+        ))
+        valueCard.action = SkeletonAction.Slider(
+            valueFrom = 0f, valueTo = 100f, stepSize = 5f, value = 80f,
+            onValueChange = { v -> valueCard.metric = "${v.toInt()}%" },
+        )
+        demoContainer.addView(valueCard)
+        addDivider(demoContainer)
+
+        addLabel(demoContainer, "Skeleton — dropdown-shaped (cf. Vibration Pattern)")
+        val vibPatternOptions = listOf("Single Pulse", "Double Tap", "Triple Tap")
+        var currentVibPattern = "Single Pulse"
+        val dropdownCard = renderSkeletonCard(this, SkeletonCardEntity(
+            title = "Vibration Pattern",
+            action = SkeletonAction.Dropdown(options = vibPatternOptions, selected = currentVibPattern),
+        ))
+        dropdownCard.action = SkeletonAction.Dropdown(
+            options = vibPatternOptions, selected = currentVibPattern,
+            onSelect = { selected -> currentVibPattern = selected },
+        )
+        dropdownCard.buttons = listOf(SkeletonButton("Preview") {
+            Toast.makeText(this, "Preview: $currentVibPattern", Toast.LENGTH_SHORT).show()
+        })
+        demoContainer.addView(dropdownCard)
+        addDivider(demoContainer)
+
+        addLabel(demoContainer, "Skeleton — button-shaped (cf. Export Database)")
+        demoContainer.addView(
+            renderSkeletonCard(this, SkeletonCardEntity(
+                title = "Export Database",
+                subtitle = "Save a complete copy of the database to a .db file.",
+                buttons = listOf(SkeletonButton("Export Database") {
+                    Toast.makeText(this, "Export Database tapped", Toast.LENGTH_SHORT).show()
+                }),
+            ))
         )
     }
 
