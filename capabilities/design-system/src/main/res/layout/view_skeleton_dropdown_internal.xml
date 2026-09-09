@@ -15,7 +15,7 @@
 <com.google.android.material.textfield.TextInputLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/skeletonDropdownLayout"
-    style="@style/App.TextInput.Dropdown"
+    style="@style/App.TextInput.Dropdown.Dense"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 

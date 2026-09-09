@@ -250,6 +250,21 @@
 
     <dimen name="app_size_row">48dp</dimen>
     <dimen name="app_size_input">56dp</dimen>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         REMOVED: app_field_max_height (a guessed 48dp "hard cap" applied to
+         every input control's outer box). Superseded — forcing controls to
+         an external number fought each widget's own internal geometry
+         (clipped dropdown text, a stray label-cutout line, a displaced
+         popup anchor). The Layout demo page's skeleton cards now instead
+         measure the dropdown's own real, untouched box height at runtime
+         and match every OTHER control's outer slot to that real reference
+         — see referenceDropdownBoxHeight in skeleton-card-view.kt. No
+         dimen needed: the source of truth is a real widget's measured
+         size, the same technique app_size_row's neighbors already avoid
+         reusing by coincidence — this one is retired outright rather than
+         redefined, since nothing should read a guessed number here again.
+         ══════════════════════════════════════════════════════════════════ -->
     <dimen name="app_size_bubble">52dp</dimen>
     <dimen name="app_size_alarm">64dp</dimen>
     <dimen name="app_size_calendar_row">40dp</dimen>

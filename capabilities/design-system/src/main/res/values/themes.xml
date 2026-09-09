@@ -56,6 +56,27 @@
         <item name="boxCornerRadiusBottomEnd">8dp</item>
     </style>
 
+    <!-- Dense variant — the Material "Dense" box style trims the outlined
+         box's own internal top/bottom padding (unlike the default box
+         above, which needs ~56dp, app_size_input, to fit its text without
+         clipping). Used untouched, left to its own natural measured
+         size — see referenceDropdownBoxHeight in skeleton-card-view.kt,
+         which reads THIS style's real rendered height and uses it as the
+         reference every other full-width input's outer slot matches,
+         rather than this box being forced to fit an externally-guessed
+         number (that was the earlier bug: forcing an ordinary, non-Dense
+         box shorter than its own required padding is what clipped
+         "Triple Tap"). This is a real, natural box size now — nothing
+         should force it to any other number again. -->
+    <style name="App.TextInput.Dropdown.Dense"
+        parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu">
+        <item name="boxStrokeColor">@color/divider</item>
+        <item name="boxCornerRadiusTopStart">8dp</item>
+        <item name="boxCornerRadiusTopEnd">8dp</item>
+        <item name="boxCornerRadiusBottomStart">8dp</item>
+        <item name="boxCornerRadiusBottomEnd">8dp</item>
+    </style>
+
     <!-- ── Dialog ──────────────────────────────────────────────────────────── -->
 
     <style name="App.Dialog"

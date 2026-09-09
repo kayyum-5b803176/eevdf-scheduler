@@ -33,14 +33,31 @@ import com.google.android.material.textfield.TextInputLayout
  *     an opaque square background (see [buildSmallInputView]) so they
  *     read as tappable at a glance; the switch keeps its own native look.
  *
- * Icon-button size and the dropdown box's height are deliberately NOT
- * separate hardcoded dimens — they're read from a throwaway [SwitchMaterial]/
- * [Slider] instance's own MEASURED size (see [referenceSwitchSize]/
- * [referenceSliderHeight]), so "the icon button is exactly as big as the
- * real switch" and "the dropdown box is exactly as tall as the real
- * slider" stay true automatically at whatever live token scale is
- * currently active, rather than two dimens that could silently drift out
- * of sync with the switch/slider's own actual rendered size over time.
+ * Icon-button size is deliberately NOT a hardcoded dimen — it's read from
+ * a throwaway [SwitchMaterial] instance's own MEASURED size (see
+ * [referenceSwitchSize]), so "the icon button is exactly as big as the
+ * real switch" stays true automatically at whatever live token scale is
+ * currently active, rather than a dimen that could silently drift out of
+ * sync with the switch's own actual rendered size over time.
+ *
+ * The slider row and the dropdown box are a different case: previously
+ * both were forced to a fixed guessed dp value (48dp), which fought each
+ * widget's own internal geometry — clipped dropdown text, a stray
+ * label-cutout line, and a displaced popup anchor, since padding a field
+ * to hit an external number pushes its content into space the widget
+ * itself reserves for other things. Fixed by flipping which side is the
+ * source of truth: the dropdown's outlined box (`App.TextInput.Dropdown.Dense`
+ * in themes.xml) is left completely untouched — no padding hacks, no
+ * forced height — and its own real, natural, artifact-free measured
+ * height (see [referenceDropdownBoxHeight]) becomes the one reference
+ * every OTHER full-width control's outer slot is built to match. The
+ * slider's own track+thumb stays exactly as thin as it naturally is; it
+ * just sits centered inside an invisible frame sized to that same
+ * reference, the same "real widget's own measured size, never a
+ * dp guess" technique [referenceSwitchSize] already uses for icon
+ * buttons. Only the CONTAINER/slot is matched across tools — the tools
+ * themselves (slider track vs. text field) are never resized to look
+ * alike.
  */
 class SkeletonCardView @JvmOverloads constructor(
     context: Context,
@@ -121,45 +138,80 @@ class SkeletonCardView @JvmOverloads constructor(
         switch.measuredWidth to switch.measuredHeight
     }
 
-    /** Same technique as [referenceSwitchSize], for a real [Slider]'s natural height. */
-    private val referenceSliderHeight: Int by lazy {
-        val slider = Slider(context)
-        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        slider.measure(unspecified, unspecified)
-        slider.measuredHeight
+    /** The one real reference every full-width input's outer slot is built
+     *  to match — the dropdown box's own natural, untouched, artifact-free
+     *  measured height (Dense outlined style, no padding hacks). Not a
+     *  guessed dp value: inflates the exact same fragment the real
+     *  dropdown control uses (see [buildFullInputView]'s Dropdown branch),
+     *  with a placeholder option so its measured height reflects real
+     *  text content, and reads back its natural size. `by lazy`: computed
+     *  once per card instance. */
+    private val referenceDropdownBoxHeight: Int by lazy {
+        val probe = LayoutInflater.from(context)
+            .inflate(R.layout.view_skeleton_dropdown_internal, fullInputContainer, false)
+        val actv = probe.findViewById<AutoCompleteTextView>(R.id.skeletonDropdownField)
+        actv.setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, listOf("Sample")))
+        actv.setText("Sample", false)
+        val widthSpec = View.MeasureSpec.makeMeasureSpec(
+            (fullInputContainer.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels),
+            View.MeasureSpec.AT_MOST
+        )
+        val unspecifiedHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        probe.measure(widthSpec, unspecifiedHeight)
+        probe.measuredHeight
     }
 
     private fun buildFullInputView(input: SkeletonFullInput): View {
-        val fullWidth = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
         return when (input) {
-            is SkeletonFullInput.Slider -> Slider(context).apply {
-                valueFrom = input.valueFrom
-                valueTo   = input.valueTo
-                stepSize  = input.stepSize
-                value     = input.value.coerceIn(input.valueFrom, input.valueTo)
-                addOnChangeListener { _, v, _ -> input.onValueChange?.invoke(v) }
-                layoutParams = fullWidth
+            is SkeletonFullInput.Slider -> {
+                // The Slider widget itself is completely untouched — its
+                // own track/thumb/touch-target geometry stays exactly as
+                // thin as it naturally is. It's centered inside an
+                // invisible frame sized to [referenceDropdownBoxHeight] —
+                // matching the dropdown's real SLOT, not its own tool
+                // size, to the dropdown's real box.
+                val band = FrameLayout(context).apply {
+                    layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, referenceDropdownBoxHeight)
+                }
+                val slider = Slider(context).apply {
+                    valueFrom = input.valueFrom
+                    valueTo   = input.valueTo
+                    stepSize  = input.stepSize
+                    value     = input.value.coerceIn(input.valueFrom, input.valueTo)
+                    addOnChangeListener { _, v, _ -> input.onValueChange?.invoke(v) }
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        android.view.Gravity.CENTER_VERTICAL
+                    )
+                }
+                band.addView(slider)
+                band
             }
             is SkeletonFullInput.Dropdown -> {
                 // RESOLVED: building this purely in Kotlin (constructor
                 // defStyleAttr) did not actually apply the outlined-box
                 // style — rendered as a plain underlined field. Inflating
-                // the same XML shape App.TextInput.Dropdown already works
-                // in (see profile-settings-activity.kt's own real
-                // Vibration Pattern row) is the proven-working path.
+                // the same XML shape works (see profile-settings-activity.kt's
+                // own real Vibration Pattern row) is the proven-working path.
+                //
+                // RESOLVED: this used to be force-padded to hit an external
+                // 48dp target — that pushed the field's content into the
+                // label-cutout region the outlined border reserves (the
+                // stray line above the box) and threw off the dropdown
+                // popup's own anchor-offset math (the ~48dp-displaced
+                // popup). This box is now left completely untouched: no
+                // padding, no forced height. Its own natural size IS the
+                // reference every other control's slot matches (see
+                // [referenceDropdownBoxHeight]) — nothing here needs to
+                // calibrate to anything else.
                 val fragment = LayoutInflater.from(context)
                     .inflate(R.layout.view_skeleton_dropdown_internal, fullInputContainer, false)
                 val actv = fragment.findViewById<AutoCompleteTextView>(R.id.skeletonDropdownField)
                 actv.setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, input.options))
                 actv.setText(input.selected ?: input.options.firstOrNull() ?: "", false)
                 actv.setOnItemClickListener { _, _, pos, _ -> input.onSelect?.invoke(input.options[pos]) }
-                // The outer box's height forced to equal a real Slider's own
-                // measured height — an experiment, not a proven-safe fit:
-                // TextInputLayout's natural content (label + box padding)
-                // may need more vertical space than a Slider's track+thumb
-                // does, so this can clip/crowd the field's own text at some
-                // token scales. Width still MATCH_PARENT, unaffected.
-                fragment.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, referenceSliderHeight)
+                fragment.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
                 fragment
             }
         }
