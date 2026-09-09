@@ -341,8 +341,8 @@ class LayoutDemoActivity : AppCompatActivity() {
             onChange = { newChecked ->
                 toggleCard.metric = if (newChecked) "Enabled" else "Disabled"
                 // Rebuilds itself with the flipped state, same callback —
-                // smallInputs' setter fully re-renders the icon row, so the
-                // new checked value (and its tint) is what actually shows.
+                // smallInputs' setter fully re-renders the row, so the new
+                // checked value is what the real switch actually shows.
                 toggleCard.smallInputs = listOf(toggleInput(newChecked))
             },
         )
@@ -363,7 +363,10 @@ class LayoutDemoActivity : AppCompatActivity() {
             title = "Exclude App",
             subtitle = "Tap to choose which apps suppress the banner.",
             metric = "No apps selected",
-            smallInputs = listOf(SkeletonSmallInput.IconButton(icon = SkeletonIcon.NAV_ARROW, onClick = {
+            // HAMBURGER, not NAV_ARROW: this opens a dialog IN PLACE, it
+            // never navigates to a different page — the arrow icon is
+            // reserved specifically for cards that do.
+            smallInputs = listOf(SkeletonSmallInput.IconButton(icon = SkeletonIcon.HAMBURGER, onClick = {
                 val checks = excludeAppOptions.map { it in excludeAppSelected }.toBooleanArray()
                 AlertDialog.Builder(this)
                     .setTitle("Hide banner on these apps")
@@ -400,7 +403,9 @@ class LayoutDemoActivity : AppCompatActivity() {
         var currentVibPattern = "Single Pulse"
         val dropdownCard = renderSkeletonCard(this, SkeletonCardEntity(
             title = "Vibration Pattern",
-            metric = currentVibPattern,
+            // No metric row — the dropdown itself already shows the
+            // selected value, a separate readout of the same string is
+            // redundant.
             fullInput = SkeletonFullInput.Dropdown(
                 options = vibPatternOptions, selected = currentVibPattern,
                 onSelect = { selected -> currentVibPattern = selected },

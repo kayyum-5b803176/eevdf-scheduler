@@ -8,12 +8,14 @@ package com.eevdf.capabilities.designsystem.entities
  * Slot 4 (input) splits into two row KINDS, not just widget types:
  *   - [fullInput] — a slider or a native dropdown box. Owns the whole row;
  *     at most one, since only one thing can own a full-width row.
- *   - [smallInputs] — icon-only tappable controls (a toggle, a button).
- *     Several can sit side by side in their own, separate row.
+ *   - [smallInputs] — compact tappable controls: a real native Material
+ *     switch, or an icon-only button. Several can sit side by side in
+ *     their own, separate row. [SkeletonSmallInput.IconButton] is
+ *     icon-only, no text label, same convention the real task card's
+ *     action row already uses — but [SkeletonSmallInput.Toggle] renders
+ *     as the actual native switch widget, not an icon standing in for one.
  * A card can have one, the other, both (stacked, full row first), or
- * neither. There is deliberately no text-labelled button any more — every
- * interactive element in [smallInputs] is icon-only, the same convention
- * the real task card's action row already uses.
+ * neither.
  *
  * Demo-only right now — wired up on the Layout demo page's existing
  * "template" tab, alongside the 4 real templates, at the same live scale.
@@ -27,7 +29,7 @@ data class SkeletonCardEntity(
     val metric: String? = null,
     /** Slot 4a [O] — the one full-width control, if this card has one. */
     val fullInput: SkeletonFullInput? = null,
-    /** Slot 4b [O] — icon-only tappable controls, right-aligned, in sequence. */
+    /** Slot 4b [O] — compact tappable controls, right-aligned, in sequence. */
     val smallInputs: List<SkeletonSmallInput> = emptyList(),
 )
 
@@ -49,15 +51,15 @@ sealed class SkeletonFullInput {
     ) : SkeletonFullInput()
 }
 
-/** One icon-only tappable control. Several may appear in the same row. */
+/** One compact tappable control. Several may appear in the same row. */
 sealed class SkeletonSmallInput {
-    /** A single icon whose meaning is fixed by [icon]; tap toggles it. */
+    /** Renders as the real native Material switch — not an icon. */
     data class Toggle(
         val checked: Boolean,
         val onChange: ((Boolean) -> Unit)? = null,
     ) : SkeletonSmallInput()
 
-    /** A single icon button — nav-arrow, preview, export, or any future icon. */
+    /** A single icon-only button — hamburger, nav-arrow, preview, export, or any future icon. */
     data class IconButton(
         val icon: SkeletonIcon,
         val onClick: () -> Unit,
@@ -68,5 +70,11 @@ sealed class SkeletonSmallInput {
  * The fixed, closed set of icons this experimental card can show — never a
  * raw drawable resource id crossing the entity boundary, same discipline
  * as every other entity in this module carrying no Android types.
+ *
+ * NAV_ARROW is for a card that navigates to a different page/Activity —
+ * unused by any of the current demo cards (none of them change screens),
+ * kept in reserve for the day a demo card mirrors a real page-jumping row.
+ * HAMBURGER is for a card whose icon opens something IN PLACE (a dialog,
+ * an expansion) without changing pages — see Exclude App.
  */
-enum class SkeletonIcon { NAV_ARROW, PREVIEW, EXPORT }
+enum class SkeletonIcon { NAV_ARROW, HAMBURGER, PREVIEW, EXPORT }

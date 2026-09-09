@@ -16,6 +16,7 @@ import com.eevdf.capabilities.designsystem.entities.SkeletonIcon
 import com.eevdf.capabilities.designsystem.entities.SkeletonSmallInput
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.slider.Slider
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputLayout
 
 /**
@@ -27,9 +28,10 @@ import com.google.android.material.textfield.TextInputLayout
  * Slot 4 (input) is two independent row kinds:
  *   - [fullInput] — at most one full-width control (slider or the native
  *     dropdown box), inflated into its own container.
- *   - [smallInputs] — zero or more icon-only tappable controls, laid out
- *     right-aligned in their own row, same convention the real task card's
- *     action row already uses (icons, never text-labelled buttons).
+ *   - [smallInputs] — compact tappable controls (a real switch, or an
+ *     icon-only button), right-aligned in their own row. Icon buttons get
+ *     an opaque square background (see [buildSmallInputView]) so they
+ *     read as tappable at a glance; the switch keeps its own native look.
  */
 class SkeletonCardView @JvmOverloads constructor(
     context: Context,
@@ -106,53 +108,57 @@ class SkeletonCardView @JvmOverloads constructor(
                 addOnChangeListener { _, v, _ -> input.onValueChange?.invoke(v) }
                 layoutParams = fullWidth
             }
-            is SkeletonFullInput.Dropdown -> TextInputLayout(
-                context, null, com.google.android.material.R.attr.textInputOutlinedExposedDropdownMenuStyle
-            ).apply {
-                val actv = AutoCompleteTextView(context).apply {
-                    setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, input.options))
-                    setText(input.selected ?: input.options.firstOrNull() ?: "", false)
-                    inputType = android.text.InputType.TYPE_NULL
-                    setOnItemClickListener { _, _, pos, _ -> input.onSelect?.invoke(input.options[pos]) }
-                }
-                addView(actv)
-                layoutParams = fullWidth
+            is SkeletonFullInput.Dropdown -> {
+                // RESOLVED: building this purely in Kotlin (constructor
+                // defStyleAttr) did not actually apply the outlined-box
+                // style — rendered as a plain underlined field. Inflating
+                // the same XML shape App.TextInput.Dropdown already works
+                // in (see profile-settings-activity.kt's own real
+                // Vibration Pattern row) is the proven-working path.
+                val fragment = LayoutInflater.from(context)
+                    .inflate(R.layout.view_skeleton_dropdown_internal, fullInputContainer, false)
+                val actv = fragment.findViewById<AutoCompleteTextView>(R.id.skeletonDropdownField)
+                actv.setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, input.options))
+                actv.setText(input.selected ?: input.options.firstOrNull() ?: "", false)
+                actv.setOnItemClickListener { _, _, pos, _ -> input.onSelect?.invoke(input.options[pos]) }
+                fragment.layoutParams = fullWidth
+                fragment
             }
         }
     }
 
     /**
-     * Icon-only, same as every interactive element in this row — no text
-     * label. [SkeletonSmallInput.Toggle] swaps the SAME icon's tint between
-     * "on" (colorPrimary) and "off" (the ambient control color) rather than
-     * showing a track+thumb switch shape, so it stays icon-only like every
-     * other small input, not a different kind of widget.
+     * [SkeletonSmallInput.Toggle] is the real native [SwitchMaterial] —
+     * NOT an icon. [SkeletonSmallInput.IconButton] is icon-only, with an
+     * opaque square background (see [R.drawable.bg_skeleton_icon_button])
+     * so a bare floating glyph doesn't have to be guessed as tappable.
      */
-    private fun buildSmallInputView(input: SkeletonSmallInput): View {
-        val sizePx = resources.getDimensionPixelSize(R.dimen.app_icon)
-        val lp = LinearLayout.LayoutParams(sizePx, sizePx)
-        val marginPx = resources.getDimensionPixelSize(R.dimen.app_spacing_sm)
-        if (smallInputRow.childCount > 0) lp.marginStart = marginPx
-        return ImageButton(context).apply {
-            layoutParams = lp
-            background = null
-            when (input) {
-                is SkeletonSmallInput.Toggle -> {
-                    setImageResource(R.drawable.outline_power_settings_24)
-                    imageTintList = android.content.res.ColorStateList.valueOf(
-                        if (input.checked) resources.getColor(R.color.colorPrimary, context.theme)
-                        else resources.getColor(R.color.app_text_hint, context.theme)
-                    )
-                    setOnClickListener { input.onChange?.invoke(!input.checked) }
-                }
-                is SkeletonSmallInput.IconButton -> {
-                    setImageResource(when (input.icon) {
-                        SkeletonIcon.NAV_ARROW -> R.drawable.outline_arrow_forward_24
-                        SkeletonIcon.PREVIEW   -> R.drawable.outline_play_arrow_24
-                        SkeletonIcon.EXPORT    -> R.drawable.outline_download_24
-                    })
-                    setOnClickListener { input.onClick() }
-                }
+    private fun buildSmallInputView(input: SkeletonSmallInput): View = when (input) {
+        is SkeletonSmallInput.Toggle -> SwitchMaterial(context).apply {
+            isChecked = input.checked
+            setOnCheckedChangeListener { _, checked -> input.onChange?.invoke(checked) }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        is SkeletonSmallInput.IconButton -> {
+            val sizePx = resources.getDimensionPixelSize(R.dimen.app_btn_icon)
+            val lp = LinearLayout.LayoutParams(sizePx, sizePx)
+            if (smallInputRow.childCount > 0) lp.marginStart = resources.getDimensionPixelSize(R.dimen.app_spacing_sm)
+            ImageButton(context).apply {
+                layoutParams = lp
+                background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_skeleton_icon_button)
+                setPadding(
+                    resources.getDimensionPixelSize(R.dimen.app_spacing_sm),
+                    resources.getDimensionPixelSize(R.dimen.app_spacing_sm),
+                    resources.getDimensionPixelSize(R.dimen.app_spacing_sm),
+                    resources.getDimensionPixelSize(R.dimen.app_spacing_sm),
+                )
+                setImageResource(when (input.icon) {
+                    SkeletonIcon.NAV_ARROW -> R.drawable.outline_arrow_forward_24
+                    SkeletonIcon.HAMBURGER -> R.drawable.outline_menu_24
+                    SkeletonIcon.PREVIEW   -> R.drawable.outline_play_arrow_24
+                    SkeletonIcon.EXPORT    -> R.drawable.outline_download_24
+                })
+                setOnClickListener { input.onClick() }
             }
         }
     }

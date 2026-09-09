@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Neutral filled square behind an icon-only button — makes it read as
+     "tappable" at a glance instead of a bare floating glyph. Reuses
+     app_surface_subtle (the same token screenBackground/infoBoxBackground
+     use), not a new color, and a corner radius matching the card's own
+     rounding rather than a separate value. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/app_surface_subtle" />
+    <corners android:radius="8dp" />
+</shape>

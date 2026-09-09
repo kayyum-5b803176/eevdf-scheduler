@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    EXPERIMENTAL — internal to SkeletonCardView's Dropdown full-input.
+
+    RESOLVED: the previous approach built this TextInputLayout purely in
+    Kotlin, applying the outlined-exposed-dropdown style via a constructor
+    defStyleAttr — which did not actually apply (rendered as a plain
+    underlined text field, not the outlined box). This module's own
+    App.TextInput.Dropdown style is proven to work correctly when applied
+    the normal way, as an XML `style=` attribute (see
+    activity_profile_settings.xml's real Vibration Pattern row before its
+    own migration) — so this is a tiny inflated fragment instead of
+    programmatic construction, reusing that same proven path.
+-->
+<com.google.android.material.textfield.TextInputLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/skeletonDropdownLayout"
+    style="@style/App.TextInput.Dropdown"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <AutoCompleteTextView
+        android:id="@+id/skeletonDropdownField"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="none"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
+        android:cursorVisible="false" />
+
+</com.google.android.material.textfield.TextInputLayout>
