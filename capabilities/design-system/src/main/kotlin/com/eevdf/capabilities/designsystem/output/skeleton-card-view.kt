@@ -32,6 +32,15 @@ import com.google.android.material.textfield.TextInputLayout
  *     icon-only button), right-aligned in their own row. Icon buttons get
  *     an opaque square background (see [buildSmallInputView]) so they
  *     read as tappable at a glance; the switch keeps its own native look.
+ *
+ * Icon-button size and the dropdown box's height are deliberately NOT
+ * separate hardcoded dimens — they're read from a throwaway [SwitchMaterial]/
+ * [Slider] instance's own MEASURED size (see [referenceSwitchSize]/
+ * [referenceSliderHeight]), so "the icon button is exactly as big as the
+ * real switch" and "the dropdown box is exactly as tall as the real
+ * slider" stay true automatically at whatever live token scale is
+ * currently active, rather than two dimens that could silently drift out
+ * of sync with the switch/slider's own actual rendered size over time.
  */
 class SkeletonCardView @JvmOverloads constructor(
     context: Context,
@@ -97,6 +106,29 @@ class SkeletonCardView @JvmOverloads constructor(
         CardDensity.applyCornerRadius(cardRoot, context, isCompact = false)
     }
 
+    /**
+     * A real [SwitchMaterial], never attached to any layout, measured with
+     * both dimensions UNSPECIFIED — this is what its natural width/height
+     * actually resolve to at the current theme/token scale, the same size
+     * it would render at if it WERE the visible toggle on this card.
+     * `by lazy`: computed once per card instance, on first use, not once
+     * per icon button.
+     */
+    private val referenceSwitchSize: Pair<Int, Int> by lazy {
+        val switch = SwitchMaterial(context)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        switch.measure(unspecified, unspecified)
+        switch.measuredWidth to switch.measuredHeight
+    }
+
+    /** Same technique as [referenceSwitchSize], for a real [Slider]'s natural height. */
+    private val referenceSliderHeight: Int by lazy {
+        val slider = Slider(context)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        slider.measure(unspecified, unspecified)
+        slider.measuredHeight
+    }
+
     private fun buildFullInputView(input: SkeletonFullInput): View {
         val fullWidth = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
         return when (input) {
@@ -121,7 +153,13 @@ class SkeletonCardView @JvmOverloads constructor(
                 actv.setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, input.options))
                 actv.setText(input.selected ?: input.options.firstOrNull() ?: "", false)
                 actv.setOnItemClickListener { _, _, pos, _ -> input.onSelect?.invoke(input.options[pos]) }
-                fragment.layoutParams = fullWidth
+                // The outer box's height forced to equal a real Slider's own
+                // measured height — an experiment, not a proven-safe fit:
+                // TextInputLayout's natural content (label + box padding)
+                // may need more vertical space than a Slider's track+thumb
+                // does, so this can clip/crowd the field's own text at some
+                // token scales. Width still MATCH_PARENT, unaffected.
+                fragment.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, referenceSliderHeight)
                 fragment
             }
         }
@@ -131,7 +169,10 @@ class SkeletonCardView @JvmOverloads constructor(
      * [SkeletonSmallInput.Toggle] is the real native [SwitchMaterial] —
      * NOT an icon. [SkeletonSmallInput.IconButton] is icon-only, with an
      * opaque square background (see [R.drawable.bg_skeleton_icon_button])
-     * so a bare floating glyph doesn't have to be guessed as tappable.
+     * so a bare floating glyph doesn't have to be guessed as tappable —
+     * sized to exactly match [referenceSwitchSize], so an icon button and
+     * the real switch occupy the same footprint if they ever sit in the
+     * same row.
      */
     private fun buildSmallInputView(input: SkeletonSmallInput): View = when (input) {
         is SkeletonSmallInput.Toggle -> SwitchMaterial(context).apply {
@@ -140,8 +181,8 @@ class SkeletonCardView @JvmOverloads constructor(
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         is SkeletonSmallInput.IconButton -> {
-            val sizePx = resources.getDimensionPixelSize(R.dimen.app_btn_icon)
-            val lp = LinearLayout.LayoutParams(sizePx, sizePx)
+            val (refWidth, refHeight) = referenceSwitchSize
+            val lp = LinearLayout.LayoutParams(refWidth, refHeight)
             if (smallInputRow.childCount > 0) lp.marginStart = resources.getDimensionPixelSize(R.dimen.app_spacing_sm)
             ImageButton(context).apply {
                 layoutParams = lp
