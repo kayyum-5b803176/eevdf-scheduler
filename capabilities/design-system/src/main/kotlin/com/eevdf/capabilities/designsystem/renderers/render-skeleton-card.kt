@@ -13,8 +13,7 @@ fun renderSkeletonCard(context: Context, entity: SkeletonCardEntity): SkeletonCa
         context = context,
         title = entity.title,
         subtitle = entity.subtitle,
-        action = entity.action,
         metric = entity.metric,
-        buttons = entity.buttons,
-        onClick = entity.onClick,
+        fullInput = entity.fullInput,
+        smallInputs = entity.smallInputs,
     )

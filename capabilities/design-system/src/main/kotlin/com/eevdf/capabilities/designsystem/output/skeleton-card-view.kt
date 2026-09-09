@@ -7,31 +7,29 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import com.eevdf.capabilities.designsystem.R
-import com.eevdf.capabilities.designsystem.entities.SkeletonAction
-import com.eevdf.capabilities.designsystem.entities.SkeletonButton
-import com.google.android.material.button.MaterialButton
+import com.eevdf.capabilities.designsystem.entities.SkeletonFullInput
+import com.eevdf.capabilities.designsystem.entities.SkeletonIcon
+import com.eevdf.capabilities.designsystem.entities.SkeletonSmallInput
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.slider.Slider
-import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputLayout
 
 /**
- * EXPERIMENTAL — one shared skeleton (5 fixed, ordered slots: title,
- * subtitle, action, metric, buttons) instead of a different internal
- * layout per card type. NOT one of the 9 catalog templates. Reached ONLY
- * from the Layout demo page's "template" tab right now — no real screen
- * uses this yet; see that screen for why (testing the shape in isolation
- * before any rollout decision).
+ * EXPERIMENTAL — one shared skeleton (4 fixed, ordered slots: title,
+ * subtitle, metric, input) instead of a different internal layout per card
+ * type. NOT one of the 9 catalog templates; does not affect the real task
+ * card. Reached ONLY from the Layout demo page's "template" tab right now.
  *
- * Slot 3 (action) holds AT MOST ONE widget at a time — switch, slider,
- * dropdown, chevron, or a stack of progress bars — inflated into
- * [actionContainer] on demand, previous content cleared first. This is
- * the one slot whose CONTENTS vary by card meaning; slots 1/2/4/5 are
- * always plain text/buttons, same as every other slot in every card.
+ * Slot 4 (input) is two independent row kinds:
+ *   - [fullInput] — at most one full-width control (slider or the native
+ *     dropdown box), inflated into its own container.
+ *   - [smallInputs] — zero or more icon-only tappable controls, laid out
+ *     right-aligned in their own row, same convention the real task card's
+ *     action row already uses (icons, never text-labelled buttons).
  */
 class SkeletonCardView @JvmOverloads constructor(
     context: Context,
@@ -42,9 +40,9 @@ class SkeletonCardView @JvmOverloads constructor(
     private val bodyView: View
     private val titleView: TextView
     private val subtitleView: TextView
-    private val actionContainer: FrameLayout
     private val metricView: TextView
-    private val buttonRow: LinearLayout
+    private val fullInputContainer: FrameLayout
+    private val smallInputRow: LinearLayout
 
     var title: String = ""
         set(value) { field = value; titleView.text = value }
@@ -56,14 +54,6 @@ class SkeletonCardView @JvmOverloads constructor(
             subtitleView.visibility = if (value != null) View.VISIBLE else View.GONE
         }
 
-    var action: SkeletonAction? = null
-        set(value) {
-            field = value
-            actionContainer.removeAllViews()
-            actionContainer.visibility = if (value != null) View.VISIBLE else View.GONE
-            if (value != null) actionContainer.addView(buildActionView(value))
-        }
-
     var metric: String? = null
         set(value) {
             field = value
@@ -71,107 +61,98 @@ class SkeletonCardView @JvmOverloads constructor(
             metricView.visibility = if (value != null) View.VISIBLE else View.GONE
         }
 
-    var buttons: List<SkeletonButton> = emptyList()
+    var fullInput: SkeletonFullInput? = null
         set(value) {
             field = value
-            buttonRow.removeAllViews()
-            buttonRow.visibility = if (value.isNotEmpty()) View.VISIBLE else View.GONE
-            value.forEach { b ->
-                val btn = MaterialButton(context).apply {
-                    text = b.text
-                    setOnClickListener { b.onClick() }
-                }
-                val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                lp.marginEnd = if (buttonRow.childCount > 0) resources.getDimensionPixelSize(R.dimen.app_spacing_sm) else 0
-                buttonRow.addView(btn, lp)
-            }
+            fullInputContainer.removeAllViews()
+            fullInputContainer.visibility = if (value != null) View.VISIBLE else View.GONE
+            if (value != null) fullInputContainer.addView(buildFullInputView(value))
         }
 
-    /** Whole-card tap target — see [com.eevdf.capabilities.designsystem.entities.SkeletonCardEntity.onClick]. */
-    var onCardClick: (() -> Unit)? = null
+    var smallInputs: List<SkeletonSmallInput> = emptyList()
         set(value) {
             field = value
-            cardRoot.isClickable = value != null
-            cardRoot.isFocusable = value != null
-            cardRoot.setOnClickListener(if (value != null) { _ -> value.invoke() } else null)
+            smallInputRow.removeAllViews()
+            smallInputRow.visibility = if (value.isNotEmpty()) View.VISIBLE else View.GONE
+            // Right-aligned, in sequence: smallInputRow's own gravity is
+            // "end", and children are added in list order — the first
+            // entry ends up leftmost WITHIN the right-packed cluster, the
+            // cluster itself sits at the row's right edge.
+            value.forEach { input -> smallInputRow.addView(buildSmallInputView(input)) }
         }
 
     init {
         LayoutInflater.from(context).inflate(R.layout.view_skeleton_card_internal, this, true)
-        cardRoot        = findViewById(R.id.skeletonCardRoot)
-        bodyView        = findViewById(R.id.skeletonBody)
-        titleView       = findViewById(R.id.skeletonTitle)
-        subtitleView    = findViewById(R.id.skeletonSubtitle)
-        actionContainer = findViewById(R.id.skeletonActionContainer)
-        metricView      = findViewById(R.id.skeletonMetric)
-        buttonRow       = findViewById(R.id.skeletonButtonRow)
+        cardRoot           = findViewById(R.id.skeletonCardRoot)
+        bodyView           = findViewById(R.id.skeletonBody)
+        titleView          = findViewById(R.id.skeletonTitle)
+        subtitleView       = findViewById(R.id.skeletonSubtitle)
+        metricView         = findViewById(R.id.skeletonMetric)
+        fullInputContainer = findViewById(R.id.skeletonFullInputContainer)
+        smallInputRow      = findViewById(R.id.skeletonSmallInputRow)
         CardDensity.applyOuterGap(cardRoot, context, isCompact = false)
         CardDensity.applyBodyPadding(bodyView, context, isCompact = false)
         CardDensity.applyCornerRadius(cardRoot, context, isCompact = false)
     }
 
-    /**
-     * Every widget here gets an explicit MATCH_PARENT-width [FrameLayout.LayoutParams]
-     * — [FrameLayout.addView] with no params defaults each child to its own
-     * WRAP_CONTENT size, which is what made these widgets render at their
-     * raw platform-default size instead of the app's actual card width; that
-     * was the real bug, not a missing style. The dropdown additionally uses
-     * Material's own standard outlined-exposed-dropdown style attr
-     * (`textInputOutlinedExposedDropdownMenuStyle`) to match the OUTLINED
-     * box variant this design system already uses elsewhere
-     * (`App.TextInput.Dropdown`'s parent style) rather than the FILLED
-     * variant. The slider needs no custom style at all: Material's default
-     * `Slider` already derives its thumb/track color from the activity's
-     * own theme `colorPrimary` — the same color `App.Slider`'s explicit
-     * `thumbColor`/`trackColorActive` overrides in the real templates
-     * resolve to anyway.
-     */
-    private fun buildActionView(action: SkeletonAction): View {
+    private fun buildFullInputView(input: SkeletonFullInput): View {
         val fullWidth = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
-        return when (action) {
-            is SkeletonAction.Switch -> SwitchMaterial(context).apply {
-                isChecked = action.checked
-                setOnCheckedChangeListener { _, checked -> action.onChange?.invoke(checked) }
+        return when (input) {
+            is SkeletonFullInput.Slider -> Slider(context).apply {
+                valueFrom = input.valueFrom
+                valueTo   = input.valueTo
+                stepSize  = input.stepSize
+                value     = input.value.coerceIn(input.valueFrom, input.valueTo)
+                addOnChangeListener { _, v, _ -> input.onValueChange?.invoke(v) }
                 layoutParams = fullWidth
             }
-            is SkeletonAction.Slider -> Slider(context).apply {
-                valueFrom = action.valueFrom
-                valueTo   = action.valueTo
-                stepSize  = action.stepSize
-                value     = action.value.coerceIn(action.valueFrom, action.valueTo)
-                addOnChangeListener { _, v, _ -> action.onValueChange?.invoke(v) }
-                layoutParams = fullWidth
-            }
-            is SkeletonAction.Dropdown -> TextInputLayout(
+            is SkeletonFullInput.Dropdown -> TextInputLayout(
                 context, null, com.google.android.material.R.attr.textInputOutlinedExposedDropdownMenuStyle
             ).apply {
                 val actv = AutoCompleteTextView(context).apply {
-                    setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, action.options))
-                    setText(action.selected ?: action.options.firstOrNull() ?: "", false)
+                    setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, input.options))
+                    setText(input.selected ?: input.options.firstOrNull() ?: "", false)
                     inputType = android.text.InputType.TYPE_NULL
-                    setOnItemClickListener { _, _, pos, _ -> action.onSelect?.invoke(action.options[pos]) }
+                    setOnItemClickListener { _, _, pos, _ -> input.onSelect?.invoke(input.options[pos]) }
                 }
                 addView(actv)
                 layoutParams = fullWidth
             }
-            SkeletonAction.Chevron -> TextView(context).apply {
-                text = "\u203A"
-                textSize = 22f
-                gravity = android.view.Gravity.END
-                layoutParams = fullWidth
-            }
-            is SkeletonAction.ProgressBars -> LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                action.fractions.forEachIndexed { i, fraction ->
-                    val bar = ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
-                        max = 1000
-                        progress = (fraction.coerceIn(0f, 1f) * 1000).toInt()
-                    }
-                    val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                    if (i > 0) lp.topMargin = resources.getDimensionPixelSize(R.dimen.app_spacing_sm)
-                    addView(bar, lp)
+        }
+    }
+
+    /**
+     * Icon-only, same as every interactive element in this row — no text
+     * label. [SkeletonSmallInput.Toggle] swaps the SAME icon's tint between
+     * "on" (colorPrimary) and "off" (the ambient control color) rather than
+     * showing a track+thumb switch shape, so it stays icon-only like every
+     * other small input, not a different kind of widget.
+     */
+    private fun buildSmallInputView(input: SkeletonSmallInput): View {
+        val sizePx = resources.getDimensionPixelSize(R.dimen.app_icon)
+        val lp = LinearLayout.LayoutParams(sizePx, sizePx)
+        val marginPx = resources.getDimensionPixelSize(R.dimen.app_spacing_sm)
+        if (smallInputRow.childCount > 0) lp.marginStart = marginPx
+        return ImageButton(context).apply {
+            layoutParams = lp
+            background = null
+            when (input) {
+                is SkeletonSmallInput.Toggle -> {
+                    setImageResource(R.drawable.outline_power_settings_24)
+                    imageTintList = android.content.res.ColorStateList.valueOf(
+                        if (input.checked) resources.getColor(R.color.colorPrimary, context.theme)
+                        else resources.getColor(R.color.app_text_hint, context.theme)
+                    )
+                    setOnClickListener { input.onChange?.invoke(!input.checked) }
                 }
-                layoutParams = fullWidth
+                is SkeletonSmallInput.IconButton -> {
+                    setImageResource(when (input.icon) {
+                        SkeletonIcon.NAV_ARROW -> R.drawable.outline_arrow_forward_24
+                        SkeletonIcon.PREVIEW   -> R.drawable.outline_play_arrow_24
+                        SkeletonIcon.EXPORT    -> R.drawable.outline_download_24
+                    })
+                    setOnClickListener { input.onClick() }
+                }
             }
         }
     }
@@ -181,17 +162,15 @@ class SkeletonCardView @JvmOverloads constructor(
             context: Context,
             title: String,
             subtitle: String? = null,
-            action: SkeletonAction? = null,
             metric: String? = null,
-            buttons: List<SkeletonButton> = emptyList(),
-            onClick: (() -> Unit)? = null,
+            fullInput: SkeletonFullInput? = null,
+            smallInputs: List<SkeletonSmallInput> = emptyList(),
         ): SkeletonCardView = SkeletonCardView(context).apply {
             this.title = title
             this.subtitle = subtitle
-            this.action = action
             this.metric = metric
-            this.buttons = buttons
-            this.onCardClick = onClick
+            this.fullInput = fullInput
+            this.smallInputs = smallInputs
         }
     }
 }

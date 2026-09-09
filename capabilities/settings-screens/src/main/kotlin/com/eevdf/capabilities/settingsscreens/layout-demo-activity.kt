@@ -17,9 +17,10 @@ import com.eevdf.capabilities.designsystem.entities.DropdownCardEntity
 import com.eevdf.capabilities.designsystem.entities.NavCardEntity
 import com.eevdf.capabilities.designsystem.entities.ToggleCardEntity
 import com.eevdf.capabilities.designsystem.entities.ValueCardEntity
-import com.eevdf.capabilities.designsystem.entities.SkeletonAction
-import com.eevdf.capabilities.designsystem.entities.SkeletonButton
 import com.eevdf.capabilities.designsystem.entities.SkeletonCardEntity
+import com.eevdf.capabilities.designsystem.entities.SkeletonFullInput
+import com.eevdf.capabilities.designsystem.entities.SkeletonIcon
+import com.eevdf.capabilities.designsystem.entities.SkeletonSmallInput
 import com.eevdf.capabilities.designsystem.output.SkeletonCardView
 import com.eevdf.capabilities.designsystem.output.LayoutTokenPrefs
 import com.eevdf.capabilities.designsystem.output.ModelDiagramView
@@ -334,16 +335,23 @@ class LayoutDemoActivity : AppCompatActivity() {
         )
 
         addLabel(demoContainer, "Skeleton — toggle-shaped (cf. Lock Screen Overlay)")
-        val toggleCard = renderSkeletonCard(this, SkeletonCardEntity(
+        lateinit var toggleCard: SkeletonCardView
+        fun toggleInput(checked: Boolean): SkeletonSmallInput.Toggle = SkeletonSmallInput.Toggle(
+            checked = checked,
+            onChange = { newChecked ->
+                toggleCard.metric = if (newChecked) "Enabled" else "Disabled"
+                // Rebuilds itself with the flipped state, same callback —
+                // smallInputs' setter fully re-renders the icon row, so the
+                // new checked value (and its tint) is what actually shows.
+                toggleCard.smallInputs = listOf(toggleInput(newChecked))
+            },
+        )
+        toggleCard = renderSkeletonCard(this, SkeletonCardEntity(
             title = "Lock Screen Overlay",
             subtitle = "When on, a timer expiry shows the full-screen alarm overlay while the device is locked.",
-            action = SkeletonAction.Switch(checked = true),
             metric = "Enabled",
+            smallInputs = listOf(toggleInput(true)),
         ))
-        toggleCard.action = SkeletonAction.Switch(
-            checked = true,
-            onChange = { checked -> toggleCard.metric = if (checked) "Enabled" else "Disabled" },
-        )
         demoContainer.addView(toggleCard)
         addDivider(demoContainer)
 
@@ -354,9 +362,8 @@ class LayoutDemoActivity : AppCompatActivity() {
         excludeAppCard = renderSkeletonCard(this, SkeletonCardEntity(
             title = "Exclude App",
             subtitle = "Tap to choose which apps suppress the banner.",
-            action = SkeletonAction.Chevron,
             metric = "No apps selected",
-            onClick = {
+            smallInputs = listOf(SkeletonSmallInput.IconButton(icon = SkeletonIcon.NAV_ARROW, onClick = {
                 val checks = excludeAppOptions.map { it in excludeAppSelected }.toBooleanArray()
                 AlertDialog.Builder(this)
                     .setTitle("Hide banner on these apps")
@@ -370,21 +377,21 @@ class LayoutDemoActivity : AppCompatActivity() {
                     }
                     .setNegativeButton("Cancel", null)
                     .show()
-            },
+            })),
         ))
         demoContainer.addView(excludeAppCard)
         addDivider(demoContainer)
 
         addLabel(demoContainer, "Skeleton — value-shaped (cf. Default Volume)")
-        val valueCard = renderSkeletonCard(this, SkeletonCardEntity(
+        lateinit var valueCard: SkeletonCardView
+        valueCard = renderSkeletonCard(this, SkeletonCardEntity(
             title = "Default Volume",
-            action = SkeletonAction.Slider(valueFrom = 0f, valueTo = 100f, stepSize = 5f, value = 80f),
             metric = "80%",
+            fullInput = SkeletonFullInput.Slider(
+                valueFrom = 0f, valueTo = 100f, stepSize = 5f, value = 80f,
+                onValueChange = { v -> valueCard.metric = "${v.toInt()}%" },
+            ),
         ))
-        valueCard.action = SkeletonAction.Slider(
-            valueFrom = 0f, valueTo = 100f, stepSize = 5f, value = 80f,
-            onValueChange = { v -> valueCard.metric = "${v.toInt()}%" },
-        )
         demoContainer.addView(valueCard)
         addDivider(demoContainer)
 
@@ -393,15 +400,15 @@ class LayoutDemoActivity : AppCompatActivity() {
         var currentVibPattern = "Single Pulse"
         val dropdownCard = renderSkeletonCard(this, SkeletonCardEntity(
             title = "Vibration Pattern",
-            action = SkeletonAction.Dropdown(options = vibPatternOptions, selected = currentVibPattern),
+            metric = currentVibPattern,
+            fullInput = SkeletonFullInput.Dropdown(
+                options = vibPatternOptions, selected = currentVibPattern,
+                onSelect = { selected -> currentVibPattern = selected },
+            ),
+            smallInputs = listOf(SkeletonSmallInput.IconButton(icon = SkeletonIcon.PREVIEW, onClick = {
+                Toast.makeText(this, "Preview: $currentVibPattern", Toast.LENGTH_SHORT).show()
+            })),
         ))
-        dropdownCard.action = SkeletonAction.Dropdown(
-            options = vibPatternOptions, selected = currentVibPattern,
-            onSelect = { selected -> currentVibPattern = selected },
-        )
-        dropdownCard.buttons = listOf(SkeletonButton("Preview") {
-            Toast.makeText(this, "Preview: $currentVibPattern", Toast.LENGTH_SHORT).show()
-        })
         demoContainer.addView(dropdownCard)
         addDivider(demoContainer)
 
@@ -410,9 +417,9 @@ class LayoutDemoActivity : AppCompatActivity() {
             renderSkeletonCard(this, SkeletonCardEntity(
                 title = "Export Database",
                 subtitle = "Save a complete copy of the database to a .db file.",
-                buttons = listOf(SkeletonButton("Export Database") {
+                smallInputs = listOf(SkeletonSmallInput.IconButton(icon = SkeletonIcon.EXPORT, onClick = {
                     Toast.makeText(this, "Export Database tapped", Toast.LENGTH_SHORT).show()
-                }),
+                })),
             ))
         )
     }

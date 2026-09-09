@@ -2,15 +2,13 @@
 <!--
     EXPERIMENTAL — internal to SkeletonCardView, demo-only (Layout demo
     page's existing "template" tab, alongside the 4 real templates). Not
-    one of the 9 catalog templates yet; not
-    used by any real screen. See SkeletonCardView.kt's KDoc.
+    one of the 9 catalog templates yet; not applied to the real task card.
 
-    Fixed slot order, same discipline as NavCard's internal layout: a
-    caller can only choose WHETHER a slot is populated, never reorder the
-    5 slots relative to each other.
-      1. Title      2. Subtitle/category      3. Action (switch / slider /
-      dropdown / chevron / progress-bar stack)      4. Metric
-      5. Button row
+    Fixed slot order: 1 title, 2 subtitle, 3 metric, 4 input. Slot 4 splits
+    into two separate row kinds — at most one full-width input (slider or
+    the native dropdown box), and/or a row of icon-only small inputs
+    (toggle, button) — never reordered relative to each other, and the
+    full-input row (if present) always comes before the small-input row.
 -->
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
@@ -43,17 +41,7 @@
                 android:layout_marginTop="@dimen/app_spacing_cs"
                 android:visibility="gone" />
 
-            <!-- Slot 3 [O] — action: whichever single widget applies is
-                 inflated into this container at runtime; never more than
-                 one at a time. -->
-            <FrameLayout
-                android:id="@+id/skeletonActionContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/app_spacing_md"
-                android:visibility="gone" />
-
-            <!-- Slot 4 [O] — metric / changeable readout -->
+            <!-- Slot 3 [O] — metric / changeable readout -->
             <TextView
                 android:id="@+id/skeletonMetric"
                 android:layout_width="match_parent"
@@ -64,13 +52,25 @@
                 android:fontFamily="monospace"
                 android:visibility="gone" />
 
-            <!-- Slot 5 [O] — button row -->
+            <!-- Slot 4a [O] — full-width input: whichever single widget
+                 applies (slider or the native dropdown box) is inflated
+                 into this container at runtime. -->
+            <FrameLayout
+                android:id="@+id/skeletonFullInputContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:visibility="gone" />
+
+            <!-- Slot 4b [O] — small, icon-only inputs. Right-aligned, in
+                 sequence — see SkeletonCardView.smallInputs. -->
             <LinearLayout
-                android:id="@+id/skeletonButtonRow"
+                android:id="@+id/skeletonSmallInputRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/app_spacing_md"
                 android:orientation="horizontal"
+                android:gravity="end|center_vertical"
                 android:visibility="gone" />
 
         </LinearLayout>
