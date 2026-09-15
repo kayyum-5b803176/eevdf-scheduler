@@ -54,7 +54,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     fun jumpToFirst(onQueueTab: Boolean) {
         val list  = if (onQueueTab) vm.listBuilder.flatActiveTasks.value
-                    else            vm.listBuilder.flatScheduleOrder.value
+                    else            vm.listBuilder.scheduleCandidatesForFilter()
         val first = list
             ?.firstOrNull { !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt }
             ?.task
@@ -162,7 +162,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * global [com.eevdf.capabilities.taskstorage.TaskRepository.selectNextTask] in that case.
      */
     fun selectAutoNextTask(task: Task, allTasks: List<Task>): Task? {
-        val orderedLeaves = vm.listBuilder.flatScheduleOrder.value
+        val orderedLeaves = vm.listBuilder.scheduleCandidatesForFilter()
             ?.map { it.task }
             ?.filter { !it.isGroup && !it.isCompleted && !it.isInterrupt }
             ?: return null
@@ -195,9 +195,8 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     private fun rotateSiblings(onQueueTab: Boolean) {
         val current   = vm.currentTask.value
-        val flatItems = (if (onQueueTab) vm.listBuilder.flatActiveTasks
-                         else            vm.listBuilder.flatScheduleOrder)
-            .value ?: return
+        val flatItems = if (onQueueTab) vm.listBuilder.flatActiveTasks.value ?: return
+                         else            vm.listBuilder.scheduleCandidatesForFilter()
 
         val allTasks   = flatItems.map { it.task }
         val parentId   = current?.parentId
@@ -261,9 +260,8 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
         val current   = vm.currentTask.value
-        val flatItems = (if (onQueueTab) vm.listBuilder.flatActiveTasks
-                         else            vm.listBuilder.flatScheduleOrder)
-            .value ?: return
+        val flatItems = if (onQueueTab) vm.listBuilder.flatActiveTasks.value ?: return
+                         else            vm.listBuilder.scheduleCandidatesForFilter()
 
         val allTasks = flatItems.map { it.task }
 

@@ -118,6 +118,15 @@ class TaskViewModel @Inject constructor(
     internal val currentTaskOwner = CurrentTaskOwner(bus, viewModelScope, CAPABILITY_ID)
     val           currentTask: LiveData<Task?> = currentTaskOwner.current
 
+    /**
+     * Which scheduler-class tab the Schedule screen is narrowed to (view-only
+     * — see [ScheduleClassFilter]'s KDoc). Defaults to ALL (today's behavior,
+     * unchanged).
+     */
+    private val _scheduleClassFilter = MutableLiveData(ScheduleClassFilter.ALL)
+    val         scheduleClassFilter: LiveData<ScheduleClassFilter> = _scheduleClassFilter
+    fun setScheduleClassFilter(filter: ScheduleClassFilter) { _scheduleClassFilter.value = filter }
+
     internal val _timerSeconds         = MutableLiveData<Long>()
     val           timerSeconds: LiveData<Long> = _timerSeconds
 

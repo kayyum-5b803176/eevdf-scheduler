@@ -58,6 +58,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      */
     lateinit var queueDisplayList:    MediatorLiveData<List<TaskDisplayItem>>
     lateinit var scheduleDisplayList: MediatorLiveData<List<TaskDisplayItem>>
+    /** Per-class counts for the Schedule tab's popup-menu badge — see [classCounts]. */
+    lateinit var scheduleClassCounts: MediatorLiveData<Map<ScheduleClassFilter, Int>>
 
     // ── DL period-expiry auto-resort ──────────────────────────────────────────
     //
@@ -227,23 +229,119 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         scheduleDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                value = if (vm.settings.scheduleListStyle.value == TaskListStyle.DRILL_DOWN) {
-                    val tasks       = vm.activeTasks.value       ?: emptyList()
-                    val links       = vm.allTaskLinks.value       ?: emptyList()
-                    val memberships = vm.allTaskMemberships.value ?: emptyList()
-                    val drill       = vm.scheduleDrillState.value
-                    buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId)
-                } else {
-                    flatScheduleOrder.value ?: emptyList()
+                val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.ALL
+                value = when {
+                    vm.settings.scheduleListStyle.value == TaskListStyle.DRILL_DOWN -> {
+                        val tasks       = vm.activeTasks.value       ?: emptyList()
+                        val links       = vm.allTaskLinks.value       ?: emptyList()
+                        val memberships = vm.allTaskMemberships.value ?: emptyList()
+                        val drill       = vm.scheduleDrillState.value
+                        buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId)
+                    }
+                    filter != ScheduleClassFilter.ALL ->
+                        buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter)
+                    else -> flatScheduleOrder.value ?: emptyList()
                 }
             }
             addSource(flatScheduleOrder)             { rebuild() }
             addSource(vm.settings.scheduleListStyle) { rebuild() }
             addSource(vm.scheduleDrillState)         { rebuild() }
+            addSource(vm.scheduleClassFilter)        { rebuild() }
+        }
+
+        scheduleClassCounts = MediatorLiveData<Map<ScheduleClassFilter, Int>>().apply {
+            fun rebuild() { value = classCounts(vm.activeTasks.value ?: emptyList()) }
+            addSource(vm.activeTasks) { rebuild() }
         }
     }
 
-    // ── Links feature helpers ─────────────────────────────────────────────────
+    // ── Schedule-class filter (Queue-tab style tabs, keyed by scheduler class) ──
+    //
+    // A task's own schedulerClass never changes based on nesting (fundamental
+    // #2 — see current-task-owner.kt / TaskRepository.selectNextCgroup for the
+    // real scheduling decision, which this filter has zero effect on). This is
+    // a pure VIEW narrowing: which pre-existing tree do we show.
+    //
+    // Ownership rule:
+    //   - A GROUP with its own non-FAIR class (DEADLINE/RT) owns its ENTIRE
+    //     subtree for tab purposes — every descendant at any depth, regardless
+    //     of its own individual class, appears only in that one tab.
+    //   - A plain FAIR-owned group never claims descendants this way. Each
+    //     matching descendant (found at any depth) is shown under only its
+    //     own IMMEDIATE parent as one level of context — intermediate FAIR
+    //     ancestors above that are not reproduced, keeping the filtered view
+    //     flat rather than a full breadcrumb.
+
+    /** Per-class counts of top-level entities (leaf tasks OR owned-group roots) system-wide. */
+    internal fun classCounts(tasks: List<Task>): Map<ScheduleClassFilter, Int> =
+        tasks.filter { !it.isCompleted }
+            .groupingBy { it.ownScheduleClass() }
+            .eachCount()
+            .withDefault { 0 }
+            .let { counts -> ScheduleClassFilter.values().associateWith { counts.getValue(it) } }
+
+    internal fun buildFilteredScheduleList(tasks: List<Task>, filter: ScheduleClassFilter): List<TaskDisplayItem> {
+        val active   = tasks.filter { !it.isCompleted }
+        val byParent = active.groupBy { it.parentId }
+        val result   = mutableListOf<TaskDisplayItem>()
+
+        fun itemFor(t: Task, depth: Int) = TaskDisplayItem(
+            task = t, depth = depth,
+            isDlActive = t.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
+            isRtActive = t.ownScheduleClass() == ScheduleClassFilter.RT,
+        )
+
+        // A group's own class matched the filter: take the WHOLE subtree, any depth.
+        fun addOwnedSubtree(node: Task, depth: Int) {
+            result.add(itemFor(node, depth))
+            byParent[node.id].orEmpty().forEach { addOwnedSubtree(it, depth + 1) }
+        }
+
+        // Finds matches anywhere below `node`, tagging each with its own
+        // IMMEDIATE parent (updated at every level) — never a grandparent.
+        // Stops descending into an owned (non-FAIR) group: that subtree
+        // belongs wholly to its own top-level tab, not surfaced here too.
+        fun collectMatches(node: Task, immediateParent: Task?): List<Pair<Task?, Task>> {
+            val cls = node.ownScheduleClass()
+            if (node.isGroup && cls != ScheduleClassFilter.FAIR) return emptyList()
+            if (!node.isGroup) return if (cls == filter) listOf(immediateParent to node) else emptyList()
+            return byParent[node.id].orEmpty().flatMap { collectMatches(it, node) }
+        }
+
+        fun renderGrouped(matches: List<Pair<Task?, Task>>) {
+            matches.groupBy({ it.first }, { it.second }).forEach { (parent, children) ->
+                if (parent != null) result.add(itemFor(parent, 0))
+                val depth = if (parent != null) 1 else 0
+                children.forEach { result.add(itemFor(it, depth)) }
+            }
+        }
+
+        for (root in byParent[null].orEmpty()) {
+            val cls = root.ownScheduleClass()
+            when {
+                root.isGroup && cls != ScheduleClassFilter.FAIR ->
+                    if (cls == filter) addOwnedSubtree(root, 0)
+                !root.isGroup ->
+                    if (cls == filter) result.add(itemFor(root, 0))
+                else -> renderGrouped(collectMatches(root, null))
+            }
+        }
+        return result
+    }
+
+    /**
+     * The Schedule tab's current candidate list with the class filter applied
+     * but WITHOUT drill-down narrowing — used by [SchedulerDelegate]'s "Next"
+     * actions, which cycle through the filtered set but were never drill-down
+     * aware and shouldn't silently become so as a side effect of this filter.
+     */
+    internal fun scheduleCandidatesForFilter(): List<TaskDisplayItem> {
+        val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.ALL
+        return if (filter == ScheduleClassFilter.ALL) flatScheduleOrder.value ?: emptyList()
+               else buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter)
+    }
+
+
 
     /**
      * Builds a symlink's display row. Always shows the TARGET's live data

@@ -6,12 +6,16 @@ import com.eevdf.capabilities.taskscheduling.RrStatePort
 import com.eevdf.capabilities.taskscheduling.RtPolicy
 
 /**
- * The single entry point for "what runs next" and "what order is the queue in".
- *
- * In the reference app this decision was smeared across `TaskRepository`,
- * `ListBuilderDelegate`, and `SchedulerDelegate`, each re-deriving class
- * precedence and re-querying the clock. Here it is one cohesive, pure use-case:
- * sample the world once ([Now]), pass it in, get a deterministic answer.
+ * A pure, tested reference implementation of "what runs next" — NOT currently
+ * the app's actual decision path. That's [com.eevdf.capabilities.taskstorage.TaskRepository.selectNextCgroup],
+ * which independently re-derives the same DL > RT > EEVDF class precedence
+ * directly on the Room `Task` entity. This class exists as [SchedTask]-based,
+ * side-effect-free logic with direct unit-test coverage (`eevdf-scheduler-test.kt`)
+ * of the algorithm's correctness — but it is dead code in production until
+ * `TaskRepository` is migrated to call into it instead of maintaining its own
+ * copy. Until then, treat this file's doc comments describing itself as "the
+ * single entry point" as aspirational, not current fact — the app has two
+ * live implementations of task selection, not one.
  *
  * Class precedence mirrors Linux: deadline > rt > fair (stop/idle omitted).
  * Within the fair class, EEVDF decides; RT uses window + FIFO/RR; DL wins

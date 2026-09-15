@@ -612,8 +612,58 @@ class MainActivity : AppCompatActivity() {
                 menuSyncDelegate.syncTabVisibility()
             }
             override fun onTabUnselected(tab: TabLayout.Tab) {}
-            override fun onTabReselected(tab: TabLayout.Tab) {}
+            // Tapping the Schedule tab again while already on it opens the
+            // class-filter popup — no new control added to the layout, per
+            // the existing tab itself being the anchor.
+            override fun onTabReselected(tab: TabLayout.Tab) {
+                if (tab.position == 1) showScheduleClassFilterMenu(tabLayout)
+            }
         })
+
+        viewModel.scheduleClassFilter.observe(this) { updateScheduleTabBadge() }
+        viewModel.listBuilder.scheduleClassCounts.observe(this) { updateScheduleTabBadge() }
+    }
+
+    /**
+     * Popup menu anchored on the Schedule tab itself (no new UI control) —
+     * lets the person narrow the tab to one scheduler class. Selecting a
+     * class never changes any task's own class or how "next" is picked
+     * (see [ScheduleClassFilter]'s KDoc) — purely which pre-existing rows show.
+     */
+    private fun showScheduleClassFilterMenu(anchor: View) {
+        val popup = android.widget.PopupMenu(this, anchor)
+        ScheduleClassFilter.values().forEach { f ->
+            popup.menu.add(0, f.ordinal, f.ordinal, f.label)
+        }
+        popup.setOnMenuItemClickListener { item ->
+            viewModel.setScheduleClassFilter(ScheduleClassFilter.values()[item.itemId])
+            true
+        }
+        popup.show()
+    }
+
+    /**
+     * M3 badge on the Schedule tab (see https://m3.material.io/components/badges/overview) —
+     * number only, no icon. Shows the count of classes MORE urgent than the
+     * currently selected filter that are NOT visible in the current tab (e.g.
+     * on the RT filter, shows the Deadline count; hidden entirely on ALL or
+     * on DEADLINE, since nothing is more urgent than either).
+     */
+    private fun updateScheduleTabBadge() {
+        val tab    = tabLayout.getTabAt(1) ?: return
+        val filter = viewModel.scheduleClassFilter.value ?: ScheduleClassFilter.ALL
+        val counts = viewModel.listBuilder.scheduleClassCounts.value ?: emptyMap()
+        val moreUrgentCount = ScheduleClassFilter.URGENCY_ORDER
+            .takeWhile { it != filter }
+            .sumOf { counts[it] ?: 0 }
+        if (filter == ScheduleClassFilter.ALL || moreUrgentCount <= 0) {
+            tab.removeBadge()
+        } else {
+            tab.orCreateBadge.apply {
+                number    = moreUrgentCount
+                isVisible = true
+            }
+        }
     }
 
     /**
