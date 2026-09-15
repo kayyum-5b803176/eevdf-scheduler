@@ -54,7 +54,7 @@ internal class AlarmOverrunDelegate(private val vm: TaskViewModel) {
             // only runs on the alarm-restore path (not on pause/cancel), so it
             // cannot interfere with an in-flight delay/wait phase.
             vm.notice.resetState()
-            vm._currentTask.postValue(resetTask)
+            vm.currentTaskOwner.setAsync(resetTask)
             vm._timerSeconds.postValue(resetTask.timeSliceSeconds)
             vm.taskToRestoreAfterExpire = null
         }
@@ -78,7 +78,7 @@ internal class AlarmOverrunDelegate(private val vm: TaskViewModel) {
     fun restartAfterExpire(fallbackName: String? = null) {
         val inMemory = vm.taskToRestoreAfterExpire
         // Null BEFORE stopAlarmSound() so its restore branch is skipped — otherwise
-        // its queued postValue() would overwrite _currentTask / _timerSeconds with
+        // its queued postValue() would overwrite the current task / _timerSeconds with
         // the idle reset task moments after we start the timer.
         vm.taskToRestoreAfterExpire = null
         stopAlarmSound()
@@ -99,7 +99,7 @@ internal class AlarmOverrunDelegate(private val vm: TaskViewModel) {
     /** Seats [task] on the timer card with a full reset slice and starts it. */
     private fun startFreshSlice(task: Task) {
         val fresh = task
-            .withTimerState(TaskTimerState.reset())
+            .withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
             .copy(remainingSeconds = task.timeSliceSeconds)
         vm.setCurrentTask(fresh)
         vm._timerSeconds.value = fresh.timeSliceSeconds

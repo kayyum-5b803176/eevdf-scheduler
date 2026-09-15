@@ -84,11 +84,12 @@ sealed class TimerStartEvent {
          * before constructing [TaskTimerState.Running] — never pass remainingSeconds here.
          *
          * @param state   task.timerState — the exact sealed state last written by the engine.
-         * @param nowMs   wall-clock epoch of the Start press (default = System.currentTimeMillis()).
+         * @param nowMs   wall-clock epoch of the Start press — caller's own
+         *                sampled "now" (kernel rule 1), not read here.
          */
         fun from(
             state: TaskTimerState,
-            nowMs: Long = System.currentTimeMillis()
+            nowMs: Long
         ): TimerStartEvent {
             // elapsedMs reads accumulatedMs directly from the Paused/Running state —
             // no seconds conversion, no truncation.

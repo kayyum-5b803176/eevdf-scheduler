@@ -10,6 +10,7 @@ import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
 import com.eevdf.kernel.eventbus.EventBus
+import com.eevdf.kernel.clock.SystemClock
 import com.eevdf.kernel.supervisor.Supervisor
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -60,7 +61,7 @@ class VruntimeStalenessRegressionTest {
         db = Room.inMemoryDatabaseBuilder(context, TaskDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        val runLogRepository = RunLogRepository(db.runLogDao(), context)
+        val runLogRepository = RunLogRepository(db.runLogDao(), context, SystemClock())
         repository = TaskRepository(
             dao = db.taskDao(),
             runLog = runLogRepository,
@@ -74,6 +75,7 @@ class VruntimeStalenessRegressionTest {
             // cheap here and exercises the actual publish path this test's
             // writes now go through.
             bus = EventBus(Supervisor()),
+            clock = SystemClock(),
         )
     }
 
@@ -124,7 +126,7 @@ class VruntimeStalenessRegressionTest {
 
         // ── Act 2: simulate "start again", using the RETURNED (fresh) task —
         // exactly what every real caller in the app now does. ───────────────
-        val started = afterPause.withTimerState(TaskTimerState.resume(afterPause.timerState, nowMs))
+        val started = afterPause.withTimerState(TaskTimerState.resume(afterPause.timerState, nowMs), nowMs)
         db.taskDao().update(started)
 
         // ── Assert 2: re-read from the DB — a completely fresh query, not

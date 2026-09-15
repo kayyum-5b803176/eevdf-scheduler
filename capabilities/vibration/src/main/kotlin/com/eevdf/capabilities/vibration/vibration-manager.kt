@@ -10,6 +10,8 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import com.eevdf.capabilities.settingsstorage.state.SoundPrefs
 import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
+import com.eevdf.kernel.clock.Clock
+import com.eevdf.kernel.clock.SystemClock
 
 /**
  * Moved from the old `feedback-cues` capability (deleted — see
@@ -28,6 +30,16 @@ object VibrationManager {
     // ── Internal state ────────────────────────────────────────────────────────
     private var stopTimeMs: Long = Long.MAX_VALUE
     @Volatile private var vibrating = false
+
+    /**
+     * Not Hilt-injectable (plain `object`, not an `@AndroidEntryPoint`
+     * component) — so unlike a class, this can't take [Clock] as a
+     * constructor/field injection. Same rule-1 intent as everywhere else
+     * (one real clock, swappable in tests): production leaves this as the
+     * default [SystemClock]; a test replaces it with
+     * [com.eevdf.kernel.clock.FixedClock] before calling in.
+     */
+    internal var clock: Clock = SystemClock()
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -54,7 +66,7 @@ object VibrationManager {
         val timeoutMs   = if (timeoutSec == 0) Long.MAX_VALUE else timeoutSec * 1000L
 
         val vib = getVibrator(context)
-        stopTimeMs = System.currentTimeMillis() + timeoutMs
+        stopTimeMs = clock.nowEpochMillis() + timeoutMs
         vibrating  = true
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -67,7 +79,7 @@ object VibrationManager {
         // Auto-stop after timeout
         if (timeoutSec > 0) {
             Handler(Looper.getMainLooper()).postDelayed({
-                if (vibrating && System.currentTimeMillis() >= stopTimeMs) stop(context)
+                if (vibrating && clock.nowEpochMillis() >= stopTimeMs) stop(context)
             }, timeoutMs)
         }
     }

@@ -49,7 +49,7 @@ internal class BubbleTapDelegate(private val vm: TaskViewModel) {
             return
         }
 
-        val current = vm._currentTask.value
+        val current = vm.currentTask.value
 
         if (current?.id == callTaskId) {
             // Case A: call task is already active — toggle pause/resume
@@ -67,7 +67,7 @@ internal class BubbleTapDelegate(private val vm: TaskViewModel) {
             if (vm._timerRunning.value == true) vm.pauseTimer()
 
             // Switch to the call task and start it
-            vm._currentTask.value  = callTask
+            vm.currentTaskOwner.set(callTask)
             vm._timerSeconds.value = callTask.remainingSeconds
             vm.startTimer()
             vm._toastMessage.value = "Switched to \"${callTask.name}\""

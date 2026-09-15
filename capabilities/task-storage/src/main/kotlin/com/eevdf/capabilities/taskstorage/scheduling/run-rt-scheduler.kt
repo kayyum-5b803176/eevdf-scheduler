@@ -14,22 +14,22 @@ import javax.inject.Singleton
 @Singleton
 class RtSchedulerService @Inject constructor() {
 
-    fun isRtWindowActive(task: Task, nowMs: Long = System.currentTimeMillis()): Boolean =
+    fun isRtWindowActive(task: Task, nowMs: Long): Boolean =
         RtScheduler.isRtWindowActive(task, nowMs)
 
-    fun nextActivationMs(task: Task, nowMs: Long = System.currentTimeMillis()): Long =
+    fun nextActivationMs(task: Task, nowMs: Long): Long =
         RtScheduler.nextActivationMs(task, nowMs)
 
-    fun nextDeactivationMs(task: Task, nowMs: Long = System.currentTimeMillis()): Long =
+    fun nextDeactivationMs(task: Task, nowMs: Long): Long =
         RtScheduler.nextDeactivationMs(task, nowMs)
 
-    fun nextResortMs(tasks: List<Task>, nowMs: Long = System.currentTimeMillis()): Long =
+    fun nextResortMs(tasks: List<Task>, nowMs: Long): Long =
         RtScheduler.nextResortMs(tasks, nowMs)
 
     fun pickRrTask(
         activeTasks: List<Task>,
         prefs: SharedPreferences,
-        nowMs: Long = System.currentTimeMillis(),
+        nowMs: Long,
     ): Task? = RtScheduler.pickRrTask(activeTasks, prefs, nowMs)
 
     fun advanceRrIndex(prefs: SharedPreferences, cohortSize: Int) =
@@ -39,7 +39,7 @@ class RtSchedulerService @Inject constructor() {
         RtScheduler.clearRrState(prefs)
 
     fun hasActiveRtDescendant(
-        task: Task, allTasks: List<Task>, nowMs: Long = System.currentTimeMillis(),
+        task: Task, allTasks: List<Task>, nowMs: Long,
     ): Boolean = RtScheduler.hasActiveRtDescendant(task, allTasks, nowMs)
 
     fun minRtUrgency(task: Task, allTasks: List<Task>): Long =

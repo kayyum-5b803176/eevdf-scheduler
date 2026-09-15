@@ -1,5 +1,7 @@
 package com.eevdf.kernel.eventbus
 
+import com.eevdf.kernel.clock.Clock
+import com.eevdf.kernel.clock.SystemClock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +44,16 @@ data class BusEventRecord(
  * the log reflects everything that happened on the bus, not just what
  * something happened to be listening for.
  */
-class BusEventLog(private val capacity: Int = 500) {
+class BusEventLog(
+    private val capacity: Int = 500,
+    /**
+     * Defaults to the real clock so every existing `BusEventLog()` call site
+     * (including tests) keeps compiling unchanged; a test that cares about
+     * deterministic timestamps can pass [com.eevdf.kernel.clock.FixedClock]
+     * explicitly (kernel rule 1).
+     */
+    private val clock: Clock = SystemClock(),
+) {
 
     private val nextId = AtomicLong(0)
     private val _events = MutableStateFlow<List<BusEventRecord>>(emptyList())
@@ -51,7 +62,7 @@ class BusEventLog(private val capacity: Int = 500) {
     val events: StateFlow<List<BusEventRecord>> = _events.asStateFlow()
 
     @Synchronized
-    fun record(topicName: String, publisherId: String, payload: String, nowMs: Long = System.currentTimeMillis()) {
+    fun record(topicName: String, publisherId: String, payload: String, nowMs: Long = clock.nowEpochMillis()) {
         val record = BusEventRecord(nextId.getAndIncrement(), topicName, publisherId, payload, nowMs)
         val updated = listOf(record) + _events.value
         _events.value = if (updated.size > capacity) updated.subList(0, capacity) else updated

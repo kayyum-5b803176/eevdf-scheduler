@@ -219,7 +219,50 @@ object Topics {
 
     /** Payload: true the instant the started-activity count leaves 0, false the instant it returns to 0. */
     val APP_FOREGROUND_CHANGED = Topic<Boolean>("app.foreground-changed", retained = true)
+
+    // ── Current-task dispatch (published by task-list-screen) ────────────────
+    //
+    // REPLACES 30+ direct writes to `TaskViewModel._currentTask` scattered
+    // across every delegate in task-list-screen (bubble-tap, timer-lifecycle,
+    // call-switch, scheduler, notice-state-machine, interrupt) — the exact
+    // same shape of problem [TIMER_RUNNING_CHANGED] already fixed for the
+    // three `BubbleEventBus` flags. "Which task is currently dispatched" is
+    // the single most load-bearing fact in the app — the scheduler's own
+    // context-switch — so it gets the same treatment: one owning object
+    // (`CurrentTaskOwner`, in task-list-screen) is the only thing allowed to
+    // change it, and every change is announced here instead of being poked
+    // directly by whichever delegate happens to want a different task running.
+    //
+    // Payload is deliberately NOT the full `Task` entity: `Task` is a Room
+    // `@Entity` (androidx import), and kernel Topics must never carry an
+    // Android type (see NOTIFICATION_CANCEL_REQUESTED's note on the same
+    // rule). Only the fields a cross-capability subscriber could plausibly
+    // need are carried, same pattern as [AlarmRingingEvent].
+    //
+    // NOT retained, matching [TIMER_RUNNING_CHANGED] exactly: a late
+    // subscriber mirrors it via its own [LatestValue] the same way
+    // `TaskViewModel.timerState` already does, rather than depending on bus
+    // retention.
+    //
+    // Published only on an actual identity change (a different task id, or a
+    // transition to/from no task) — NOT on every field refresh of the task
+    // that's already current (e.g. the once-a-second remaining-time tick).
+    // That distinction is enforced once, inside `CurrentTaskOwner`, so no
+    // call site has to reason about it — see its KDoc.
+    val CURRENT_TASK_CHANGED = Topic<CurrentTaskState>("scheduler.current-task-changed")
 }
+
+/**
+ * Payload for [Topics.CURRENT_TASK_CHANGED].
+ *
+ * [taskId] null means nothing is currently dispatched (timer card hidden /
+ * nothing selected) — the scheduler equivalent of the idle task.
+ */
+data class CurrentTaskState(
+    val taskId: String? = null,
+    val taskName: String? = null,
+    val isRunning: Boolean = false,
+)
 
 /** Which short, built-in UI cue to play — see [Topics.SOUND_CUE_REQUESTED]. */
 enum class SoundCue { EXECUTE, WAIT }

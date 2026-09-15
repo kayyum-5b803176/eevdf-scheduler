@@ -1,6 +1,7 @@
 package com.eevdf.capabilities.alarmringer
 
 import android.content.Context
+import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 
@@ -45,13 +46,14 @@ import com.eevdf.kernel.eventbus.Topics
 class TimerExpiryHandler(
     appContext: Context,
     bus: EventBus,
+    clock: Clock,
 ) {
     init {
         bus.subscribe(Topics.TIMER_EXPIRED, CAPABILITY_ID) { taskId ->
-            TimerExpiryLog.recordExpiry(appContext, taskId)
+            TimerExpiryLog.recordExpiry(appContext, taskId, clock.nowEpochMillis())
         }
         bus.subscribe(Topics.REALTIME_WINDOW_EXPIRED, CAPABILITY_ID) { taskId ->
-            TimerExpiryLog.recordRtWindowExpiry(appContext, taskId)
+            TimerExpiryLog.recordRtWindowExpiry(appContext, taskId, clock.nowEpochMillis())
         }
     }
 
@@ -74,14 +76,14 @@ object TimerExpiryLog {
     private const val KEY_RT_TASK_ID = "last_rt_window_expired_task_id"
     private const val KEY_RT_EPOCH   = "last_rt_window_expired_epoch_ms"
 
-    fun recordExpiry(context: Context, taskId: String, nowMs: Long = System.currentTimeMillis()) {
+    fun recordExpiry(context: Context, taskId: String, nowMs: Long) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_TASK_ID, taskId)
             .putLong(KEY_EPOCH, nowMs)
             .apply()
     }
 
-    fun recordRtWindowExpiry(context: Context, taskId: String, nowMs: Long = System.currentTimeMillis()) {
+    fun recordRtWindowExpiry(context: Context, taskId: String, nowMs: Long) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_RT_TASK_ID, taskId)
             .putLong(KEY_RT_EPOCH, nowMs)

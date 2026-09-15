@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.eevdf.capabilities.navigationroutes.AppRoutes
+import com.eevdf.kernel.clock.Clock
+import com.eevdf.kernel.clock.SystemClock
 
 /**
  * The ONLY class in the app that is allowed to call AlarmManager or write AlarmState.
@@ -50,6 +52,9 @@ object AlarmScheduler {
 
     private const val REQUEST_CODE = 0xA1A7_EE00.toInt()
 
+    /** Not Hilt-injectable (plain `object`) — see VibrationManager's identical note. */
+    internal var clock: Clock = SystemClock()
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
@@ -64,7 +69,7 @@ object AlarmScheduler {
         remainingSecs: Long,
         taskType: String
     ) {
-        val triggerEpoch = System.currentTimeMillis() + remainingSecs * 1000L
+        val triggerEpoch = clock.nowEpochMillis() + remainingSecs * 1000L
 
         // Write state before AlarmManager call — crash-safe ordering.
         AlarmState.write(context, AlarmState.Scheduled(taskName, triggerEpoch, taskType))
@@ -112,12 +117,12 @@ object AlarmScheduler {
      *   the caller must not start the alarm service.
      */
     fun onAlarmFired(context: Context): Boolean {
-        return when (val state = AlarmState.read(context)) {
+        return when (val state = AlarmState.read(context, clock.nowEpochMillis())) {
             is AlarmState.Scheduled -> {
                 AlarmState.write(context, AlarmState.Ringing(
                     taskName   = state.taskName,
                     taskType   = state.taskType,
-                    firedEpoch = System.currentTimeMillis()
+                    firedEpoch = clock.nowEpochMillis()
                 ))
                 true
             }
@@ -141,7 +146,7 @@ object AlarmScheduler {
     }
 
     /** Read current state — for diagnostic / recovery use only. */
-    fun currentState(context: Context): AlarmState = AlarmState.read(context)
+    fun currentState(context: Context): AlarmState = AlarmState.read(context, clock.nowEpochMillis())
 
     // ── Internal ──────────────────────────────────────────────────────────────
 

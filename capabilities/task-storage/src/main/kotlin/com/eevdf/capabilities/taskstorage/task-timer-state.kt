@@ -71,7 +71,7 @@ sealed class TaskTimerState {
          * Total milliseconds consumed as of [nowMs].
          * THE ONLY function in the app that computes elapsed time.
          */
-        fun elapsedMs(state: TaskTimerState, nowMs: Long = System.currentTimeMillis()): Long =
+        fun elapsedMs(state: TaskTimerState, nowMs: Long): Long =
             when (state) {
                 is Idle    -> 0L
                 is Paused  -> state.accumulatedMs
@@ -83,21 +83,21 @@ sealed class TaskTimerState {
         fun remainingMs(
             state: TaskTimerState,
             sliceMs: Long,
-            nowMs: Long = System.currentTimeMillis()
+            nowMs: Long
         ): Long = (sliceMs - elapsedMs(state, nowMs)).coerceAtLeast(0L)
 
         /** Remaining whole seconds for UI display. */
         fun remainingSecs(
             state: TaskTimerState,
             sliceSecs: Long,
-            nowMs: Long = System.currentTimeMillis()
+            nowMs: Long
         ): Long = remainingMs(state, sliceSecs * 1000L, nowMs) / 1000L
 
         /** Progress 0–100 for the card progress bar. */
         fun progress(
             state: TaskTimerState,
             sliceMs: Long,
-            nowMs: Long = System.currentTimeMillis()
+            nowMs: Long
         ): Int {
             if (sliceMs == 0L) return 0
             return (elapsedMs(state, nowMs) * 100L / sliceMs).toInt().coerceIn(0, 100)
@@ -106,7 +106,7 @@ sealed class TaskTimerState {
         fun isExpired(
             state: TaskTimerState,
             sliceMs: Long,
-            nowMs: Long = System.currentTimeMillis()
+            nowMs: Long
         ): Boolean = remainingMs(state, sliceMs, nowMs) == 0L
 
         // ── Transitions ───────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ sealed class TaskTimerState {
          */
         fun resume(
             state: TaskTimerState,
-            nowMs: Long = System.currentTimeMillis()
+            nowMs: Long
         ): Running = Running(
             accumulatedMs  = elapsedMs(state, nowMs),
             startTimeEpoch = nowMs
@@ -129,7 +129,7 @@ sealed class TaskTimerState {
          */
         fun pause(
             state: TaskTimerState,
-            nowMs: Long = System.currentTimeMillis()
+            nowMs: Long
         ): Paused = Paused(elapsedMs(state, nowMs))
 
         /** any → Idle (full reset — clears all accumulated ms). */

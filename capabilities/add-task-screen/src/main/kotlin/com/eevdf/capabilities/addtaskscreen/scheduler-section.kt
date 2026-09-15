@@ -166,7 +166,7 @@ internal fun AddTaskActivity.setupSchedulerClassSection() {
 
 /** Stamps [pendingDlPeriodStartEpoch] with now and updates the display. */
 private fun AddTaskActivity.applyRtSync() {
-    pendingDlPeriodStartEpoch = System.currentTimeMillis()
+    pendingDlPeriodStartEpoch = clock.nowEpochMillis()
     tvDlRtSyncValue.text = formatRtSyncTimestamp(pendingDlPeriodStartEpoch)
 }
 

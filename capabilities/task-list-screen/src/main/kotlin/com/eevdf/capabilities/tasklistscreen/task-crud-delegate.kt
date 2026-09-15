@@ -49,9 +49,9 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
     }
 
     fun deleteTask(task: Task) = vm.viewModelScope.launch {
-        if (task.id == vm._currentTask.value?.id) {
+        if (task.id == vm.currentTask.value?.id) {
             vm.pauseTimer()
-            vm._currentTask.postValue(null)
+            vm.currentTaskOwner.setAsync(null)
             vm.clearPersistedSelection()
         }
         vm.repository.delete(task)
@@ -63,14 +63,14 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
 
     /** Moves a completed task back to the active queue, restoring its timer slice. */
     fun revertTask(task: Task) = vm.viewModelScope.launch {
-        val reverted = task.copy(isCompleted = false).withTimerState(TaskTimerState.reset())
+        val reverted = task.copy(isCompleted = false).withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
         vm.repository.update(reverted)
         syncPinnedWeights()
     }
 
     fun markCompleted(task: Task) = vm.viewModelScope.launch {
         vm.triggerSyncExport()               // notify other users: task completed
-        if (task.id == vm._currentTask.value?.id) vm.stopTimer(completed = true)
+        if (task.id == vm.currentTask.value?.id) vm.stopTimer(completed = true)
         else vm.repository.markCompleted(task)
         syncPinnedWeights()
         vm.refreshSchedule()

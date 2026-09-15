@@ -22,7 +22,7 @@ object AlarmDeliveryLog {
     private const val KEY_TASK    = "last_ringing_task_name"
     private const val KEY_EPOCH   = "last_ringing_epoch_ms"
 
-    fun recordRinging(context: Context, taskName: String, nowMs: Long = System.currentTimeMillis()) {
+    fun recordRinging(context: Context, taskName: String, nowMs: Long) {
         prefs(context).edit()
             .putString(KEY_TASK, taskName)
             .putLong(KEY_EPOCH, nowMs)

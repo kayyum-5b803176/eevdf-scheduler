@@ -20,6 +20,7 @@ import com.eevdf.capabilities.alarmringer.R
 import com.eevdf.capabilities.navigationroutes.AppRoutes
 import com.eevdf.capabilities.permissions.PermissionChecker
 import com.eevdf.capabilities.settingsstorage.state.NotificationPrefs
+import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.AlarmRingingEvent
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
@@ -66,6 +67,9 @@ import javax.inject.Inject
 class AlarmForegroundService : Service() {
 
     @Inject lateinit var bus: EventBus
+
+    /** Kernel's single source of "now" — injected the same way [bus] is (kernel rule 1). */
+    @Inject lateinit var clock: Clock
 
     /**
      * Started at [onCreate] because [Service] callbacks (`onStartCommand`,
@@ -335,7 +339,7 @@ class AlarmForegroundService : Service() {
                         excludeAppMatch = excludeAppMatch,
                         lockScreenOverlayEnabled = NotificationPrefs.isLockScreenOverlayEnabled(this),
                     )
-                    AlarmDeliveryLog.recordRinging(this, taskName)
+                    AlarmDeliveryLog.recordRinging(this, taskName, clock.nowEpochMillis())
 
                     // Diagnostic snapshot only — never gates behavior. Channel
                     // lookup wrapped defensively; a query failure here must not
@@ -486,7 +490,7 @@ class AlarmForegroundService : Service() {
         // Clamp to >=1s: a chronometer built with `when` <= now is already in the
         // past by render time and shows a negative count instead of "0:00".
         val safeDelaySecs = delaySecs.coerceAtLeast(1L)
-        val delayEndEpoch = System.currentTimeMillis() + safeDelaySecs * 1000L
+        val delayEndEpoch = clock.nowEpochMillis() + safeDelaySecs * 1000L
         val builder = NotificationCompat.Builder(this, CHANNEL_DELAY)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Starting soon — $taskName")
@@ -506,7 +510,7 @@ class AlarmForegroundService : Service() {
     private fun buildTimerNotification(taskName: String, remainingSecs: Long): Notification {
         // Same clamp as buildDelayNotification — see comment there.
         val safeRemainingSecs = remainingSecs.coerceAtLeast(1L)
-        val triggerEpoch = System.currentTimeMillis() + safeRemainingSecs * 1000L
+        val triggerEpoch = clock.nowEpochMillis() + safeRemainingSecs * 1000L
         val builder = NotificationCompat.Builder(this, CHANNEL_TIMER)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(taskName)
@@ -556,7 +560,7 @@ class AlarmForegroundService : Service() {
             .setContentTitle("Timer expired")
             .setContentText(taskName)
             .setOngoing(true)
-            .setWhen(System.currentTimeMillis())
+            .setWhen(clock.nowEpochMillis())
             .setShowWhen(true)
             .setUsesChronometer(true)   // counts UP from setWhen — elapsed time
             .setContentIntent(openMainActivityPi(10))

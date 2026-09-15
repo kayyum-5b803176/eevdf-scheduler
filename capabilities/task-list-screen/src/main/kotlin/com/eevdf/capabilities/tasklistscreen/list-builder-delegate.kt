@@ -95,10 +95,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      */
     private fun rescheduleDlResort(tasks: List<Task>) {
         dlResortHandler.removeCallbacks(dlResortRunnable)
+        val nowMs = vm.clock.nowEpochMillis()
         val soonestMs = tasks
             .filter { it.isDlConfigured && !it.isCompleted }
             .mapNotNull { task ->
-                val remaining = task.dlPeriodRemainingSeconds
+                val remaining = task.dlPeriodRemainingSeconds(nowMs)
                 if (remaining > 0L) remaining * 1_000L else null
             }
             .minOrNull() ?: return   // no future expiry — nothing to schedule
@@ -134,7 +135,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         // reported here.
         val justExpired = rtActiveTaskIdsAtSchedule.filter { taskId ->
             val task = vm.activeTasks.value?.find { it.id == taskId } ?: return@filter false
-            !RtScheduler.isRtWindowActive(task)
+            !RtScheduler.isRtWindowActive(task, vm.clock.nowEpochMillis())
         }
         if (justExpired.isNotEmpty()) {
             vm.viewModelScope.launch {
@@ -146,10 +147,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
     private fun rescheduleRtResort(tasks: List<Task>) {
         rtResortHandler.removeCallbacks(rtResortRunnable)
+        val nowMs = vm.clock.nowEpochMillis()
         rtActiveTaskIdsAtSchedule = tasks
-            .filter { it.isRtConfigured && !it.isCompleted && RtScheduler.isRtWindowActive(it) }
+            .filter { it.isRtConfigured && !it.isCompleted && RtScheduler.isRtWindowActive(it, nowMs) }
             .map { it.id }
-        val nextMs = RtScheduler.nextResortMs(tasks)
+        val nextMs = RtScheduler.nextResortMs(tasks, nowMs)
         if (nextMs < Long.MAX_VALUE) {
             rtResortHandler.postDelayed(rtResortRunnable, nextMs + 100L)
         }
@@ -279,7 +281,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      */
     private fun membershipDisplayItem(
         membership: TaskMembership, task: Task, depth: Int, number: String,
-        cpuShare: Double, descGroups: Int, descTasks: Int,
+        cpuShare: Double, descGroups: Int, descTasks: Int, nowMs: Long,
     ): TaskDisplayItem =
         TaskDisplayItem(
             task               = task,
@@ -289,8 +291,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             cpuShare           = cpuShare,
             childGroupCount    = descGroups,
             childTaskCount     = descTasks,
-            effectiveQuotaExceeded = task.isQuotaExceeded,
-            effectiveQuotaWarning  = task.isQuotaWarning,
+            effectiveQuotaExceeded = task.isQuotaExceeded(nowMs),
+            effectiveQuotaWarning  = task.isQuotaWarning(nowMs),
         )
 
     /**
@@ -326,6 +328,9 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         tasks: List<Task>, groupsEnabled: Boolean,
         links: List<TaskLink> = emptyList(), memberships: List<TaskMembership> = emptyList(),
     ): List<TaskDisplayItem> {
+        // Sampled ONCE for this list rebuild — every row's quota pill in this
+        // pass reads the same instant (kernel rule 1).
+        val nowMs = vm.clock.nowEpochMillis()
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
         if (!groupsEnabled) {
             return tasks
@@ -337,8 +342,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         childGroupCount        = descGroups,
                         childTaskCount         = descTasks,
                         cpuShare               = shares[it.id] ?: 0.0,
-                        effectiveQuotaExceeded = it.isQuotaExceeded,
-                        effectiveQuotaWarning  = it.isQuotaWarning,
+                        effectiveQuotaExceeded = it.isQuotaExceeded(nowMs),
+                        effectiveQuotaWarning  = it.isQuotaWarning(nowMs),
                         queueNumber            = "${index + 1}",
                         isLinkedElsewhere      = isLinkedElsewhere(it.id, links, memberships))
                 }
@@ -364,8 +369,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 // id — its actual children live under that id, not the synthetic one.
                 val realTask = if (membership != null) tasksById[membership.taskId] ?: entry else entry
                 val dc             = tasks.filter { it.parentId == realTask.id }
-                val quotaExceeded  = parentQuotaExceeded || realTask.isQuotaExceeded
-                val quotaWarning   = !quotaExceeded && (parentQuotaWarning || realTask.isQuotaWarning)
+                val quotaExceeded  = parentQuotaExceeded || realTask.isQuotaExceeded(nowMs)
+                val quotaWarning   = !quotaExceeded && (parentQuotaWarning || realTask.isQuotaWarning(nowMs))
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
                 val (descGroups, descTasks) = countDescendants(realTask.id, tasks)
@@ -379,7 +384,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     result.add(membershipDisplayItem(
                         membership, realTask, depth, number,
                         cpuShare = effectiveShares[entry.id] ?: 0.0,
-                        descGroups = descGroups, descTasks = descTasks,
+                        descGroups = descGroups, descTasks = descTasks, nowMs = nowMs,
                     ).copy(
                         childTotalRuntime      = dc.sumOf { it.totalRunTime } + realTask.totalRunTime,
                         effectiveQuotaExceeded = quotaExceeded,
@@ -458,12 +463,12 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     ): List<TaskDisplayItem> {
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
         // Captured once so all partitions and sorts use the same instant.
-        val nowMs = System.currentTimeMillis()
+        val nowMs = vm.clock.nowEpochMillis()
 
         if (!groupsEnabled) {
             val leaves   = tasks.filter { !it.isGroup }
-            val dlActive = leaves.filter { it.isDlBudgetActive }
-                .sortedBy { it.dlPeriodRemainingSeconds }
+            val dlActive = leaves.filter { it.isDlBudgetActive(nowMs) }
+                .sortedBy { it.dlPeriodRemainingSeconds(nowMs) }
             val dlIds    = dlActive.mapTo(HashSet()) { it.id }
             val rtActive = leaves.filter { it.id !in dlIds && RtScheduler.isRtWindowActive(it, nowMs) }
                 .sortedByDescending { it.rtPriority }
@@ -478,10 +483,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     childGroupCount        = descGroups,
                     childTaskCount         = descTasks,
                     cpuShare               = shares[it.id] ?: 0.0,
-                    effectiveQuotaExceeded = it.isQuotaExceeded,
-                    effectiveQuotaWarning  = it.isQuotaWarning,
+                    effectiveQuotaExceeded = it.isQuotaExceeded(nowMs),
+                    effectiveQuotaWarning  = it.isQuotaWarning(nowMs),
                     queueNumber            = "${index + 1}",
-                    isDlActive             = it.isDlBudgetActive,
+                    isDlActive             = it.isDlBudgetActive(nowMs),
                     isRtActive             = RtScheduler.isRtWindowActive(it, nowMs))
             }
         }
@@ -503,8 +508,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         // DL urgency for sorting within the DL bucket: for a promoted group,
         // urgency is the minimum remaining budget across all DL descendants.
         fun dlUrgency(task: Task): Long =
-            if (!task.isGroup) task.dlPeriodRemainingSeconds
-            else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds
+            if (!task.isGroup) task.dlPeriodRemainingSeconds(nowMs)
+            else if (task.isDlBudgetActive(nowMs)) task.dlPeriodRemainingSeconds(nowMs)
             else tasks.filter { it.parentId == task.id && !it.isCompleted }
                       .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
 
@@ -515,9 +520,9 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         fun orderChildren(children: List<Task>): List<Task> {
             val dlActive = children.filter { child ->
                 if (child.isGroup)
-                    child.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(child, tasks)
+                    child.isDlBudgetActive(nowMs) || EEVDFScheduler.hasActiveDlDescendant(child, tasks, nowMs)
                 else
-                    child.isDlBudgetActive
+                    child.isDlBudgetActive(nowMs)
             }.sortedBy { dlUrgency(it) }
             val dlIds = dlActive.mapTo(HashSet()) { it.id }
 
@@ -560,9 +565,9 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 // actual children live there, not under the synthetic id.
                 val task            = if (membership != null) tasksById[membership.taskId] ?: entry else entry
                 val dc              = tasks.filter { it.parentId == task.id }
-                val quotaExceeded   = parentQuotaExceeded || task.isQuotaExceeded
-                val quotaWarning    = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning)
-                val isTaskDlActive  = task.isDlBudgetActive
+                val quotaExceeded   = parentQuotaExceeded || task.isQuotaExceeded(nowMs)
+                val quotaWarning    = !quotaExceeded && (parentQuotaWarning || task.isQuotaWarning(nowMs))
+                val isTaskDlActive  = task.isDlBudgetActive(nowMs)
                 val isTaskRtActive  = RtScheduler.isRtWindowActive(task, nowMs)
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"
@@ -576,7 +581,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     membershipDisplayItem(
                         membership, task, depth, number,
                         cpuShare = effectiveShares[entry.id] ?: 0.0,
-                        descGroups = descGroups, descTasks = descTasks,
+                        descGroups = descGroups, descTasks = descTasks, nowMs = nowMs,
                     ).copy(
                         childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime,
                         displayVruntime = vrt,
@@ -598,7 +603,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     isDlActive             = isTaskDlActive,
                     // isDlGroupHoisted: group promoted by own DL OR a DL descendant.
                     isDlGroupHoisted       = task.isGroup &&
-                        (isTaskDlActive || EEVDFScheduler.hasActiveDlDescendant(task, tasks)),
+                        (isTaskDlActive || EEVDFScheduler.hasActiveDlDescendant(task, tasks, nowMs)),
                     isRtActive             = isTaskRtActive,
                     // isRtGroupHoisted: group promoted by own RT OR an RT descendant.
                     isRtGroupHoisted       = task.isGroup &&
@@ -640,6 +645,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         frameId: String?, tasks: List<Task>, links: List<TaskLink>, memberships: List<TaskMembership>,
         highlightTaskId: String? = null, inheritedDoor: String? = null,
     ): List<TaskDisplayItem> {
+        // Sampled ONCE for this level rebuild (kernel rule 1).
+        val nowMs = vm.clock.nowEpochMillis()
         val effectiveTasks  = EEVDFScheduler.withMemberships(tasks, memberships)
         val effectiveShares = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled = true)
         val membershipsById = memberships.associateBy { it.id }
@@ -662,7 +669,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         val (vrt, vdl) = membershipDisplayVrtVdl(task, membership)
                         membershipDisplayItem(membership, task, 0, number,
                             cpuShare = effectiveShares[entry.id] ?: 0.0,
-                            descGroups = descGroups, descTasks = descTasks
+                            descGroups = descGroups, descTasks = descTasks, nowMs = nowMs,
                         ).copy(
                             childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime,
                             isJumpHighlighted = task.id == highlightTaskId,
@@ -700,20 +707,21 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         val effectiveShares = EEVDFScheduler.computeShares(effectiveTasks, groupsEnabled = true)
         val membershipsById = memberships.associateBy { it.id }
         val tasksById       = tasks.associateBy { it.id }
-        val nowMs           = System.currentTimeMillis()
+        // Sampled ONCE for this level rebuild (kernel rule 1).
+        val nowMs           = vm.clock.nowEpochMillis()
         val result = mutableListOf<TaskDisplayItem>()
         var counter = 0
 
         fun dlUrgency(task: Task): Long =
-            if (!task.isGroup) task.dlPeriodRemainingSeconds
-            else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds
+            if (!task.isGroup) task.dlPeriodRemainingSeconds(nowMs)
+            else if (task.isDlBudgetActive(nowMs)) task.dlPeriodRemainingSeconds(nowMs)
             else tasks.filter { it.parentId == task.id && !it.isCompleted }
                       .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
 
         val children = effectiveTasks.filter { it.parentId == frameId }
         val dlActive = children.filter { child ->
-            if (child.isGroup) child.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(child, tasks)
-            else child.isDlBudgetActive
+            if (child.isGroup) child.isDlBudgetActive(nowMs) || EEVDFScheduler.hasActiveDlDescendant(child, tasks, nowMs)
+            else child.isDlBudgetActive(nowMs)
         }.sortedBy { dlUrgency(it) }
         val dlIds = dlActive.mapTo(HashSet()) { it.id }
         val rtActive = children.filter { child ->
@@ -741,7 +749,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 val (vrt, vdl) = membershipDisplayVrtVdl(task, membership)
                 membershipDisplayItem(membership, task, 0, number,
                     cpuShare = effectiveShares[entry.id] ?: 0.0,
-                    descGroups = descGroups, descTasks = descTasks
+                    descGroups = descGroups, descTasks = descTasks, nowMs = nowMs,
                 ).copy(
                     childTotalRuntime = dc.sumOf { it.totalRunTime } + task.totalRunTime,
                     displayVruntime = vrt,
@@ -758,8 +766,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             }
             result.add(baseItem.copy(
                 queueNumber      = number,
-                isDlActive       = task.isDlBudgetActive,
-                isDlGroupHoisted = task.isGroup && (task.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(task, tasks)),
+                isDlActive       = task.isDlBudgetActive(nowMs),
+                isDlGroupHoisted = task.isGroup && (task.isDlBudgetActive(nowMs) || EEVDFScheduler.hasActiveDlDescendant(task, tasks, nowMs)),
                 isRtActive       = RtScheduler.isRtWindowActive(task, nowMs),
                 isRtGroupHoisted = task.isGroup && (RtScheduler.isRtWindowActive(task, nowMs) || RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)),
                 isJumpHighlighted = task.id == highlightTaskId))

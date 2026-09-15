@@ -99,11 +99,11 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
 
             // Capture whatever was on-screen before as the thing to return to.
             // If the current card IS already the call task, there was no prior task.
-            val onScreen = vm._currentTask.value
+            val onScreen = vm.currentTask.value
             savedTaskBeforeCall = if (onScreen?.id == callTask.id) null else onScreen
 
             // Sync LiveData to show call task card with correct remaining time.
-            vm._currentTask.value  = callTask
+            vm.currentTaskOwner.set(callTask)
             vm._timerSeconds.value = callTask.remainingSeconds
             vm._timerRunning.value = true
 
@@ -115,9 +115,9 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
             // Pause FIRST.  See class kdoc above for why this ordering matters.
             vm.pauseTimer()
 
-            savedTaskBeforeCall = vm._currentTask.value
+            savedTaskBeforeCall = vm.currentTask.value
 
-            vm._currentTask.value  = callTask
+            vm.currentTaskOwner.set(callTask)
             vm._timerSeconds.value = callTask.remainingSeconds
             vm.startTimer()
             vm._toastMessage.value = "Call started → \"${callTask.name}\""
@@ -159,7 +159,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
             // Path A already ran — only sync LiveData.
             val freshTask = vm.activeTasks.value?.firstOrNull { it.id == returnTo!!.id }
                 ?: returnTo
-            vm._currentTask.value  = freshTask
+            vm.currentTaskOwner.set(freshTask)
             vm._timerSeconds.value = freshTask?.remainingSeconds ?: 0L
             vm._timerRunning.value = wasRunning
             vm._toastMessage.value = if (wasRunning)
@@ -172,14 +172,14 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
             vm.pauseTimer()
 
             if (returnTo == null) {
-                vm._currentTask.value  = null
+                vm.currentTaskOwner.set(null)
                 vm._toastMessage.value = "Call ended"
 
                 vm.viewModelScope.launch { vm.bus.publish(Topics.OVERLAY_CALL_ENDED_REQUESTED, Unit, "task-list-screen") }
                 return
             }
 
-            vm._currentTask.value  = returnTo
+            vm.currentTaskOwner.set(returnTo)
             vm._timerSeconds.value = returnTo.remainingSeconds
 
             if (wasRunning) {

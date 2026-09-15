@@ -280,7 +280,7 @@ class MultiUserSyncActivity : AppCompatActivity() {
 
     /** Returns a human-readable "time ago" string for an epoch-ms timestamp. */
     private fun formatAgo(epochMs: Long): String {
-        val diffMs = System.currentTimeMillis() - epochMs
+        val diffMs = MultiUserSyncManager.clock.nowEpochMillis() - epochMs
         return when {
             diffMs < 5_000L   -> "just now"
             diffMs < 60_000L  -> "${diffMs / 1000}s ago"

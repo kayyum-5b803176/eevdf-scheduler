@@ -37,7 +37,7 @@ object CountdownTimerManifest : CapabilityManifest {
  * `BackupCheckpointHandler`, `AlarmCommandHandler`, etc.). `TimerEngine`
  * can't follow that shape: it isn't a singleton — it's instantiated directly
  * inside `task-list-screen`'s `TaskViewModel` (`internal val timerEngine =
- * TimerEngine(bus)`), which is itself a pre-existing architectural reality
+ * TimerEngine(bus, clock)`), which is itself a pre-existing architectural reality
  * this fix doesn't attempt to unwind. Passing `bus` into the constructor
  * (optional, defaulting to null, so `TimerEngine()` still works anywhere
  * else it might be constructed, e.g. tests) keeps the publish call inside

@@ -31,6 +31,7 @@ class StatsCalendarFragment : Fragment() {
 
     @Inject lateinit var taskDao: TaskDao
     @Inject lateinit var runLogDao: RunLogDao
+    @Inject lateinit var clock: com.eevdf.kernel.clock.Clock
 
     // ── Views ─────────────────────────────────────────────────────────────────
     private lateinit var btnPrevMonth:     MaterialButton
@@ -126,7 +127,7 @@ class StatsCalendarFragment : Fragment() {
 
     private fun loadData() {
         viewLifecycleOwner.lifecycleScope.launch {
-            val nowMs      = System.currentTimeMillis()
+            val nowMs      = clock.nowEpochMillis()
             val tasks      = withContext(Dispatchers.IO) { taskDao.getAllTasksForStats() }
             val logEntries = withContext(Dispatchers.IO) { runLogDao.getEntriesInRange(0L, nowMs) }
             val dailyRows  = withContext(Dispatchers.IO) { runLogDao.getDailyInRange(0L) }

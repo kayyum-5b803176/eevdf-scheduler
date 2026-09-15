@@ -9,6 +9,8 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.eevdf.capabilities.taskstorage.TaskDatabase
+import com.eevdf.kernel.clock.Clock
+import com.eevdf.kernel.clock.SystemClock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.*
@@ -90,6 +92,9 @@ import java.util.UUID
  *  and the poll loop keeps running (self-healing on next cycle).
  */
 object MultiUserSyncManager {
+
+    /** Not Hilt-injectable (plain `object`) — see VibrationManager's identical note. */
+    internal var clock: Clock = SystemClock()
 
     // ── Prefs keys ────────────────────────────────────────────────────────────
     const val PREFS_KEY_SYNC_URI          = "multiuser_sync_uri"
@@ -464,7 +469,7 @@ object MultiUserSyncManager {
             exportPageDiff(localDb, File(syncDir, SYNC_DB_FILE))
 
             // Write meta as a plain text file — direct, no SAF
-            val version = System.currentTimeMillis()
+            val version = clock.nowEpochMillis()
             File(syncDir, SYNC_META_FILE)
                 .writeText(buildMetaJson(version).toString(2), Charsets.UTF_8)
             prefs().edit().putLong(PREFS_KEY_LAST_VER, version).apply()
@@ -551,7 +556,7 @@ object MultiUserSyncManager {
         sessionBytesWritten += bytesWritten
         _writeStats.postValue(
             SyncWriteStats(
-                lastExportMs        = System.currentTimeMillis(),
+                lastExportMs        = clock.nowEpochMillis(),
                 lastDbSizeBytes     = srcLen,
                 lastBytesWritten    = bytesWritten,
                 lastPagesWritten    = pagesWritten,

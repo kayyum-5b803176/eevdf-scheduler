@@ -7,6 +7,7 @@ import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
+import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,9 @@ class TaskRepository @Inject constructor(
     private val taskMembershipDao: TaskMembershipDao,   // ← new: hardlinks
     /** Kernel event bus — publishes `task.saved` (rule 3: bus-only, never a direct call out). */
     private val bus: EventBus,
+    /** Single source of "now" for every scheduling decision (kernel rule 1) —
+     *  never `System.currentTimeMillis()` inline. See kernel/clock/Clock's KDoc. */
+    private val clock: Clock,
 ) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
@@ -662,12 +666,12 @@ class TaskRepository @Inject constructor(
      */
     private fun applyQuotaAccounting(task: Task, secondsRan: Long) {
         if (!task.isQuotaEnabled) return
-        val nowMs = System.currentTimeMillis()
+        val nowMs = clock.nowEpochMillis()
 
         // Snapshot the continuously-decayed value at this instant, then reset the
         // anchor to now.  This means the next tick in currentQuotaUsed always starts
         // from the correct baseline rather than accumulating floating-point drift.
-        val decayedNow = if (task.quotaPeriodStartEpoch == 0L) 0L else task.currentQuotaUsed
+        val decayedNow = if (task.quotaPeriodStartEpoch == 0L) 0L else task.currentQuotaUsed(nowMs)
 
         task.quotaPeriodStartEpoch = nowMs
         task.quotaUsedSeconds      = (decayedNow + secondsRan).coerceAtLeast(0L)
@@ -747,7 +751,7 @@ class TaskRepository @Inject constructor(
      */
     private fun applyDlAccounting(task: Task, secondsRan: Long) {
         if (!task.isDlConfigured) return
-        val nowMs             = System.currentTimeMillis()
+        val nowMs             = clock.nowEpochMillis()
         val effectivePeriodMs = task.dlEffectivePeriodSeconds * 1_000L
 
         if (task.dlPeriodStartEpoch == 0L) {
@@ -789,13 +793,17 @@ class TaskRepository @Inject constructor(
      */
     suspend fun selectNextTask(): Task? = withContext(Dispatchers.IO) {
         val allActive = dao.getActiveTasksSync()
-        selectNextCgroup(allActive, null)
+        // Sampled ONCE here and threaded through every recursion level below —
+        // not re-read per RT/DL check — so a single decision can't observe two
+        // different instants of "now" (kernel rule 1).
+        selectNextCgroup(allActive, null, nowMs = clock.nowEpochMillis())
     }
 
     private fun selectNextCgroup(
         all: List<Task>,
         parentId: String?,
-        visited: MutableSet<String> = mutableSetOf()
+        visited: MutableSet<String> = mutableSetOf(),
+        nowMs: Long,
     ): Task? {
         // Exclude already-tried empty groups to prevent infinite recursion
         val level = all.filter {
@@ -814,14 +822,14 @@ class TaskRepository @Inject constructor(
         // This matches Linux SCHED_DEADLINE which always picks the entity with the
         // earliest absolute deadline among eligible deadline tasks/groups.
         fun minDlUrgency(task: Task): Long =
-            if (!task.isGroup) task.dlPeriodRemainingSeconds
-            else if (task.isDlBudgetActive) task.dlPeriodRemainingSeconds   // group's own DL
+            if (!task.isGroup) task.dlPeriodRemainingSeconds(nowMs)
+            else if (task.isDlBudgetActive(nowMs)) task.dlPeriodRemainingSeconds(nowMs)   // group's own DL
             else all.filter { it.parentId == task.id && !it.isCompleted }
                     .minOfOrNull { minDlUrgency(it) } ?: Long.MAX_VALUE
 
         val dlUrgent = level.filter { entry ->
-            if (entry.isGroup) entry.isDlBudgetActive || EEVDFScheduler.hasActiveDlDescendant(entry, all)
-            else entry.isDlBudgetActive
+            if (entry.isGroup) entry.isDlBudgetActive(nowMs) || EEVDFScheduler.hasActiveDlDescendant(entry, all, nowMs)
+            else entry.isDlBudgetActive(nowMs)
         }.sortedBy { minDlUrgency(it) }
 
         // Try DL-urgent candidates first, then fall back to normal EEVDF selection
@@ -829,8 +837,8 @@ class TaskRepository @Inject constructor(
             if (dlEntry.id in visited) continue
             val result = if (dlEntry.isGroup) {
                 visited.add(dlEntry.id)
-                selectNextCgroup(all, dlEntry.id, visited)
-                    ?: selectNextCgroup(all, parentId, visited) // group was empty, continue
+                selectNextCgroup(all, dlEntry.id, visited, nowMs)
+                    ?: selectNextCgroup(all, parentId, visited, nowMs) // group was empty, continue
             } else {
                 dlEntry // leaf DL task — return directly
             }
@@ -843,8 +851,8 @@ class TaskRepository @Inject constructor(
         // if any descendant has an active RT window.
         // Among RT tasks: highest rtPriority wins; FIFO = never rotate, RR = round-robin.
         val rtUrgent = level.filter { entry ->
-            if (entry.isGroup) RtScheduler.isRtWindowActive(entry) || RtScheduler.hasActiveRtDescendant(entry, all)
-            else RtScheduler.isRtWindowActive(entry)
+            if (entry.isGroup) RtScheduler.isRtWindowActive(entry, nowMs) || RtScheduler.hasActiveRtDescendant(entry, all, nowMs)
+            else RtScheduler.isRtWindowActive(entry, nowMs)
         }
 
         if (rtUrgent.isNotEmpty()) {
@@ -855,8 +863,8 @@ class TaskRepository @Inject constructor(
                 if (!entry.isGroup) listOf(entry)
                 else {
                     val rtChildren = all.filter { it.parentId == entry.id && !it.isCompleted &&
-                                                  !it.isRunning && RtScheduler.isRtWindowActive(it) }
-                    if (rtChildren.isEmpty() && RtScheduler.isRtWindowActive(entry)) {
+                                                  !it.isRunning && RtScheduler.isRtWindowActive(it, nowMs) }
+                    if (rtChildren.isEmpty() && RtScheduler.isRtWindowActive(entry, nowMs)) {
                         all.filter { it.parentId == entry.id && !it.isCompleted &&
                                      !it.isRunning && !it.isGroup }
                     } else rtChildren
@@ -879,8 +887,8 @@ class TaskRepository @Inject constructor(
             visited.add(winner.id)
             // Drill into the group; if it has no eligible children fall back at
             // the SAME level (not root) — skipping the now-visited empty group
-            selectNextCgroup(all, winner.id, visited)
-                ?: selectNextCgroup(all, parentId, visited)
+            selectNextCgroup(all, winner.id, visited, nowMs)
+                ?: selectNextCgroup(all, parentId, visited, nowMs)
         } else {
             winner
         }

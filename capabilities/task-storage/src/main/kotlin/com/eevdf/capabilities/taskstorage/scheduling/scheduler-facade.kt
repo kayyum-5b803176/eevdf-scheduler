@@ -167,22 +167,32 @@ object EEVDFScheduler {
             .mapNotNull { s -> byId[s.id]?.copy(internalWeight = s.internalWeight) }
     }
 
-    fun hasActiveDlDescendant(task: Task, allTasks: List<Task>): Boolean {
-        if (!task.isGroup) return task.isDlBudgetActive
+    fun hasActiveDlDescendant(task: Task, allTasks: List<Task>, nowMs: Long): Boolean {
+        if (!task.isGroup) return task.isDlBudgetActive(nowMs)
         // A group with its OWN active DL budget counts — without this check a
         // DL-class group with only CFS children returns false, breaking the
         // upward chain: grandparent groups would never see it as a DL entity.
-        if (task.isDlBudgetActive) return true
+        if (task.isDlBudgetActive(nowMs)) return true
         return allTasks.filter { it.parentId == task.id && !it.isCompleted }.any { child ->
-            if (child.isGroup) hasActiveDlDescendant(child, allTasks) else child.isDlBudgetActive
+            if (child.isGroup) hasActiveDlDescendant(child, allTasks, nowMs) else child.isDlBudgetActive(nowMs)
         }
     }
 
-    fun getStats(tasks: List<Task>, groupsEnabled: Boolean = false, runningId: String? = null): SchedulerStats {
+    /**
+     * @param nowMs Sampled once by the caller (kernel rule 1) and passed in
+     * explicitly — not read here, so a stats snapshot never disagrees with
+     * whatever "now" the caller's own decision was based on.
+     */
+    fun getStats(
+        tasks: List<Task>,
+        groupsEnabled: Boolean = false,
+        runningId: String? = null,
+        nowMs: Long,
+    ): SchedulerStats {
         val active = tasks.filter { !it.isCompleted }
         val completed = tasks.filter { it.isCompleted }
         // System load = sum of all tasks' current (lazily-decayed) load averages.
-        val load = LoadAverage.systemLoad(tasks, System.currentTimeMillis(), runningId)
+        val load = LoadAverage.systemLoad(tasks, nowMs, runningId)
         return if (!groupsEnabled) {
             SchedulerStats(
                 totalTasks = tasks.size, activeTasks = active.size, completedTasks = completed.size,

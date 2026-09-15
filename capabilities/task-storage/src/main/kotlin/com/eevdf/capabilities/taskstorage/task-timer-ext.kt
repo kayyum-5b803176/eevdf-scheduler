@@ -32,9 +32,12 @@ val Task.timerState: TaskTimerState
  *   startTimeEpoch   — epoch ms when current session started (0 = not running)
  *   isRunning        — derived from whether newState is Running
  *   remainingSeconds — cached snapshot for adapters / EEVDF
+ * @param nowMs Caller's own single sampled "now" (kernel rule 1) — not read
+ * here, even though several transitions (Idle/Expired) don't actually depend
+ * on it, so this function never has two different notions of clock behavior
+ * depending on which state it's handed.
  */
-fun Task.withTimerState(newState: TaskTimerState): Task {
-    val nowMs     = System.currentTimeMillis()
+fun Task.withTimerState(newState: TaskTimerState, nowMs: Long): Task {
     val sliceMs   = timeSliceSeconds * 1000L
     val elapsedMs = TaskTimerState.elapsedMs(newState, nowMs).coerceAtMost(sliceMs)
     val remainSec = ((sliceMs - elapsedMs) / 1000L).coerceAtLeast(0L)

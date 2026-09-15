@@ -16,6 +16,7 @@ import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.CallState
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.LatestValue
@@ -95,6 +96,14 @@ class CallSwitchService : Service() {
     /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
     @Inject lateinit var bus: EventBus
 
+    /**
+     * The kernel's single source of "now" (kernel rule 1) — injected the same
+     * way [bus] itself is, never constructed locally, so this service's clock
+     * reads can be faked in tests exactly like production wiring provides the
+     * real one via SystemClock().
+     */
+    @Inject lateinit var clock: Clock
+
     /** Local snapshot; see BubbleOverlayService for why this is not shared. */
     private val timerState = LatestValue(TimerRunningState())
 
@@ -155,7 +164,7 @@ class CallSwitchService : Service() {
         scope.launch {
             val repo = repository   // Hilt-injected singleton
 
-            val nowMs    = System.currentTimeMillis()
+            val nowMs    = clock.nowEpochMillis()
 
             // ── 1. Pause currently running task (if any) ─────────────────────
             val running = repo.getRunningTask()
@@ -176,7 +185,7 @@ class CallSwitchService : Service() {
                 // so read it from the DB row directly here.
                 val startEpoch  = running.startTimeEpoch   // epoch when timer last started
                 val pausedState = TaskTimerState.pause(running.timerState, nowMs)
-                val pausedTask  = running.withTimerState(pausedState)
+                val pausedTask  = running.withTimerState(pausedState, nowMs)
                 repo.update(pausedTask)
 
                 // ── Credit vruntime + RunLog for the interrupted task ─────────
@@ -210,7 +219,7 @@ class CallSwitchService : Service() {
                 // Already running (user started it manually before call) — just show bubble
             } else {
                 val runningState = TaskTimerState.resume(callTask.timerState, nowMs)
-                val runningTask  = callTask.withTimerState(runningState)
+                val runningTask  = callTask.withTimerState(runningState, nowMs)
                 repo.update(runningTask)
 
                 // Update AlarmForegroundService notification to show call task countdown
@@ -254,7 +263,7 @@ class CallSwitchService : Service() {
         scope.launch {
             val repo = repository   // Hilt-injected singleton
 
-            val nowMs = System.currentTimeMillis()
+            val nowMs = clock.nowEpochMillis()
 
             // Resolve the call task from the persisted active-call task ID
             // (written at CALL_STARTED time), not from prefs slot, so we always
@@ -268,7 +277,7 @@ class CallSwitchService : Service() {
                     ?: repo.getTaskById(callTaskIdActive)
                 if (callTask != null && callTask.isRunning) {
                     val startEpoch = callTask.startTimeEpoch
-                    val paused     = callTask.withTimerState(TaskTimerState.pause(callTask.timerState, nowMs))
+                    val paused     = callTask.withTimerState(TaskTimerState.pause(callTask.timerState, nowMs), nowMs)
                     repo.update(paused)
 
                     // Credit vruntime + RunLog for the call task session
@@ -291,7 +300,7 @@ class CallSwitchService : Service() {
                 val savedTask = repo.getTaskById(savedTaskId)
                 if (savedTask != null && !savedTask.isCompleted) {
                     if (wasRunning) {
-                        val resumed = savedTask.withTimerState(TaskTimerState.resume(savedTask.timerState, nowMs))
+                        val resumed = savedTask.withTimerState(TaskTimerState.resume(savedTask.timerState, nowMs), nowMs)
                         repo.update(resumed)
                         bus.publish(
                             Topics.ALARM_TIMER_START_REQUESTED,

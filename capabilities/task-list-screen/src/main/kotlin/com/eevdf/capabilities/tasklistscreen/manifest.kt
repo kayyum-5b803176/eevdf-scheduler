@@ -13,6 +13,10 @@ object TaskListScreenManifest : CapabilityManifest {
         // owner — see task-scheduling's manifest.kt for why that capability
         // structurally can't be the one calling bus.publish().
         Topics.REALTIME_WINDOW_EXPIRED,
+        // Published exclusively by CurrentTaskOwner — the one place allowed
+        // to change "which task is dispatched." See its KDoc and
+        // Topics.CURRENT_TASK_CHANGED's KDoc.
+        Topics.CURRENT_TASK_CHANGED,
     )
     override val subscribes: Set<Topic<*>> = setOf(
         Topics.TIMER_RUNNING_CHANGED,

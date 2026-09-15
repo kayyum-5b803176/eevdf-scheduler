@@ -1,6 +1,7 @@
 package com.eevdf.capabilities.tasklistscreen
 
 import com.eevdf.capabilities.taskstorage.logic.SortHelper
+import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.CallState
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.LatestValue
@@ -76,6 +77,8 @@ class TaskViewModel @Inject constructor(
     internal val alarmQuery: AlarmRingingQuery,
     /** Kernel event bus — the only channel to other capabilities (rule 3). */
     internal val bus: EventBus,
+    /** Single source of "now" (kernel rule 1) — never `System.currentTimeMillis()` inline. */
+    internal val clock: Clock,
 ) : AndroidViewModel(application) {
 
     // ── Shared preferences (internal so delegates can access prefs directly) ──
@@ -107,8 +110,13 @@ class TaskViewModel @Inject constructor(
 
     // ── Shared mutable state (internal so delegates can post to them) ─────────
 
-    internal val _currentTask          = MutableLiveData<Task?>(null)
-    val           currentTask: LiveData<Task?> = _currentTask
+    /**
+     * Sole owner of "which task is currently dispatched" — see [CurrentTaskOwner]'s
+     * KDoc. Every delegate switches tasks through this, never through a raw
+     * LiveData write; changes are announced via [com.eevdf.kernel.eventbus.Topics.CURRENT_TASK_CHANGED].
+     */
+    internal val currentTaskOwner = CurrentTaskOwner(bus, viewModelScope, CAPABILITY_ID)
+    val           currentTask: LiveData<Task?> = currentTaskOwner.current
 
     internal val _timerSeconds         = MutableLiveData<Long>()
     val           timerSeconds: LiveData<Long> = _timerSeconds
@@ -178,7 +186,7 @@ class TaskViewModel @Inject constructor(
     val allTaskMemberships: LiveData<List<com.eevdf.capabilities.taskstorage.TaskMembership>> = repository.allTaskMemberships
 
     /**
-     * Non-null while the currently selected/running task ([_currentTask]) was
+     * Non-null while the currently selected/running task ([currentTaskOwner]) was
      * seated via a hardlink placement rather than its real, primary parent.
      * Read by [TimerLifecycleDelegate] so a completed/paused session's runtime
      * is credited to that ONE placement (see [TaskRepository.creditMembershipRun])
@@ -215,7 +223,7 @@ class TaskViewModel @Inject constructor(
 
     // ── Timer engine ──────────────────────────────────────────────────────────
 
-    internal val timerEngine = TimerEngine(bus)
+    internal val timerEngine = TimerEngine(bus, clock)
 
     // Named observer references — removed in onCleared() to prevent accumulation.
     private var tickObserver:           Observer<Long> = Observer {}
@@ -282,7 +290,7 @@ class TaskViewModel @Inject constructor(
      *   _alarmTaskName  → alarm ringing?      (was a separate, un-wired LiveData)
      *   notice.noticePhase → notice phase
      *   _timerRunning   → countdown running?
-     *   _currentTask    → is anything selected?
+     *   currentTask     → is anything selected?
      *
      * Derivation priority (highest first):
      *   1. alarm ringing  → Expired(name, elapsed)   [red banner + Stop]
@@ -296,7 +304,7 @@ class TaskViewModel @Inject constructor(
      * Bug 2 fix: _alarmTaskName / _alarmElapsedSeconds are now addSource()'d, so
      * the alarm can never be visible while this value simultaneously reports an
      * actionable Start/Pause. The alarm branch sits ABOVE the task==null branch
-     * because during expiry _currentTask is momentarily nulled while the alarm is
+     * because during expiry currentTask is momentarily nulled while the alarm is
      * up — without this ordering the card would flash Hidden between the two.
      */
     val timerCardAction: MediatorLiveData<TimerCardAction> =
@@ -305,7 +313,7 @@ class TaskViewModel @Inject constructor(
                 val alarmName = _alarmTaskName.value
                 val phase     = notice.noticePhase.value ?: NoticePhase.Idle
                 val running   = _timerRunning.value       ?: false
-                val task      = _currentTask.value
+                val task      = currentTaskOwner.current.value
                 value = when {
                     alarmName != null            -> TimerCardAction.Expired(
                                                         taskName       = alarmName,
@@ -322,7 +330,7 @@ class TaskViewModel @Inject constructor(
             }
             addSource(notice.noticePhase)     { derive() }
             addSource(_timerRunning)          { derive() }
-            addSource(_currentTask)           { derive() }
+            addSource(currentTaskOwner.current) { derive() }
             // Bug 2 fix: alarm state is now part of the same atomic derivation.
             addSource(_alarmTaskName)         { derive() }
             addSource(_alarmElapsedSeconds)   { derive() }
@@ -363,8 +371,10 @@ class TaskViewModel @Inject constructor(
         // ── Wire TimerEngine outputs via named observers ───────────────────────
         tickObserver = Observer { remainingSecs: Long ->
             _timerSeconds.postValue(remainingSecs)
-            _currentTask.value?.let { t ->
-                _currentTask.postValue(t.copy(remainingSeconds = remainingSecs))
+            // Same task, refreshed field — not a dispatch change, so this never
+            // publishes CURRENT_TASK_CHANGED (see CurrentTaskOwner).
+            currentTaskOwner.current.value?.let { t ->
+                currentTaskOwner.setAsync(t.copy(remainingSeconds = remainingSecs))
             }
         }
         // Session is now captured synchronously by the engine and read here via
@@ -374,7 +384,7 @@ class TaskViewModel @Inject constructor(
         expiredObserver = Observer { expired: Task ->
             val session = timerEngine.consumeExpiredSession()
             _timerRunning.postValue(false)
-            _currentTask.value = expired
+            currentTaskOwner.set(expired)
             onTimerFinished(session = session)
         }
         timerEngine.tickSeconds.observeForever(tickObserver)
@@ -680,7 +690,7 @@ class TaskViewModel @Inject constructor(
      *
      * What it does:
      *   1. Reads the currently running task from DB.
-     *   2. If it differs from what _currentTask holds, updates the LiveData so
+     *   2. If it differs from what currentTask holds, updates the LiveData so
      *      the timer card shows the correct task and time.
      *   3. Publishes timer.running-changed so the bubble dot colour is
      *      correct immediately — no waiting for the next POLL_MS tick.
@@ -694,11 +704,11 @@ class TaskViewModel @Inject constructor(
         viewModelScope.launch {
             val runningTask = repository.getRunningTask() ?: return@launch
 
-            val currentId = _currentTask.value?.id
+            val currentId = currentTaskOwner.current.value?.id
             if (runningTask.id != currentId) {
                 // CallSwitchService switched tasks while the Activity was dead.
                 // Update LiveData on the main thread so the timer card refreshes.
-                _currentTask.postValue(runningTask)
+                currentTaskOwner.setAsync(runningTask)
                 _timerSeconds.postValue(runningTask.remainingSeconds)
                 _timerRunning.postValue(runningTask.isRunning)
             }
@@ -765,7 +775,7 @@ class TaskViewModel @Inject constructor(
     private fun subscribeToBackupRequests() {
         val clearForBackup: suspend (Unit) -> Unit = {
             pauseTimer()
-            _currentTask.postValue(null)
+            currentTaskOwner.setAsync(null)
         }
         bus.subscribe(Topics.BACKUP_EXPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
         bus.subscribe(Topics.BACKUP_IMPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }

@@ -17,7 +17,7 @@ import com.eevdf.kernel.eventbus.Topics
  * capabilities:
  *
  *   1. `pauseTimer()`                  -> countdown-timer / task-list-screen
- *   2. `_currentTask.postValue(null)`  -> task-list-screen's own UI state
+ *   2. CurrentTaskOwner.setAsync(null)  -> task-list-screen's own UI state
  *   3. `TaskDatabase.checkpointWal()` /
  *      `checkpointAndClose()`          -> task-storage  <- THIS FILE
  *

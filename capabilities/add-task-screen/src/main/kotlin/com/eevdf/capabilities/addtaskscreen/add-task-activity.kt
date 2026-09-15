@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import com.eevdf.capabilities.addtaskscreen.R
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.tasklistscreen.TaskViewModel
+import com.eevdf.kernel.clock.Clock
 import com.google.android.material.button.MaterialButton
 import android.widget.AutoCompleteTextView
 import com.google.android.material.slider.Slider
@@ -17,6 +18,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Add / Edit task form activity.
@@ -42,6 +44,9 @@ import dagger.hilt.android.AndroidEntryPoint
 class AddTaskActivity : AppCompatActivity() {
 
     internal val viewModel: TaskViewModel by viewModels()
+
+    /** Kernel's single source of "now" — injected the same way [bus] is elsewhere in the app (kernel rule 1). */
+    @Inject lateinit var clock: Clock
 
     // ── Basic task fields ─────────────────────────────────────────────────────
     internal lateinit var etName:           TextInputEditText

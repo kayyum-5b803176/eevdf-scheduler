@@ -77,7 +77,13 @@ sealed class AlarmState {
          * Safe to call from any process/thread — SharedPreferences reads are atomic.
          * Returns Idle when no valid state is stored (first launch, cleared data).
          */
-        fun read(context: Context): AlarmState {
+        /**
+         * @param nowMs Caller's own sampled "now" (kernel rule 1) — used only
+         * as the fallback when a persisted Ringing state is missing its
+         * fired-epoch column (should not happen in practice, but a fallback
+         * still needs a real "now" rather than reading the clock itself here).
+         */
+        fun read(context: Context, nowMs: Long): AlarmState {
             val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             return when (p.getString(KEY_STATE, "IDLE")) {
                 "SCHEDULED" -> Scheduled(
@@ -88,7 +94,7 @@ sealed class AlarmState {
                 "RINGING" -> Ringing(
                     taskName   = p.getString(KEY_NAME, "") ?: "",
                     taskType   = p.getString(KEY_TYPE, "DEFAULT") ?: "DEFAULT",
-                    firedEpoch = p.getLong(KEY_FIRED, System.currentTimeMillis())
+                    firedEpoch = p.getLong(KEY_FIRED, nowMs)
                 )
                 else -> Idle
             }

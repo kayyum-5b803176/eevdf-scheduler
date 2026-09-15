@@ -149,7 +149,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             }
         }
         noticeSessionSeconds      = 0L
-        noticeSessionStartEpochMs = System.currentTimeMillis()
+        noticeSessionStartEpochMs = vm.clock.nowEpochMillis()
     }
 
     /** True when the user cancelled mid-wait and Start should resolve the pending wait. */
@@ -178,7 +178,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                 // TimerStartEvent.from(Expired) computes accumulated = sliceMs, so the
                 // engine starts with 0 remaining and onFinish fires in ~0 ms.
                 // Reset to Idle so the next execute gets the full slice duration.
-                startExecutePhase(task.withTimerState(TaskTimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
+                startExecutePhase(task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis()), task.timeSliceSeconds, currentRepeatIteration)
             }
             else                                   -> triggerAlarmExpire(task)
         }
@@ -244,7 +244,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         _delayRunning.value          = true
         _delaySecondsRemaining.value = delaySecs
         _noticePhase.value           = NoticePhase.Delay(delaySecs)
-        val delayStart = System.currentTimeMillis()
+        val delayStart = vm.clock.nowEpochMillis()
         delayTimer?.cancel()
         delayTimer = object : CountDownTimer(delaySecs * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
@@ -260,7 +260,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                 // ran and we must not advance to Execute (which would schedule a
                 // background alarm the user already dismissed).
                 if (_noticePhase.value !is NoticePhase.Delay) return
-                val delayElapsedSeconds = ((System.currentTimeMillis() - delayStart) / 1000L)
+                val delayElapsedSeconds = ((vm.clock.nowEpochMillis() - delayStart) / 1000L)
                     .coerceAtLeast(0L)
                 noticeSessionSeconds += delayElapsedSeconds
                 _delayRunning.postValue(false)
@@ -302,7 +302,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         _waitRunning.value          = true
         _waitSecondsRemaining.value = waitSecs
         _noticePhase.value          = NoticePhase.Wait(waitSecs, currentRepeatIteration)
-        val waitStart = System.currentTimeMillis()
+        val waitStart = vm.clock.nowEpochMillis()
         // sound.cue-requested (rule 3): replaces the old direct
         // SoundManager.playWaitSound() call.
         vm.viewModelScope.launch { vm.bus.publish(Topics.SOUND_CUE_REQUESTED, SoundCue.WAIT, "task-list-screen") }
@@ -321,7 +321,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                 // _noticePhase to Idle synchronously; if it fired before this
                 // callback the user already cancelled — do not advance to Execute.
                 if (_noticePhase.value !is NoticePhase.Wait) return
-                val waitElapsedSeconds = ((System.currentTimeMillis() - waitStart) / 1000L)
+                val waitElapsedSeconds = ((vm.clock.nowEpochMillis() - waitStart) / 1000L)
                     .coerceAtLeast(0L)
                 noticeSessionSeconds += waitElapsedSeconds
                 _waitRunning.postValue(false)
@@ -332,7 +332,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                     currentRepeatIteration++
                     // Bug fix #2 (wait path): same Expired-timerState issue —
                     // reset to Idle so the repeat execute gets the full slice.
-                    startExecutePhase(task.withTimerState(TaskTimerState.reset()), task.timeSliceSeconds, currentRepeatIteration)
+                    startExecutePhase(task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis()), task.timeSliceSeconds, currentRepeatIteration)
                 } else {
                     triggerAlarmExpire(task)
                 }
@@ -353,9 +353,9 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         noticeSessionSeconds         = 0L
         _noticePhase.value           = NoticePhase.Idle
         if (elapsed > 0) {
-            val nowMs = System.currentTimeMillis()
+            val nowMs = vm.clock.nowEpochMillis()
             vm.applyVruntimeUpdate(RunSession.NoticeSession(
-                taskId         = vm._currentTask.value?.id ?: "",
+                taskId         = vm.currentTask.value?.id ?: "",
                 startEpochMs   = noticeSessionStartEpochMs,
                 endEpochMs     = nowMs,
                 totalPhaseSecs = elapsed
@@ -366,7 +366,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
 
     fun cancelWaitPhase() {
         val remainingMs = (_waitSecondsRemaining.value ?: 0L) * 1000L
-        val task        = vm._currentTask.value
+        val task        = vm.currentTask.value
         val waitSecs    = task?.notificationRestSeconds ?: 0L
         val waitElapsedSeconds = ((waitSecs * 1000L - remainingMs) / 1000L).coerceAtLeast(0L)
 
@@ -380,13 +380,13 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // whether to resume the wait or skip to the next execute based on how
         // much real time has elapsed since this cancel moment.
         pendingWaitIteration    = lastExecuteIteration   // iteration of the execute that owns this wait
-        waitCancelledEpochMs    = System.currentTimeMillis()
+        waitCancelledEpochMs    = vm.clock.nowEpochMillis()
         waitRemainingAtCancelMs = remainingMs
 
         val totalConsumed    = noticeSessionSeconds + waitElapsedSeconds
         noticeSessionSeconds = 0L
         if (totalConsumed > 0) {
-            val nowMs = System.currentTimeMillis()
+            val nowMs = vm.clock.nowEpochMillis()
             vm.applyVruntimeUpdate(RunSession.NoticeSession(
                 taskId         = task?.id ?: "",
                 startEpochMs   = noticeSessionStartEpochMs,
@@ -398,11 +398,11 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // can see what duration will run on the next Start tap.
         val sliceSecs = task?.timeSliceSeconds ?: 0L
         vm._timerSeconds.value = sliceSecs
-        vm._currentTask.value?.let { t ->
+        vm.currentTask.value?.let { t ->
             // Reset timerState to Idle so the engine does not treat next Start as
             // an execute resume (it's a wait-resume, handled by resolveAfterDelay).
-            val reset = t.copy(remainingSeconds = sliceSecs).withTimerState(TaskTimerState.reset())
-            vm._currentTask.value = reset
+            val reset = t.copy(remainingSeconds = sliceSecs).withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
+            vm.currentTaskOwner.set(reset)
             vm.viewModelScope.launch { vm.repository.update(reset) }
         }
         vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, "task-list-screen") }
@@ -443,7 +443,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             // full history — this exact bug shipped and was found via a real
             // user report.
             val freshTask = if (sessionSecs > 0) {
-                val nowMs = System.currentTimeMillis()
+                val nowMs = vm.clock.nowEpochMillis()
                 vm.repository.updateVruntimeAfterRun(task, RunSession.NoticeSession(
                     taskId         = task.id,
                     startEpochMs   = noticeSessionStartEpochMs,
@@ -453,7 +453,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             } else {
                 task
             }
-            vm.repository.update(freshTask.withTimerState(TaskTimerState.reset()))
+            vm.repository.update(freshTask.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis()))
             vm.refreshSchedule()
         }
 
@@ -466,9 +466,9 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // Requirement #3: keep the card seated on the just-expired task. Store the
         // reset task for Stop/Restart restoration and persist its id so a reboot
         // mid-alarm reopens the card on the same task (mirrors onTimerFinished).
-        vm.taskToRestoreAfterExpire = task.withTimerState(TaskTimerState.reset())
+        vm.taskToRestoreAfterExpire = task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
         vm.settings.saveSelectedTaskId(task.id)
-        vm._currentTask.postValue(null)
+        vm.currentTaskOwner.setAsync(null)
     }
 
     // ── Phase routing ─────────────────────────────────────────────────────────
@@ -495,7 +495,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
     fun resolveAfterDelay(task: Task, remainingExecuteSecs: Long) {
         if (pendingWaitIteration >= 0) {
             val savedIter      = pendingWaitIteration
-            val nowMs          = System.currentTimeMillis()
+            val nowMs          = vm.clock.nowEpochMillis()
             val adjustedMs     = waitRemainingAtCancelMs - (nowMs - waitCancelledEpochMs)
             clearPendingWait()
 
@@ -510,7 +510,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
                 val nextIter  = if (savedIter < maxRepeat) savedIter + 1 else 0
                 currentRepeatIteration = nextIter
                 lastExecuteIteration   = nextIter
-                startExecutePhase(task.withTimerState(TaskTimerState.reset()), task.timeSliceSeconds, nextIter)
+                startExecutePhase(task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis()), task.timeSliceSeconds, nextIter)
             }
             return
         }
@@ -521,8 +521,8 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun delaySecs(): Long =
-        if (vm._currentTask.value?.taskType == "NOTIFICATION")
-            vm._currentTask.value?.notificationDelaySeconds ?: 0L else 0L
+        if (vm.currentTask.value?.taskType == "NOTIFICATION")
+            vm.currentTask.value?.notificationDelaySeconds ?: 0L else 0L
 
     /**
      * Computes the total AlarmManager trigger time (in seconds from now) for a

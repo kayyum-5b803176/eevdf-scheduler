@@ -69,7 +69,7 @@ object RtScheduler {
      * Delegates to [RtPolicy.isWindowActive] — see that function and
      * [RtConfig.isWindowActive] for the actual midnight-crossing logic.
      */
-    fun isRtWindowActive(task: Task, nowMs: Long = System.currentTimeMillis()): Boolean {
+    fun isRtWindowActive(task: Task, nowMs: Long): Boolean {
         if (!task.isRtConfigured) return false
         val (day, sec, prevDay) = wallClockParts(nowMs)
         return RtPolicy.isWindowActive(task.toSched(), day, sec, prevDay)
@@ -80,7 +80,7 @@ object RtScheduler {
      * Returns 0 when the window is currently active.
      * Returns Long.MAX_VALUE when rtActiveDays is 0 (no days selected).
      */
-    fun nextActivationMs(task: Task, nowMs: Long = System.currentTimeMillis()): Long {
+    fun nextActivationMs(task: Task, nowMs: Long): Long {
         if (!task.isRtConfigured) return Long.MAX_VALUE
         if (task.rtActiveDays == 0) return Long.MAX_VALUE
         val (day, sec, prevDay) = wallClockParts(nowMs)
@@ -92,7 +92,7 @@ object RtScheduler {
      * Milliseconds until the task's current activation window closes.
      * Returns 0 when the window is not active.
      */
-    fun nextDeactivationMs(task: Task, nowMs: Long = System.currentTimeMillis()): Long {
+    fun nextDeactivationMs(task: Task, nowMs: Long): Long {
         if (!isRtWindowActive(task, nowMs)) return 0L
         val (_, sec, _) = wallClockParts(nowMs)
         val remaining = task.toSched().rt?.secondsUntilClose(sec) ?: 0L
@@ -104,7 +104,7 @@ object RtScheduler {
      * the next state change (activation or deactivation) across all RT-configured
      * tasks.  Returns Long.MAX_VALUE when no change is pending.
      */
-    fun nextResortMs(tasks: List<Task>, nowMs: Long = System.currentTimeMillis()): Long {
+    fun nextResortMs(tasks: List<Task>, nowMs: Long): Long {
         val rtTasks = tasks.filter { it.isRtConfigured && !it.isCompleted }
         if (rtTasks.isEmpty()) return Long.MAX_VALUE
         return rtTasks.minOf { task ->
@@ -141,7 +141,7 @@ object RtScheduler {
     fun pickRrTask(
         activeTasks: List<Task>,
         prefs: SharedPreferences,
-        _nowMs: Long = System.currentTimeMillis()
+        _nowMs: Long
     ): Task? {
         if (activeTasks.isEmpty()) return null
 
@@ -207,7 +207,7 @@ object RtScheduler {
      * [RtPolicy.hasActiveRtDescendant].
      */
     fun hasActiveRtDescendant(task: Task, allTasks: List<Task>,
-                               _nowMs: Long = System.currentTimeMillis()): Boolean {
+                               _nowMs: Long): Boolean {
         val (day, sec, prevDay) = wallClockParts(_nowMs)
         return RtPolicy.hasActiveRtDescendant(
             task.toSched(), allTasks.map { it.toSched() }, day, sec, prevDay,

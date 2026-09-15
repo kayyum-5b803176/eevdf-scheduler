@@ -56,12 +56,12 @@ internal class StartupRecoveryDelegate(private val vm: TaskViewModel) {
                 } else {
                     orphan
                 }
-                vm.repository.update(freshOrphan.withTimerState(TaskTimerState.reset()))
+                vm.repository.update(freshOrphan.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis()))
                 vm.refreshSchedule()
             }
 
             val elapsedSinceExpiry =
-                ((System.currentTimeMillis() - ringing.firedEpoch) / 1000L)
+                ((vm.clock.nowEpochMillis() - ringing.firedEpoch) / 1000L)
                     .coerceAtLeast(0L)
             vm._alarmTaskName.postValue(ringing.taskName)
             vm._alarmElapsedSeconds.postValue(elapsedSinceExpiry)
@@ -72,14 +72,14 @@ internal class StartupRecoveryDelegate(private val vm: TaskViewModel) {
         // Step 2: check if a task was mid-run when app was killed
         val running = vm.repository.getRunningTask()
         if (running != null) {
-            val nowMs       = System.currentTimeMillis()
+            val nowMs       = vm.clock.nowEpochMillis()
             val secondsLeft = TaskTimerState.remainingSecs(
                 running.timerState, running.timeSliceSeconds, nowMs
             )
             if (secondsLeft > 0L) {
                 val corrected = running.copy(remainingSeconds = secondsLeft)
                 vm.repository.update(corrected)
-                vm._currentTask.postValue(corrected)
+                vm.currentTaskOwner.setAsync(corrected)
                 vm._timerSeconds.postValue(secondsLeft)
                 vm._timerRunning.postValue(true)
                 vm.timerEngine.restoreFromDb(corrected)

@@ -58,7 +58,7 @@ sealed class TimerCardAction {
 
     /**
      * No task is selected — the card is removed from the layout entirely.
-     * Replaces the old `_currentTask == null → cardTimer.visibility = GONE` path
+     * Replaces the old currentTask == null → cardTimer.visibility = GONE path
      * that lived as an imperative side-effect in MainActivity.
      */
     object Hidden : TimerCardAction() {

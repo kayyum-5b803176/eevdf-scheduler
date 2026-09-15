@@ -39,6 +39,7 @@ class StatsChartsFragment : Fragment() {
 
     @Inject lateinit var taskDao: TaskDao
     @Inject lateinit var runLogDao: RunLogDao
+    @Inject lateinit var clock: com.eevdf.kernel.clock.Clock
 
     // ── Views ─────────────────────────────────────────────────────────────────
     private lateinit var etWindowRange:      TextInputEditText
@@ -140,7 +141,7 @@ class StatsChartsFragment : Fragment() {
         val callTaskId = AutoSwitchPrefs.getCallTaskId(ctx)
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val nowMs  = System.currentTimeMillis()
+            val nowMs  = clock.nowEpochMillis()
             val fromMs = nowMs - windowSeconds * 1_000L
 
             val allTasks   = withContext(Dispatchers.IO) { taskDao.getAllTasksForStats() }

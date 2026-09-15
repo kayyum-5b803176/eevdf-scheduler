@@ -252,6 +252,10 @@ class TaskAdapter(
         val item  = getItem(position)
         val task  = item.task
         val isRunning = task.id == runningTaskId
+        // Sampled ONCE for this row and threaded through every DL/RT/quota read
+        // below — not re-read per pill — so a single row's three time-dependent
+        // pills can never disagree about what "now" is (kernel rule 1).
+        val nowMs = System.currentTimeMillis()
 
         // ── Depth indentation ─────────────────────────────────────────────────
         val density = holder.itemView.context.resources.displayMetrics.density
@@ -431,11 +435,11 @@ class TaskAdapter(
         // ── DL budget pill (no emojis, amber / grey) ───────────────────────────
         if (task.isDlConfigured) {
             holder.tvDlStatus.visibility = View.VISIBLE
-            val dlActive = task.isDlBudgetActive
+            val dlActive = task.isDlBudgetActive(nowMs)
             holder.tvDlStatus.text = if (dlActive) {
-                formatDlDuration(task.dlRuntimeRemainingSeconds)
+                formatDlDuration(task.dlRuntimeRemainingSeconds(nowMs))
             } else {
-                val periodRem = task.dlPeriodRemainingSeconds
+                val periodRem = task.dlPeriodRemainingSeconds(nowMs)
                 if (periodRem > 0) formatDlDuration(periodRem) else "done"
             }
             applyPillColor(holder.tvDlStatus, holder.itemView.context,
@@ -447,13 +451,13 @@ class TaskAdapter(
         // ── RT window pill (green = active, grey = pending / inactive) ─────────
         if (task.isRtConfigured) {
             holder.tvRtStatus.visibility = View.VISIBLE
-            val rtWindowActive = RtScheduler.isRtWindowActive(task)
+            val rtWindowActive = RtScheduler.isRtWindowActive(task, nowMs)
             if (rtWindowActive) {
-                val secsLeft = RtScheduler.nextDeactivationMs(task) / 1_000L
+                val secsLeft = RtScheduler.nextDeactivationMs(task, nowMs) / 1_000L
                 holder.tvRtStatus.text = "RT · ${formatDlDuration(secsLeft)}"
                 applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillRtActive)
             } else {
-                val secsUntil = RtScheduler.nextActivationMs(task) / 1_000L
+                val secsUntil = RtScheduler.nextActivationMs(task, nowMs) / 1_000L
                 holder.tvRtStatus.text = if (secsUntil < Long.MAX_VALUE / 1_000L)
                     "RT in ${formatDlDuration(secsUntil)}" else "RT · off"
                 applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillInactive)
@@ -466,10 +470,10 @@ class TaskAdapter(
         val quotaExceeded = item.effectiveQuotaExceeded
         val quotaWarning  = item.effectiveQuotaWarning
         if (task.isQuotaEnabled) {
-            val remaining = task.quotaRemainingSeconds
+            val remaining = task.quotaRemainingSeconds(nowMs)
             holder.tvQuotaRemaining.visibility = View.VISIBLE
             holder.tvQuotaRemaining.text = when {
-                quotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds)}"
+                quotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds(nowMs))}"
                 else          -> "+${formatQuota(remaining)}"
             }
             holder.tvQuotaRemaining.setTextColor(
@@ -484,7 +488,7 @@ class TaskAdapter(
             )
             // Quota progress bar
             holder.progressQuota.visibility = View.VISIBLE
-            holder.progressQuota.progress   = task.quotaProgressPercent
+            holder.progressQuota.progress   = task.quotaProgressPercent(nowMs)
             val quotaBarColor = androidx.core.content.ContextCompat.getColor(
                 holder.itemView.context,
                 when {
@@ -510,7 +514,7 @@ class TaskAdapter(
         applySimpleMode(holder, simpleModeEnabled, isSelected, hideNonEssentialStats)
 
         // ── Card highlight ─────────────────────────────────────────────────────
-        val isDlActive = task.isDlBudgetActive
+        val isDlActive = task.isDlBudgetActive(nowMs)
         holder.card.cardElevation = when {
             isRunning  -> 12f
             isDlActive -> 8f

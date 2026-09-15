@@ -30,6 +30,7 @@ import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.LatestValue
 import com.eevdf.kernel.eventbus.TimerRunningState
@@ -85,6 +86,9 @@ class BubbleOverlayService : Service() {
 
     /** Injected by Hilt — replaces per-call manual TaskRepository construction. */
     @Inject lateinit var bus: EventBus
+
+    /** Kernel's single source of "now" — injected the same way [bus] is (kernel rule 1). */
+    @Inject lateinit var clock: Clock
 
     /**
      * call-autoswitch's own copy of the timer-running snapshot, kept current
@@ -330,7 +334,7 @@ class BubbleOverlayService : Service() {
         val callTaskId = AutoSwitchPrefs.getCallTaskId(this) ?: return
         scope.launch {
             val repo = repository   // Hilt-injected singleton
-            val nowMs = System.currentTimeMillis()
+            val nowMs = clock.nowEpochMillis()
 
             val runningTask = repo.getRunningTask()
 
@@ -338,7 +342,7 @@ class BubbleOverlayService : Service() {
                 // ── Call task is running → pause it ──────────────────────────
                 val startEpoch = runningTask.startTimeEpoch
                 val paused     = runningTask.withTimerState(
-                    TaskTimerState.pause(runningTask.timerState, nowMs))
+                    TaskTimerState.pause(runningTask.timerState, nowMs), nowMs)
                 repo.update(paused)
 
                 val session = RunSession.Paused(runningTask.id, startEpoch, nowMs)
@@ -357,7 +361,7 @@ class BubbleOverlayService : Service() {
                 if (runningTask != null) {
                     val startEpoch = runningTask.startTimeEpoch
                     val paused     = runningTask.withTimerState(
-                        TaskTimerState.pause(runningTask.timerState, nowMs))
+                        TaskTimerState.pause(runningTask.timerState, nowMs), nowMs)
                     repo.update(paused)
 
                     val session = RunSession.Paused(runningTask.id, startEpoch, nowMs)
@@ -369,7 +373,7 @@ class BubbleOverlayService : Service() {
                 if (callTask == null || callTask.isCompleted) return@launch
 
                 val runState       = TaskTimerState.resume(callTask.timerState, nowMs)
-                val runningCallTask = callTask.withTimerState(runState)
+                val runningCallTask = callTask.withTimerState(runState, nowMs)
                 repo.update(runningCallTask)
 
                 scope.launch {
@@ -467,7 +471,7 @@ class BubbleOverlayService : Service() {
     private fun getForegroundPackage(): String? {
         val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return null
-        val now   = System.currentTimeMillis()
+        val now   = clock.nowEpochMillis()
         val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 5_000L, now)
         return stats?.maxByOrNull { it.lastTimeUsed }?.packageName
     }

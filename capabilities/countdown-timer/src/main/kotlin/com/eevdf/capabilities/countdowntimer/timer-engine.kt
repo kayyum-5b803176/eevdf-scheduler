@@ -8,6 +8,8 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskTimerState
 import com.eevdf.capabilities.taskstorage.timerState
 import com.eevdf.capabilities.taskstorage.withTimerState
+import com.eevdf.kernel.clock.Clock
+import com.eevdf.kernel.clock.SystemClock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +55,12 @@ class TimerEngine(
      * happens next.
      */
     private val bus: EventBus? = null,
+    /**
+     * The single source of "now" for this engine — defaults to the real
+     * clock, but a test can inject [com.eevdf.kernel.clock.FixedClock] to
+     * make expiry/pause/resume timing fully deterministic (kernel rule 1).
+     */
+    private val clock: Clock = SystemClock(),
 ) {
 
     /**
@@ -134,12 +142,12 @@ class TimerEngine(
 
         val state   = task.timerState
         val running = if (state is TaskTimerState.Running) state
-                      else TaskTimerState.resume(state)
+                      else TaskTimerState.resume(state, clock.nowEpochMillis())
 
         inMemoryState = running
         activeTask    = task
 
-        val remaining = TaskTimerState.remainingMs(running, task.timeSliceSeconds * 1000L)
+        val remaining = TaskTimerState.remainingMs(running, task.timeSliceSeconds * 1000L, clock.nowEpochMillis())
         attachTicker(task, remaining)
     }
 
@@ -150,7 +158,7 @@ class TimerEngine(
      *
      * Returns null if no timer is active.
      */
-    fun pause(nowMs: Long = System.currentTimeMillis()): Pair<Task, RunSession.Paused>? {
+    fun pause(nowMs: Long = clock.nowEpochMillis()): Pair<Task, RunSession.Paused>? {
         val task = activeTask ?: return null
 
         // Capture start epoch BEFORE transitioning state — inMemoryState is still Running.
@@ -159,7 +167,7 @@ class TimerEngine(
         stopTicker()
         val paused    = TaskTimerState.pause(inMemoryState, nowMs)
         inMemoryState = paused
-        val updated   = task.withTimerState(paused)
+        val updated   = task.withTimerState(paused, nowMs)
         activeTask    = updated
 
         val session = RunSession.Paused(
@@ -178,7 +186,7 @@ class TimerEngine(
         val task = activeTask ?: return null
         stopTicker()
         inMemoryState = TaskTimerState.Idle
-        val updated   = task.withTimerState(TaskTimerState.Idle)
+        val updated   = task.withTimerState(TaskTimerState.Idle, clock.nowEpochMillis())
         activeTask    = updated
         return updated
     }
@@ -198,7 +206,8 @@ class TimerEngine(
         activeTask    = task
 
         val sliceMs   = task.timeSliceSeconds * 1000L
-        val remaining = TaskTimerState.remainingMs(state, sliceMs)
+        val nowMs     = clock.nowEpochMillis()
+        val remaining = TaskTimerState.remainingMs(state, sliceMs, nowMs)
 
         if (remaining > 0L) {
             attachTicker(task, remaining)
@@ -206,7 +215,7 @@ class TimerEngine(
             // Timer expired while the app was dead.
             // expiryEpoch = when the slice actually ran out (not necessarily now).
             val expiryEpochMs = state.startTimeEpoch + sliceMs - state.accumulatedMs
-            val expired       = task.withTimerState(TaskTimerState.expire(sliceMs))
+            val expired       = task.withTimerState(TaskTimerState.expire(sliceMs), nowMs)
             inMemoryState     = TaskTimerState.expire(sliceMs)
 
             // Recovered session: credits only the final session's real elapsed time.
@@ -244,12 +253,12 @@ class TimerEngine(
             override fun onTick(millisUntilFinished: Long) {
                 // Re-derive from epoch every tick — intentionally ignoring
                 // CountDownTimer's own millisUntilFinished to avoid drift.
-                val secs = TaskTimerState.remainingSecs(inMemoryState, sliceSecs)
+                val secs = TaskTimerState.remainingSecs(inMemoryState, sliceSecs, clock.nowEpochMillis())
                 _tickSeconds.postValue(secs)
             }
             override fun onFinish() {
                 stopTicker()
-                val endMs      = System.currentTimeMillis()
+                val endMs      = clock.nowEpochMillis()
                 val sliceMs    = sliceSecs * 1000L
 
                 // Capture start epoch BEFORE overwriting inMemoryState.
@@ -270,7 +279,7 @@ class TimerEngine(
                 )
                 pendingExpiredSession = session   // set BEFORE posting expiredTask (no race)
                 _expiredSession.postValue(session)
-                _expiredTask.postValue(task.withTimerState(expired))
+                _expiredTask.postValue(task.withTimerState(expired, endMs))
                 bus?.let { b -> publishScope.launch { b.publish(Topics.TIMER_EXPIRED, task.id, "countdown-timer") } }
             }
         }.start()

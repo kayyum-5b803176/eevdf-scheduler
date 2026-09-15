@@ -192,7 +192,7 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
             }
         if (interruptLiveData.value == null) interruptLiveData.value = interrupt
 
-        val current = vm._currentTask.value
+        val current = vm.currentTask.value
         if (current?.id == interrupt.id) {
             // ── INT-back: return to the saved card for this tab + slot ──────────
             withSavedReturn(slotLabel) { back ->
@@ -201,8 +201,8 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
                 if (back != null) {
                     vm.pauseTimer()
                     // Preserve the interrupt reference with its live remaining time.
-                    vm._currentTask.value?.let { paused -> interruptLiveData.value = paused }
-                    vm._currentTask.value  = back
+                    vm.currentTask.value?.let { paused -> interruptLiveData.value = paused }
+                    vm.currentTaskOwner.set(back)
                     vm._timerSeconds.value = back.remainingSeconds
                     vm._toastMessage.value = "Returned to \"${back.name}\""
                 } else {
@@ -210,24 +210,24 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
                     // enters the JUMP branch instead of looping.
                     vm.pauseTimer()
                     interruptLiveData.value = interrupt
-                    vm._currentTask.value   = null
+                    vm.currentTaskOwner.set(null)
                     vm._toastMessage.value  = "No saved task to return to"
                 }
             }
         } else {
             // ── JUMP: save current card (if non-interrupt) then seat the INT task ─
             // pauseTimer FIRST so _timerSeconds is flushed into
-            // _currentTask.remainingSeconds and persisted, making the saved
+            // currentTask.remainingSeconds and persisted, making the saved
             // return-to reflect the live countdown at tap time.
             vm.pauseTimer()
             // Only a non-interrupt task is eligible as a return-to (rule 3 & 4);
             // saveReturn() enforces this and clears the cell otherwise.
-            saveReturn(slotLabel, vm._currentTask.value ?: current)
+            saveReturn(slotLabel, vm.currentTask.value ?: current)
             val freshInterrupt = vm.activeTasks.value
                 ?.firstOrNull { it.isInterrupt && it.interruptSlot == slotLabel && !it.isCompleted }
                 ?: interrupt
             interruptLiveData.value = freshInterrupt
-            vm._currentTask.value   = freshInterrupt
+            vm.currentTaskOwner.set(freshInterrupt)
             vm._timerSeconds.value  = freshInterrupt.remainingSeconds
             vm._toastMessage.value  = "Jumped to INT-$slotLabel: \"${freshInterrupt.name}\""
         }

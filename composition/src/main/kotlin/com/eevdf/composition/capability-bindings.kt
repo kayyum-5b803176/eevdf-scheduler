@@ -166,7 +166,8 @@ object CapabilityBindings {
     fun provideTimerExpiryHandler(
         @ApplicationContext context: Context,
         bus: EventBus,
-    ): TimerExpiryHandler = TimerExpiryHandler(context, bus)
+        clock: Clock,
+    ): TimerExpiryHandler = TimerExpiryHandler(context, bus, clock)
 
     // ── task-storage: database + DAOs ────────────────────────────────────────
 

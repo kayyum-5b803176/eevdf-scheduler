@@ -266,26 +266,29 @@ data class Task(
      *   t+10min → 1200 − 300 =  900s (−10m)
      *   t+30min → 1200 − 900 =  300s (0  — at quota)
      *   t+40min → 1200 −1200 =    0s (+5m — full budget)
+     *
+     * @param nowMs the caller's own single sampled "now" (kernel rule 1) —
+     * never read from `System.currentTimeMillis()` here, so a display and a
+     * scheduling decision computed in the same pass can never disagree about
+     * how much quota is left.
      */
-    val currentQuotaUsed: Long
-        get() {
-            if (!isQuotaEnabled || quotaPeriodStartEpoch == 0L) return quotaUsedSeconds.coerceAtLeast(0L)
-            val elapsedSeconds = (System.currentTimeMillis() - quotaPeriodStartEpoch) / 1_000L
-            val replenished    = elapsedSeconds * quotaSeconds / quotaPeriodSeconds
-            return (quotaUsedSeconds - replenished).coerceAtLeast(0L)
-        }
+    fun currentQuotaUsed(nowMs: Long): Long {
+        if (!isQuotaEnabled || quotaPeriodStartEpoch == 0L) return quotaUsedSeconds.coerceAtLeast(0L)
+        val elapsedSeconds = (nowMs - quotaPeriodStartEpoch) / 1_000L
+        val replenished    = elapsedSeconds * quotaSeconds / quotaPeriodSeconds
+        return (quotaUsedSeconds - replenished).coerceAtLeast(0L)
+    }
 
     /** True when the task has consumed ≥ its quota for the current period. */
-    val isQuotaExceeded: Boolean
-        get() = isQuotaEnabled && currentQuotaUsed >= quotaSeconds
+    fun isQuotaExceeded(nowMs: Long): Boolean = isQuotaEnabled && currentQuotaUsed(nowMs) >= quotaSeconds
 
     /**
      * True when quota usage is in the warning zone (≥ 80 % but not yet exceeded).
      */
-    val isQuotaWarning: Boolean
-        get() = isQuotaEnabled &&
-            currentQuotaUsed >= (quotaSeconds * 0.8).toLong() &&
-            currentQuotaUsed < quotaSeconds
+    fun isQuotaWarning(nowMs: Long): Boolean {
+        val used = currentQuotaUsed(nowMs)
+        return isQuotaEnabled && used >= (quotaSeconds * 0.8).toLong() && used < quotaSeconds
+    }
 
     /**
      * Remaining quota seconds relative to the current decayed used value.
@@ -293,17 +296,16 @@ data class Task(
      *   0  → exceeded or exactly at limit
      *  > 0 → time left
      */
-    val quotaRemainingSeconds: Long
-        get() = when {
-            !isQuotaEnabled -> -1L
-            else            -> (quotaSeconds - currentQuotaUsed).coerceAtLeast(0L)
-        }
+    fun quotaRemainingSeconds(nowMs: Long): Long = when {
+        !isQuotaEnabled -> -1L
+        else            -> (quotaSeconds - currentQuotaUsed(nowMs)).coerceAtLeast(0L)
+    }
 
     /**
      * Overflow seconds beyond quota (positive when exceeded, else 0).
      */
-    val quotaOverflowSeconds: Long
-        get() = if (isQuotaEnabled) (currentQuotaUsed - quotaSeconds).coerceAtLeast(0L) else 0L
+    fun quotaOverflowSeconds(nowMs: Long): Long =
+        if (isQuotaEnabled) (currentQuotaUsed(nowMs) - quotaSeconds).coerceAtLeast(0L) else 0L
 
     /**
      * 0–100 bar progress.
@@ -312,14 +314,13 @@ data class Task(
      * Exceeded               : overflow fraction, drains from >0 back to 0 as debt
      *                          replenishes — gives a reverse-clock feel on the bar.
      */
-    val quotaProgressPercent: Int
-        get() {
-            if (!isQuotaEnabled || quotaSeconds == 0L) return 0
-            return if (isQuotaExceeded)
-                (quotaOverflowSeconds * 100L / quotaSeconds).toInt().coerceIn(0, 100)
-            else
-                (currentQuotaUsed * 100L / quotaSeconds).toInt().coerceIn(0, 100)
-        }
+    fun quotaProgressPercent(nowMs: Long): Int {
+        if (!isQuotaEnabled || quotaSeconds == 0L) return 0
+        return if (isQuotaExceeded(nowMs))
+            (quotaOverflowSeconds(nowMs) * 100L / quotaSeconds).toInt().coerceIn(0, 100)
+        else
+            (currentQuotaUsed(nowMs) * 100L / quotaSeconds).toInt().coerceIn(0, 100)
+    }
 
     // ── Scheduler class helpers ───────────────────────────────────────────────
 
@@ -368,39 +369,36 @@ data class Task(
      *    (budget automatically replenished → new period is imminent)
      *  - [isDlConfigured] and used runtime < allocated runtime within the period
      */
-    val isDlBudgetActive: Boolean
-        get() {
-            if (!isDlConfigured) return false
-            if (dlPeriodStartEpoch == 0L) return true   // never started → full budget
-            val elapsedSec = (System.currentTimeMillis() - dlPeriodStartEpoch) / 1_000L
-            if (elapsedSec >= dlEffectivePeriodSeconds) return true  // new period elapsed
-            return dlRuntimeUsedSeconds < dlRuntimeSeconds
-        }
+    fun isDlBudgetActive(nowMs: Long): Boolean {
+        if (!isDlConfigured) return false
+        if (dlPeriodStartEpoch == 0L) return true   // never started → full budget
+        val elapsedSec = (nowMs - dlPeriodStartEpoch) / 1_000L
+        if (elapsedSec >= dlEffectivePeriodSeconds) return true  // new period elapsed
+        return dlRuntimeUsedSeconds < dlRuntimeSeconds
+    }
 
     /**
      * Seconds of runtime budget remaining in the current DL period.
      * Returns [dlRuntimeSeconds] when no period has started or the period has
      * elapsed (full replenishment), and 0 when the budget is exhausted.
      */
-    val dlRuntimeRemainingSeconds: Long
-        get() {
-            if (!isDlConfigured) return 0L
-            if (dlPeriodStartEpoch == 0L) return dlRuntimeSeconds
-            val elapsedSec = (System.currentTimeMillis() - dlPeriodStartEpoch) / 1_000L
-            if (elapsedSec >= dlEffectivePeriodSeconds) return dlRuntimeSeconds
-            return (dlRuntimeSeconds - dlRuntimeUsedSeconds).coerceAtLeast(0L)
-        }
+    fun dlRuntimeRemainingSeconds(nowMs: Long): Long {
+        if (!isDlConfigured) return 0L
+        if (dlPeriodStartEpoch == 0L) return dlRuntimeSeconds
+        val elapsedSec = (nowMs - dlPeriodStartEpoch) / 1_000L
+        if (elapsedSec >= dlEffectivePeriodSeconds) return dlRuntimeSeconds
+        return (dlRuntimeSeconds - dlRuntimeUsedSeconds).coerceAtLeast(0L)
+    }
 
     /**
      * Seconds remaining until the current DL period resets.
      * 0 when no period has started or the period has already elapsed.
      */
-    val dlPeriodRemainingSeconds: Long
-        get() {
-            if (!isDlConfigured || dlPeriodStartEpoch == 0L) return 0L
-            val elapsedSec = (System.currentTimeMillis() - dlPeriodStartEpoch) / 1_000L
-            return (dlEffectivePeriodSeconds - elapsedSec).coerceAtLeast(0L)
-        }
+    fun dlPeriodRemainingSeconds(nowMs: Long): Long {
+        if (!isDlConfigured || dlPeriodStartEpoch == 0L) return 0L
+        val elapsedSec = (nowMs - dlPeriodStartEpoch) / 1_000L
+        return (dlEffectivePeriodSeconds - elapsedSec).coerceAtLeast(0L)
+    }
 
     val timeSliceDisplay: String get() {
         val h = timeSliceSeconds / 3600

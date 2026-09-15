@@ -112,19 +112,23 @@ internal fun TaskAdapter.setQuotaBarTopMargin(holder: TaskViewHolder, bothBarsVi
  */
 internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplayItem) {
     val task = item.task
+    // Sampled ONCE for this refresh and threaded through every DL/RT/quota
+    // read below (kernel rule 1) — see TaskAdapter.onBindViewHolder's
+    // identical comment for why.
+    val nowMs = System.currentTimeMillis()
 
-    val ownQuotaExceeded = task.isQuotaExceeded
-    val ownQuotaWarning  = task.isQuotaWarning
+    val ownQuotaExceeded = task.isQuotaExceeded(nowMs)
+    val ownQuotaWarning  = task.isQuotaWarning(nowMs)
     val isRunning        = task.id == runningTaskId
-    val isDlActive       = task.isDlBudgetActive
+    val isDlActive       = task.isDlBudgetActive(nowMs)
 
     if (task.isQuotaEnabled) {
         holder.tvQuotaRemaining.visibility = View.VISIBLE
         holder.progressQuota.visibility    = View.VISIBLE
 
         holder.tvQuotaRemaining.text = when {
-            ownQuotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds)}"
-            else             -> "+${formatQuota(task.quotaRemainingSeconds)}"
+            ownQuotaExceeded -> "-${formatQuota(task.quotaOverflowSeconds(nowMs))}"
+            else             -> "+${formatQuota(task.quotaRemainingSeconds(nowMs))}"
         }
         holder.tvQuotaRemaining.setTextColor(
             androidx.core.content.ContextCompat.getColor(
@@ -136,7 +140,7 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
                 }
             )
         )
-        holder.progressQuota.progress = task.quotaProgressPercent
+        holder.progressQuota.progress = task.quotaProgressPercent(nowMs)
         holder.progressQuota.progressTintList =
             android.content.res.ColorStateList.valueOf(
                 androidx.core.content.ContextCompat.getColor(
@@ -162,9 +166,9 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
     if (task.isDlConfigured) {
         holder.tvDlStatus.visibility = View.VISIBLE
         holder.tvDlStatus.text = if (isDlActive) {
-            formatDlDuration(task.dlRuntimeRemainingSeconds)
+            formatDlDuration(task.dlRuntimeRemainingSeconds(nowMs))
         } else {
-            val periodRem = task.dlPeriodRemainingSeconds
+            val periodRem = task.dlPeriodRemainingSeconds(nowMs)
             if (periodRem > 0) formatDlDuration(periodRem) else "done"
         }
         applyPillColor(
@@ -176,15 +180,15 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
     }
 
     // ── RT badge live refresh ──────────────────────────────────────────────
-    val isRtActive = RtScheduler.isRtWindowActive(task)
+    val isRtActive = RtScheduler.isRtWindowActive(task, nowMs)
     if (task.isRtConfigured) {
         holder.tvRtStatus.visibility = View.VISIBLE
         if (isRtActive) {
-            val secsLeft = RtScheduler.nextDeactivationMs(task) / 1_000L
+            val secsLeft = RtScheduler.nextDeactivationMs(task, nowMs) / 1_000L
             holder.tvRtStatus.text = "RT · ${formatDlDuration(secsLeft)}"
             applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillRtActive)
         } else {
-            val secsUntil = RtScheduler.nextActivationMs(task) / 1_000L
+            val secsUntil = RtScheduler.nextActivationMs(task, nowMs) / 1_000L
             holder.tvRtStatus.text = if (secsUntil < Long.MAX_VALUE / 1_000L)
                 "RT in ${formatDlDuration(secsUntil)}" else "RT · off"
             applyPillColor(holder.tvRtStatus, holder.itemView.context, R.color.pillInactive)

@@ -37,7 +37,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             vm.notice.isDelayRunning()      ||
             vm.notice.isWaitRunning()) return
 
-        val task      = vm._currentTask.value ?: return
+        val task      = vm.currentTask.value ?: return
         val remaining = vm._timerSeconds.value ?: task.remainingSeconds
 
         if (remaining <= 0) {
@@ -70,7 +70,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             task.timerState is TaskTimerState.Paused &&
             !vm.notice.hasPendingWait()
 
-        val effectiveTask      = if (isInitialResume) task.withTimerState(TaskTimerState.reset()) else task
+        val effectiveTask      = if (isInitialResume) task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis()) else task
         val effectiveRemaining = if (isInitialResume) task.timeSliceSeconds else remaining
 
         if (delaySecs > 0) {
@@ -98,15 +98,15 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
      *                   task types (alarm fires when the single execute slice expires).
      */
     fun startActualTimer(task: Task, remaining: Long, alarmSecs: Long = remaining) {
-        val nowMs   = System.currentTimeMillis()
+        val nowMs   = vm.clock.nowEpochMillis()
         val event   = TimerStartEvent.from(task.timerState, nowMs)
         val running = event.toRunning
-        val updated = task.withTimerState(running)
+        val updated = task.withTimerState(running, nowMs)
 
         vm._timerRunning.value = true
-        // Update _currentTask with the Running state so tick observer copies carry
+        // Update the dispatched task with the Running state so tick observer copies carry
         // the correct startTimeEpoch (needed for live progressPercent calculation).
-        vm._currentTask.value = updated
+        vm.currentTaskOwner.set(updated)
         // Record which task ran inside each ancestor group so the Queue tab's
         // global-rotate Next can return to the most recently used task per group.
         vm.lastRun.update(task, vm.activeTasks.value ?: emptyList())
@@ -131,18 +131,18 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
 
         vm.stopAlarmSound()
 
-        val nowMs   = System.currentTimeMillis()
+        val nowMs   = vm.clock.nowEpochMillis()
         val result  = vm.timerEngine.pause(nowMs)
         val session = result?.second   // RunSession.Paused; null if engine was idle
         vm._timerRunning.value = false
 
-        val task = vm._currentTask.value
+        val task = vm.currentTask.value
         if (result != null) {
             val paused = result.first
-            vm._currentTask.value  = paused
+            vm.currentTaskOwner.set(paused)
             vm._timerSeconds.value = paused.remainingSeconds
             vm.viewModelScope.launch { vm.repository.update(paused) }
-            // Clear the engine so stale activeTask can't overwrite _currentTask on
+            // Clear the engine so stale activeTask can't overwrite the current task on
             // the next pauseTimer() call (fixes Next-stuck / random-jump bug).
             vm.timerEngine.clear()
         }
@@ -161,7 +161,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
      *
      * Pauses the running task — crediting the partial session's run time and
      * persisting the Paused state, so progress is NOT lost — then DESELECTS it by
-     * clearing `_currentTask`. The currentTask observer in MainActivity then closes
+     * clearing the current task. The currentTask observer in MainActivity then closes
      * the timer card and clears the running highlight in the adapters.
      *
      * This is distinct from the manual hide (isCardManuallyHidden), which keeps the
@@ -171,7 +171,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
      */
     fun pauseAndDeselect() {
         pauseTimer()
-        vm._currentTask.value = null
+        vm.currentTaskOwner.set(null)
         vm.clearPersistedSelection()
     }
 
@@ -179,27 +179,27 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         pauseTimer()
         vm.timerEngine.clear()
         vm.notice.resetState()
-        val task  = vm._currentTask.value ?: return
-        val reset = task.withTimerState(TaskTimerState.reset())
+        val task  = vm.currentTask.value ?: return
+        val reset = task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
         vm._timerSeconds.value = reset.remainingSeconds
         vm.viewModelScope.launch {
             vm.repository.update(reset)
-            vm._currentTask.postValue(reset)
+            vm.currentTaskOwner.setAsync(reset)
         }
     }
 
     /** Resets the timer slice of any task back to its default timeSliceSeconds. */
     fun resetSlice(task: Task) {
-        if (task.id == vm._currentTask.value?.id) { resetTimer(); return }
-        vm.viewModelScope.launch { vm.repository.update(task.withTimerState(TaskTimerState.reset())) }
+        if (task.id == vm.currentTask.value?.id) { resetTimer(); return }
+        vm.viewModelScope.launch { vm.repository.update(task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())) }
     }
 
     fun skipTask() {
         vm.stopAlarmSound()
         pauseTimer()
-        val task = vm._currentTask.value ?: return
+        val task = vm.currentTask.value ?: return
         vm._toastMessage.value = "Skipped \"${task.name}\""
-        vm._currentTask.value  = null
+        vm.currentTaskOwner.set(null)
         vm.clearPersistedSelection()
         vm.scheduler.scheduleNext()
     }
@@ -214,8 +214,8 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         // Bug 1 fix — stale NoticePhase.Expired locking the button:
         //
         // After a NOTIFICATION task expires, triggerAlarmExpire() sets
-        // _noticePhase = Expired (sync) then nulls _currentTask via postValue
-        // (async).  By the time the user taps the task row, _currentTask is
+        // _noticePhase = Expired (sync) then nulls the current task via postValue
+        // (async).  By the time the user taps the task row, currentTask is
         // already null, so pauseTimer()'s `task != null` guard skips handlePause()
         // and the Expired phase is never cleared.  On the first re-select the
         // derive() therefore sees:  task != null  +  phase == Expired
@@ -235,7 +235,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             vm.stopAlarmSound()
         }
 
-        vm._currentTask.value  = task
+        vm.currentTaskOwner.set(task)
         vm._timerSeconds.value = task.remainingSeconds
 
         // Selecting a task is an explicit "open this card" gesture: clear any
@@ -262,7 +262,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
      */
     fun restorePersistedSelection() {
         // Don't clobber a task already seated by the mid-run / alarm recovery paths.
-        if (vm._currentTask.value != null || vm._alarmTaskName.value != null) return
+        if (vm.currentTask.value != null || vm._alarmTaskName.value != null) return
         val savedId = vm.settings.getSavedSelectedTaskId() ?: return
         vm.viewModelScope.launch {
             val task = vm.repository.getTaskById(savedId)
@@ -270,7 +270,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
                 vm.settings.saveSelectedTaskId(null)
                 return@launch
             }
-            vm._currentTask.postValue(task)
+            vm.currentTaskOwner.setAsync(task)
             vm._timerSeconds.postValue(task.remainingSeconds)
         }
     }
@@ -282,10 +282,10 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         vm.timerEngine.clear()
         vm._timerRunning.value = false
         if (completed) {
-            val task = vm._currentTask.value ?: return
+            val task = vm.currentTask.value ?: return
             vm.viewModelScope.launch {
                 vm.repository.markCompleted(task)
-                vm._currentTask.postValue(null)
+                vm.currentTaskOwner.setAsync(null)
                 vm.clearPersistedSelection()
                 vm._toastMessage.postValue("\"${task.name}\" completed!")
                 vm.refreshSchedule()
@@ -297,7 +297,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
      * Called when the countdown reaches zero.
      *
      * [taskOverride] is supplied by the app-killed recovery path in `init{}`
-     * (via [StartupRecoveryDelegate]) where `_currentTask` hasn't been set yet
+     * (via [StartupRecoveryDelegate]) where currentTask hasn't been set yet
      * (postValue is asynchronous).
      * [session] == null means vruntime was already applied by the caller.
      */
@@ -305,10 +305,10 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         taskOverride: Task?       = null,
         session:      RunSession? = null
     ) {
-        val task = taskOverride ?: vm._currentTask.value ?: return
+        val task = taskOverride ?: vm.currentTask.value ?: return
 
-        val expiryEpochMs      = session?.endEpochMs ?: System.currentTimeMillis()
-        val elapsedSinceExpiry = ((System.currentTimeMillis() - expiryEpochMs) / 1000L)
+        val expiryEpochMs      = session?.endEpochMs ?: vm.clock.nowEpochMillis()
+        val elapsedSinceExpiry = ((vm.clock.nowEpochMillis() - expiryEpochMs) / 1000L)
             .coerceAtLeast(0L)
 
         // Clear engine synchronously — before any suspend call — so that a user
@@ -349,7 +349,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             } else {
                 task
             }
-            vm.repository.update(freshTask.withTimerState(TaskTimerState.reset()))
+            vm.repository.update(freshTask.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis()))
             vm._toastMessage.postValue("Time slice done for \"${task.name}\"")
             vm.refreshSchedule()
 
@@ -375,19 +375,19 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
                 // next time the user restarts (via AlarmOverrunDelegate), so it
                 // must carry the correct post-run virtualDeadline forward, not
                 // the stale pre-run one. See the comment on `freshTask` above.
-                vm.taskToRestoreAfterExpire = freshTask.withTimerState(TaskTimerState.reset())
+                vm.taskToRestoreAfterExpire = freshTask.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
                 // Requirement #3: do NOT clear the persisted selection on expiry.
                 // The merged card stays seated on the just-expired task (showing the
                 // Expired/alarm state); keep its id stored so a reboot mid-alarm
                 // reopens the card on the same task.
                 vm.settings.saveSelectedTaskId(task.id)
-                vm._currentTask.postValue(null)
+                vm.currentTaskOwner.setAsync(null)
             }
         }
     }
 
     fun applyVruntimeUpdate(session: RunSession) {
-        val task = vm._currentTask.value ?: return
+        val task = vm.currentTask.value ?: return
         // Intentionally NOT cleared here (unlike the full-expiry path): a
         // pause is not a context switch. The same still-selected task can be
         // resumed and paused again any number of times and every one of
@@ -396,7 +396,7 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         val membershipId = vm.activeRunMembershipId
         vm.viewModelScope.launch {
             val freshTask = vm.repository.updateVruntimeAfterRun(task, session, membershipId)
-            // Reassign _currentTask to the authoritative post-run object —
+            // Reassign the dispatched task to the authoritative post-run object —
             // otherwise it keeps holding a stale virtualDeadline forever, and
             // the next time the user taps Start, the code persists that stale
             // value right back over the DB's correct one. See
@@ -406,8 +406,8 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             // already switched to a different task while this write was in
             // flight, don't stomp on their current selection with this one's
             // stale-by-comparison data.
-            if (vm._currentTask.value?.id == freshTask.id) {
-                vm._currentTask.postValue(freshTask)
+            if (vm.currentTask.value?.id == freshTask.id) {
+                vm.currentTaskOwner.setAsync(freshTask)
             }
             vm.refreshSchedule()
         }

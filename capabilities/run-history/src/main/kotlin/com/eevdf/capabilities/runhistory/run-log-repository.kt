@@ -4,6 +4,7 @@ import android.content.Context
 import com.eevdf.capabilities.runhistory.RunDailySummary
 import com.eevdf.capabilities.runhistory.RunLogEntry
 import com.eevdf.capabilities.runhistory.RunMonthlySummary
+import com.eevdf.kernel.clock.Clock
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,6 +34,7 @@ import javax.inject.Singleton
 class RunLogRepository @Inject constructor(
     private val dao: RunLogDao,
     @ApplicationContext context: Context,
+    private val clock: Clock,
 ) {
 
     private val prefs  = context.getSharedPreferences("run_log_prefs", Context.MODE_PRIVATE)
@@ -117,7 +119,7 @@ class RunLogRepository @Inject constructor(
      * last run.  Safe to call frequently — the timestamp check is O(1).
      */
     private suspend fun maybeCompact() {
-        val now  = System.currentTimeMillis()
+        val now  = clock.nowEpochMillis()
         val last = prefs.getLong(PREF_LAST_COMPACT, 0L)
         if (now - last < COMPACT_INTERVAL_MS) return
 
@@ -132,7 +134,7 @@ class RunLogRepository @Inject constructor(
      * Groups by (taskId, calendar day), then deletes the source rows.
      */
     private suspend fun compactLogToDaily() {
-        val cutoff  = System.currentTimeMillis() - RunLogEntry.TTL_DAYS * 86_400_000L
+        val cutoff  = clock.nowEpochMillis() - RunLogEntry.TTL_DAYS * 86_400_000L
         val entries = dao.getEntriesOlderThan(cutoff)
         if (entries.isEmpty()) return
 
@@ -204,7 +206,7 @@ class RunLogRepository @Inject constructor(
      * then deletes the source rows.
      */
     private suspend fun compactDailyToMonthly() {
-        val cutoff = System.currentTimeMillis() - RunDailySummary.TTL_DAYS * 86_400_000L
+        val cutoff = clock.nowEpochMillis() - RunDailySummary.TTL_DAYS * 86_400_000L
         val rows   = dao.getDailyOlderThan(cutoff)
         if (rows.isEmpty()) return
 

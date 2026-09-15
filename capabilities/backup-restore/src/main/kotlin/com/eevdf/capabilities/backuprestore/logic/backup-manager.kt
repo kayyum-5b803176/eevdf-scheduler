@@ -1,6 +1,8 @@
 package com.eevdf.capabilities.backuprestore.logic
 
 import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.kernel.clock.Clock
+import com.eevdf.kernel.clock.SystemClock
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -26,12 +28,15 @@ object BackupManager {
 
     const val BACKUP_VERSION = 2
 
+    /** Not Hilt-injectable (plain `object`) — see VibrationManager's identical note. */
+    internal var clock: Clock = SystemClock()
+
     // ── tasks.json (complete export) ───────────────────────────────────────────
 
     fun exportTasksJson(tasks: List<Task>): String {
         val root = JSONObject()
         root.put("backupVersion", BACKUP_VERSION)
-        root.put("exportedAt", System.currentTimeMillis())
+        root.put("exportedAt", clock.nowEpochMillis())
         val arr = JSONArray()
         tasks.forEach { arr.put(taskToJson(it)) }
         root.put("tasks", arr)
@@ -46,7 +51,7 @@ object BackupManager {
     fun manifestJson(taskCount: Int): String = JSONObject().apply {
         put("format", "eevdf-backup")
         put("backupVersion", BACKUP_VERSION)
-        put("exportedAt", System.currentTimeMillis())
+        put("exportedAt", clock.nowEpochMillis())
         put("appVersion", "1.0")
         put("taskCount", taskCount)
         put("contents", JSONArray().apply {
@@ -153,7 +158,7 @@ object BackupManager {
         startTimeEpoch = 0L,
         pinnedShare = if (j.isNull("pinnedShare")) null else j.optDouble("pinnedShare"),
         internalWeight = if (j.isNull("internalWeight")) null else j.optDouble("internalWeight"),
-        createdAt = j.optLong("createdAt", System.currentTimeMillis()),
+        createdAt = j.optLong("createdAt", clock.nowEpochMillis()),
         quotaSeconds = j.optLong("quotaSeconds", 0L),
         quotaPeriodSeconds = j.optLong("quotaPeriodSeconds", 86_400L),
         quotaPeriodStartEpoch = j.optLong("quotaPeriodStartEpoch", 0L),
@@ -188,7 +193,7 @@ object BackupManager {
     fun toSyncJson(tasks: List<Task>): String {
         val root = JSONObject()
         root.put("backupVersion", BACKUP_VERSION)
-        root.put("exportedAt", System.currentTimeMillis())
+        root.put("exportedAt", clock.nowEpochMillis())
         root.put("syncFormat", true)
         val arr = JSONArray()
         tasks.forEach { arr.put(taskToSyncJson(it)) }

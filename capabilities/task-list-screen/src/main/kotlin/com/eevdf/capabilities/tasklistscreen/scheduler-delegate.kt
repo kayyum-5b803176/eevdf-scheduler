@@ -36,7 +36,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     fun nextSibling(onQueueTab: Boolean = false) {
         vm.pauseTimer()
-        if (vm._currentTask.value == null) {
+        if (vm.currentTask.value == null) {
             jumpToFirst(onQueueTab)
             return
         }
@@ -60,7 +60,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             ?.task
             ?: run { vm._toastMessage.value = "No tasks available"; return }
         vm.pauseTimer()
-        vm._currentTask.value  = first
+        vm.currentTaskOwner.set(first)
         vm._timerSeconds.value = first.remainingSeconds
         vm._toastMessage.value = "Jumped to \"${first.name}\""
     }
@@ -72,7 +72,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     fun pauseAndDismiss() {
         vm.pauseTimer()
-        vm._currentTask.value  = null
+        vm.currentTaskOwner.set(null)
         vm._toastMessage.value = "Timer paused — task saved"
     }
 
@@ -84,11 +84,11 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         vm.pauseTimer()
         val next = vm.repository.selectNextTask()
         if (next != null) {
-            vm._currentTask.postValue(next)
+            vm.currentTaskOwner.setAsync(next)
             vm._timerSeconds.postValue(next.remainingSeconds)
             vm._toastMessage.postValue("Now: \"${next.name}\" (Priority ${next.priority})")
         } else {
-            vm._currentTask.postValue(null)
+            vm.currentTaskOwner.setAsync(null)
             vm._toastMessage.postValue("No active tasks to schedule")
         }
         refreshSchedule()
@@ -112,7 +112,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         val allTasks      = order + (vm.completedTasks.value ?: emptyList())
         val groupsEnabled = vm.groupsEnabled.value ?: false
         val runningId     = vm.currentTask.value?.id?.takeIf { vm.currentTask.value?.isRunning == true }
-        vm._stats.postValue(EEVDFScheduler.getStats(allTasks, groupsEnabled, runningId))
+        vm._stats.postValue(EEVDFScheduler.getStats(allTasks, groupsEnabled, runningId, nowMs = vm.clock.nowEpochMillis()))
     }
 
     /**
@@ -125,7 +125,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     fun triggerAutoJump(onQueueTab: Boolean = false) {
         vm.pauseTimer()
-        val current = vm._currentTask.value
+        val current = vm.currentTask.value
         if (current == null) {
             jumpToFirst(onQueueTab)
             return
@@ -135,7 +135,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             vm._toastMessage.value = "No tasks available"
             return
         }
-        vm._currentTask.value  = next
+        vm.currentTaskOwner.set(next)
         vm._timerSeconds.value = next.remainingSeconds
         vm._toastMessage.value = "Auto → \"${next.name}\""
     }
@@ -194,7 +194,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * NOTIFICATION parent: always jumps to the lowest-VDL sibling (no rotation).
      */
     private fun rotateSiblings(onQueueTab: Boolean) {
-        val current   = vm._currentTask.value
+        val current   = vm.currentTask.value
         val flatItems = (if (onQueueTab) vm.listBuilder.flatActiveTasks
                          else            vm.listBuilder.flatScheduleOrder)
             .value ?: return
@@ -234,7 +234,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             siblings[(idx + 1) % siblings.size]
         }
 
-        vm._currentTask.value  = next
+        vm.currentTaskOwner.set(next)
         vm._timerSeconds.value = next.remainingSeconds
         vm._toastMessage.value = "Next: \"${next.name}\""
         vm.viewModelScope.launch { refreshSchedule() }
@@ -260,7 +260,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * matches rank #1 within its group.
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
-        val current   = vm._currentTask.value
+        val current   = vm.currentTask.value
         val flatItems = (if (onQueueTab) vm.listBuilder.flatActiveTasks
                          else            vm.listBuilder.flatScheduleOrder)
             .value ?: return
@@ -297,7 +297,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
                 val leaf = when {
                     !candidate.isGroup -> candidate
                     onQueueTab         -> vm.lastRun.getLastRunLeaf(candidate.id, allTasks)
-                    else               -> firstLeafOf(allTasks, candidate.id, scheduleSort = true)
+                    else               -> firstLeafOf(allTasks, candidate.id, scheduleSort = true, nowMs = vm.clock.nowEpochMillis())
                 }
                 if (leaf == null || leaf.isInterrupt) null else Pair(candidate.id, leaf)
             }
@@ -316,7 +316,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         val nextIdx         = (currentIdx + 1) % representatives.size
         val next            = representatives[nextIdx].second
 
-        vm._currentTask.value  = next
+        vm.currentTaskOwner.set(next)
         vm._timerSeconds.value = next.remainingSeconds
         vm._toastMessage.value = "Next: \"${next.name}\" (${nextIdx + 1}/${representatives.size})"
         vm.viewModelScope.launch { refreshSchedule() }
@@ -346,7 +346,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         tasks: List<Task>,
         parentId: String?,
         scheduleSort: Boolean = false,
-        nowMs: Long = System.currentTimeMillis(),
+        nowMs: Long,
     ): Task? {
         val children = tasks
             .filter { it.parentId == parentId && !it.isCompleted && !it.isInterrupt }
@@ -385,8 +385,8 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         nowMs: Long,
     ): List<Task> {
         val (dlChildren, nonDl) = children.partition { child ->
-            if (child.isGroup) EEVDFScheduler.hasActiveDlDescendant(child, allTasks)
-            else child.isDlBudgetActive
+            if (child.isGroup) EEVDFScheduler.hasActiveDlDescendant(child, allTasks, nowMs)
+            else child.isDlBudgetActive(nowMs)
         }
         val (rtChildren, restChildren) = nonDl.partition { child ->
             if (child.isGroup) RtScheduler.hasActiveRtDescendant(child, allTasks, nowMs)
@@ -395,7 +395,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         // dlUrgency mirrors the same local function used in buildScheduleList:
         // leaf → dlPeriodRemainingSeconds; group → minimum across its children.
         fun dlUrgency(task: Task): Long =
-            if (!task.isGroup) task.dlPeriodRemainingSeconds
+            if (!task.isGroup) task.dlPeriodRemainingSeconds(nowMs)
             else allTasks
                 .filter { it.parentId == task.id && !it.isCompleted }
                 .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE

@@ -55,10 +55,10 @@ class EevdfSchedulerService @Inject constructor() {
     fun syncPinnedWeights(allTasks: List<Task>): List<Task> =
         EEVDFScheduler.syncPinnedWeights(allTasks)
 
-    fun hasActiveDlDescendant(task: Task, allTasks: List<Task>): Boolean =
-        EEVDFScheduler.hasActiveDlDescendant(task, allTasks)
+    fun hasActiveDlDescendant(task: Task, allTasks: List<Task>, nowMs: Long): Boolean =
+        EEVDFScheduler.hasActiveDlDescendant(task, allTasks, nowMs)
 
     fun getStats(
-        tasks: List<Task>, groupsEnabled: Boolean = false, runningId: String? = null,
-    ): SchedulerStats = EEVDFScheduler.getStats(tasks, groupsEnabled, runningId)
+        tasks: List<Task>, groupsEnabled: Boolean = false, runningId: String? = null, nowMs: Long,
+    ): SchedulerStats = EEVDFScheduler.getStats(tasks, groupsEnabled, runningId, nowMs)
 }

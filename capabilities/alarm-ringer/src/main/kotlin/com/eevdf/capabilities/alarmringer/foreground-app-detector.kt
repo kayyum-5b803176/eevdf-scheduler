@@ -3,12 +3,17 @@ package com.eevdf.capabilities.alarmringer
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import com.eevdf.kernel.clock.Clock
+import com.eevdf.kernel.clock.SystemClock
 
 /**
  * Best-effort foreground-app detection, used to decide whether the banner
  * notification style should be suppressed for a configured "exclude app".
  */
 object ForegroundAppDetector {
+
+    /** Not Hilt-injectable (plain `object`) — see VibrationManager's identical note. */
+    internal var clock: Clock = SystemClock()
 
     /**
      * Current foreground package, resolved via UsageStatsManager EVENTS (not
@@ -31,7 +36,7 @@ object ForegroundAppDetector {
     fun getForegroundPackage(context: Context): String? {
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return null
-        val now = System.currentTimeMillis()
+        val now = clock.nowEpochMillis()
         for (windowMs in longArrayOf(10_000L, 60_000L, 300_000L, 3_600_000L)) {
             val pkg = lastForegroundFromEvents(usm, now - windowMs, now)
             if (pkg != null) return pkg

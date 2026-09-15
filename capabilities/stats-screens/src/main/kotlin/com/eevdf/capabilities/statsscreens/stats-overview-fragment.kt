@@ -31,6 +31,7 @@ class StatsOverviewFragment : Fragment() {
 
     @Inject lateinit var taskDao: TaskDao
     @Inject lateinit var runLogDao: RunLogDao
+    @Inject lateinit var clock: com.eevdf.kernel.clock.Clock
 
     private lateinit var etWindowRange:   TextInputEditText
     private lateinit var btnApplyWindow:  MaterialButton
@@ -93,7 +94,7 @@ class StatsOverviewFragment : Fragment() {
         val dao = taskDao
         val rld = runLogDao
         viewLifecycleOwner.lifecycleScope.launch {
-            val nowMs  = System.currentTimeMillis()
+            val nowMs  = clock.nowEpochMillis()
             val fromMs = nowMs - windowSeconds * 1_000L
             val tasks         = withContext(Dispatchers.IO) { dao.getAllTasksForStats() }
             val logEntries    = withContext(Dispatchers.IO) { rld.getEntriesInRange(fromMs, nowMs) }
@@ -252,21 +253,22 @@ class StatsOverviewFragment : Fragment() {
 
     private fun renderQuotaViolators(tasks: List<Task>) {
         llQuotaViolators.removeAllViews()
-        tasks.filter { it.isQuotaEnabled && it.isQuotaExceeded }
-            .sortedByDescending { it.quotaOverflowSeconds }
+        val nowMs = clock.nowEpochMillis()
+        tasks.filter { it.isQuotaEnabled && it.isQuotaExceeded(nowMs) }
+            .sortedByDescending { it.quotaOverflowSeconds(nowMs) }
             .forEach { t ->
                 val over = if (t.quotaSeconds > 0)
-                    (t.quotaOverflowSeconds * 100L / t.quotaSeconds).toInt() else 0
+                    (t.quotaOverflowSeconds(nowMs) * 100L / t.quotaSeconds).toInt() else 0
                 llQuotaViolators.addView(makeStatRow(t.name,
-                    "-${formatDur(t.quotaOverflowSeconds)} over",
+                    "-${formatDur(t.quotaOverflowSeconds(nowMs))} over",
                     "+$over% over limit  (${formatDur(t.quotaSeconds)})", "#E65100"))
             }
-        tasks.filter { it.isQuotaEnabled && it.isQuotaWarning }
-            .sortedByDescending { it.quotaProgressPercent }
+        tasks.filter { it.isQuotaEnabled && it.isQuotaWarning(nowMs) }
+            .sortedByDescending { it.quotaProgressPercent(nowMs) }
             .forEach { t ->
                 llQuotaViolators.addView(makeStatRow(t.name,
-                    "${t.quotaProgressPercent}% used",
-                    "${formatDur(t.quotaRemainingSeconds)} left  (${formatDur(t.quotaSeconds)})", "#F57C00"))
+                    "${t.quotaProgressPercent(nowMs)}% used",
+                    "${formatDur(t.quotaRemainingSeconds(nowMs))} left  (${formatDur(t.quotaSeconds)})", "#F57C00"))
             }
         if (llQuotaViolators.childCount == 0)
             llQuotaViolators.addView(makeEmpty("No quota violations"))
