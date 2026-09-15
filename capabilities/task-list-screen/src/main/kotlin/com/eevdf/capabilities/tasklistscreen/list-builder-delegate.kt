@@ -286,67 +286,81 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             .withDefault { 0 }
             .let { counts -> ScheduleClassFilter.values().associateWith { counts.getValue(it) } }
 
+    /**
+     * Builds the class-filtered Schedule tab as a REAL sub-tree of the actual
+     * hierarchy — not a flattened "one level of context" view. A branch is
+     * kept whenever it leads to something relevant; every branch that leads
+     * nowhere is pruned entirely. See the design discussion: this matches how
+     * `htop`'s tree-filter or an IDE's "find in files" folder view works —
+     * full real ancestor chain to root, not truncated.
+     */
     internal fun buildFilteredScheduleList(tasks: List<Task>, filter: ScheduleClassFilter): List<TaskDisplayItem> {
         val active   = tasks.filter { !it.isCompleted }
+        val byId     = active.associateBy { it.id }
         val byParent = active.groupBy { it.parentId }
-        val result   = mutableListOf<TaskDisplayItem>()
 
-        fun isExpanded(t: Task) = vm.groupExpand.scheduleExpandState[t.id] ?: true
+        // Pass 1 — resolve every node's EFFECTIVE class for TAB MEMBERSHIP
+        // only (never touches Task.schedulerClass itself — pure view
+        // concept, fundamental #2 still holds). A node's effective class is
+        // its own class UNLESS it sits inside an already class-owned group's
+        // subtree, in which case the whole subtree inherits that owner's
+        // class regardless of each descendant's individual class — the
+        // established "owned subtree belongs wholly to one tab" rule.
+        // Computed over the REAL tree, ignoring collapse state entirely —
+        // relevance must not depend on what's currently expanded (fixes the
+        // "collapse removes the whole branch" bug).
+        val effectiveClass = mutableMapOf<String, ScheduleClassFilter>()
+        fun resolveEffective(node: Task, inheritedOwner: ScheduleClassFilter?) {
+            val resolved = inheritedOwner ?: node.ownScheduleClass()
+            effectiveClass[node.id] = resolved
+            val childOwner = when {
+                inheritedOwner != null                                       -> inheritedOwner
+                node.isGroup && resolved != ScheduleClassFilter.FAIR         -> resolved
+                else                                                         -> null
+            }
+            byParent[node.id].orEmpty().forEach { resolveEffective(it, childOwner) }
+        }
+        byParent[null].orEmpty().forEach { resolveEffective(it, null) }
 
-        fun itemFor(t: Task, depth: Int, contextOnly: Boolean = false) = TaskDisplayItem(
+        val directlyRelevant = effectiveClass.filterValues { it == filter }.keys
+
+        // Pass 2 — every REAL ancestor (full chain, to root) of a directly
+        // relevant node is also kept, so the branch stays intact. Nothing
+        // else survives — that's the pruning.
+        val relevant = mutableSetOf<String>()
+        fun markAncestors(id: String) {
+            var cur: Task? = byId[id]
+            while (cur != null) {
+                if (!relevant.add(cur.id)) break   // already walked this chain
+                cur = cur.parentId?.let { byId[it] }
+            }
+        }
+        directlyRelevant.forEach { markAncestors(it) }
+
+        fun itemFor(t: Task, depth: Int) = TaskDisplayItem(
             task = t, depth = depth,
             isDlActive = t.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
             isRtActive = t.ownScheduleClass() == ScheduleClassFilter.RT,
-            isExpanded = if (t.isGroup) isExpanded(t) else true,
-            isFilterContextOnly = contextOnly,
+            isExpanded = if (t.isGroup) (vm.groupExpand.scheduleExpandState[t.id] ?: true) else true,
+            // Context-only = kept purely as ancestor path, not itself a match
+            // — used by SchedulerDelegate's "Next" to skip it as a target.
+            isFilterContextOnly = t.id !in directlyRelevant,
         )
 
-        // A group's own class matched the filter: take the WHOLE subtree, any
-        // depth — but still honour collapse: a collapsed group's real children
-        // are not rendered here either, same as the "All" tab (fixes issue 2).
-        fun addOwnedSubtree(node: Task, depth: Int) {
+        // Pass 3 — render the pruned real tree at REAL depth (no artificial
+        // flattening). Collapse controls ONLY whether a group's children are
+        // drawn beneath it — the row itself always stays if it's on a
+        // relevant path, regardless of collapse state (fixes: collapsing
+        // used to remove the whole branch with no way back in).
+        val result = mutableListOf<TaskDisplayItem>()
+        fun render(node: Task, depth: Int) {
+            if (node.id !in relevant) return
             result.add(itemFor(node, depth))
-            if (!isExpanded(node)) return
-            byParent[node.id].orEmpty().forEach { addOwnedSubtree(it, depth + 1) }
+            if (!node.isGroup) return
+            if (!(vm.groupExpand.scheduleExpandState[node.id] ?: true)) return
+            byParent[node.id].orEmpty().forEach { render(it, depth + 1) }
         }
-
-        // Finds matches ANYWHERE below `node` — at any depth, no matter how
-        // deeply nested (fixes issue 1: a nested owned group used to be
-        // dropped entirely instead of being found here). Each match carries
-        // its own IMMEDIATE parent, re-set at every recursion level — never a
-        // grandparent. Stops descending into an owned (non-FAIR) group found
-        // along the way: that subtree belongs wholly to its own tab. Also
-        // stops descending into a collapsed group (fixes issue 2): a
-        // collapsed plain folder hides whatever's inside it here too, same
-        // as it would in the "All" tab.
-        fun collectMatches(node: Task, immediateParent: Task?): List<Pair<Task?, Task>> {
-            val cls = node.ownScheduleClass()
-            if (node.isGroup && cls != ScheduleClassFilter.FAIR) {
-                return if (cls == filter) listOf(immediateParent to node) else emptyList()
-            }
-            if (!node.isGroup) return if (cls == filter) listOf(immediateParent to node) else emptyList()
-            if (!isExpanded(node)) return emptyList()
-            return byParent[node.id].orEmpty().flatMap { collectMatches(it, node) }
-        }
-
-        fun renderGrouped(matches: List<Pair<Task?, Task>>) {
-            matches.groupBy({ it.first }, { it.second }).forEach { (parent, children) ->
-                if (parent != null) result.add(itemFor(parent, 0, contextOnly = true))
-                val depth = if (parent != null) 1 else 0
-                children.forEach { child ->
-                    if (child.isGroup && child.ownScheduleClass() != ScheduleClassFilter.FAIR) {
-                        addOwnedSubtree(child, depth)
-                    } else {
-                        result.add(itemFor(child, depth))
-                    }
-                }
-            }
-        }
-
-        // Walk from every TRUE root — collectMatches finds owned groups and
-        // leaves at any depth beneath it, so this single pass covers the
-        // whole tree, not just root-level entries.
-        renderGrouped(byParent[null].orEmpty().flatMap { collectMatches(it, null) })
+        byParent[null].orEmpty().forEach { render(it, 0) }
         return result
     }
 
