@@ -289,7 +289,8 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         val representatives = flatItems
             .filter { it.task.parentId == effectiveParentId &&
                       !it.task.isCompleted &&
-                      !it.task.isInterrupt }
+                      !it.task.isInterrupt &&
+                      !it.isFilterContextOnly }
             .mapNotNull { item ->
                 val candidate = item.task
                 val leaf = when {
@@ -443,6 +444,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             item.task.parentId == parentId &&
             !item.task.isCompleted &&
             !item.task.isInterrupt &&
+            !item.isFilterContextOnly &&
             item.task.id !in interruptAncestorIds &&
             (!item.task.isGroup || item.task.id in expandedGroupIds)
         }

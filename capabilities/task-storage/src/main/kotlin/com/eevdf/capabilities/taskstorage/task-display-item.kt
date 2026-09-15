@@ -84,6 +84,16 @@ data class TaskDisplayItem(
      */
     val isExpanded: Boolean = true,
 
+    /**
+     * True when this row exists purely as one-level ancestor context in a
+     * class-filtered Schedule tab (see [com.eevdf.capabilities.tasklistscreen.ScheduleClassFilter])
+     * — the row's own class did NOT match the active filter, it's shown only
+     * so a matching descendant isn't orphaned with no visible parent. Never
+     * a real navigation target: [com.eevdf.capabilities.tasklistscreen.SchedulerDelegate]'s
+     * "Next" logic must exclude these from its candidate/representative pools.
+     */
+    val isFilterContextOnly: Boolean = false,
+
     // ── Links feature: symlinks + hardlinks ───────────────────────────────────
 
     /**

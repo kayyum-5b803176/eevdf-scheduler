@@ -247,6 +247,12 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             addSource(vm.settings.scheduleListStyle) { rebuild() }
             addSource(vm.scheduleDrillState)         { rebuild() }
             addSource(vm.scheduleClassFilter)        { rebuild() }
+            // Explicit, not just relying on flatScheduleOrder's own rebuild to
+            // "poke" this — the class-filtered branch reads scheduleExpandState
+            // directly rather than through flatScheduleOrder's value, so it
+            // needs its own direct trigger to stay correct if that indirect
+            // coupling ever changes (fixes issue 2: collapse not working).
+            addSource(vm.groupExpand.scheduleExpandTrigger) { rebuild() }
         }
 
         scheduleClassCounts = MediatorLiveData<Map<ScheduleClassFilter, Int>>().apply {
@@ -285,49 +291,65 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         val byParent = active.groupBy { it.parentId }
         val result   = mutableListOf<TaskDisplayItem>()
 
-        fun itemFor(t: Task, depth: Int) = TaskDisplayItem(
+        fun isExpanded(t: Task) = vm.groupExpand.scheduleExpandState[t.id] ?: true
+
+        fun itemFor(t: Task, depth: Int, contextOnly: Boolean = false) = TaskDisplayItem(
             task = t, depth = depth,
             isDlActive = t.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
             isRtActive = t.ownScheduleClass() == ScheduleClassFilter.RT,
+            isExpanded = if (t.isGroup) isExpanded(t) else true,
+            isFilterContextOnly = contextOnly,
         )
 
-        // A group's own class matched the filter: take the WHOLE subtree, any depth.
+        // A group's own class matched the filter: take the WHOLE subtree, any
+        // depth — but still honour collapse: a collapsed group's real children
+        // are not rendered here either, same as the "All" tab (fixes issue 2).
         fun addOwnedSubtree(node: Task, depth: Int) {
             result.add(itemFor(node, depth))
+            if (!isExpanded(node)) return
             byParent[node.id].orEmpty().forEach { addOwnedSubtree(it, depth + 1) }
         }
 
-        // Finds matches anywhere below `node`, tagging each with its own
-        // IMMEDIATE parent (updated at every level) — never a grandparent.
-        // Stops descending into an owned (non-FAIR) group: that subtree
-        // belongs wholly to its own top-level tab, not surfaced here too.
+        // Finds matches ANYWHERE below `node` — at any depth, no matter how
+        // deeply nested (fixes issue 1: a nested owned group used to be
+        // dropped entirely instead of being found here). Each match carries
+        // its own IMMEDIATE parent, re-set at every recursion level — never a
+        // grandparent. Stops descending into an owned (non-FAIR) group found
+        // along the way: that subtree belongs wholly to its own tab. Also
+        // stops descending into a collapsed group (fixes issue 2): a
+        // collapsed plain folder hides whatever's inside it here too, same
+        // as it would in the "All" tab.
         fun collectMatches(node: Task, immediateParent: Task?): List<Pair<Task?, Task>> {
             val cls = node.ownScheduleClass()
-            if (node.isGroup && cls != ScheduleClassFilter.FAIR) return emptyList()
+            if (node.isGroup && cls != ScheduleClassFilter.FAIR) {
+                return if (cls == filter) listOf(immediateParent to node) else emptyList()
+            }
             if (!node.isGroup) return if (cls == filter) listOf(immediateParent to node) else emptyList()
+            if (!isExpanded(node)) return emptyList()
             return byParent[node.id].orEmpty().flatMap { collectMatches(it, node) }
         }
 
         fun renderGrouped(matches: List<Pair<Task?, Task>>) {
             matches.groupBy({ it.first }, { it.second }).forEach { (parent, children) ->
-                if (parent != null) result.add(itemFor(parent, 0))
+                if (parent != null) result.add(itemFor(parent, 0, contextOnly = true))
                 val depth = if (parent != null) 1 else 0
-                children.forEach { result.add(itemFor(it, depth)) }
+                children.forEach { child ->
+                    if (child.isGroup && child.ownScheduleClass() != ScheduleClassFilter.FAIR) {
+                        addOwnedSubtree(child, depth)
+                    } else {
+                        result.add(itemFor(child, depth))
+                    }
+                }
             }
         }
 
-        for (root in byParent[null].orEmpty()) {
-            val cls = root.ownScheduleClass()
-            when {
-                root.isGroup && cls != ScheduleClassFilter.FAIR ->
-                    if (cls == filter) addOwnedSubtree(root, 0)
-                !root.isGroup ->
-                    if (cls == filter) result.add(itemFor(root, 0))
-                else -> renderGrouped(collectMatches(root, null))
-            }
-        }
+        // Walk from every TRUE root — collectMatches finds owned groups and
+        // leaves at any depth beneath it, so this single pass covers the
+        // whole tree, not just root-level entries.
+        renderGrouped(byParent[null].orEmpty().flatMap { collectMatches(it, null) })
         return result
     }
+
 
     /**
      * The Schedule tab's current candidate list with the class filter applied
