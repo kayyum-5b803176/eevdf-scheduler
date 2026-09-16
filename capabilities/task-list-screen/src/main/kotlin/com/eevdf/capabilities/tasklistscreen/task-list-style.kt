@@ -53,7 +53,7 @@ data class DrillFrame(
  * gets displayed (see [ListBuilderDelegate]'s queueDisplayList/scheduleDisplayList).
  * It must never be allowed to replace [TaskViewModel.flatActiveTasks] or
  * [TaskViewModel.flatScheduleOrder] themselves — every scheduling/rotation
- * function (SchedulerDelegate.nextSibling, scheduleNext, rotateGlobal,
+ * function (SchedulerDelegate.nextSibling, scheduleNext, rotateSiblings,
  * jumpToFirst, MenuSyncDelegate's leaf checks, navigateToRealLocation, …) reads
  * the FULL multi-depth tree from those two properties and would silently break
  * if they ever only contained one drill level's rows.

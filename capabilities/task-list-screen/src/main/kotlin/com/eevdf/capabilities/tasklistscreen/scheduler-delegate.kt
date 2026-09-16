@@ -1,11 +1,9 @@
 package com.eevdf.capabilities.tasklistscreen
 
-import com.eevdf.capabilities.taskstorage.logic.SortHelper
 import androidx.lifecycle.viewModelScope
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
-import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 import kotlinx.coroutines.launch
 
 /**
@@ -180,66 +178,89 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         }
     }
 
+    // ── Structural helpers (depth + list order only) ──────────────────────────
+    //
+    // Neither function below ever reads task.parentId, task type, or whether a
+    // row is a real task / symlink / hardlink placement. A row's position in
+    // the flat on-screen list — its own depth, and its order relative to
+    // neighbouring rows — is the ONLY thing that decides who its children or
+    // parent are. This is what makes a linked task/group exactly as
+    // reachable as a plain one: the on-screen list already draws it at a
+    // depth, in a position, same as anything else, so there's nothing link-
+    // specific left for this logic to need to know about.
+
+    /** Row indices of the direct children of [parentIdx] (-1 = top level). */
+    private fun childrenOf(flatItems: List<TaskDisplayItem>, parentIdx: Int): List<Int> {
+        val parentDepth = if (parentIdx < 0) -1 else flatItems[parentIdx].depth
+        val childDepth  = parentDepth + 1
+        val result = mutableListOf<Int>()
+        var i = parentIdx + 1
+        while (i < flatItems.size && flatItems[i].depth > parentDepth) {
+            if (flatItems[i].depth == childDepth) result.add(i)
+            i++
+        }
+        return result
+    }
+
+    /** Row index of [idx]'s structural parent, or -1 if it's at the top level. */
+    private fun parentIndexOf(flatItems: List<TaskDisplayItem>, idx: Int): Int {
+        val depth = flatItems[idx].depth
+        if (depth <= 0) return -1
+        var i = idx - 1
+        while (i >= 0) {
+            if (flatItems[i].depth < depth) return i
+            i--
+        }
+        return -1
+    }
+
     // ── Private rotation strategies ───────────────────────────────────────────
 
     /**
-     * Cycles through siblings that share the same parentId, in UI list order.
+     * Cycles through siblings — "siblings" meaning whatever's drawn at the
+     * same depth directly beneath the same structural parent in the current
+     * on-screen list, found via [childrenOf]/[parentIndexOf] rather than
+     * task.parentId. A linked task or group is exactly as eligible as a
+     * plain one: this logic only ever asks "what's here, at this depth,
+     * right now" — never what kind of row it is.
      *
-     * Queue tab:    siblings taken directly from [ListBuilderDelegate.queueDisplayList]
-     *               — the exact on-screen list, static name order.
-     * Schedule tab: siblings taken directly from [ListBuilderDelegate.scheduleDisplayList]
-     *               — the exact on-screen list, whatever class filter and
-     *               collapse state are currently active, already DL → RT →
-     *               EEVDF ordered. Re-sorting by virtualDeadline here was the
-     *               bug: a DL/RT-class sibling sitting at position #1 in the
-     *               UI would be skipped because its vdl happened to be larger
-     *               than a plain EEVDF sibling's. Reading the screen's own
-     *               list directly — rather than a separate recomputation —
-     *               is also what makes this automatically correct for any
-     *               future tab/filter without touching this function again.
+     * Queue tab:    [ListBuilderDelegate.queueDisplayList] — static name order.
+     * Schedule tab: [ListBuilderDelegate.scheduleDisplayList] — whatever
+     *               class filter and collapse state are active, already
+     *               DL → RT → EEVDF ordered. Read directly, never re-sorted
+     *               here — re-deriving order was the original bug (a DL/RT
+     *               sibling in position #1 got skipped because its own vdl
+     *               happened to be larger than a plain EEVDF sibling's).
      *
      * NOTIFICATION parent: always jumps to the lowest-VDL sibling (no rotation).
      */
     private fun rotateSiblings(onQueueTab: Boolean) {
         val current   = vm.currentTask.value
         val flatItems = if (onQueueTab) vm.listBuilder.queueDisplayList.value ?: return
-                         else            (vm.listBuilder.scheduleDisplayList.value ?: return)
-                             .filter { !it.isFilterContextOnly }
+                         else            vm.listBuilder.scheduleDisplayList.value ?: return
 
-        val allTasks   = flatItems.map { it.task }
-        val parentId   = current?.parentId
-        val parentType = allTasks.find { it.id == parentId }?.taskType
-
-        // Unordered sibling pool — used by the NOTIFICATION branch which always
-        // wants the lowest-VDL sibling regardless of scheduler class.
-        val base = allTasks
-            .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
-
-        // Queue tab:    sort by task name.
-        // Schedule tab: preserve the order already in flatItems (sourced from
-        //               scheduleDisplayList — the exact on-screen list, DL →
-        //               RT → EEVDF ordered, whatever filter/collapse is active).
-        //               Filtering it by parentId retains that ordering without
-        //               any re-sort.
-        val siblings = if (onQueueTab) {
-            base.sortedWith(SortHelper.taskNameComparator)
-        } else {
-            flatItems
-                .map { it.task }
-                .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
-            // No re-sort: flatItems (scheduleDisplayList) already reflects DL → RT → EEVDF.
+        val currentIdx = flatItems.indexOfFirst { it.task.id == current?.id }
+        if (currentIdx < 0) {
+            vm._toastMessage.value = "No other siblings to rotate"
+            return
         }
+        val parentIdx  = parentIndexOf(flatItems, currentIdx)
+        val parentType = if (parentIdx >= 0) flatItems[parentIdx].task.taskType else null
 
-        if (siblings.size <= 1) {
+        val siblingItems = childrenOf(flatItems, parentIdx)
+            .map { flatItems[it] }
+            .filter { !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt }
+
+        if (siblingItems.size <= 1) {
             vm._toastMessage.value = "No other siblings to rotate"
             return
         }
 
         val next = if (parentType == "NOTIFICATION") {
-            base.sortedBy { it.virtualDeadline }.first()
+            siblingItems.minBy { it.task.virtualDeadline }.task
         } else {
-            val idx = siblings.indexOfFirst { it.id == current?.id }
-            siblings[(idx + 1) % siblings.size]
+            val idx = siblingItems.indexOfFirst { it.task.id == current?.id }
+            siblingItems[(idx + 1).mod(siblingItems.size)].task
         }
 
         vm.currentTaskOwner.set(next)
@@ -249,235 +270,100 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * One representative leaf per entry at the effective rotation depth, cycling
-     * in UI list order.  For a group the representative is its first leaf
-     * (depth-first, schedule order); for a leaf task it represents itself.
+     * One representative per top-level (or auto-descended) entry, cycling in
+     * UI list order. For a leaf, the representative is itself; for a group,
+     * it's the first real leaf reachable beneath it IN DISPLAY ORDER — read
+     * straight off the screen, never re-sorted or re-derived, since the
+     * screen's own order already reflects whatever tier/priority applies.
      *
-     * IMPORTANT: entries are taken directly from the flat list in the order they
-     * appear there — NOT re-sorted by name or virtualDeadline.  The flat list
-     * already reflects RT/DL hoisting so the rotation matches what the user sees.
+     * Structural lookups ([childrenOf]/[parentIndexOf]) never touch
+     * task.parentId or row type — a hardlink placement or a symlink sitting
+     * at some depth on screen is exactly as reachable as a plain task, for
+     * the same reason [rotateSiblings] treats them the same way.
      *
-     * Auto-depth: [resolveEffectiveParentId] descends through single-entry
-     * expanded groups until a level with 2+ candidates is found.  Collapsing a
-     * root group automatically causes the next tap to dive into the remaining
-     * expanded group's children; expanding it again pops back to root — no stored
-     * depth state anywhere.
+     * Auto-depth: descends through a single eligible candidate as long as
+     * IT'S A GROUP AND its own children are actually present on screen —
+     * [childrenOf] naturally returns nothing for a collapsed group or one
+     * whose contents a class filter pruned away, so this can never dive into
+     * content that isn't visible.
      *
-     * On the Schedule tab, [firstLeafOf] uses the same DL → RT → EEVDF tier sort
-     * as [ListBuilderDelegate.buildScheduleList] so the representative leaf
-     * matches rank #1 within its group.
+     * Queue tab's group representative preserves the existing "continue
+     * where you left off" behavior via [QueueLastRunDelegate.getLastRunLeaf]
+     * — untouched, since that's a different, deliberate feature, not part of
+     * this fix.
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
         val current   = vm.currentTask.value
         val flatItems = if (onQueueTab) vm.listBuilder.queueDisplayList.value ?: return
-                         else            (vm.listBuilder.scheduleDisplayList.value ?: return)
-                             .filter { !it.isFilterContextOnly }
+                         else            vm.listBuilder.scheduleDisplayList.value ?: return
+        val allTasks  = flatItems.map { it.task }
 
-        val allTasks = flatItems.map { it.task }
-
-        // Groups that are ancestors of any interrupt task — excluded from depth
-        // resolution so the interrupt group is never counted as a rotation candidate
-        // and the algorithm never descends into it.
+        // Groups that are ancestors of any interrupt task — excluded so the
+        // interrupt group is never a rotation candidate and never descended into.
         val interruptAncestorIds = vm.collectInterruptAncestorIds()
+        fun isEligible(idx: Int): Boolean {
+            val t = flatItems[idx].task
+            return !t.isCompleted && !t.isInterrupt && t.id !in interruptAncestorIds
+        }
 
-        // Find the shallowest depth with 2+ rotation candidates, descending
-        // automatically through single expanded-group levels.
-        val effectiveParentId = resolveEffectiveParentId(flatItems, interruptAncestorIds)
+        var parentIdx = -1
+        while (true) {
+            val level = childrenOf(flatItems, parentIdx).filter { isEligible(it) }
+            if (level.size != 1) break
+            val onlyIdx = level.single()
+            if (!flatItems[onlyIdx].task.isGroup) break
+            val childLevel = childrenOf(flatItems, onlyIdx).filter { isEligible(it) }
+            if (childLevel.isEmpty()) break
+            parentIdx = onlyIdx
+        }
 
-
-        // Entries at the effective level in flat-list (display) order.
-        //
-        // Leaf resolution per tab:
-        //   Queue tab groups    → vm.lastRun.getLastRunLeaf: returns the task most
-        //                         recently run inside that group, or null if no history
-        //                         exists or the stored task was deleted / completed.
-        //   Schedule tab groups → firstLeafOf with DL → RT → EEVDF tier sort.
-        //   Leaf tasks (either) → themselves; no memory needed.
-        //
-        // mapNotNull drops any group whose leaf resolves to null — collapsed groups
-        // on the Schedule tab, or groups with no last-run history on the Queue tab.
-        val representatives = flatItems
-            .filter { it.task.parentId == effectiveParentId &&
-                      !it.task.isCompleted &&
-                      !it.task.isInterrupt &&
-                      !it.isFilterContextOnly }
-            .mapNotNull { item ->
-                val candidate = item.task
-                val leaf = when {
-                    !candidate.isGroup -> candidate
-                    onQueueTab         -> vm.lastRun.getLastRunLeaf(candidate.id, allTasks)
-                    else               -> firstLeafOf(allTasks, candidate.id, scheduleSort = true, nowMs = vm.clock.nowEpochMillis())
-                }
-                if (leaf == null || leaf.isInterrupt) null else Pair(candidate.id, leaf)
+        fun firstLeafBelow(idx: Int): TaskDisplayItem? {
+            if (!flatItems[idx].task.isGroup) return flatItems[idx]
+            for (childIdx in childrenOf(flatItems, idx)) {
+                if (!isEligible(childIdx)) continue
+                firstLeafBelow(childIdx)?.let { return it }
             }
-        if (representatives.isEmpty()) {
-            // Queue tab: all groups lack last-run history (or every stored task was
-            // deleted / completed). Guide the user to run a task manually first.
-            if (onQueueTab) vm._toastMessage.value = "no last run exist"
+            return null
+        }
+
+        val representatives = childrenOf(flatItems, parentIdx)
+            .filter { isEligible(it) }
+            .mapNotNull { idx ->
+                val item = flatItems[idx]
+                val leaf = when {
+                    !item.task.isGroup -> item.task
+                    onQueueTab         -> vm.lastRun.getLastRunLeaf(item.task.id, allTasks)
+                    else               -> firstLeafBelow(idx)?.task
+                }
+                if (leaf == null || leaf.isInterrupt) null else idx to leaf
+            }
+
+        if (representatives.size <= 1) {
+            vm._toastMessage.value = "No other siblings to rotate"
             return
         }
 
-        // ancestorUnder finds which representative slot the current task belongs
-        // to at effectiveParentId — a strict generalisation of the former
-        // rootAncestorOf (identical behaviour when effectiveParentId is null).
-        val currentAnchorId = current?.let { ancestorUnder(allTasks, it, effectiveParentId)?.id }
-        val currentIdx      = representatives.indexOfFirst { it.first == currentAnchorId }
-        val nextIdx         = (currentIdx + 1) % representatives.size
-        val next            = representatives[nextIdx].second
+        // Which representative slot "covers" the currently running task —
+        // find its own row, then walk up by structural parent until reaching
+        // a row that's a direct child of parentIdx.
+        val currentRowIdx = current?.let { c -> flatItems.indexOfFirst { it.task.id == c.id } }?.takeIf { it >= 0 }
+        val currentAnchorIdx = currentRowIdx?.let { start ->
+            var walk = start
+            while (parentIndexOf(flatItems, walk) != parentIdx) {
+                val p = parentIndexOf(flatItems, walk)
+                if (p < 0) { walk = -1; break }
+                walk = p
+            }
+            walk
+        }
+
+        val currentIdxInReps = representatives.indexOfFirst { it.first == currentAnchorIdx }
+        val nextIdx = (currentIdxInReps + 1).mod(representatives.size)
+        val next    = representatives[nextIdx].second
 
         vm.currentTaskOwner.set(next)
         vm._timerSeconds.value = next.remainingSeconds
-        vm._toastMessage.value = "Next: \"${next.name}\" (${nextIdx + 1}/${representatives.size})"
+        vm._toastMessage.value = "Next: \"${next.name}\""
         vm.viewModelScope.launch { refreshSchedule() }
-    }
-
-    // ── Tree traversal helpers ────────────────────────────────────────────────
-
-    /**
-     * Returns the first non-group, non-completed leaf under [parentId].
-     *
-     * [scheduleSort] = false (Queue tab / legacy):
-     *   Children at each level are sorted by virtualDeadline — the original
-     *   EEVDF-only ordering.
-     *
-     * [scheduleSort] = true (Schedule tab):
-     *   Children at each level are sorted with the same DL → RT → EEVDF tier
-     *   order that [ListBuilderDelegate.buildScheduleList] applies, so the
-     *   leaf returned matches what the user sees at rank #1 in the UI — even
-     *   for collapsed groups whose children are absent from the flat display list.
-     *
-     * [nowMs] is captured once at the [rotateGlobal] call site and threaded down
-     * through every recursive level so all sibling sets see the same wall-clock
-     * instant, preventing boundary flicker when an RT window sits exactly on
-     * the activation edge.
-     */
-    private fun firstLeafOf(
-        tasks: List<Task>,
-        parentId: String?,
-        scheduleSort: Boolean = false,
-        nowMs: Long,
-    ): Task? {
-        val children = tasks
-            .filter { it.parentId == parentId && !it.isCompleted && !it.isInterrupt }
-        val sorted = if (scheduleSort) scheduleSortChildren(children, tasks, nowMs)
-                     else              children.sortedBy { it.virtualDeadline }
-        for (child in sorted) {
-            if (!child.isGroup) return child
-            val leaf = firstLeafOf(tasks, child.id, scheduleSort, nowMs)
-            if (leaf != null) return leaf
-        }
-        return null
-    }
-
-    /**
-     * Mirrors the per-level sort applied by [ListBuilderDelegate.buildScheduleList]
-     * so that [firstLeafOf] and [rotateSiblings] produce the same ordering the user
-     * sees on the Schedule tab:
-     *
-     *   Tier 1 — DL-active  ([Task.isDlBudgetActive], or group with an active DL
-     *             descendant): sorted by [Task.dlPeriodRemainingSeconds] ascending
-     *             (shortest deadline remaining = most urgent, matching EDF policy).
-     *
-     *   Tier 2 — RT-active  ([RtScheduler.isRtWindowActive], or group with an active
-     *             RT descendant): sorted by [Task.rtPriority] descending (higher
-     *             priority value = more urgent, matching Linux rt_sched_class).
-     *
-     *   Tier 3 — Everything else: sorted by [Task.virtualDeadline] ascending (EEVDF
-     *             policy — earliest virtual deadline first).
-     *
-     * [nowMs] is passed in (not read from [System.currentTimeMillis]) so that all
-     * levels within a single [firstLeafOf] traversal share one consistent instant.
-     */
-    private fun scheduleSortChildren(
-        children: List<Task>,
-        allTasks: List<Task>,
-        nowMs: Long,
-    ): List<Task> {
-        val (dlChildren, nonDl) = children.partition { child ->
-            if (child.isGroup) EEVDFScheduler.hasActiveDlDescendant(child, allTasks, nowMs)
-            else child.isDlBudgetActive(nowMs)
-        }
-        val (rtChildren, restChildren) = nonDl.partition { child ->
-            if (child.isGroup) RtScheduler.hasActiveRtDescendant(child, allTasks, nowMs)
-            else RtScheduler.isRtWindowActive(child, nowMs)
-        }
-        // dlUrgency mirrors the same local function used in buildScheduleList:
-        // leaf → dlPeriodRemainingSeconds; group → minimum across its children.
-        fun dlUrgency(task: Task): Long =
-            if (!task.isGroup) task.dlPeriodRemainingSeconds(nowMs)
-            else allTasks
-                .filter { it.parentId == task.id && !it.isCompleted }
-                .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
-        return dlChildren.sortedBy  { dlUrgency(it) } +
-               rtChildren.sortedByDescending { if (it.isGroup) 0 else it.rtPriority } +
-               restChildren.sortedBy { it.virtualDeadline }
-    }
-
-    /**
-     * Entry point for auto-depth resolution.  Pre-computes [expandedGroupIds] —
-     * the set of group IDs that have at least one visible child in [flatItems]
-     * (i.e. are expanded) — then delegates to [resolveEffectiveParentIdAt].
-     * Building the set once here keeps the per-level check O(1) throughout the
-     * recursive descent instead of O(n) per candidate.
-     *
-     * [interruptAncestorIds] is the set of group IDs that are ancestors of any
-     * interrupt task (computed by [TaskViewModel.collectInterruptAncestorIds]).
-     * These groups are invisible to the descent algorithm on both tabs, matching
-     * the same exclusion applied by the expand/collapse toggle-all operations.
-     */
-    private fun resolveEffectiveParentId(
-        flatItems: List<TaskDisplayItem>,
-        interruptAncestorIds: Set<String>,
-    ): String? {
-        val expandedGroupIds = flatItems.mapNotNull { it.task.parentId }.toSet()
-        return resolveEffectiveParentIdAt(flatItems, null, expandedGroupIds, interruptAncestorIds)
-    }
-
-    /**
-     * Recursive depth resolver.  At each level it counts visible rotation
-     * candidates — leaf tasks plus expanded groups (those whose id is in
-     * [expandedGroupIds]).  Collapsed groups and interrupt-ancestor groups are
-     * excluded: the former have no visible children, the latter must never be
-     * treated as rotation slots on either tab.
-     *
-     *   ≥ 2 candidates → stop, rotate at this level ([parentId]).
-     *   = 1 candidate that is an expanded non-interrupt group → descend.
-     *   anything else (0 candidates, or 1 leaf) → stop at this level.
-     */
-    private fun resolveEffectiveParentIdAt(
-        flatItems: List<TaskDisplayItem>,
-        parentId: String?,
-        expandedGroupIds: Set<String>,
-        interruptAncestorIds: Set<String>,
-    ): String? {
-        val candidates = flatItems.filter { item ->
-            item.task.parentId == parentId &&
-            !item.task.isCompleted &&
-            !item.task.isInterrupt &&
-            !item.isFilterContextOnly &&
-            item.task.id !in interruptAncestorIds &&
-            (!item.task.isGroup || item.task.id in expandedGroupIds)
-        }
-        if (candidates.size >= 2) return parentId
-        if (candidates.size == 1 && candidates[0].task.isGroup) {
-            return resolveEffectiveParentIdAt(
-                flatItems, candidates[0].task.id, expandedGroupIds, interruptAncestorIds
-            )
-        }
-        return parentId
-    }
-
-    /**
-     * Returns the direct child of [targetParentId] that is an ancestor-or-equal
-     * of [task].  Used by [rotateGlobal] to locate the representative slot the
-     * current task occupies at the effective rotation depth.
-     *
-     * When [targetParentId] is null this is identical to the former
-     * rootAncestorOf: it returns the ancestor whose own parentId is null.
-     */
-    private fun ancestorUnder(tasks: List<Task>, task: Task, targetParentId: String?): Task? {
-        if (task.parentId == targetParentId) return task
-        val parent = tasks.find { it.id == task.parentId } ?: return task
-        return ancestorUnder(tasks, parent, targetParentId)
     }
 }

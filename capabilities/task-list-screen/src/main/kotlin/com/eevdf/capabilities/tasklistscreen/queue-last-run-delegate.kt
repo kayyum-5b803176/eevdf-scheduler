@@ -64,8 +64,8 @@ internal class QueueLastRunDelegate(
      *   task is a leaf           → return task
      *   task is a sub-group      → recurse into that sub-group
      *
-     * Any null at any hop terminates immediately and drops the group from
-     * [SchedulerDelegate.rotateGlobal]'s representatives list.
+     * Any null at any hop terminates immediately and the caller falls back
+     * to its own default rather than using stale history.
      * Stale preference entries are never cleaned up — they either get bypassed
      * because the chain detours around them, or they produce null here.
      */

@@ -48,6 +48,12 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
     }
 
     // ── Global Rotate ─────────────────────────────────────────────────────────
+    //
+    // ON: [SchedulerDelegate.rotateGlobal] — auto-depth-aware, jumps between
+    // top-level entries (diving deeper when a level has nothing else to
+    // rotate through, but only through what's actually visible/expanded on
+    // screen right now).
+    // OFF: [SchedulerDelegate.rotateSiblings] — stays at the current level.
 
     private val _globalRotateEnabled =
         MutableLiveData<Boolean>(prefs.getBoolean(KEY_GLOBAL_ROTATE, false))

@@ -540,8 +540,8 @@ class TaskViewModel @Inject constructor(
 
     /** Distinct category strings from the DB — drives autocomplete in Add/Edit task. */
     val distinctCategories:  LiveData<List<String>> get() = repository.distinctCategories
-    val globalRotateEnabled: LiveData<Boolean> get() = settings.globalRotateEnabled
     val allowEditEnabled:    LiveData<Boolean> get() = settings.allowEditEnabled
+    val globalRotateEnabled: LiveData<Boolean> get() = settings.globalRotateEnabled
     val autoScrollEnabled:   LiveData<Boolean> get() = settings.autoScrollEnabled
 
     // ── Toggle methods ────────────────────────────────────────────────────────
@@ -591,8 +591,8 @@ class TaskViewModel @Inject constructor(
         live.value = current.copy(stack = current.stack.dropLast(1))
         return true
     }
-    fun toggleGlobalRotate()   = settings.toggleGlobalRotate()
     fun toggleAllowEdit()      = settings.toggleAllowEdit()
+    fun toggleGlobalRotate()   = settings.toggleGlobalRotate()
     fun toggleAutoScroll()     = settings.toggleAutoScroll()
 
     /** Hold gesture on the Next/Auto button — flips which label is armed. */
