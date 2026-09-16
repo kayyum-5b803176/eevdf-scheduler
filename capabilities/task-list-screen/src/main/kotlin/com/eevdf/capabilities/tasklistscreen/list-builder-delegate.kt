@@ -229,7 +229,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         scheduleDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.ALL
+                val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.SCHEDULE
                 value = when {
                     vm.settings.scheduleListStyle.value == TaskListStyle.DRILL_DOWN -> {
                         val tasks       = vm.activeTasks.value       ?: emptyList()
@@ -238,7 +238,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         val drill       = vm.scheduleDrillState.value
                         buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId)
                     }
-                    filter != ScheduleClassFilter.ALL ->
+                    filter != ScheduleClassFilter.SCHEDULE ->
                         buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter)
                     else -> flatScheduleOrder.value ?: emptyList()
                 }
@@ -256,8 +256,14 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         }
 
         scheduleClassCounts = MediatorLiveData<Map<ScheduleClassFilter, Int>>().apply {
-            fun rebuild() { value = classCounts(vm.activeTasks.value ?: emptyList()) }
+            fun rebuild() { value = classCounts(vm.activeTasks.value ?: emptyList(), vm.clock.nowEpochMillis()) }
             addSource(vm.activeTasks) { rebuild() }
+            // flatScheduleOrder already re-fires at the exact wall-clock
+            // moment a DL budget replenishes or an RT window opens/closes
+            // (_dlResortTick / _rtResortTick above) — reusing that as this
+            // badge's own "tick" instead of polling on a separate timer, so
+            // the count updates live as tasks enter/leave their active window.
+            addSource(flatScheduleOrder) { rebuild() }
         }
     }
 
@@ -279,12 +285,27 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     //     flat rather than a full breadcrumb.
 
     /** Per-class counts of top-level entities (leaf tasks OR owned-group roots) system-wide. */
-    internal fun classCounts(tasks: List<Task>): Map<ScheduleClassFilter, Int> =
-        tasks.filter { !it.isCompleted }
-            .groupingBy { it.ownScheduleClass() }
-            .eachCount()
-            .withDefault { 0 }
-            .let { counts -> ScheduleClassFilter.values().associateWith { counts.getValue(it) } }
+    /**
+     * Per-class counts of tasks currently ACTIVE right now — not just
+     * existing. A Deadline task whose budget is already exhausted this
+     * period, or an RT task outside its window, doesn't count until it's
+     * actually live again. Fair has no such "window" concept, so every
+     * incomplete Fair-class task counts.
+     */
+    internal fun classCounts(tasks: List<Task>, nowMs: Long): Map<ScheduleClassFilter, Int> {
+        val active = tasks.filter { !it.isCompleted }
+        val counts = ScheduleClassFilter.values().associateWith { 0 }.toMutableMap()
+        active.forEach { t ->
+            val cls = t.ownScheduleClass()
+            val isActiveNow = when (cls) {
+                ScheduleClassFilter.DEADLINE -> t.isDlBudgetActive(nowMs)
+                ScheduleClassFilter.REALTIME -> RtScheduler.isRtWindowActive(t, nowMs)
+                else                         -> true
+            }
+            if (isActiveNow) counts[cls] = (counts[cls] ?: 0) + 1
+        }
+        return counts
+    }
 
     /**
      * Builds the class-filtered Schedule tab as a REAL sub-tree of the actual
@@ -340,7 +361,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         fun itemFor(t: Task, depth: Int) = TaskDisplayItem(
             task = t, depth = depth,
             isDlActive = t.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
-            isRtActive = t.ownScheduleClass() == ScheduleClassFilter.RT,
+            isRtActive = t.ownScheduleClass() == ScheduleClassFilter.REALTIME,
             isExpanded = if (t.isGroup) (vm.groupExpand.scheduleExpandState[t.id] ?: true) else true,
             // Context-only = kept purely as ancestor path, not itself a match
             // — used by SchedulerDelegate's "Next" to skip it as a target.
@@ -372,8 +393,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      * aware and shouldn't silently become so as a side effect of this filter.
      */
     internal fun scheduleCandidatesForFilter(): List<TaskDisplayItem> {
-        val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.ALL
-        return if (filter == ScheduleClassFilter.ALL) flatScheduleOrder.value ?: emptyList()
+        val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.SCHEDULE
+        return if (filter == ScheduleClassFilter.SCHEDULE) flatScheduleOrder.value ?: emptyList()
                else buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter)
     }
 

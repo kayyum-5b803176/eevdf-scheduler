@@ -12,20 +12,20 @@ import com.eevdf.capabilities.taskstorage.Task
  * actual scheduling decision — this filter has no effect on it whatsoever).
  */
 enum class ScheduleClassFilter(val label: String) {
-    ALL("All"),
+    SCHEDULE("Schedule"),
     DEADLINE("Deadline"),
-    RT("RT"),
+    REALTIME("Realtime"),
     FAIR("Fair");
 
     companion object {
         /** Strict urgency order, matching class precedence: DL > RT > FAIR. */
-        val URGENCY_ORDER = listOf(DEADLINE, RT, FAIR)
+        val URGENCY_ORDER = listOf(DEADLINE, REALTIME, FAIR)
     }
 }
 
 /** A task's own scheduler class, as a [ScheduleClassFilter] value (never ALL). */
 internal fun Task.ownScheduleClass(): ScheduleClassFilter = when (schedulerClass) {
     "dl_sched_class" -> ScheduleClassFilter.DEADLINE
-    "rt_sched_class" -> ScheduleClassFilter.RT
+    "rt_sched_class" -> ScheduleClassFilter.REALTIME
     else             -> ScheduleClassFilter.FAIR
 }

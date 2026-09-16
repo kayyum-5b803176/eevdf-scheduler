@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -616,22 +617,42 @@ class MainActivity : AppCompatActivity() {
             // class-filter popup — no new control added to the layout, per
             // the existing tab itself being the anchor.
             override fun onTabReselected(tab: TabLayout.Tab) {
-                if (tab.position == 1) showScheduleClassFilterMenu(tabLayout)
+                if (tab.position == 1) showScheduleClassFilterMenu(tab)
             }
         })
 
-        viewModel.scheduleClassFilter.observe(this) { updateScheduleTabBadge() }
+        viewModel.scheduleClassFilter.observe(this) {
+            updateScheduleTabLabel()
+            updateScheduleTabBadge()
+        }
         viewModel.listBuilder.scheduleClassCounts.observe(this) { updateScheduleTabBadge() }
     }
 
     /**
-     * Popup menu anchored on the Schedule tab itself (no new UI control) —
-     * lets the person narrow the tab to one scheduler class. Selecting a
-     * class never changes any task's own class or how "next" is picked
-     * (see [ScheduleClassFilter]'s KDoc) — purely which pre-existing rows show.
+     * The real on-screen [View] for one [TabLayout.Tab] — `TabLayout.Tab`
+     * itself carries no public accessor for its view, so this reaches into
+     * the TabLayout's internal strip (its one child, a horizontal
+     * ViewGroup of per-tab views) the same way Material's own code does
+     * internally. Falls back to the whole [tabLayout] if that shape ever
+     * changes, so a popup still opens rather than crashing.
      */
-    private fun showScheduleClassFilterMenu(anchor: View) {
-        val popup = android.widget.PopupMenu(this, anchor)
+    private fun tabView(tab: TabLayout.Tab): View {
+        val strip = tabLayout.getChildAt(0) as? ViewGroup ?: return tabLayout
+        return strip.getChildAt(tab.position) ?: tabLayout
+    }
+
+    /**
+     * Popup menu anchored and CENTERED on the actual tapped tab — not the
+     * whole tab bar (that anchored flush-left regardless of which tab was
+     * tapped, since a wide anchor view's start edge is always the same
+     * point). Lets the person narrow the tab to one scheduler class.
+     * Selecting a class never changes any task's own class or how "next" is
+     * picked (see [ScheduleClassFilter]'s KDoc) — purely which pre-existing
+     * rows show.
+     */
+    private fun showScheduleClassFilterMenu(tab: TabLayout.Tab) {
+        val anchor = tabView(tab)
+        val popup  = android.widget.PopupMenu(this, anchor, android.view.Gravity.CENTER_HORIZONTAL)
         ScheduleClassFilter.values().forEach { f ->
             popup.menu.add(0, f.ordinal, f.ordinal, f.label)
         }
@@ -642,21 +663,30 @@ class MainActivity : AppCompatActivity() {
         popup.show()
     }
 
+    /** The Schedule tab's own label mirrors whichever class is currently selected. */
+    private fun updateScheduleTabLabel() {
+        val tab    = tabLayout.getTabAt(1) ?: return
+        val filter = viewModel.scheduleClassFilter.value ?: ScheduleClassFilter.SCHEDULE
+        tab.text = filter.label
+    }
+
     /**
      * M3 badge on the Schedule tab (see https://m3.material.io/components/badges/overview) —
-     * number only, no icon. Shows the count of classes MORE urgent than the
-     * currently selected filter that are NOT visible in the current tab (e.g.
-     * on the RT filter, shows the Deadline count; hidden entirely on ALL or
-     * on DEADLINE, since nothing is more urgent than either).
+     * number only, no icon. Counts only tasks ACTIVE right now (DL budget
+     * live / RT window open — see [ListBuilderDelegate.classCounts]), summed
+     * across every class MORE urgent than the one currently selected and not
+     * visible in this tab (e.g. on Realtime, shows the active-Deadline
+     * count; hidden entirely on Schedule or on Deadline, since nothing is
+     * more urgent than either).
      */
     private fun updateScheduleTabBadge() {
         val tab    = tabLayout.getTabAt(1) ?: return
-        val filter = viewModel.scheduleClassFilter.value ?: ScheduleClassFilter.ALL
+        val filter = viewModel.scheduleClassFilter.value ?: ScheduleClassFilter.SCHEDULE
         val counts = viewModel.listBuilder.scheduleClassCounts.value ?: emptyMap()
         val moreUrgentCount = ScheduleClassFilter.URGENCY_ORDER
             .takeWhile { it != filter }
             .sumOf { counts[it] ?: 0 }
-        if (filter == ScheduleClassFilter.ALL || moreUrgentCount <= 0) {
+        if (filter == ScheduleClassFilter.SCHEDULE || moreUrgentCount <= 0) {
             tab.removeBadge()
         } else {
             tab.orCreateBadge.apply {

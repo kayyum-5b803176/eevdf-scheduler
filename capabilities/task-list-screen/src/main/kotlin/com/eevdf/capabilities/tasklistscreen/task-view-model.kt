@@ -123,7 +123,7 @@ class TaskViewModel @Inject constructor(
      * — see [ScheduleClassFilter]'s KDoc). Defaults to ALL (today's behavior,
      * unchanged).
      */
-    private val _scheduleClassFilter = MutableLiveData(ScheduleClassFilter.ALL)
+    private val _scheduleClassFilter = MutableLiveData(ScheduleClassFilter.SCHEDULE)
     val         scheduleClassFilter: LiveData<ScheduleClassFilter> = _scheduleClassFilter
     fun setScheduleClassFilter(filter: ScheduleClassFilter) { _scheduleClassFilter.value = filter }
 
