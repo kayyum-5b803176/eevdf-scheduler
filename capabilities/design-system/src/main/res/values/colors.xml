@@ -260,6 +260,15 @@
     <color name="syncDotSyncing">@color/app_orange_nd</color>
     <color name="syncDotDisabled">@color/app_grey_nd</color>
 
+    <!-- Schedule-class popup menu status dots (Deadline/Realtime rows) —
+         see MainActivity.showScheduleClassFilterMenu. Blank reuses app_white
+         so the dot space stays visually present (and every row's label stays
+         aligned) even when there's nothing active to report. -->
+    <color name="classFilterDotBlank">@color/app_white</color>
+    <color name="classFilterDotOneActive">@color/app_blue_nd</color>
+    <color name="classFilterDotTwoActive">@color/app_green_nd</color>
+    <color name="classFilterDotThreeOrMoreActive">@color/app_red_nd</color>
+
     <color name="tabTextInactive">#99FFFFFF</color>
 
 </resources>

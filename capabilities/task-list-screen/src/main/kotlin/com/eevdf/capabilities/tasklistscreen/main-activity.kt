@@ -7,11 +7,13 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import com.eevdf.capabilities.alarmringer.AlarmActivity
+import com.eevdf.capabilities.designsystem.R as DesignSystemR
 import com.eevdf.capabilities.navigationroutes.AppRoutes
 import com.eevdf.capabilities.settingsstorage.state.AutoSwitchPrefs
 import androidx.lifecycle.lifecycleScope
@@ -52,12 +54,6 @@ class MainActivity : AppCompatActivity() {
 
     private companion object {
         const val CAPABILITY_ID = "task-list-screen"
-
-        // Schedule-class popup menu status dots (showScheduleClassFilterMenu) —
-        // plain Material palette values; blank (no icon) means 0 active.
-        const val DOT_COLOR_ONE_ACTIVE        = 0xFF2196F3.toInt() // blue  — exactly 1 active
-        const val DOT_COLOR_TWO_ACTIVE        = 0xFF4CAF50.toInt() // green — exactly 2 active
-        const val DOT_COLOR_THREE_PLUS_ACTIVE = 0xFFF44336.toInt() // red   — 3 or more active
     }
 
 
@@ -656,12 +652,15 @@ class MainActivity : AppCompatActivity() {
      * picked (see [ScheduleClassFilter]'s KDoc) — purely which pre-existing
      * rows show.
      *
-     * Deadline/Realtime rows carry a plain colored-dot icon reporting how
-     * many of that class are ACTIVE right now (blank = 0, blue = 1,
-     * green = 2, red = 3+). Schedule/Fair never get a dot — no icon is set
-     * for them at all, which Android renders as reserved blank space next to
-     * the label once any other row in the same menu has an icon, keeping all
-     * four rows aligned without a manual placeholder drawable.
+     * Deadline/Realtime rows always carry a plain colored-dot icon reporting
+     * how many of that class are ACTIVE right now — white/blank at 0 (rather
+     * than no icon at all) so every row's dot occupies the exact same space
+     * and nothing shifts depending on count; blue at 1, green at 2, red at
+     * 3+. Colors are design-system tokens (colors.xml), not hardcoded, so
+     * they follow the app's palette/theme. Schedule/Fair never get a dot —
+     * no icon is set for them at all, which Android renders as reserved
+     * blank space next to the label once any other row in the same menu has
+     * an icon, keeping all four rows aligned without a manual placeholder.
      */
     private fun showScheduleClassFilterMenu(tab: TabLayout.Tab) {
         val anchor = tabView(tab)
@@ -669,17 +668,17 @@ class MainActivity : AppCompatActivity() {
         val counts = viewModel.listBuilder.scheduleClassCounts.value ?: emptyMap()
         ScheduleClassFilter.values().forEach { f ->
             val item = popup.menu.add(0, f.ordinal, f.ordinal, f.label)
-            val dotColor = when (f) {
+            val dotColorRes = when (f) {
                 ScheduleClassFilter.DEADLINE, ScheduleClassFilter.REALTIME ->
                     when (counts[f] ?: 0) {
-                        0    -> null
-                        1    -> DOT_COLOR_ONE_ACTIVE
-                        2    -> DOT_COLOR_TWO_ACTIVE
-                        else -> DOT_COLOR_THREE_PLUS_ACTIVE
+                        0    -> DesignSystemR.color.classFilterDotBlank
+                        1    -> DesignSystemR.color.classFilterDotOneActive
+                        2    -> DesignSystemR.color.classFilterDotTwoActive
+                        else -> DesignSystemR.color.classFilterDotThreeOrMoreActive
                     }
                 else -> null
             }
-            if (dotColor != null) item.icon = classFilterDot(dotColor)
+            if (dotColorRes != null) item.icon = classFilterDot(dotColorRes)
         }
         // Without this, a menu where only SOME rows have icons renders no
         // icon space at all on some OEM/theme combinations instead of
@@ -693,11 +692,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** A small solid circle for [showScheduleClassFilterMenu]'s per-row status dot. */
-    private fun classFilterDot(color: Int): android.graphics.drawable.Drawable {
+    private fun classFilterDot(colorRes: Int): android.graphics.drawable.Drawable {
         val sizePx = (10 * resources.displayMetrics.density).toInt()
         return android.graphics.drawable.GradientDrawable().apply {
             shape = android.graphics.drawable.GradientDrawable.OVAL
-            setColor(color)
+            setColor(ContextCompat.getColor(this@MainActivity, colorRes))
             setSize(sizePx, sizePx)
             setBounds(0, 0, sizePx, sizePx)
         }
