@@ -306,13 +306,26 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             return !t.isCompleted && !t.isInterrupt && t.id !in interruptAncestorIds
         }
 
+        // A row only counts toward "how many real candidates are at this
+        // level" if it can actually produce something to land on. A leaf
+        // always can. A group only can if it has at least one eligible,
+        // reachable child right now — a collapsed or empty group cannot,
+        // and must NOT block diving into whichever sibling actually has
+        // content (that was the bug: closing an empty/collapsed group
+        // still counted it as "2 candidates here," so the loop refused to
+        // dive into the one group that actually had children).
+        fun hasContent(idx: Int): Boolean {
+            if (!flatItems[idx].task.isGroup) return true
+            return childrenOf(flatItems, idx).any { isEligible(it) && hasContent(it) }
+        }
+
         var parentIdx = -1
         while (true) {
-            val level = childrenOf(flatItems, parentIdx).filter { isEligible(it) }
+            val level = childrenOf(flatItems, parentIdx).filter { isEligible(it) && hasContent(it) }
             if (level.size != 1) break
             val onlyIdx = level.single()
             if (!flatItems[onlyIdx].task.isGroup) break
-            val childLevel = childrenOf(flatItems, onlyIdx).filter { isEligible(it) }
+            val childLevel = childrenOf(flatItems, onlyIdx).filter { isEligible(it) && hasContent(it) }
             if (childLevel.isEmpty()) break
             parentIdx = onlyIdx
         }
