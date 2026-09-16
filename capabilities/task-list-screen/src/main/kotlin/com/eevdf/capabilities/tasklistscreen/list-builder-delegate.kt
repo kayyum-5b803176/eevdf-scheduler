@@ -239,7 +239,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId)
                     }
                     filter != ScheduleClassFilter.SCHEDULE ->
-                        buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter)
+                        buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter, vm.allTaskLinks.value ?: emptyList())
                     else -> flatScheduleOrder.value ?: emptyList()
                 }
             }
@@ -247,6 +247,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             addSource(vm.settings.scheduleListStyle) { rebuild() }
             addSource(vm.scheduleDrillState)         { rebuild() }
             addSource(vm.scheduleClassFilter)        { rebuild() }
+            // Explicit — the class-filtered branch reads vm.allTaskLinks.value
+            // directly rather than through flatScheduleOrder's value, so a
+            // link added/removed/retargeted needs its own direct trigger here
+            // too, same reasoning as the expand-state trigger below.
+            addSource(vm.allTaskLinks)               { rebuild() }
             // Explicit, not just relying on flatScheduleOrder's own rebuild to
             // "poke" this — the class-filtered branch reads scheduleExpandState
             // directly rather than through flatScheduleOrder's value, so it
@@ -284,9 +289,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     //     ancestors above that are not reproduced, keeping the filtered view
     //     flat rather than a full breadcrumb.
 
-    /** Per-class counts of top-level entities (leaf tasks OR owned-group roots) system-wide. */
-    /**
-     * Per-class counts of tasks currently ACTIVE right now — not just
+    /** Per-class counts of tasks currently ACTIVE right now — not just
      * existing. A Deadline task whose budget is already exhausted this
      * period, or an RT task outside its window, doesn't count until it's
      * actually live again. Fair has no such "window" concept, so every
@@ -314,11 +317,25 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      * nowhere is pruned entirely. See the design discussion: this matches how
      * `htop`'s tree-filter or an IDE's "find in files" folder view works —
      * full real ancestor chain to root, not truncated.
+     *
+     * Symlinks ([TaskLink]) participate too, using the same "upward
+     * propagation" the default Schedule tab already relies on: a symlink row
+     * carries a live snapshot of its REAL target's fields, so wherever a
+     * task is symlinked, that location shows the task's current class/state
+     * — not a stale copy. A symlink's tab membership is decided by its
+     * target's EFFECTIVE class (own class, or an owning group's class if the
+     * target itself lives inside a DL/RT-owned subtree) — exactly the same
+     * rule a real task gets. Broken links (target deleted) have no
+     * resolvable class and are excluded from every filtered tab (they still
+     * show on the default "Schedule" tab, which is unaffected by this).
      */
-    internal fun buildFilteredScheduleList(tasks: List<Task>, filter: ScheduleClassFilter): List<TaskDisplayItem> {
-        val active   = tasks.filter { !it.isCompleted }
-        val byId     = active.associateBy { it.id }
-        val byParent = active.groupBy { it.parentId }
+    internal fun buildFilteredScheduleList(
+        tasks: List<Task>, filter: ScheduleClassFilter, links: List<TaskLink> = emptyList(),
+    ): List<TaskDisplayItem> {
+        val active      = tasks.filter { !it.isCompleted }
+        val byId        = active.associateBy { it.id }
+        val byParent    = active.groupBy { it.parentId }
+        val byHostGroup = links.groupBy { it.hostGroupId }
 
         // Pass 1 — resolve every node's EFFECTIVE class for TAB MEMBERSHIP
         // only (never touches Task.schedulerClass itself — pure view
@@ -345,18 +362,26 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         val directlyRelevant = effectiveClass.filterValues { it == filter }.keys
 
+        // Symlinks whose TARGET's effective class matches this tab — same
+        // membership rule as a real task, just resolved through the target.
+        val relevantLinkIds = links.filter { effectiveClass[it.targetTaskId] == filter }
+            .mapTo(mutableSetOf()) { it.id }
+
         // Pass 2 — every REAL ancestor (full chain, to root) of a directly
         // relevant node is also kept, so the branch stays intact. Nothing
-        // else survives — that's the pruning.
+        // else survives — that's the pruning. A matching symlink keeps its
+        // HOST group's chain alive too, even if nothing else in that branch
+        // matches — the symlink itself is the reason it needs to stay.
         val relevant = mutableSetOf<String>()
-        fun markAncestors(id: String) {
-            var cur: Task? = byId[id]
+        fun markAncestors(id: String?) {
+            var cur: Task? = id?.let { byId[it] }
             while (cur != null) {
                 if (!relevant.add(cur.id)) break   // already walked this chain
                 cur = cur.parentId?.let { byId[it] }
             }
         }
         directlyRelevant.forEach { markAncestors(it) }
+        links.filter { it.id in relevantLinkIds }.forEach { markAncestors(it.hostGroupId) }
 
         fun itemFor(t: Task, depth: Int) = TaskDisplayItem(
             task = t, depth = depth,
@@ -369,33 +394,34 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         )
 
         // Pass 3 — render the pruned real tree at REAL depth (no artificial
-        // flattening). Collapse controls ONLY whether a group's children are
-        // drawn beneath it — the row itself always stays if it's on a
-        // relevant path, regardless of collapse state (fixes: collapsing
-        // used to remove the whole branch with no way back in).
+        // flattening). Collapse controls ONLY whether a group's children (and
+        // any symlinks hosted in it) are drawn beneath it — the row itself
+        // always stays if it's on a relevant path, regardless of collapse
+        // state (fixes: collapsing used to remove the whole branch with no
+        // way back in).
         val result = mutableListOf<TaskDisplayItem>()
+        val tasksById = active.associateBy { it.id }
+        fun renderLinksAt(hostGroupId: String?, depth: Int) {
+            byHostGroup[hostGroupId].orEmpty()
+                .filter { it.id in relevantLinkIds }
+                .forEach { link ->
+                    val target = tasksById[link.targetTaskId]
+                    result.add(linkDisplayItem(link, target, depth, "").copy(
+                        childTotalRuntime = link.totalRunTime,
+                    ))
+                }
+        }
         fun render(node: Task, depth: Int) {
             if (node.id !in relevant) return
             result.add(itemFor(node, depth))
             if (!node.isGroup) return
             if (!(vm.groupExpand.scheduleExpandState[node.id] ?: true)) return
             byParent[node.id].orEmpty().forEach { render(it, depth + 1) }
+            renderLinksAt(node.id, depth + 1)
         }
         byParent[null].orEmpty().forEach { render(it, 0) }
+        renderLinksAt(null, 0)
         return result
-    }
-
-
-    /**
-     * The Schedule tab's current candidate list with the class filter applied
-     * but WITHOUT drill-down narrowing — used by [SchedulerDelegate]'s "Next"
-     * actions, which cycle through the filtered set but were never drill-down
-     * aware and shouldn't silently become so as a side effect of this filter.
-     */
-    internal fun scheduleCandidatesForFilter(): List<TaskDisplayItem> {
-        val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.SCHEDULE
-        return if (filter == ScheduleClassFilter.SCHEDULE) flatScheduleOrder.value ?: emptyList()
-               else buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter)
     }
 
 
@@ -584,33 +610,33 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     /**
      * Schedule tab: tasks sorted within each level by scheduler class then urgency.
      *
-     * Two group-promotion scenarios are both supported simultaneously:
+     * A group's bucket is decided ENTIRELY by its own class — never by what's
+     * nested inside it (fundamental #2: a fair parent never needs to know
+     * whether its child is DL/RT/fair to rank itself among its own siblings):
      *
-     *   Scenario A — group has its OWN DL/RT class:
-     *     group-b (DL)            ← promoted at root by its own class
-     *       1.1 b1 (CFS)          ← children sort by EEVDF among themselves
-     *       1.2 b2 (CFS)
+     *   group-b (DL)                ← promoted at root by its OWN class only
+     *     1.1 b1 (CFS)              ← children sort by EEVDF among themselves
+     *     1.2 b2 (CFS)
      *
-     *   Scenario B — group is fair class but CONTAINS a DL/RT descendant:
-     *     group-b (CFS, has DL child)  ← promoted at root because of DL descendant
-     *       1.1 b-dl-task (DL)         ← DL child hoisted within the group
-     *       1.2 b-rt-task (RT)         ← RT child second within the group
-     *       1.3 b1 (CFS)               ← fair children by EEVDF
+     *   group-c (CFS, has a DL child)   ← NOT promoted — c's own class is fair,
+     *     1.1 c-dl-task (DL)             so it competes with its real siblings
+     *     1.2 c1 (CFS)                   purely as a fair-class entity; the DL
+     *                                     child inside only affects ITS OWN
+     *                                     level's ordering, never leaks upward.
      *
      * Ordering rules at every level (root, group, nested group):
-     *   1. DL-bucket: entity itself is DL-active, OR (if group) any descendant is.
+     *   1. DL-bucket: entity's OWN class is DL and its OWN budget is currently active.
      *      Sorted by EDF urgency — most urgent first.
-     *   2. RT-bucket: entity itself is RT-active, OR (if group) any descendant is.
+     *   2. RT-bucket: entity's OWN class is RT and its OWN window is currently open.
      *      Sorted by descending RT priority.
-     *   3. Fair-bucket: fair-class leaves + groups not in buckets 1 or 2.
+     *   3. Fair-bucket: everything else not in buckets 1 or 2 (fair-class leaves,
+     *      groups, and any DL/RT entity whose budget/window isn't active right now).
      *      Sorted by EEVDF virtual deadline.
-     *   4. Dormant entities (DL budget expired, RT window closed, no active
-     *      descendants) are excluded entirely — not runnable, not shown. A dormant
-     *      group excludes its entire subtree.
      *
-     * A group's class does not cascade into its children. Children inside a DL
-     * group still sort among themselves by their own classes via recursion.
-     * No entity ever leaves its group for display.
+     * A group's class does not cascade into its children, and a child's class
+     * never cascades up into its parent either. Children inside a DL group
+     * still sort among themselves by their own classes via recursion. No
+     * entity ever leaves its group for display.
      */
     private fun buildScheduleList(
         tasks: List<Task>, groupsEnabled: Boolean,
@@ -660,36 +686,33 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         val membershipsById  = memberships.associateBy { it.id }
         val tasksById        = tasks.associateBy { it.id }
 
-        // DL urgency for sorting within the DL bucket: for a promoted group,
-        // urgency is the minimum remaining budget across all DL descendants.
-        fun dlUrgency(task: Task): Long =
-            if (!task.isGroup) task.dlPeriodRemainingSeconds(nowMs)
-            else if (task.isDlBudgetActive(nowMs)) task.dlPeriodRemainingSeconds(nowMs)
-            else tasks.filter { it.parentId == task.id && !it.isCompleted }
-                      .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+        // DL urgency for sorting within the DL bucket. Only ever called on a
+        // node that's already in the DL bucket (own budget currently active),
+        // so this is always the node's own remaining budget — never a
+        // descendant's, since a group's own class decides its own bucket,
+        // full stop (fundamental #2: a fair parent never needs to know
+        // whether its child is DL/RT/fair to rank itself among siblings).
+        fun dlUrgency(task: Task): Long = task.dlPeriodRemainingSeconds(nowMs)
 
         // Shared with buildScheduleDrillLevel below — one level's worth of
         // children, DL → RT → EEVDF tier-sorted. Factored out so drill-down
         // mode shows exactly the same per-level ordering the flat outline does,
         // rather than a second, drift-prone copy of this partitioning.
+        //
+        // Bucket membership is decided ENTIRELY by each child's OWN class —
+        // never by what's nested inside it. A plain (fair-class) group
+        // containing a DL/RT descendant does NOT get hoisted into the DL/RT
+        // bucket here; it competes against its actual siblings purely on its
+        // own class, same as any leaf would. Only a group whose OWN class is
+        // DL/RT (and whose own budget/window is currently active) belongs to
+        // that bucket.
         fun orderChildren(children: List<Task>): List<Task> {
-            val dlActive = children.filter { child ->
-                if (child.isGroup)
-                    child.isDlBudgetActive(nowMs) || EEVDFScheduler.hasActiveDlDescendant(child, tasks, nowMs)
-                else
-                    child.isDlBudgetActive(nowMs)
-            }.sortedBy { dlUrgency(it) }
+            val dlActive = children.filter { it.isDlBudgetActive(nowMs) }
+                .sortedBy { dlUrgency(it) }
             val dlIds = dlActive.mapTo(HashSet()) { it.id }
 
-            val rtActive = children.filter { child ->
-                child.id !in dlIds && (
-                    if (child.isGroup)
-                        RtScheduler.isRtWindowActive(child, nowMs) ||
-                            RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
-                    else
-                        RtScheduler.isRtWindowActive(child, nowMs)
-                )
-            }.sortedByDescending { it.rtPriority }
+            val rtActive = children.filter { it.id !in dlIds && RtScheduler.isRtWindowActive(it, nowMs) }
+                .sortedByDescending { it.rtPriority }
             val rtIds = rtActive.mapTo(HashSet()) { it.id }
 
             val fairActive = children.filter { child ->
@@ -756,13 +779,10 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     effectiveQuotaWarning  = quotaWarning,
                     queueNumber            = number,
                     isDlActive             = isTaskDlActive,
-                    // isDlGroupHoisted: group promoted by own DL OR a DL descendant.
-                    isDlGroupHoisted       = task.isGroup &&
-                        (isTaskDlActive || EEVDFScheduler.hasActiveDlDescendant(task, tasks, nowMs)),
+                    // Own class only — never a descendant's (fundamental #2).
+                    isDlGroupHoisted       = task.isGroup && isTaskDlActive,
                     isRtActive             = isTaskRtActive,
-                    // isRtGroupHoisted: group promoted by own RT OR an RT descendant.
-                    isRtGroupHoisted       = task.isGroup &&
-                        (isTaskRtActive || RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)),
+                    isRtGroupHoisted       = task.isGroup && isTaskRtActive,
                     isExpanded             = if (task.isGroup) (vm.groupExpand.scheduleExpandState[task.id] ?: true) else true))
                 // Recurse into children with the same per-level rules applied
                 // independently — the parent group's class does not cascade down.
@@ -867,25 +887,16 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         val result = mutableListOf<TaskDisplayItem>()
         var counter = 0
 
-        fun dlUrgency(task: Task): Long =
-            if (!task.isGroup) task.dlPeriodRemainingSeconds(nowMs)
-            else if (task.isDlBudgetActive(nowMs)) task.dlPeriodRemainingSeconds(nowMs)
-            else tasks.filter { it.parentId == task.id && !it.isCompleted }
-                      .minOfOrNull { dlUrgency(it) } ?: Long.MAX_VALUE
+        fun dlUrgency(task: Task): Long = task.dlPeriodRemainingSeconds(nowMs)
 
         val children = effectiveTasks.filter { it.parentId == frameId }
-        val dlActive = children.filter { child ->
-            if (child.isGroup) child.isDlBudgetActive(nowMs) || EEVDFScheduler.hasActiveDlDescendant(child, tasks, nowMs)
-            else child.isDlBudgetActive(nowMs)
-        }.sortedBy { dlUrgency(it) }
+        // Bucket membership decided ENTIRELY by each child's OWN class — see
+        // buildScheduleList's identical rule and its doc comment.
+        val dlActive = children.filter { it.isDlBudgetActive(nowMs) }
+            .sortedBy { dlUrgency(it) }
         val dlIds = dlActive.mapTo(HashSet()) { it.id }
-        val rtActive = children.filter { child ->
-            child.id !in dlIds && (
-                if (child.isGroup) RtScheduler.isRtWindowActive(child, nowMs) ||
-                    RtScheduler.hasActiveRtDescendant(child, tasks, nowMs)
-                else RtScheduler.isRtWindowActive(child, nowMs)
-            )
-        }.sortedByDescending { it.rtPriority }
+        val rtActive = children.filter { it.id !in dlIds && RtScheduler.isRtWindowActive(it, nowMs) }
+            .sortedByDescending { it.rtPriority }
         val rtIds = rtActive.mapTo(HashSet()) { it.id }
         val fairActive = children.filter { child ->
             child.id !in dlIds && child.id !in rtIds &&
@@ -922,9 +933,9 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             result.add(baseItem.copy(
                 queueNumber      = number,
                 isDlActive       = task.isDlBudgetActive(nowMs),
-                isDlGroupHoisted = task.isGroup && (task.isDlBudgetActive(nowMs) || EEVDFScheduler.hasActiveDlDescendant(task, tasks, nowMs)),
+                isDlGroupHoisted = task.isGroup && task.isDlBudgetActive(nowMs),
                 isRtActive       = RtScheduler.isRtWindowActive(task, nowMs),
-                isRtGroupHoisted = task.isGroup && (RtScheduler.isRtWindowActive(task, nowMs) || RtScheduler.hasActiveRtDescendant(task, tasks, nowMs)),
+                isRtGroupHoisted = task.isGroup && RtScheduler.isRtWindowActive(task, nowMs),
                 isJumpHighlighted = task.id == highlightTaskId))
         }
 

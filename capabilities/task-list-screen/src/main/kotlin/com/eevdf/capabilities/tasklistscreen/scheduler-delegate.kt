@@ -53,10 +53,10 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * Skips groups, completed tasks, and the interrupt task.
      */
     fun jumpToFirst(onQueueTab: Boolean) {
-        val list  = if (onQueueTab) vm.listBuilder.flatActiveTasks.value
-                    else            vm.listBuilder.scheduleCandidatesForFilter()
+        val list  = if (onQueueTab) vm.listBuilder.queueDisplayList.value
+                    else            vm.listBuilder.scheduleDisplayList.value
         val first = list
-            ?.firstOrNull { !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt }
+            ?.firstOrNull { !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt && !it.isFilterContextOnly }
             ?.task
             ?: run { vm._toastMessage.value = "No tasks available"; return }
         vm.pauseTimer()
@@ -144,13 +144,14 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * Selects the highest-priority leaf task within [task]'s parent group,
      * escalating to successively higher ancestor groups if the current one
      * has no runnable leaf children. "Highest-priority" is read directly
-     * from [ListBuilderDelegate.flatScheduleOrder] — the list the Schedule
-     * tab itself displays, already correctly hoisted DL > RT > EEVDF — not
-     * re-derived from raw virtualDeadline here. Re-deriving it would silently
-     * ignore DL/RT class priority, which the schedule builder already gets
-     * right; this function's only job is to pick the first entry from that
-     * already-correct list that belongs to the target group, escalating
-     * outward until one exists.
+     * from [ListBuilderDelegate.scheduleDisplayList] — the EXACT list the
+     * Schedule tab is currently showing on screen (respecting whatever class
+     * filter and collapse state are active right now) — not re-derived from
+     * raw virtualDeadline here, and not a separate recomputation that could
+     * silently drift from what the person is actually looking at. This
+     * function's only job is to pick the first entry from that on-screen
+     * list that belongs to the target group, escalating outward until one
+     * exists.
      *
      * Root-level tasks (no parent group) are treated as belonging to an
      * implicit top-level group: the search starts by looking for the
@@ -162,7 +163,8 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * global [com.eevdf.capabilities.taskstorage.TaskRepository.selectNextTask] in that case.
      */
     fun selectAutoNextTask(task: Task, allTasks: List<Task>): Task? {
-        val orderedLeaves = vm.listBuilder.scheduleCandidatesForFilter()
+        val orderedLeaves = vm.listBuilder.scheduleDisplayList.value
+            ?.filter { !it.isFilterContextOnly }
             ?.map { it.task }
             ?.filter { !it.isGroup && !it.isCompleted && !it.isInterrupt }
             ?: return null
@@ -183,20 +185,26 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
     /**
      * Cycles through siblings that share the same parentId, in UI list order.
      *
-     * Queue tab:    siblings sorted by task name (static number order).
-     * Schedule tab: siblings taken directly from [flatScheduleOrder] in display
-     *               order, which already applies DL → RT → EEVDF hoisting.
-     *               Re-sorting by virtualDeadline here was the bug: a DL/RT-class
-     *               sibling sitting at position #1 in the UI would be skipped
-     *               because its vdl happened to be larger than a plain EEVDF
-     *               sibling's.
+     * Queue tab:    siblings taken directly from [ListBuilderDelegate.queueDisplayList]
+     *               — the exact on-screen list, static name order.
+     * Schedule tab: siblings taken directly from [ListBuilderDelegate.scheduleDisplayList]
+     *               — the exact on-screen list, whatever class filter and
+     *               collapse state are currently active, already DL → RT →
+     *               EEVDF ordered. Re-sorting by virtualDeadline here was the
+     *               bug: a DL/RT-class sibling sitting at position #1 in the
+     *               UI would be skipped because its vdl happened to be larger
+     *               than a plain EEVDF sibling's. Reading the screen's own
+     *               list directly — rather than a separate recomputation —
+     *               is also what makes this automatically correct for any
+     *               future tab/filter without touching this function again.
      *
      * NOTIFICATION parent: always jumps to the lowest-VDL sibling (no rotation).
      */
     private fun rotateSiblings(onQueueTab: Boolean) {
         val current   = vm.currentTask.value
-        val flatItems = if (onQueueTab) vm.listBuilder.flatActiveTasks.value ?: return
-                         else            vm.listBuilder.scheduleCandidatesForFilter()
+        val flatItems = if (onQueueTab) vm.listBuilder.queueDisplayList.value ?: return
+                         else            (vm.listBuilder.scheduleDisplayList.value ?: return)
+                             .filter { !it.isFilterContextOnly }
 
         val allTasks   = flatItems.map { it.task }
         val parentId   = current?.parentId
@@ -208,17 +216,18 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
 
         // Queue tab:    sort by task name.
-        // Schedule tab: preserve the order already in flatScheduleOrder.
-        //               flatScheduleOrder applies DL-active → RT-active → EEVDF at
-        //               every level; filtering it by parentId retains that ordering
-        //               without any re-sort.
+        // Schedule tab: preserve the order already in flatItems (sourced from
+        //               scheduleDisplayList — the exact on-screen list, DL →
+        //               RT → EEVDF ordered, whatever filter/collapse is active).
+        //               Filtering it by parentId retains that ordering without
+        //               any re-sort.
         val siblings = if (onQueueTab) {
             base.sortedWith(SortHelper.taskNameComparator)
         } else {
             flatItems
                 .map { it.task }
                 .filter { !it.isGroup && !it.isCompleted && !it.isInterrupt && it.parentId == parentId }
-            // No re-sort: flatScheduleOrder already reflects DL → RT → EEVDF.
+            // No re-sort: flatItems (scheduleDisplayList) already reflects DL → RT → EEVDF.
         }
 
         if (siblings.size <= 1) {
@@ -260,8 +269,9 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
         val current   = vm.currentTask.value
-        val flatItems = if (onQueueTab) vm.listBuilder.flatActiveTasks.value ?: return
-                         else            vm.listBuilder.scheduleCandidatesForFilter()
+        val flatItems = if (onQueueTab) vm.listBuilder.queueDisplayList.value ?: return
+                         else            (vm.listBuilder.scheduleDisplayList.value ?: return)
+                             .filter { !it.isFilterContextOnly }
 
         val allTasks = flatItems.map { it.task }
 
