@@ -657,10 +657,10 @@ class MainActivity : AppCompatActivity() {
      * than no icon at all) so every row's dot occupies the exact same space
      * and nothing shifts depending on count; blue at 1, green at 2, red at
      * 3+. Colors are design-system tokens (colors.xml), not hardcoded, so
-     * they follow the app's palette/theme. Schedule/Fair never get a dot —
-     * no icon is set for them at all, which Android renders as reserved
-     * blank space next to the label once any other row in the same menu has
-     * an icon, keeping all four rows aligned without a manual placeholder.
+     * they follow the app's palette/theme. Schedule/Fair always get the same
+     * blank/white dot too — they have no active-count concept of their own,
+     * this just keeps all four rows' icon slot and label starting position
+     * identical rather than relying on Android's icon-less-row reservation.
      */
     private fun showScheduleClassFilterMenu(tab: TabLayout.Tab) {
         val anchor = tabView(tab)
@@ -676,9 +676,9 @@ class MainActivity : AppCompatActivity() {
                         2    -> DesignSystemR.color.classFilterDotTwoActive
                         else -> DesignSystemR.color.classFilterDotThreeOrMoreActive
                     }
-                else -> null
+                else -> DesignSystemR.color.classFilterDotBlank
             }
-            if (dotColorRes != null) item.icon = classFilterDot(dotColorRes)
+            item.icon = classFilterDot(dotColorRes)
         }
         // Without this, a menu where only SOME rows have icons renders no
         // icon space at all on some OEM/theme combinations instead of
