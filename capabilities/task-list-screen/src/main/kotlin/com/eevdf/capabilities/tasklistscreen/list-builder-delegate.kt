@@ -239,7 +239,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId)
                     }
                     filter != ScheduleClassFilter.SCHEDULE ->
-                        buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter, vm.allTaskLinks.value ?: emptyList())
+                        buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter, vm.allTaskLinks.value ?: emptyList(), vm.allTaskMemberships.value ?: emptyList())
                     else -> flatScheduleOrder.value ?: emptyList()
                 }
             }
@@ -252,6 +252,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // link added/removed/retargeted needs its own direct trigger here
             // too, same reasoning as the expand-state trigger below.
             addSource(vm.allTaskLinks)               { rebuild() }
+            addSource(vm.allTaskMemberships)         { rebuild() }
             // Explicit, not just relying on flatScheduleOrder's own rebuild to
             // "poke" this — the class-filtered branch reads scheduleExpandState
             // directly rather than through flatScheduleOrder's value, so it
@@ -314,113 +315,160 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
      * Builds the class-filtered Schedule tab as a REAL sub-tree of the actual
      * hierarchy — not a flattened "one level of context" view. A branch is
      * kept whenever it leads to something relevant; every branch that leads
-     * nowhere is pruned entirely. See the design discussion: this matches how
-     * `htop`'s tree-filter or an IDE's "find in files" folder view works —
-     * full real ancestor chain to root, not truncated.
+     * nowhere is pruned entirely (`htop`-style tree-filter: full real
+     * ancestor chain to root, not truncated).
      *
-     * Symlinks ([TaskLink]) participate too, using the same "upward
-     * propagation" the default Schedule tab already relies on: a symlink row
-     * carries a live snapshot of its REAL target's fields, so wherever a
-     * task is symlinked, that location shows the task's current class/state
-     * — not a stale copy. A symlink's tab membership is decided by its
-     * target's EFFECTIVE class (own class, or an owning group's class if the
-     * target itself lives inside a DL/RT-owned subtree) — exactly the same
-     * rule a real task gets. Broken links (target deleted) have no
-     * resolvable class and are excluded from every filtered tab (they still
-     * show on the default "Schedule" tab, which is unaffected by this).
+     * Two link kinds both participate, using the SAME mechanisms the default
+     * Schedule tab already relies on:
+     *
+     *   - Symlinks ([TaskLink]) are a pure pointer: a row carrying a live
+     *     snapshot of its REAL target's fields. Membership is decided by the
+     *     target's class resolved at the target's own real position in the
+     *     tree — a symlink's hosting location never changes that.
+     *
+     *   - Hardlinks ([TaskMembership]) are a genuine second PLACEMENT of the
+     *     same real group — not a pointer. Each placement is evaluated
+     *     INDEPENDENTLY along its own path: if a hardlink is hosted inside a
+     *     DL/RT-owned group, that placement inherits that ownership (and
+     *     shows its whole real subtree) even though the SAME group's other
+     *     placement(s) elsewhere may not. This mirrors how the app already
+     *     tracks per-placement vruntime/deadline via [membershipDisplayItem]
+     *     — a hardlink has always been "the same entity, independently
+     *     accounted per placement," and class-tab membership follows suit.
+     *
+     * Broken symlinks (target deleted) have no resolvable class and are
+     * excluded from every filtered tab (they still show on the default
+     * "Schedule" tab, unaffected by this).
      */
     internal fun buildFilteredScheduleList(
-        tasks: List<Task>, filter: ScheduleClassFilter, links: List<TaskLink> = emptyList(),
+        tasks: List<Task>, filter: ScheduleClassFilter,
+        links: List<TaskLink> = emptyList(), memberships: List<TaskMembership> = emptyList(),
     ): List<TaskDisplayItem> {
-        val active      = tasks.filter { !it.isCompleted }
-        val byId        = active.associateBy { it.id }
-        val byParent    = active.groupBy { it.parentId }
-        val byHostGroup = links.groupBy { it.hostGroupId }
+        val active       = tasks.filter { !it.isCompleted }
+        val tasksById    = active.associateBy { it.id }
+        val byHostGroup  = links.groupBy { it.hostGroupId }
+        val membershipsById = memberships.associateBy { it.id }
+        val nowMs        = vm.clock.nowEpochMillis()
 
-        // Pass 1 — resolve every node's EFFECTIVE class for TAB MEMBERSHIP
-        // only (never touches Task.schedulerClass itself — pure view
-        // concept, fundamental #2 still holds). A node's effective class is
-        // its own class UNLESS it sits inside an already class-owned group's
-        // subtree, in which case the whole subtree inherits that owner's
-        // class regardless of each descendant's individual class — the
-        // established "owned subtree belongs wholly to one tab" rule.
-        // Computed over the REAL tree, ignoring collapse state entirely —
-        // relevance must not depend on what's currently expanded (fixes the
-        // "collapse removes the whole branch" bug).
-        val effectiveClass = mutableMapOf<String, ScheduleClassFilter>()
-        fun resolveEffective(node: Task, inheritedOwner: ScheduleClassFilter?) {
-            val resolved = inheritedOwner ?: node.ownScheduleClass()
-            effectiveClass[node.id] = resolved
-            val childOwner = when {
-                inheritedOwner != null                                       -> inheritedOwner
-                node.isGroup && resolved != ScheduleClassFilter.FAIR         -> resolved
-                else                                                         -> null
+        // effectiveTasks = every real task, PLUS one synthetic entry per
+        // hardlink placement (id prefixed with MEMBERSHIP_SYNTHETIC_PREFIX,
+        // parentId = wherever that placement is hosted) — same mechanism
+        // buildQueueList/buildScheduleList already use.
+        val effectiveTasks = EEVDFScheduler.withMemberships(active, memberships)
+        val byParentEff     = effectiveTasks.groupBy { it.parentId }
+
+        fun realIdOf(entry: Task): String =
+            if (entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX))
+                membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)]?.taskId ?: entry.id
+            else entry.id
+
+        // Symlink-target classification: computed ONCE over the REAL tree
+        // only (a symlink's target has exactly one real position — unlike a
+        // hardlink, hosting location never changes which class it inherits).
+        val symlinkTargetClass = mutableMapOf<String, ScheduleClassFilter>()
+        run {
+            val byParentReal = active.groupBy { it.parentId }
+            fun resolve(node: Task, inheritedOwner: ScheduleClassFilter?) {
+                val resolved = inheritedOwner ?: node.ownScheduleClass()
+                symlinkTargetClass[node.id] = resolved
+                val childOwner = when {
+                    inheritedOwner != null                                 -> inheritedOwner
+                    node.isGroup && resolved != ScheduleClassFilter.FAIR   -> resolved
+                    else                                                    -> null
+                }
+                byParentReal[node.id].orEmpty().forEach { resolve(it, childOwner) }
             }
-            byParent[node.id].orEmpty().forEach { resolveEffective(it, childOwner) }
+            byParentReal[null].orEmpty().forEach { resolve(it, null) }
         }
-        byParent[null].orEmpty().forEach { resolveEffective(it, null) }
 
-        val directlyRelevant = effectiveClass.filterValues { it == filter }.keys
+        // True when `entry` (a real task OR a hardlink placement) — or
+        // anything relevant beneath it along THIS specific path — belongs on
+        // `filter`'s tab. `inheritedOwner` is the class inherited from an
+        // owning ancestor ALONG THIS PATH ONLY, so the same real group can
+        // be relevant via one placement and not via another.
+        fun isRelevant(entry: Task, inheritedOwner: ScheduleClassFilter?): Boolean {
+            val realTask = tasksById[realIdOf(entry)] ?: return false
+            val ownClass = inheritedOwner ?: realTask.ownScheduleClass()
+            if (ownClass == filter) return true
+            if (inheritedOwner != null) return false   // owned by a DIFFERENT class along this path — whole subtree belongs to that tab only
+            if (!realTask.isGroup) return false
+            if (realTask.ownScheduleClass() != ScheduleClassFilter.FAIR) return false // this node owns a class of its own, just not this one
+            if (byHostGroup[realTask.id].orEmpty().any { symlinkTargetClass[it.targetTaskId] == filter }) return true
+            return byParentEff[realTask.id].orEmpty().any { isRelevant(it, null) }
+        }
 
-        // Symlinks whose TARGET's effective class matches this tab — same
-        // membership rule as a real task, just resolved through the target.
-        val relevantLinkIds = links.filter { effectiveClass[it.targetTaskId] == filter }
-            .mapTo(mutableSetOf()) { it.id }
-
-        // Pass 2 — every REAL ancestor (full chain, to root) of a directly
-        // relevant node is also kept, so the branch stays intact. Nothing
-        // else survives — that's the pruning. A matching symlink keeps its
-        // HOST group's chain alive too, even if nothing else in that branch
-        // matches — the symlink itself is the reason it needs to stay.
-        val relevant = mutableSetOf<String>()
-        fun markAncestors(id: String?) {
-            var cur: Task? = id?.let { byId[it] }
-            while (cur != null) {
-                if (!relevant.add(cur.id)) break   // already walked this chain
-                cur = cur.parentId?.let { byId[it] }
+        fun itemFor(entry: Task, realTask: Task, depth: Int, contextOnly: Boolean): TaskDisplayItem {
+            val membership = if (entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX))
+                membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
+            val base = if (membership != null) {
+                val (vrt, vdl) = membershipDisplayVrtVdl(realTask, membership)
+                val (descGroups, descTasks) = countDescendants(realTask.id, active)
+                membershipDisplayItem(membership, realTask, depth, "",
+                    cpuShare = 0.0, descGroups = descGroups, descTasks = descTasks, nowMs = nowMs,
+                ).copy(displayVruntime = vrt, displayVirtualDeadline = vdl)
+            } else {
+                TaskDisplayItem(realTask, depth, isLinkedElsewhere = isLinkedElsewhere(realTask.id, links, memberships))
             }
+            return base.copy(
+                isDlActive = realTask.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
+                isRtActive = realTask.ownScheduleClass() == ScheduleClassFilter.REALTIME,
+                isExpanded = if (realTask.isGroup) (vm.groupExpand.scheduleExpandState[realTask.id] ?: true) else true,
+                // Context-only = kept purely as ancestor path, not itself a
+                // match — used by SchedulerDelegate's "Next" to skip it.
+                isFilterContextOnly = contextOnly,
+            )
         }
-        directlyRelevant.forEach { markAncestors(it) }
-        links.filter { it.id in relevantLinkIds }.forEach { markAncestors(it.hostGroupId) }
 
-        fun itemFor(t: Task, depth: Int) = TaskDisplayItem(
-            task = t, depth = depth,
-            isDlActive = t.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
-            isRtActive = t.ownScheduleClass() == ScheduleClassFilter.REALTIME,
-            isExpanded = if (t.isGroup) (vm.groupExpand.scheduleExpandState[t.id] ?: true) else true,
-            // Context-only = kept purely as ancestor path, not itself a match
-            // — used by SchedulerDelegate's "Next" to skip it as a target.
-            isFilterContextOnly = t.id !in directlyRelevant,
-        )
-
-        // Pass 3 — render the pruned real tree at REAL depth (no artificial
-        // flattening). Collapse controls ONLY whether a group's children (and
-        // any symlinks hosted in it) are drawn beneath it — the row itself
-        // always stays if it's on a relevant path, regardless of collapse
-        // state (fixes: collapsing used to remove the whole branch with no
-        // way back in).
         val result = mutableListOf<TaskDisplayItem>()
-        val tasksById = active.associateBy { it.id }
-        fun renderLinksAt(hostGroupId: String?, depth: Int) {
+
+        fun renderLinksAt(hostGroupId: String, depth: Int) {
             byHostGroup[hostGroupId].orEmpty()
-                .filter { it.id in relevantLinkIds }
+                .filter { symlinkTargetClass[it.targetTaskId] == filter }
                 .forEach { link ->
-                    val target = tasksById[link.targetTaskId]
-                    result.add(linkDisplayItem(link, target, depth, "").copy(
+                    result.add(linkDisplayItem(link, tasksById[link.targetTaskId], depth, "").copy(
                         childTotalRuntime = link.totalRunTime,
                     ))
                 }
         }
-        fun render(node: Task, depth: Int) {
-            if (node.id !in relevant) return
-            result.add(itemFor(node, depth))
-            if (!node.isGroup) return
-            if (!(vm.groupExpand.scheduleExpandState[node.id] ?: true)) return
-            byParent[node.id].orEmpty().forEach { render(it, depth + 1) }
-            renderLinksAt(node.id, depth + 1)
+
+        // Everything below an owning match renders unconditionally, any
+        // depth, regardless of individual descendant class — the established
+        // "owned subtree belongs wholly to one tab" rule.
+        fun renderOwnedSubtree(entry: Task, depth: Int) {
+            val realTask = tasksById[realIdOf(entry)] ?: return
+            result.add(itemFor(entry, realTask, depth, contextOnly = false))
+            if (!realTask.isGroup) return
+            if (!(vm.groupExpand.scheduleExpandState[realTask.id] ?: true)) return
+            byParentEff[realTask.id].orEmpty().forEach { renderOwnedSubtree(it, depth + 1) }
+            renderLinksAt(realTask.id, depth + 1)
         }
-        byParent[null].orEmpty().forEach { render(it, 0) }
-        renderLinksAt(null, 0)
+
+        // Collapse controls ONLY whether a group's children (real, hardlink,
+        // or symlink) are drawn beneath it — the row itself always appears
+        // if [isRelevant] said yes for this exact path, regardless of
+        // collapse state.
+        fun render(entry: Task, depth: Int, inheritedOwner: ScheduleClassFilter?) {
+            val realTask = tasksById[realIdOf(entry)] ?: return
+            val ownClass = inheritedOwner ?: realTask.ownScheduleClass()
+            val directMatch = ownClass == filter
+            result.add(itemFor(entry, realTask, depth, contextOnly = !directMatch))
+            if (!realTask.isGroup) return
+            if (!(vm.groupExpand.scheduleExpandState[realTask.id] ?: true)) return
+
+            if (directMatch) {
+                byParentEff[realTask.id].orEmpty().forEach { renderOwnedSubtree(it, depth + 1) }
+                renderLinksAt(realTask.id, depth + 1)
+            } else {
+                byParentEff[realTask.id].orEmpty()
+                    .filter { isRelevant(it, null) }
+                    .forEach { render(it, depth + 1, null) }
+                renderLinksAt(realTask.id, depth + 1)
+            }
+        }
+
+        byParentEff[null].orEmpty()
+            .filter { isRelevant(it, null) }
+            .forEach { render(it, 0, null) }
         return result
     }
 
