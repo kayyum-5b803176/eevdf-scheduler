@@ -52,6 +52,12 @@ class MainActivity : AppCompatActivity() {
 
     private companion object {
         const val CAPABILITY_ID = "task-list-screen"
+
+        // Schedule-class popup menu status dots (showScheduleClassFilterMenu) —
+        // plain Material palette values; blank (no icon) means 0 active.
+        const val DOT_COLOR_ONE_ACTIVE        = 0xFF2196F3.toInt() // blue  — exactly 1 active
+        const val DOT_COLOR_TWO_ACTIVE        = 0xFF4CAF50.toInt() // green — exactly 2 active
+        const val DOT_COLOR_THREE_PLUS_ACTIVE = 0xFFF44336.toInt() // red   — 3 or more active
     }
 
 
@@ -649,18 +655,52 @@ class MainActivity : AppCompatActivity() {
      * Selecting a class never changes any task's own class or how "next" is
      * picked (see [ScheduleClassFilter]'s KDoc) — purely which pre-existing
      * rows show.
+     *
+     * Deadline/Realtime rows carry a plain colored-dot icon reporting how
+     * many of that class are ACTIVE right now (blank = 0, blue = 1,
+     * green = 2, red = 3+). Schedule/Fair never get a dot — no icon is set
+     * for them at all, which Android renders as reserved blank space next to
+     * the label once any other row in the same menu has an icon, keeping all
+     * four rows aligned without a manual placeholder drawable.
      */
     private fun showScheduleClassFilterMenu(tab: TabLayout.Tab) {
         val anchor = tabView(tab)
         val popup  = android.widget.PopupMenu(this, anchor, android.view.Gravity.CENTER_HORIZONTAL)
+        val counts = viewModel.listBuilder.scheduleClassCounts.value ?: emptyMap()
         ScheduleClassFilter.values().forEach { f ->
-            popup.menu.add(0, f.ordinal, f.ordinal, f.label)
+            val item = popup.menu.add(0, f.ordinal, f.ordinal, f.label)
+            val dotColor = when (f) {
+                ScheduleClassFilter.DEADLINE, ScheduleClassFilter.REALTIME ->
+                    when (counts[f] ?: 0) {
+                        0    -> null
+                        1    -> DOT_COLOR_ONE_ACTIVE
+                        2    -> DOT_COLOR_TWO_ACTIVE
+                        else -> DOT_COLOR_THREE_PLUS_ACTIVE
+                    }
+                else -> null
+            }
+            if (dotColor != null) item.icon = classFilterDot(dotColor)
         }
+        // Without this, a menu where only SOME rows have icons renders no
+        // icon space at all on some OEM/theme combinations instead of
+        // reserving blank space for the icon-less rows.
+        popup.setForceShowIcon(true)
         popup.setOnMenuItemClickListener { item ->
             viewModel.setScheduleClassFilter(ScheduleClassFilter.values()[item.itemId])
             true
         }
         popup.show()
+    }
+
+    /** A small solid circle for [showScheduleClassFilterMenu]'s per-row status dot. */
+    private fun classFilterDot(color: Int): android.graphics.drawable.Drawable {
+        val sizePx = (10 * resources.displayMetrics.density).toInt()
+        return android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(color)
+            setSize(sizePx, sizePx)
+            setBounds(0, 0, sizePx, sizePx)
+        }
     }
 
     /** The Schedule tab's own label mirrors whichever class is currently selected. */
