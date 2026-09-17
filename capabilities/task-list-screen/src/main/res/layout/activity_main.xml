@@ -189,7 +189,7 @@
                         android:layout_height="5dp"
                         android:layout_marginTop="@dimen/app_spacing_md"
                         android:orientation="horizontal"
-                        android:visibility="invisible" />
+                        android:visibility="visible" />
 
                     <!-- Button row -->
                     <FrameLayout

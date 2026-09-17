@@ -5,6 +5,15 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.33.3 — Phase-status bar always drawn, neutral when idle
+
+### Changed
+The strip no longer goes `INVISIBLE` when nothing is active — it now always
+draws all 7 segments, same size either way, using the neutral `divider`
+track color at rest (same tone the card's other progress bars already use
+for "nothing here yet") instead of disappearing. Same principle as a plain
+`ProgressBar` always showing its empty track at 0%.
+
 ## 6.33.2 — Matching reserved space on the expired/alarm card
 
 ### Fixed

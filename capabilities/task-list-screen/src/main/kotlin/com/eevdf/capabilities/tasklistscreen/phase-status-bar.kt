@@ -55,36 +55,33 @@ private fun pingPongIndex(i: Int, n: Int): Int {
 private const val SEGMENT_COUNT = 7
 
 /**
- * Renders (or hides) the timer card's phase-status bar — the ONE shared
- * strip [PhaseStatusState.QUOTA]/[DELAY]/[WAIT] all report through, not a
+ * Renders the timer card's phase-status bar — the ONE shared strip
+ * [PhaseStatusState.QUOTA]/[DELAY]/[WAIT] all report through, not a
  * feature-specific view. [activeStates] must already be in the fixed
  * priority order; this function does no reordering.
  *
- * Empty → the whole bar hides (segments cleared, container GONE).
- * Non-empty → exactly [SEGMENT_COUNT] small colored segments are (re)built,
- * each one's color taken from [pingPongIndex] into [activeStates] — a
+ * Always draws exactly [SEGMENT_COUNT] same-size segments, same as a plain
+ * `ProgressBar` always shows its empty track rather than vanishing at 0% —
+ * this strip is a permanent part of the card, not something that
+ * appears/disappears. Empty [activeStates] → every segment uses the neutral
+ * `divider` track color (the same "nothing here yet" tone the card's other
+ * two progress bars already use for their empty background). Non-empty →
+ * each segment's color comes from [pingPongIndex] into [activeStates] — a
  * single active state colors every segment the same; 2+ states bounce
- * across them.
+ * across them. Segment size is identical either way; only the color set
+ * changes.
  */
 internal fun buildPhaseStatusSegments(container: LinearLayout, activeStates: List<PhaseStatusState>) {
-    if (activeStates.isEmpty()) {
-        // INVISIBLE, not GONE — reserves the strip's space on the card so
-        // nothing below it (the button row) shifts up/down as states come
-        // and go; the space is a permanent part of the card's layout.
-        container.visibility = View.INVISIBLE
-        container.removeAllViews()
-        return
-    }
     container.visibility = View.VISIBLE
     container.removeAllViews()
     val context = container.context
     val density = context.resources.displayMetrics.density
     val gapPx   = (2 * density).toInt()
+    val neutralColor = ContextCompat.getColor(context, DesignSystemR.color.divider)
     for (i in 0 until SEGMENT_COUNT) {
-        val state = activeStates[pingPongIndex(i, activeStates.size)]
-        val segment = View(context).apply {
-            setBackgroundColor(ContextCompat.getColor(context, state.colorRes))
-        }
+        val color = if (activeStates.isEmpty()) neutralColor
+                    else ContextCompat.getColor(context, activeStates[pingPongIndex(i, activeStates.size)].colorRes)
+        val segment = View(context).apply { setBackgroundColor(color) }
         val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
         if (i > 0) params.marginStart = gapPx
         container.addView(segment, params)
