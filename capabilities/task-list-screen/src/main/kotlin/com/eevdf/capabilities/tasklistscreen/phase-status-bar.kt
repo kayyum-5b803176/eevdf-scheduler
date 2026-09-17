@@ -68,7 +68,10 @@ private const val SEGMENT_COUNT = 7
  */
 internal fun buildPhaseStatusSegments(container: LinearLayout, activeStates: List<PhaseStatusState>) {
     if (activeStates.isEmpty()) {
-        container.visibility = View.GONE
+        // INVISIBLE, not GONE — reserves the strip's space on the card so
+        // nothing below it (the button row) shifts up/down as states come
+        // and go; the space is a permanent part of the card's layout.
+        container.visibility = View.INVISIBLE
         container.removeAllViews()
         return
     }

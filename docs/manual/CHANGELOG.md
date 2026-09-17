@@ -5,6 +5,22 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.33.2 — Matching reserved space on the expired/alarm card
+
+### Fixed
+Added an inert spacer of the same height/margin as `viewPhaseStatus` to the
+expired/alarm block, so the timer card doesn't change overall height when
+it swaps between the countdown and expired/alarm states. Purely a layout
+matcher — this block doesn't run notice/quota state, so nothing is wired to
+the spacer.
+
+## 6.33.1 — Phase-status bar reserves its space when empty
+
+### Fixed
+Switched from `GONE` to `INVISIBLE` when no state is active, so the strip's
+space stays reserved on the card instead of collapsing and shifting the
+button row up/down as states come and go.
+
 ## 6.33.0 — Generalized phase-status bar; quota-exhaustion indicator
 
 ### Added

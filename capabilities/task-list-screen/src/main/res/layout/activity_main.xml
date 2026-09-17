@@ -189,7 +189,7 @@
                         android:layout_height="5dp"
                         android:layout_marginTop="@dimen/app_spacing_md"
                         android:orientation="horizontal"
-                        android:visibility="gone" />
+                        android:visibility="invisible" />
 
                     <!-- Button row -->
                     <FrameLayout
@@ -294,6 +294,17 @@
                             android:fontFamily="monospace"
                             android:layout_marginStart="@dimen/app_spacing_xl" />
                     </LinearLayout>
+
+                    <!-- Reserved space matching viewPhaseStatus's footprint in the
+                         countdown block above — kept invisible/inert here (this
+                         block doesn't run notice/quota state), purely so the card's
+                         overall height doesn't jump when swapping between the
+                         countdown and expired/alarm blocks. -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="5dp"
+                        android:layout_marginTop="@dimen/app_spacing_md"
+                        android:visibility="invisible" />
 
                     <!-- Stop button row: full width, matches countdown button-row height -->
                     <LinearLayout
