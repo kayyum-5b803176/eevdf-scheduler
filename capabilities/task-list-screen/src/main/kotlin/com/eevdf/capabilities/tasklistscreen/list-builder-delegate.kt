@@ -491,12 +491,20 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         fun render(entry: Task, depth: Int, inheritedOwner: ScheduleClassFilter?) {
             val realTask = tasksById[realIdOf(entry)] ?: return
             val ownClass = inheritedOwner ?: realTask.ownScheduleClass()
-            val directMatch = ownClass == filter
-            result.add(itemFor(entry, realTask, depth, contextOnly = !directMatch))
+            val isMatch = ownClass == filter
+            // FAIR never "owns" a subtree the way DL/RT do — it's the
+            // neutral default every plain group already has, not a real
+            // ownership claim. Only DL/RT trigger "show everything inside,
+            // unconditionally" — a Fair-class group still recurses through
+            // normal relevance filtering, same as any other plain container
+            // (fixes DL/RT tasks leaking into the Fair tab via an ordinary
+            // Fair-class group that merely happens to match the filter).
+            val isOwner = isMatch && filter != ScheduleClassFilter.FAIR
+            result.add(itemFor(entry, realTask, depth, contextOnly = !isMatch))
             if (!realTask.isGroup) return
             if (!(vm.groupExpand.scheduleExpandState[realTask.id] ?: true)) return
 
-            if (directMatch) {
+            if (isOwner) {
                 byParentEff[realTask.id].orEmpty().sortedBy { urgencyRank(it) }.forEach { renderOwnedSubtree(it, depth + 1) }
                 renderLinksAt(realTask.id, depth + 1)
             } else {
