@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
     internal lateinit var tvFairness:          TextView
     private lateinit var tvScheduleRank:      TextView
     private lateinit var emptyView:           LinearLayout
-    internal lateinit var viewPhaseStatus:     View
+    internal lateinit var viewPhaseStatus:     LinearLayout
     private lateinit var breadcrumbBar:       LinearLayout
     private lateinit var tvBreadcrumbPath:    TextView
     private lateinit var drillBackCallback:   androidx.activity.OnBackPressedCallback
@@ -129,6 +129,7 @@ class MainActivity : AppCompatActivity() {
     private val quotaTickRunnable = object : Runnable {
         override fun run() {
             tickQuotaOnVisibleItems()
+            refreshPhaseStatusBar()
             quotaTickHandler.postDelayed(this, 1_000L)
         }
     }
@@ -406,6 +407,30 @@ class MainActivity : AppCompatActivity() {
      * RecyclerView. Only tasks with quota enabled need a redraw — the adapter's
      * partial-bind handler skips all other views untouched.
      */
+    /**
+     * Recomputes and redraws the timer card's shared phase-status bar — the
+     * ONE strip that quota-exhaustion and notification delay/wait both
+     * report through (see phase-status-bar.kt). Called on every quota tick
+     * (quota decays continuously with time) and whenever the notice phase
+     * or the currently-selected task changes.
+     */
+    internal fun refreshPhaseStatusBar() {
+        val states = mutableListOf<PhaseStatusState>()
+        val current = viewModel.currentTask.value
+        if (current != null) {
+            val allTasks = viewModel.activeTasks.value ?: emptyList()
+            if (isQuotaChainExhausted(current, allTasks, viewModel.clock.nowEpochMillis())) {
+                states.add(PhaseStatusState.QUOTA)
+            }
+        }
+        when (viewModel.noticePhase.value) {
+            is NoticePhase.Delay -> states.add(PhaseStatusState.DELAY)
+            is NoticePhase.Wait  -> states.add(PhaseStatusState.WAIT)
+            else -> {}
+        }
+        buildPhaseStatusSegments(viewPhaseStatus, states)
+    }
+
     private fun tickQuotaOnVisibleItems() {
         val lm      = recyclerView.layoutManager as? LinearLayoutManager ?: return
         val adapter = when (currentTab) {

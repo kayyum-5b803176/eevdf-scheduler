@@ -135,6 +135,10 @@ internal class ObserverDelegate(private val activity: MainActivity) {
                 activity.tvTimerDisplay.text = "00:00"
             }
             activity.updateScheduleRankBadge()
+            // Quota-exhaustion state depends on which task is current — refresh
+            // immediately on a switch rather than waiting up to 1s for the
+            // next quota tick.
+            activity.refreshPhaseStatusBar()
         }
 
         activity.viewModel.timerSeconds.observe(activity) { seconds ->
@@ -204,19 +208,20 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         activity.viewModel.noticePhase.observe(activity) { phase ->
             when (phase) {
                 is NoticePhase.Delay -> {
-                    activity.viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#FFB300"))
-                    activity.viewPhaseStatus.visibility = View.VISIBLE
                     val m = phase.remainingSecs / 60; val s = phase.remainingSecs % 60
                     activity.tvTimerDisplay.text = "%02d:%02d".format(m, s)
                 }
                 is NoticePhase.Wait -> {
-                    activity.viewPhaseStatus.setBackgroundColor(android.graphics.Color.parseColor("#4CAF50"))
-                    activity.viewPhaseStatus.visibility = View.VISIBLE
                     val m = phase.remainingSecs / 60; val s = phase.remainingSecs % 60
                     activity.tvTimerDisplay.text = "%02d:%02d".format(m, s)
                 }
-                else -> activity.viewPhaseStatus.visibility = View.GONE
+                else -> {}
             }
+            // Phase-status bar is now a shared strip (quota exhaustion + notice
+            // delay/wait) — always recomputed here rather than set directly,
+            // so this phase change can't clobber a quota-exhausted state the
+            // tick runnable already put on screen.
+            activity.refreshPhaseStatusBar()
             // Forward phase to adapters so the notice segmented bar shows live progress.
             // This fires on every Wait tick (postValue) and on Execute phase entry,
             // giving second-by-second fills.  Execute fill is driven by task.progressPercent

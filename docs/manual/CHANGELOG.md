@@ -5,6 +5,26 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.33.0 — Generalized phase-status bar; quota-exhaustion indicator
+
+### Added
+`viewPhaseStatus` (the timer card's status strip, previously hardcoded to
+NOTIFICATION delay/wait only) is now a general-purpose indicator any feature
+can report through. It's built as 7 fixed segments; when more than one
+state is active at once, colors ping-pong across the 7 segments in a fixed
+priority order (quota outermost, wait innermost) rather than picking just
+one to show.
+
+New: quota-exhaustion detection, checked from the root of the task tree down
+to the currently-selected task — the first exhausted ancestor found (own
+task included) lights the strip red; nothing below that ancestor needs
+checking once one is found.
+
+### Changed
+Moved the strip from the bottom edge of the Next/Start/Int button row to
+above it. Colors now come from real design-system tokens
+(`quotaBarExceeded`, `timerYellow`, `timerGreen`) instead of hardcoded hex.
+
 ## 6.32.2 — Fair tab no longer "owns" a subtree
 
 ### Fixed

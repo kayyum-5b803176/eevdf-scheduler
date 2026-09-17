@@ -178,7 +178,20 @@
                             android:layout_marginStart="@dimen/app_spacing_xl" />
                     </LinearLayout>
 
-                    <!-- Button row + phase underline overlay -->
+                    <!-- Phase-status bar — a GENERAL indicator strip, not owned by any
+                         one feature. Built as 7 small segments in phase-status-bar.kt;
+                         each currently-active state (quota exhaustion, notification
+                         delay/wait) contributes a color, ping-ponged across the 7
+                         segments when more than one is active at once. Empty → GONE. -->
+                    <LinearLayout
+                        android:id="@+id/viewPhaseStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="5dp"
+                        android:layout_marginTop="@dimen/app_spacing_md"
+                        android:orientation="horizontal"
+                        android:visibility="gone" />
+
+                    <!-- Button row -->
                     <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -223,15 +236,6 @@
                                 android:layout_marginStart="@dimen/app_spacing_md"
                                 app:backgroundTint="@color/intButtonBackground" />
                         </LinearLayout>
-
-                        <View
-                            android:id="@+id/viewPhaseStatus"
-                            android:layout_width="match_parent"
-                            android:layout_height="5dp"
-                            android:layout_gravity="bottom"
-                            android:translationY="5dp"
-                            android:background="@color/app_green_nd"
-                            android:visibility="gone" />
 
                     </FrameLayout>
                 </LinearLayout>
