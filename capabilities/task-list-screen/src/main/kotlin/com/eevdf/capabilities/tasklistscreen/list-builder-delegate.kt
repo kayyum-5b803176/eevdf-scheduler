@@ -403,17 +403,26 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         // this). At any group, its direct children are ordered by the most
         // urgent `filter`-matching thing reachable anywhere beneath each
         // child — recomputed live, recursively, at every depth
-        // independently. Lower = more urgent = sorts first; DL uses
-        // remaining budget seconds, RT an inverted priority (so higher
-        // priority sorts first the same way DL's smaller remaining time
-        // does), Fair its own virtual deadline.
+        // independently. Lower = more urgent = sorts first: DL uses
+        // remaining budget seconds (soonest deadline first); RT uses
+        // nearest window transition — time left before it closes if
+        // currently active, time left until it opens if not — not raw
+        // priority; Fair its own virtual deadline.
         fun urgencyRank(entry: Task): Double {
             val realTask = tasksById[realIdOf(entry)] ?: return Double.MAX_VALUE
             fun ownRank(t: Task): Double? {
                 if (t.ownScheduleClass() != filter) return null
                 return when (filter) {
                     ScheduleClassFilter.DEADLINE -> t.dlPeriodRemainingSeconds(nowMs).toDouble()
-                    ScheduleClassFilter.REALTIME -> (200 - t.rtPriority).toDouble()
+                    ScheduleClassFilter.REALTIME ->
+                        // Nearest in time, not priority: whichever RT task is
+                        // closest to its next window transition sorts first —
+                        // time-left-before-window-closes if it's active right
+                        // now, time-left-until-it-opens if it isn't yet.
+                        if (RtScheduler.isRtWindowActive(t, nowMs))
+                            RtScheduler.nextDeactivationMs(t, nowMs).toDouble()
+                        else
+                            RtScheduler.nextActivationMs(t, nowMs).toDouble()
                     else                          -> t.virtualDeadline
                 }
             }
