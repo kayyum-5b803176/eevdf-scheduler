@@ -397,6 +397,38 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             return byParentEff[realTask.id].orEmpty().any { isRelevant(it, null) }
         }
 
+        // Sibling ORDER on a class-filtered tab — same-level sorting only,
+        // never touches which parent shows or where it ranks against ITS
+        // OWN siblings elsewhere (that would be hoisting, deliberately not
+        // this). At any group, its direct children are ordered by the most
+        // urgent `filter`-matching thing reachable anywhere beneath each
+        // child — recomputed live, recursively, at every depth
+        // independently. Lower = more urgent = sorts first; DL uses
+        // remaining budget seconds, RT an inverted priority (so higher
+        // priority sorts first the same way DL's smaller remaining time
+        // does), Fair its own virtual deadline.
+        fun urgencyRank(entry: Task): Double {
+            val realTask = tasksById[realIdOf(entry)] ?: return Double.MAX_VALUE
+            fun ownRank(t: Task): Double? {
+                if (t.ownScheduleClass() != filter) return null
+                return when (filter) {
+                    ScheduleClassFilter.DEADLINE -> t.dlPeriodRemainingSeconds(nowMs).toDouble()
+                    ScheduleClassFilter.REALTIME -> (200 - t.rtPriority).toDouble()
+                    else                          -> t.virtualDeadline
+                }
+            }
+            val candidates = mutableListOf<Double>()
+            ownRank(realTask)?.let { candidates.add(it) }
+            if (realTask.isGroup) {
+                byParentEff[realTask.id].orEmpty().forEach { candidates.add(urgencyRank(it)) }
+                byHostGroup[realTask.id].orEmpty()
+                    .filter { symlinkTargetClass[it.targetTaskId] == filter }
+                    .mapNotNull { tasksById[it.targetTaskId] }
+                    .forEach { target -> ownRank(target)?.let { candidates.add(it) } }
+            }
+            return candidates.minOrNull() ?: Double.MAX_VALUE
+        }
+
         fun itemFor(entry: Task, realTask: Task, depth: Int, contextOnly: Boolean): TaskDisplayItem {
             val membership = if (entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX))
                 membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
@@ -439,7 +471,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             result.add(itemFor(entry, realTask, depth, contextOnly = false))
             if (!realTask.isGroup) return
             if (!(vm.groupExpand.scheduleExpandState[realTask.id] ?: true)) return
-            byParentEff[realTask.id].orEmpty().forEach { renderOwnedSubtree(it, depth + 1) }
+            byParentEff[realTask.id].orEmpty().sortedBy { urgencyRank(it) }.forEach { renderOwnedSubtree(it, depth + 1) }
             renderLinksAt(realTask.id, depth + 1)
         }
 
@@ -456,11 +488,12 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             if (!(vm.groupExpand.scheduleExpandState[realTask.id] ?: true)) return
 
             if (directMatch) {
-                byParentEff[realTask.id].orEmpty().forEach { renderOwnedSubtree(it, depth + 1) }
+                byParentEff[realTask.id].orEmpty().sortedBy { urgencyRank(it) }.forEach { renderOwnedSubtree(it, depth + 1) }
                 renderLinksAt(realTask.id, depth + 1)
             } else {
                 byParentEff[realTask.id].orEmpty()
                     .filter { isRelevant(it, null) }
+                    .sortedBy { urgencyRank(it) }
                     .forEach { render(it, depth + 1, null) }
                 renderLinksAt(realTask.id, depth + 1)
             }
@@ -468,6 +501,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         byParentEff[null].orEmpty()
             .filter { isRelevant(it, null) }
+            .sortedBy { urgencyRank(it) }
             .forEach { render(it, 0, null) }
         return result
     }
