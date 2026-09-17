@@ -40,9 +40,15 @@ internal class AlarmOverrunDelegate(private val vm: TaskViewModel) {
 
     fun stopAlarmSound() {
         stopOverrunCounter()
-        vm._alarmTaskName.postValue(null)
-        vm._alarmElapsedSeconds.postValue(0L)
-        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_STOP_REQUESTED, Unit, "task-list-screen") }
+        // Re-seat the task BEFORE clearing the alarm flag — not after. If the
+        // flag clears first, there's a brief window where "alarm ringing" is
+        // false AND "a task is selected" is also false (the task hasn't been
+        // re-seated yet), which timerCardAction reads as Hidden — closing the
+        // card — until the very next line re-seats the task and reopens it.
+        // That close-then-reopen was the flicker. Re-seating first means a
+        // task is already selected by the moment the alarm flag clears, so
+        // the derivation goes straight from Expired to Start/Pause in one
+        // step, never passing through Hidden.
         vm.taskToRestoreAfterExpire?.let { resetTask ->
             // The just-expired task is being re-seated on the card. For a
             // NOTIFICATION task, triggerAlarmExpire() left _noticePhase == Expired
@@ -58,6 +64,9 @@ internal class AlarmOverrunDelegate(private val vm: TaskViewModel) {
             vm._timerSeconds.postValue(resetTask.timeSliceSeconds)
             vm.taskToRestoreAfterExpire = null
         }
+        vm._alarmTaskName.postValue(null)
+        vm._alarmElapsedSeconds.postValue(0L)
+        vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_STOP_REQUESTED, Unit, "task-list-screen") }
     }
 
     /**

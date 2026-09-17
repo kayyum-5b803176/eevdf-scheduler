@@ -5,6 +5,19 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.33.4 — Fixed timer-card flicker on alarm stop
+
+### Fixed
+`stopAlarmSound()` cleared the "alarm ringing" flag before re-seating the
+task that triggers the card's normal (Start/Pause) content. That left a
+brief window where neither "alarm ringing" nor "task selected" was true —
+read as Hidden, closing the card — until the very next line re-seated the
+task and reopened it. That close-then-reopen was the flicker. Re-seating
+the task first, then clearing the alarm flag, means a task is already
+selected the moment the flag clears, so the card goes directly from
+expired to its normal content in one step. No button or functional
+behavior changed — this is a statement-order fix only.
+
 ## 6.33.3 — Phase-status bar always drawn, neutral when idle
 
 ### Changed
