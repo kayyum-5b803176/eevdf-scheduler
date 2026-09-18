@@ -438,7 +438,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             return candidates.minOrNull() ?: Double.MAX_VALUE
         }
 
-        fun itemFor(entry: Task, realTask: Task, depth: Int, contextOnly: Boolean): TaskDisplayItem {
+        fun itemFor(entry: Task, realTask: Task, depth: Int, contextOnly: Boolean, inheritedDoor: String?): TaskDisplayItem {
             val membership = if (entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX))
                 membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
             val base = if (membership != null) {
@@ -448,7 +448,20 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     cpuShare = 0.0, descGroups = descGroups, descTasks = descTasks, nowMs = nowMs,
                 ).copy(displayVruntime = vrt, displayVirtualDeadline = vdl)
             } else {
-                TaskDisplayItem(realTask, depth, isLinkedElsewhere = isLinkedElsewhere(realTask.id, links, memberships))
+                // entryMembershipId — NOT this row's own membership (it has
+                // none, membership == null here), but the door INHERITED from
+                // an ancestor hardlink placement above it, if any. Without
+                // this, a leaf merely nested inside a hardlinked group's
+                // subtree has no way to say which door it was reached
+                // through — it silently falls back to the real placement.
+                // This was a real, separate bug from the current-task race
+                // fixed earlier: this builder simply never threaded the door
+                // down at all, on any path.
+                TaskDisplayItem(
+                    realTask, depth,
+                    isLinkedElsewhere = isLinkedElsewhere(realTask.id, links, memberships),
+                    entryMembershipId = inheritedDoor,
+                )
             }
             return base.copy(
                 isDlActive = realTask.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
@@ -475,12 +488,18 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         // Everything below an owning match renders unconditionally, any
         // depth, regardless of individual descendant class — the established
         // "owned subtree belongs wholly to one tab" rule.
-        fun renderOwnedSubtree(entry: Task, depth: Int) {
+        fun renderOwnedSubtree(entry: Task, depth: Int, inheritedDoor: String?) {
             val realTask = tasksById[realIdOf(entry)] ?: return
-            result.add(itemFor(entry, realTask, depth, contextOnly = false))
+            result.add(itemFor(entry, realTask, depth, contextOnly = false, inheritedDoor))
             if (!realTask.isGroup) return
             if (!(vm.groupExpand.scheduleExpandState[realTask.id] ?: true)) return
-            byParentEff[realTask.id].orEmpty().sortedBy { urgencyRank(it) }.forEach { renderOwnedSubtree(it, depth + 1) }
+            // If THIS entry is itself a hardlink placement, its own membership
+            // becomes the new door for everything beneath it; otherwise the
+            // door already in effect (if any) just passes straight through —
+            // an ordinary real group never starts or ends a door on its own.
+            val doorHere = if (entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX))
+                entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX) else inheritedDoor
+            byParentEff[realTask.id].orEmpty().sortedBy { urgencyRank(it) }.forEach { renderOwnedSubtree(it, depth + 1, doorHere) }
             renderLinksAt(realTask.id, depth + 1)
         }
 
@@ -488,7 +507,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         // or symlink) are drawn beneath it — the row itself always appears
         // if [isRelevant] said yes for this exact path, regardless of
         // collapse state.
-        fun render(entry: Task, depth: Int, inheritedOwner: ScheduleClassFilter?) {
+        fun render(entry: Task, depth: Int, inheritedOwner: ScheduleClassFilter?, inheritedDoor: String?) {
             val realTask = tasksById[realIdOf(entry)] ?: return
             val ownClass = inheritedOwner ?: realTask.ownScheduleClass()
             val isMatch = ownClass == filter
@@ -500,18 +519,21 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // (fixes DL/RT tasks leaking into the Fair tab via an ordinary
             // Fair-class group that merely happens to match the filter).
             val isOwner = isMatch && filter != ScheduleClassFilter.FAIR
-            result.add(itemFor(entry, realTask, depth, contextOnly = !isMatch))
+            result.add(itemFor(entry, realTask, depth, contextOnly = !isMatch, inheritedDoor))
             if (!realTask.isGroup) return
             if (!(vm.groupExpand.scheduleExpandState[realTask.id] ?: true)) return
 
+            val doorHere = if (entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX))
+                entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX) else inheritedDoor
+
             if (isOwner) {
-                byParentEff[realTask.id].orEmpty().sortedBy { urgencyRank(it) }.forEach { renderOwnedSubtree(it, depth + 1) }
+                byParentEff[realTask.id].orEmpty().sortedBy { urgencyRank(it) }.forEach { renderOwnedSubtree(it, depth + 1, doorHere) }
                 renderLinksAt(realTask.id, depth + 1)
             } else {
                 byParentEff[realTask.id].orEmpty()
                     .filter { isRelevant(it, null) }
                     .sortedBy { urgencyRank(it) }
-                    .forEach { render(it, depth + 1, null) }
+                    .forEach { render(it, depth + 1, null, doorHere) }
                 renderLinksAt(realTask.id, depth + 1)
             }
         }
@@ -519,7 +541,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         byParentEff[null].orEmpty()
             .filter { isRelevant(it, null) }
             .sortedBy { urgencyRank(it) }
-            .forEach { render(it, 0, null) }
+            .forEach { render(it, 0, null, null) }
         return result
     }
 

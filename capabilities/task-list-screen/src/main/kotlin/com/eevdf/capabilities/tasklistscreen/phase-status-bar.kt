@@ -5,6 +5,8 @@ import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.designsystem.R as DesignSystemR
 import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskLink
+import com.eevdf.capabilities.taskstorage.TaskMembership
 
 /**
  * A state the timer card's phase-status bar can show. Fixed priority order —
@@ -18,21 +20,25 @@ internal enum class PhaseStatusState(val colorRes: Int) {
 }
 
 /**
- * True when [current]'s own quota is exhausted, OR any ancestor's is —
- * checked from the ROOT down to [current], stopping at the first exhausted
- * node found (an ancestor's exhaustion is the answer; nothing below it needs
- * checking). This is a pure display concept: it never changes any task's
- * own class or accounting, purely what the phase-status bar reports.
+ * True when the currently-selected INSTANCE's own quota is exhausted, OR
+ * any ancestor's is — walked from the ROOT down to [ref], stopping at the
+ * first exhausted node found (an ancestor's exhaustion is the answer;
+ * nothing below it needs checking).
+ *
+ * Placement-aware: [ref]'s ancestor chain is resolved via
+ * [TaskInstanceRef.ancestorChain] — a hardlink or symlink walks up from
+ * whichever group actually hosts THAT placement, never the real task's own
+ * primary parent, unless that's genuinely how this instance was reached.
+ * Reading `task.parentId` directly here was the original bug: a hardlink
+ * selected from a non-exhausted host used to show red because the check
+ * silently used the real task's own (exhausted) primary parent instead.
  */
-internal fun isQuotaChainExhausted(current: Task, allTasks: List<Task>, nowMs: Long): Boolean {
-    val byId = allTasks.associateBy { it.id }
-    val chain = mutableListOf<Task>()
-    var node: Task? = current
-    while (node != null) {
-        chain.add(node)
-        node = node.parentId?.let { byId[it] }
-    }
-    chain.reverse() // root ... current
+internal fun isQuotaChainExhausted(
+    ref: TaskInstanceRef, allTasks: List<Task>, links: List<TaskLink>,
+    memberships: List<TaskMembership>, nowMs: Long,
+): Boolean {
+    val tasksById = allTasks.associateBy { it.id }
+    val chain = ref.ancestorChain(links, memberships, tasksById)
     for (t in chain) {
         if (t.isQuotaEnabled && t.isQuotaExceeded(nowMs)) return true
     }

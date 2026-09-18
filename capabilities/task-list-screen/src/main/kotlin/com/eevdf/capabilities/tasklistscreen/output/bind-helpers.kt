@@ -10,6 +10,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.eevdf.capabilities.tasklistscreen.R
+import com.eevdf.capabilities.tasklistscreen.matchesInstance
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
@@ -119,7 +120,7 @@ internal fun TaskAdapter.bindQuotaOnly(holder: TaskViewHolder, item: TaskDisplay
 
     val ownQuotaExceeded = task.isQuotaExceeded(nowMs)
     val ownQuotaWarning  = task.isQuotaWarning(nowMs)
-    val isRunning        = task.id == runningTaskId
+    val isRunning        = item.matchesInstance(runningInstance)
     val isDlActive       = task.isDlBudgetActive(nowMs)
 
     if (task.isQuotaEnabled) {

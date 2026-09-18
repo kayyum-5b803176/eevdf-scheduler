@@ -8,6 +8,8 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.tasklistscreen.NoticePhase
 import com.eevdf.capabilities.tasklistscreen.R
+import com.eevdf.capabilities.tasklistscreen.TaskInstanceRef
+import com.eevdf.capabilities.tasklistscreen.matchesInstance
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
@@ -55,7 +57,11 @@ class TaskAdapter(
 ) : ListAdapter<TaskDisplayItem, TaskViewHolder>(DiffCallback()) {
 
     // ── Running / notice state ────────────────────────────────────────────────
-    internal var runningTaskId:      String?      = null
+    // Placement-aware, not a bare task id — see TaskInstanceRef's KDoc. A
+    // real task and a hardlink/symlink of it can both be on screen at once;
+    // matching by bare id used to light up every row sharing that id as
+    // "running" simultaneously, instead of just the one actually selected.
+    internal var runningInstance:    TaskInstanceRef? = null
     // Current notice state — used by buildNoticeSegments to render live progress.
     // Updated via setNoticeState() called from MainActivity's noticePhase observer.
     internal var noticeTaskId:       String?      = null
@@ -91,10 +97,11 @@ class TaskAdapter(
         internal set
 
     /**
-     * The id of the card the user last tapped while simple mode is active.
-     * null means no explicit tap selection — only the running task is expanded.
+     * The placement of the card the user last tapped while simple mode is
+     * active. null means no explicit tap selection — only the running task
+     * is expanded. Placement-aware for the same reason [runningInstance] is.
      */
-    internal var selectedTaskId: String? = null
+    internal var selectedInstance: TaskInstanceRef? = null
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -131,7 +138,7 @@ class TaskAdapter(
     fun setSimpleMode(enabled: Boolean) {
         if (enabled == simpleModeEnabled) return
         simpleModeEnabled = enabled
-        if (!enabled) selectedTaskId = null   // reset tap selection when turning off
+        if (!enabled) selectedInstance = null   // reset tap selection when turning off
         notifyDataSetChanged()
     }
 
@@ -143,31 +150,31 @@ class TaskAdapter(
     }
 
     /**
-     * Mark [taskId] as the user-selected card in Simple Mode (tapped).
+     * Mark [ref] as the user-selected placement in Simple Mode (tapped).
      * Passing null deselects. The old selected card is also refreshed.
      */
-    fun setSelectedTask(taskId: String?) {
-        if (taskId == selectedTaskId) {
+    fun setSelectedTask(ref: TaskInstanceRef?) {
+        if (ref == selectedInstance) {
             // Tap same card again → deselect (collapse it back)
-            val old = selectedTaskId
-            selectedTaskId = null
+            val old = selectedInstance
+            selectedInstance = null
             notifyItemChanged(positionOf(old))
         } else {
-            val old = selectedTaskId
-            selectedTaskId = taskId
+            val old = selectedInstance
+            selectedInstance = ref
             notifyItemChanged(positionOf(old))
-            notifyItemChanged(positionOf(taskId))
+            notifyItemChanged(positionOf(ref))
         }
     }
 
-    fun setRunningTask(id: String?) {
-        val old = runningTaskId
-        runningTaskId = id
+    fun setRunningTask(ref: TaskInstanceRef?) {
+        val old = runningInstance
+        runningInstance = ref
         if (simpleModeEnabled) {
             // In simple mode both old and new running cards need a full rebind
             // so their expanded/collapsed state updates immediately.
             notifyItemChanged(positionOf(old))
-            notifyItemChanged(positionOf(id))
+            notifyItemChanged(positionOf(ref))
         } else {
             notifyDataSetChanged()
         }
@@ -242,6 +249,20 @@ class TaskAdapter(
         return -1
     }
 
+    /**
+     * Overload for running/selected-instance lookups specifically — matches
+     * the EXACT placement ([TaskInstanceRef.matchesInstance]), not just the
+     * task id, so a rebind targets the one row actually meant, not
+     * whichever row sharing that task id happens to come first.
+     */
+    internal fun positionOf(ref: TaskInstanceRef?): Int {
+        if (ref == null) return -1
+        for (i in 0 until itemCount) {
+            if (getItem(i).matchesInstance(ref)) return i
+        }
+        return -1
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_task, parent, false)
@@ -251,7 +272,7 @@ class TaskAdapter(
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int) {
         val item  = getItem(position)
         val task  = item.task
-        val isRunning = task.id == runningTaskId
+        val isRunning = item.matchesInstance(runningInstance)
         // Sampled ONCE for this row and threaded through every DL/RT/quota read
         // below — not re-read per pill — so a single row's three time-dependent
         // pills can never disagree about what "now" is (kernel rule 1).
@@ -510,7 +531,7 @@ class TaskAdapter(
         applyCompactMode(holder, hideNonEssentialStats)
 
         // ── UI Customization: simple mode — collapse rows on non-selected cards ──
-        val isSelected = task.id == selectedTaskId || task.id == runningTaskId
+        val isSelected = item.matchesInstance(selectedInstance) || isRunning
         applySimpleMode(holder, simpleModeEnabled, isSelected, hideNonEssentialStats)
 
         // ── Card highlight ─────────────────────────────────────────────────────
@@ -537,7 +558,7 @@ class TaskAdapter(
 
         // In simple mode a card tap expands/collapses it; forward to caller too.
         holder.card.setOnClickListener {
-            if (simpleModeEnabled) setSelectedTask(task.id)
+            if (simpleModeEnabled) setSelectedTask(TaskInstanceRef.of(item))
             onTaskClick(task)
         }
         // Link rows never edit/delete the real underlying task from here — a

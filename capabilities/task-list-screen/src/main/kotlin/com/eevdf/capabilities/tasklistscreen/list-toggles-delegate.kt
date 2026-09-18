@@ -32,6 +32,8 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
     private val KEY_NEXT_BUTTON_SHOWS_AUTO    = "next_button_shows_auto"
     private val KEY_LAST_TAB                  = "last_tab"
     private val KEY_SELECTED_TASK_ID          = "selected_timer_task_id"
+    private val KEY_SELECTED_TASK_MEMBERSHIP_ID = "selected_timer_task_membership_id"
+    private val KEY_SELECTED_TASK_SYMLINK_ID    = "selected_timer_task_symlink_id"
     private val KEY_CARD_MANUALLY_HIDDEN      = "timer_card_manually_hidden"
     private val KEY_QUEUE_LIST_STYLE          = "queue_list_style"
     private val KEY_SCHEDULE_LIST_STYLE       = "schedule_list_style"
@@ -125,19 +127,42 @@ internal class ListTogglesDelegate(private val prefs: SharedPreferences) {
     //   • WHICH task was last selected (so the card reopens on the same task), and
     //   • WHETHER the user had manually closed it (so a closed card stays closed).
     //
-    //  Only the task *id* is stored — the live Task row is re-read from the DB on
-    //  startup so any state change (paused / reset / completed) is reflected. A
-    //  null id means "no task selected"; the card stays hidden.
+    //  The full placement (task id + which hardlink/symlink, if any) is stored
+    //  now, not just the task id — see TaskInstanceRef's KDoc. The live Task
+    //  row is re-read from the DB on startup so any state change (paused /
+    //  reset / completed) is reflected. A null id means "no task selected";
+    //  the card stays hidden. Additive: an old prefs value with only the task
+    //  id saved (from before this) just means "no membership/symlink," which
+    //  is the correct, safe default — no migration needed.
 
-    /** Persisted id of the last task seated on the timer card, or null if none. */
-    fun saveSelectedTaskId(id: String?) {
+    /** Persisted placement of the last task seated on the timer card, or null if none. */
+    fun saveSelectedTaskId(ref: TaskInstanceRef?) {
         prefs.edit().apply {
-            if (id == null) remove(KEY_SELECTED_TASK_ID)
-            else            putString(KEY_SELECTED_TASK_ID, id)
+            if (ref == null) {
+                remove(KEY_SELECTED_TASK_ID)
+                remove(KEY_SELECTED_TASK_MEMBERSHIP_ID)
+                remove(KEY_SELECTED_TASK_SYMLINK_ID)
+            } else {
+                putString(KEY_SELECTED_TASK_ID, ref.taskId)
+                if (ref.membershipId == null) remove(KEY_SELECTED_TASK_MEMBERSHIP_ID)
+                else                          putString(KEY_SELECTED_TASK_MEMBERSHIP_ID, ref.membershipId)
+                if (ref.symlinkId == null) remove(KEY_SELECTED_TASK_SYMLINK_ID)
+                else                       putString(KEY_SELECTED_TASK_SYMLINK_ID, ref.symlinkId)
+            }
         }.apply()
     }
 
     fun getSavedSelectedTaskId(): String? = prefs.getString(KEY_SELECTED_TASK_ID, null)
+
+    /** The placement the saved selection was viewed through, or null if none was saved. */
+    fun getSavedSelectedInstanceRef(): TaskInstanceRef? {
+        val taskId = getSavedSelectedTaskId() ?: return null
+        return TaskInstanceRef(
+            taskId = taskId,
+            symlinkId = prefs.getString(KEY_SELECTED_TASK_SYMLINK_ID, null),
+            membershipId = prefs.getString(KEY_SELECTED_TASK_MEMBERSHIP_ID, null),
+        )
+    }
 
     /** Persisted manual-hide flag — true when the user closed the card by hand. */
     fun saveCardManuallyHidden(hidden: Boolean) {

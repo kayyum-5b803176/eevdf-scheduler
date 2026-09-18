@@ -79,11 +79,19 @@ internal class StartupRecoveryDelegate(private val vm: TaskViewModel) {
             if (secondsLeft > 0L) {
                 val corrected = running.copy(remainingSeconds = secondsLeft)
                 vm.repository.update(corrected)
-                vm.currentTaskOwner.setAsync(corrected)
+                // Restore through whichever placement was actually persisted,
+                // if it's for this same task — a bare DB query has no
+                // placement info of its own, and blindly defaulting to real
+                // here would ALSO immediately overwrite the correct saved
+                // preference on the next line with "real," permanently
+                // losing it even if it had been saved correctly.
+                val savedRef = vm.settings.getSavedSelectedInstanceRef()
+                    ?.takeIf { it.taskId == corrected.id }
+                vm.currentTaskOwner.setAsync(corrected, savedRef)
                 vm._timerSeconds.postValue(secondsLeft)
                 vm._timerRunning.postValue(true)
                 vm.timerEngine.restoreFromDb(corrected)
-                vm.settings.saveSelectedTaskId(corrected.id)
+                vm.settings.saveSelectedTaskId(vm.currentInstanceRef.value)
             } else {
                 val state         = running.timerState as TaskTimerState.Running
                 val expiryEpochMs = state.startTimeEpoch +

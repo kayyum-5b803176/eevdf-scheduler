@@ -402,7 +402,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
             // Reset timerState to Idle so the engine does not treat next Start as
             // an execute resume (it's a wait-resume, handled by resolveAfterDelay).
             val reset = t.copy(remainingSeconds = sliceSecs).withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
-            vm.currentTaskOwner.set(reset)
+            vm.currentTaskOwner.set(reset, vm.currentInstanceRef.value)
             vm.viewModelScope.launch { vm.repository.update(reset) }
         }
         vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, "task-list-screen") }
@@ -467,7 +467,7 @@ internal class NoticeStateMachine(private val vm: TaskViewModel) {
         // reset task for Stop/Restart restoration and persist its id so a reboot
         // mid-alarm reopens the card on the same task (mirrors onTimerFinished).
         vm.taskToRestoreAfterExpire = task.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
-        vm.settings.saveSelectedTaskId(task.id)
+        vm.settings.saveSelectedTaskId(vm.currentInstanceRef.value)
         vm.currentTaskOwner.setAsync(null)
     }
 

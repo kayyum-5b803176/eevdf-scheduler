@@ -52,6 +52,8 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
     // RULE: only NON-interrupt tasks are ever stored here. An INT task can never
     // become another slot's return-to target.
     private val savedReturnByCell = HashMap<String, Task?>()
+    /** Parallel to [savedReturnByCell] — which placement each saved task was viewed through. */
+    private val savedReturnRefByCell = HashMap<String, TaskInstanceRef?>()
 
     private fun cellKey(tab: Int, slot: String): String {
         val tabName = if (tab == 1) com.eevdf.capabilities.taskstorage.InterruptReturnEntry.TAB_SCHEDULE
@@ -67,16 +69,25 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
      * Records [task] as the return-to for the current tab + [slot], in memory and
      * in the DB — but ONLY when [task] is a real, non-interrupt task. A null task
      * or an interrupt task clears the cell instead (rule 3 & 4).
+     *
+     * [ref] is the placement it was actually being viewed through — saved
+     * IN-MEMORY ONLY (there's no DB column for it, so a return-to saved right
+     * before a reboot falls back to the real placement; every other case is
+     * fully preserved). See [TaskInstanceRef]'s KDoc: without this, jumping
+     * back from an interrupt always returned to the task's real position, not
+     * the hardlink/symlink it was actually running as before the interrupt.
      */
-    private fun saveReturn(slot: String, task: Task?) {
+    private fun saveReturn(slot: String, task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
         val tab = vm.activeTab
         val key = cellKey(tab, slot)
         if (task == null || task.isInterrupt) {
             savedReturnByCell[key] = null
+            savedReturnRefByCell[key] = null
             vm.viewModelScope.launch { vm.repository.clearInterruptReturn(tabName(tab), slot) }
             return
         }
         savedReturnByCell[key] = task
+        savedReturnRefByCell[key] = ref
         val id = task.id
         vm.viewModelScope.launch { vm.repository.saveInterruptReturn(tabName(tab), slot, id) }
     }
@@ -87,12 +98,16 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
      * the live Task row, caches it, and invokes [onReady]. If nothing is stored
      * or the task no longer exists / is completed / is itself an interrupt, the
      * cell is cleared and [onReady] receives null.
+     *
+     * The placement it's returned through: the in-memory-cached ref when
+     * available, otherwise the task's real placement (the DB-miss/reboot
+     * fallback noted on [saveReturn]).
      */
-    private fun withSavedReturn(slot: String, onReady: (Task?) -> Unit) {
+    private fun withSavedReturn(slot: String, onReady: (Task?, TaskInstanceRef?) -> Unit) {
         val tab = vm.activeTab
         val key = cellKey(tab, slot)
         if (savedReturnByCell.containsKey(key)) {
-            onReady(savedReturnByCell[key])
+            onReady(savedReturnByCell[key], savedReturnRefByCell[key])
             return
         }
         vm.viewModelScope.launch {
@@ -103,7 +118,8 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
                 vm.repository.clearInterruptReturn(tabName(tab), slot)
             }
             savedReturnByCell[key] = usable
-            onReady(usable)
+            savedReturnRefByCell[key] = usable?.let { TaskInstanceRef.real(it) }
+            onReady(usable, savedReturnRefByCell[key])
         }
     }
 
@@ -195,14 +211,16 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
         val current = vm.currentTask.value
         if (current?.id == interrupt.id) {
             // ── INT-back: return to the saved card for this tab + slot ──────────
-            withSavedReturn(slotLabel) { back ->
+            withSavedReturn(slotLabel) { back, backRef ->
                 // Clear the cell either way — a return-to is consumed once used.
                 saveReturn(slotLabel, null)
                 if (back != null) {
                     vm.pauseTimer()
                     // Preserve the interrupt reference with its live remaining time.
                     vm.currentTask.value?.let { paused -> interruptLiveData.value = paused }
-                    vm.currentTaskOwner.set(back)
+                    // Restore through the SAME placement it was running as
+                    // before the interrupt — not silently the real one.
+                    vm.currentTaskOwner.set(back, backRef)
                     vm._timerSeconds.value = back.remainingSeconds
                     vm._toastMessage.value = "Returned to \"${back.name}\""
                 } else {
@@ -221,8 +239,10 @@ internal class InterruptDelegate(private val vm: TaskViewModel) {
             // return-to reflect the live countdown at tap time.
             vm.pauseTimer()
             // Only a non-interrupt task is eligible as a return-to (rule 3 & 4);
-            // saveReturn() enforces this and clears the cell otherwise.
-            saveReturn(slotLabel, vm.currentTask.value ?: current)
+            // saveReturn() enforces this and clears the cell otherwise. Save
+            // the placement it's actually being viewed through too, so the
+            // eventual return doesn't silently revert to the real one.
+            saveReturn(slotLabel, vm.currentTask.value ?: current, vm.currentInstanceRef.value)
             val freshInterrupt = vm.activeTasks.value
                 ?.firstOrNull { it.isInterrupt && it.interruptSlot == slotLabel && !it.isCompleted }
                 ?: interrupt

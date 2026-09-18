@@ -92,7 +92,7 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         // Queue tab — flat group-aware list, or one drill-down level
         activity.viewModel.listBuilder.queueDisplayList.observe(activity) { items ->
             activity.activeAdapter.submitList(items)
-            activity.activeAdapter.setRunningTask(activity.viewModel.currentTask.value?.id)
+            activity.activeAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
             activity.updateEmptyView()
             activity.updateScheduleRankBadge()
         }
@@ -100,7 +100,7 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         // Schedule tab — flat group-aware list, or one drill-down level
         activity.viewModel.listBuilder.scheduleDisplayList.observe(activity) { items ->
             activity.scheduleAdapter.submitList(items)
-            activity.scheduleAdapter.setRunningTask(activity.viewModel.currentTask.value?.id)
+            activity.scheduleAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
             activity.updateScheduleRankBadge()
         }
 
@@ -126,8 +126,8 @@ internal class ObserverDelegate(private val activity: MainActivity) {
                 activity.tvTimerPriority.text = if (task.category == "None") "Priority ${task.priority}"
                                        else "Priority ${task.priority} · ${task.category}"
                 activity.tvTimerDisplay.text = task.remainingDisplay
-                activity.activeAdapter.setRunningTask(task.id)
-                activity.scheduleAdapter.setRunningTask(task.id)
+                activity.activeAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
+                activity.scheduleAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
                 if (activity.viewModel.autoScrollEnabled.value == true) activity.scrollToTask(task.id)
             } else {
                 activity.activeAdapter.setRunningTask(null)

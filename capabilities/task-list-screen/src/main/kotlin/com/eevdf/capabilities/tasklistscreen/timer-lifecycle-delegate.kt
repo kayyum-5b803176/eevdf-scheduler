@@ -106,7 +106,12 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         vm._timerRunning.value = true
         // Update the dispatched task with the Running state so tick observer copies carry
         // the correct startTimeEpoch (needed for live progressPercent calculation).
-        vm.currentTaskOwner.set(updated)
+        // Preserve whatever placement is ALREADY selected — this is a field
+        // refresh on the same task, never an identity switch. Without the
+        // explicit ref here, set()'s default silently recomputes "real,"
+        // discarding a hardlink/symlink selection the instant Start is
+        // pressed (that was exactly this bug).
+        vm.currentTaskOwner.set(updated, vm.currentInstanceRef.value)
         // Record which task ran inside each ancestor group so the Queue tab's
         // global-rotate Next can return to the most recently used task per group.
         vm.lastRun.update(task, vm.activeTasks.value ?: emptyList())
@@ -139,7 +144,9 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         val task = vm.currentTask.value
         if (result != null) {
             val paused = result.first
-            vm.currentTaskOwner.set(paused)
+            // Same reasoning as startActualTimer — a field refresh, not a
+            // switch; preserve whatever placement is already selected.
+            vm.currentTaskOwner.set(paused, vm.currentInstanceRef.value)
             vm._timerSeconds.value = paused.remainingSeconds
             vm.viewModelScope.launch { vm.repository.update(paused) }
             // Clear the engine so stale activeTask can't overwrite the current task on
@@ -184,7 +191,9 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         vm._timerSeconds.value = reset.remainingSeconds
         vm.viewModelScope.launch {
             vm.repository.update(reset)
-            vm.currentTaskOwner.setAsync(reset)
+            // Same reasoning as startActualTimer/pauseTimer — field refresh,
+            // not a switch; preserve the already-selected placement.
+            vm.currentTaskOwner.setAsync(reset, vm.currentInstanceRef.value)
         }
     }
 
@@ -204,12 +213,11 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         vm.scheduler.scheduleNext()
     }
 
-    fun setCurrentTask(task: Task) {
-        // Plain selection is always the task's real, primary placement.
-        // Membership-context selection goes through
-        // TaskViewModel.setCurrentTaskAsMembership, which sets this AFTER
-        // calling this function — so clearing it here never races that path.
-        vm.activeRunMembershipId = null
+    fun setCurrentTask(task: Task, ref: TaskInstanceRef? = null) {
+        // Derived from the SAME ref passed in — never a separate assumption
+        // set after the fact. That "set it afterward" pattern is exactly what
+        // let this drift out of sync with the real selection previously.
+        vm.activeRunMembershipId = ref?.membershipId
         pauseTimer()
         // Bug 1 fix — stale NoticePhase.Expired locking the button:
         //
@@ -235,13 +243,13 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             vm.stopAlarmSound()
         }
 
-        vm.currentTaskOwner.set(task)
+        vm.currentTaskOwner.set(task, ref)
         vm._timerSeconds.value = task.remainingSeconds
 
         // Selecting a task is an explicit "open this card" gesture: clear any
         // prior manual-hide and persist the selection so it survives reboot.
         setCardManuallyHidden(false)
-        vm.settings.saveSelectedTaskId(task.id)
+        vm.settings.saveSelectedTaskId(vm.currentInstanceRef.value)
     }
 
     /**
@@ -263,14 +271,16 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
     fun restorePersistedSelection() {
         // Don't clobber a task already seated by the mid-run / alarm recovery paths.
         if (vm.currentTask.value != null || vm._alarmTaskName.value != null) return
-        val savedId = vm.settings.getSavedSelectedTaskId() ?: return
+        val savedRef = vm.settings.getSavedSelectedInstanceRef() ?: return
         vm.viewModelScope.launch {
-            val task = vm.repository.getTaskById(savedId)
+            val task = vm.repository.getTaskById(savedRef.taskId)
             if (task == null || task.isCompleted) {
                 vm.settings.saveSelectedTaskId(null)
                 return@launch
             }
-            vm.currentTaskOwner.setAsync(task)
+            // Restore through the SAME placement it was saved through — not
+            // silently the real one (see TaskInstanceRef's KDoc).
+            vm.currentTaskOwner.setAsync(task, savedRef)
             vm._timerSeconds.postValue(task.remainingSeconds)
         }
     }
@@ -376,11 +386,12 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
                 // must carry the correct post-run virtualDeadline forward, not
                 // the stale pre-run one. See the comment on `freshTask` above.
                 vm.taskToRestoreAfterExpire = freshTask.withTimerState(TaskTimerState.reset(), vm.clock.nowEpochMillis())
+                vm.taskToRestoreAfterExpireRef = vm.currentInstanceRef.value
                 // Requirement #3: do NOT clear the persisted selection on expiry.
                 // The merged card stays seated on the just-expired task (showing the
                 // Expired/alarm state); keep its id stored so a reboot mid-alarm
                 // reopens the card on the same task.
-                vm.settings.saveSelectedTaskId(task.id)
+                vm.settings.saveSelectedTaskId(vm.currentInstanceRef.value)
                 vm.currentTaskOwner.setAsync(null)
             }
         }
@@ -407,7 +418,12 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             // flight, don't stomp on their current selection with this one's
             // stale-by-comparison data.
             if (vm.currentTask.value?.id == freshTask.id) {
-                vm.currentTaskOwner.setAsync(freshTask)
+                // Same reasoning as startActualTimer/pauseTimer — this is the
+                // post-run accounting refresh on the SAME task, never an
+                // identity switch. Without the explicit ref, this silently
+                // reset the placement to real right after every run —
+                // exactly the "accounting reverts to the real task" bug.
+                vm.currentTaskOwner.setAsync(freshTask, vm.currentInstanceRef.value)
             }
             vm.refreshSchedule()
         }

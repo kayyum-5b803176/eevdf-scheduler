@@ -53,14 +53,15 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
     fun jumpToFirst(onQueueTab: Boolean) {
         val list  = if (onQueueTab) vm.listBuilder.queueDisplayList.value
                     else            vm.listBuilder.scheduleDisplayList.value
-        val first = list
+        val firstItem = list
             ?.firstOrNull { !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt && !it.isFilterContextOnly }
-            ?.task
             ?: run { vm._toastMessage.value = "No tasks available"; return }
         vm.pauseTimer()
-        vm.currentTaskOwner.set(first)
-        vm._timerSeconds.value = first.remainingSeconds
-        vm._toastMessage.value = "Jumped to \"${first.name}\""
+        // Land on the EXACT placement that row is — not the bare real task,
+        // which is what grabbing just `.task` here used to do.
+        vm.currentTaskOwner.set(firstItem.task, TaskInstanceRef.of(firstItem))
+        vm._timerSeconds.value = firstItem.task.remainingSeconds
+        vm._toastMessage.value = "Jumped to \"${firstItem.task.name}\""
     }
 
     /**
@@ -123,33 +124,41 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      */
     fun triggerAutoJump(onQueueTab: Boolean = false) {
         vm.pauseTimer()
-        val current = vm.currentTask.value
-        if (current == null) {
+        val current    = vm.currentTask.value
+        val currentRef = vm.currentInstanceRef.value
+        if (current == null || currentRef == null) {
             jumpToFirst(onQueueTab)
             return
         }
         val allTasks = vm.activeTasks.value ?: emptyList()
-        val next = selectAutoNextTask(current, allTasks) ?: run {
+        val (nextTask, nextRef) = selectAutoNextTask(currentRef, allTasks) ?: run {
             vm._toastMessage.value = "No tasks available"
             return
         }
-        vm.currentTaskOwner.set(next)
-        vm._timerSeconds.value = next.remainingSeconds
-        vm._toastMessage.value = "Auto → \"${next.name}\""
+        vm.currentTaskOwner.set(nextTask, nextRef)
+        vm._timerSeconds.value = nextTask.remainingSeconds
+        vm._toastMessage.value = "Auto → \"${nextTask.name}\""
     }
 
     /**
-     * Selects the highest-priority leaf task within [task]'s parent group,
-     * escalating to successively higher ancestor groups if the current one
-     * has no runnable leaf children. "Highest-priority" is read directly
-     * from [ListBuilderDelegate.scheduleDisplayList] — the EXACT list the
-     * Schedule tab is currently showing on screen (respecting whatever class
-     * filter and collapse state are active right now) — not re-derived from
-     * raw virtualDeadline here, and not a separate recomputation that could
-     * silently drift from what the person is actually looking at. This
-     * function's only job is to pick the first entry from that on-screen
-     * list that belongs to the target group, escalating outward until one
-     * exists.
+     * Selects the highest-priority leaf task within [currentRef]'s parent
+     * group, escalating to successively higher ancestor groups if the
+     * current one has no runnable leaf children. "Highest-priority" is read
+     * directly from [ListBuilderDelegate.scheduleDisplayList] — the EXACT
+     * list the Schedule tab is currently showing on screen (respecting
+     * whatever class filter and collapse state are active right now) — not
+     * re-derived from raw virtualDeadline here, and not a separate
+     * recomputation that could silently drift from what the person is
+     * actually looking at. This function's only job is to pick the first
+     * entry from that on-screen list that belongs to the target group,
+     * escalating outward until one exists.
+     *
+     * Placement-aware throughout (see [TaskInstanceRef]'s KDoc): the
+     * starting group is [currentRef]'s EFFECTIVE parent (its host, if it's a
+     * hardlink/symlink — not the underlying task's real parent), and every
+     * candidate leaf is matched by ITS OWN effective parent too, since a
+     * candidate can itself be a linked placement whose real `task.parentId`
+     * doesn't match where it's actually displayed.
      *
      * Root-level tasks (no parent group) are treated as belonging to an
      * implicit top-level group: the search starts by looking for the
@@ -160,21 +169,26 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * chain up to and including the root — the caller falls back to the
      * global [com.eevdf.capabilities.taskstorage.TaskRepository.selectNextTask] in that case.
      */
-    fun selectAutoNextTask(task: Task, allTasks: List<Task>): Task? {
+    fun selectAutoNextTask(currentRef: TaskInstanceRef, allTasks: List<Task>): Pair<Task, TaskInstanceRef>? {
         val orderedLeaves = vm.listBuilder.scheduleDisplayList.value
             ?.filter { !it.isFilterContextOnly }
-            ?.map { it.task }
-            ?.filter { !it.isGroup && !it.isCompleted && !it.isInterrupt }
+            ?.filter { !it.task.isGroup && !it.task.isCompleted && !it.task.isInterrupt }
             ?: return null
 
-        var groupId: String? = task.parentId
+        val links       = vm.allTaskLinks.value ?: emptyList()
+        val memberships = vm.allTaskMemberships.value ?: emptyList()
+        val tasksById   = allTasks.associateBy { it.id }
+
+        var groupId: String? = currentRef.effectiveParentId(links, memberships, tasksById)
         val visited = mutableSetOf<String>()  // guards against a corrupt/cyclic parentId chain
         while (true) {
-            val candidate = orderedLeaves.firstOrNull { it.parentId == groupId }
-            if (candidate != null) return candidate
+            val candidate = orderedLeaves.firstOrNull {
+                TaskInstanceRef.of(it).effectiveParentId(links, memberships, tasksById) == groupId
+            }
+            if (candidate != null) return candidate.task to TaskInstanceRef.of(candidate)
             if (groupId == null) return null
             if (!visited.add(groupId)) return null
-            groupId = allTasks.find { it.id == groupId }?.parentId
+            groupId = tasksById[groupId]?.parentId
         }
     }
 
@@ -235,11 +249,15 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * NOTIFICATION parent: always jumps to the lowest-VDL sibling (no rotation).
      */
     private fun rotateSiblings(onQueueTab: Boolean) {
-        val current   = vm.currentTask.value
-        val flatItems = if (onQueueTab) vm.listBuilder.queueDisplayList.value ?: return
+        val currentRef = vm.currentInstanceRef.value
+        val flatItems  = if (onQueueTab) vm.listBuilder.queueDisplayList.value ?: return
                          else            vm.listBuilder.scheduleDisplayList.value ?: return
 
-        val currentIdx = flatItems.indexOfFirst { it.task.id == current?.id }
+        // Match the EXACT placement, not just any row sharing the same task
+        // id — when a real task and a hardlink/symlink of it are both on
+        // screen, matching by bare id could anchor on the wrong one (see
+        // TaskInstanceRef's KDoc).
+        val currentIdx = flatItems.indexOfFirst { it.matchesInstance(currentRef) }
         if (currentIdx < 0) {
             vm._toastMessage.value = "No other siblings to rotate"
             return
@@ -256,16 +274,16 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             return
         }
 
-        val next = if (parentType == "NOTIFICATION") {
-            siblingItems.minBy { it.task.virtualDeadline }.task
+        val nextItem = if (parentType == "NOTIFICATION") {
+            siblingItems.minBy { it.task.virtualDeadline }
         } else {
-            val idx = siblingItems.indexOfFirst { it.task.id == current?.id }
-            siblingItems[(idx + 1).mod(siblingItems.size)].task
+            val idx = siblingItems.indexOfFirst { it.matchesInstance(currentRef) }
+            siblingItems[(idx + 1).mod(siblingItems.size)]
         }
 
-        vm.currentTaskOwner.set(next)
-        vm._timerSeconds.value = next.remainingSeconds
-        vm._toastMessage.value = "Next: \"${next.name}\""
+        vm.currentTaskOwner.set(nextItem.task, TaskInstanceRef.of(nextItem))
+        vm._timerSeconds.value = nextItem.task.remainingSeconds
+        vm._toastMessage.value = "Next: \"${nextItem.task.name}\""
         vm.viewModelScope.launch { refreshSchedule() }
     }
 
@@ -293,7 +311,7 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
      * this fix.
      */
     private fun rotateGlobal(onQueueTab: Boolean) {
-        val current   = vm.currentTask.value
+        val currentRef = vm.currentInstanceRef.value
         val flatItems = if (onQueueTab) vm.listBuilder.queueDisplayList.value ?: return
                          else            vm.listBuilder.scheduleDisplayList.value ?: return
         val allTasks  = flatItems.map { it.task }
@@ -339,16 +357,22 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
             return null
         }
 
+        // Each representative carries its OWN instance ref, not just a bare
+        // Task — a hardlink/symlink landing must be remembered as exactly
+        // that placement, not silently normalized to the real one (see
+        // TaskInstanceRef's KDoc — this was exactly the "jumps to the wrong
+        // occurrence" bug).
         val representatives = childrenOf(flatItems, parentIdx)
             .filter { isEligible(it) }
             .mapNotNull { idx ->
                 val item = flatItems[idx]
-                val leaf = when {
-                    !item.task.isGroup -> item.task
+                val leafRef = when {
+                    !item.task.isGroup -> TaskInstanceRef.of(item) to item.task
                     onQueueTab         -> vm.lastRun.getLastRunLeaf(item.task.id, allTasks)
-                    else               -> firstLeafBelow(idx)?.task
+                        ?.let { TaskInstanceRef.real(it) to it }
+                    else               -> firstLeafBelow(idx)?.let { TaskInstanceRef.of(it) to it.task }
                 }
-                if (leaf == null || leaf.isInterrupt) null else idx to leaf
+                if (leafRef == null || leafRef.second.isInterrupt) null else idx to leafRef
             }
 
         if (representatives.size <= 1) {
@@ -357,9 +381,12 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         }
 
         // Which representative slot "covers" the currently running task —
-        // find its own row, then walk up by structural parent until reaching
-        // a row that's a direct child of parentIdx.
-        val currentRowIdx = current?.let { c -> flatItems.indexOfFirst { it.task.id == c.id } }?.takeIf { it >= 0 }
+        // find its own row (matched by EXACT placement, not just task id —
+        // when a real task and a link to it are both visible, bare-id
+        // matching could anchor on the wrong occurrence), then walk up by
+        // structural parent until reaching a row that's a direct child of
+        // parentIdx.
+        val currentRowIdx = flatItems.indexOfFirst { it.matchesInstance(currentRef) }.takeIf { it >= 0 }
         val currentAnchorIdx = currentRowIdx?.let { start ->
             var walk = start
             while (parentIndexOf(flatItems, walk) != parentIdx) {
@@ -371,12 +398,12 @@ internal class SchedulerDelegate(private val vm: TaskViewModel) {
         }
 
         val currentIdxInReps = representatives.indexOfFirst { it.first == currentAnchorIdx }
-        val nextIdx = (currentIdxInReps + 1).mod(representatives.size)
-        val next    = representatives[nextIdx].second
+        val nextIdx  = (currentIdxInReps + 1).mod(representatives.size)
+        val (nextRef, nextTask) = representatives[nextIdx].second
 
-        vm.currentTaskOwner.set(next)
-        vm._timerSeconds.value = next.remainingSeconds
-        vm._toastMessage.value = "Next: \"${next.name}\""
+        vm.currentTaskOwner.set(nextTask, nextRef)
+        vm._timerSeconds.value = nextTask.remainingSeconds
+        vm._toastMessage.value = "Next: \"${nextTask.name}\""
         vm.viewModelScope.launch { refreshSchedule() }
     }
 }

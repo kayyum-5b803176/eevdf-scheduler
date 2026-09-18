@@ -117,6 +117,8 @@ class TaskViewModel @Inject constructor(
      */
     internal val currentTaskOwner = CurrentTaskOwner(bus, viewModelScope, CAPABILITY_ID)
     val           currentTask: LiveData<Task?> = currentTaskOwner.current
+    /** Which placement of [currentTask] is dispatched — see [TaskInstanceRef]'s KDoc. */
+    val           currentInstanceRef: LiveData<TaskInstanceRef?> = currentTaskOwner.instanceRef
 
     /**
      * Which scheduler-class tab the Schedule screen is narrowed to (view-only
@@ -205,6 +207,15 @@ class TaskViewModel @Inject constructor(
      */
     internal var activeRunMembershipId: String? = null
 
+    /**
+     * The placement (hardlink/symlink, or real) [taskToRestoreAfterExpire]
+     * was actually being viewed through at the moment it expired — captured
+     * so [AlarmOverrunDelegate.stopAlarmSound] can re-seat it through the
+     * SAME door instead of silently reverting to the real placement (see
+     * [TaskInstanceRef]'s KDoc for why a bare [Task] alone can't carry this).
+     */
+    internal var taskToRestoreAfterExpireRef: TaskInstanceRef? = null
+
     /** Creates a symlink: [hostGroupId] will show [targetTaskId] as a live pointer. */
     fun createSymlink(targetTaskId: String, hostGroupId: String) =
         viewModelScope.launch { repository.createSymlink(targetTaskId, hostGroupId) }
@@ -226,8 +237,19 @@ class TaskViewModel @Inject constructor(
      * config — only where the resulting runtime gets credited differs.
      */
     fun setCurrentTaskAsMembership(task: Task, membershipId: String) {
-        timerLifecycle.setCurrentTask(task)
-        activeRunMembershipId = membershipId
+        timerLifecycle.setCurrentTask(task, TaskInstanceRef(task.id, membershipId = membershipId))
+    }
+
+    /**
+     * Selects [task] as if the user tapped it through a specific symlink
+     * ([symlinkId]) rather than at its real, primary location. Unlike a
+     * hardlink, a symlink never changes WHERE runtime is credited (there's
+     * only one real placement to credit) — this exists so ancestor-chain
+     * lookups (quota-exhaustion display, navigation) correctly resolve
+     * through the symlink's host, not the task's own real parent.
+     */
+    fun setCurrentTaskAsSymlink(task: Task, symlinkId: String) {
+        timerLifecycle.setCurrentTask(task, TaskInstanceRef(task.id, symlinkId = symlinkId))
     }
 
     // ── Timer engine ──────────────────────────────────────────────────────────
@@ -381,9 +403,14 @@ class TaskViewModel @Inject constructor(
         tickObserver = Observer { remainingSecs: Long ->
             _timerSeconds.postValue(remainingSecs)
             // Same task, refreshed field — not a dispatch change, so this never
-            // publishes CURRENT_TASK_CHANGED (see CurrentTaskOwner).
+            // publishes CURRENT_TASK_CHANGED (see CurrentTaskOwner). Preserve
+            // the already-selected placement explicitly: without this, every
+            // single tick (once a second, for as long as any timer runs)
+            // silently reset the placement back to real — this was very
+            // likely the dominant real-world cause of "hardlink selection
+            // reverts to the real task."
             currentTaskOwner.current.value?.let { t ->
-                currentTaskOwner.setAsync(t.copy(remainingSeconds = remainingSecs))
+                currentTaskOwner.setAsync(t.copy(remainingSeconds = remainingSecs), currentInstanceRef.value)
             }
         }
         // Session is now captured synchronously by the engine and read here via
@@ -393,7 +420,10 @@ class TaskViewModel @Inject constructor(
         expiredObserver = Observer { expired: Task ->
             val session = timerEngine.consumeExpiredSession()
             _timerRunning.postValue(false)
-            currentTaskOwner.set(expired)
+            // Same task, now-expired field — preserve the placement it was
+            // actually running as. Without this, expiring reset the
+            // selection to real right at the moment accounting matters most.
+            currentTaskOwner.set(expired, currentInstanceRef.value)
             onTimerFinished(session = session)
         }
         timerEngine.tickSeconds.observeForever(tickObserver)
@@ -461,7 +491,7 @@ class TaskViewModel @Inject constructor(
 
     fun skipTask() = timerLifecycle.skipTask()
 
-    fun setCurrentTask(task: Task) = timerLifecycle.setCurrentTask(task)
+    fun setCurrentTask(task: Task, ref: TaskInstanceRef? = null) = timerLifecycle.setCurrentTask(task, ref)
 
     /**
      * Persists the manual card-hidden flag so a hand-closed card stays closed
@@ -717,7 +747,12 @@ class TaskViewModel @Inject constructor(
             if (runningTask.id != currentId) {
                 // CallSwitchService switched tasks while the Activity was dead.
                 // Update LiveData on the main thread so the timer card refreshes.
-                currentTaskOwner.setAsync(runningTask)
+                // Same reasoning as StartupRecoveryDelegate: a bare DB query has
+                // no placement info of its own — fall back to whatever was
+                // persisted for this same task, if anything, rather than
+                // silently defaulting to real.
+                val savedRef = settings.getSavedSelectedInstanceRef()?.takeIf { it.taskId == runningTask.id }
+                currentTaskOwner.setAsync(runningTask, savedRef)
                 _timerSeconds.postValue(runningTask.remainingSeconds)
                 _timerRunning.postValue(runningTask.isRunning)
             }

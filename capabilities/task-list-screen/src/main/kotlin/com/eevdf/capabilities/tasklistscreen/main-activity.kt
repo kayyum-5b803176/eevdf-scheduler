@@ -417,9 +417,12 @@ class MainActivity : AppCompatActivity() {
     internal fun refreshPhaseStatusBar() {
         val states = mutableListOf<PhaseStatusState>()
         val current = viewModel.currentTask.value
-        if (current != null) {
-            val allTasks = viewModel.activeTasks.value ?: emptyList()
-            if (isQuotaChainExhausted(current, allTasks, viewModel.clock.nowEpochMillis())) {
+        val ref     = viewModel.currentInstanceRef.value
+        if (current != null && ref != null) {
+            val allTasks    = viewModel.activeTasks.value ?: emptyList()
+            val links       = viewModel.allTaskLinks.value ?: emptyList()
+            val memberships = viewModel.allTaskMemberships.value ?: emptyList()
+            if (isQuotaChainExhausted(ref, allTasks, links, memberships, viewModel.clock.nowEpochMillis())) {
                 states.add(PhaseStatusState.QUOTA)
             }
         }
@@ -525,13 +528,12 @@ class MainActivity : AppCompatActivity() {
         onDeleteClick        = { confirmDelete(it) },
         onCompleteClick      = { viewModel.markCompleted(it) },
         onRunClick           = { item ->
-            // A leaf nested inside a hardlinked group's subtree carries the
-            // door it's being viewed through — crediting must follow that
-            // door, not the leaf's own fixed real parentId chain (see
-            // TaskRepository.updateVruntimeAfterRun's door parameter).
-            val door = item.entryMembershipId
-            if (door != null) viewModel.setCurrentTaskAsMembership(item.task, door)
-            else viewModel.setCurrentTask(item.task)
+            // TaskInstanceRef.of(item) already builds the correct door
+            // centrally (own membership, or the inherited one, or a
+            // symlink) — no need to re-derive or branch on it here; doing
+            // that manually at each call site was exactly how this drifted
+            // out of sync with the type's own logic before.
+            viewModel.setCurrentTask(item.task, TaskInstanceRef.of(item))
         },
         onGroupToggle        = { item ->
             val task  = item.task

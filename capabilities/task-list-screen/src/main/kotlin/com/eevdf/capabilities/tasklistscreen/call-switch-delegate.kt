@@ -45,6 +45,8 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
 
     /** The task card that was showing before the call started. Null = no card open. */
     private var savedTaskBeforeCall:       Task?   = null
+    /** Placement [savedTaskBeforeCall] was actually being viewed through — see TaskInstanceRef's KDoc. */
+    private var savedRefBeforeCall: TaskInstanceRef? = null
 
     /**
      * Whether the timer was actively running when the call arrived.
@@ -101,6 +103,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
             // If the current card IS already the call task, there was no prior task.
             val onScreen = vm.currentTask.value
             savedTaskBeforeCall = if (onScreen?.id == callTask.id) null else onScreen
+            savedRefBeforeCall  = if (onScreen?.id == callTask.id) null else vm.currentInstanceRef.value
 
             // Sync LiveData to show call task card with correct remaining time.
             vm.currentTaskOwner.set(callTask)
@@ -116,6 +119,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
             vm.pauseTimer()
 
             savedTaskBeforeCall = vm.currentTask.value
+            savedRefBeforeCall  = vm.currentInstanceRef.value
 
             vm.currentTaskOwner.set(callTask)
             vm._timerSeconds.value = callTask.remainingSeconds
@@ -144,9 +148,11 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
         callInProgress = false
 
         val returnTo   = savedTaskBeforeCall
+        val returnRef  = savedRefBeforeCall
         val wasRunning = wasTimerRunningBeforeCall
 
         savedTaskBeforeCall       = null
+        savedRefBeforeCall        = null
         wasTimerRunningBeforeCall = false
 
         // ── Detect whether CallSwitchService already restored the DB ──────────
@@ -159,7 +165,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
             // Path A already ran — only sync LiveData.
             val freshTask = vm.activeTasks.value?.firstOrNull { it.id == returnTo!!.id }
                 ?: returnTo
-            vm.currentTaskOwner.set(freshTask)
+            vm.currentTaskOwner.set(freshTask, returnRef)
             vm._timerSeconds.value = freshTask?.remainingSeconds ?: 0L
             vm._timerRunning.value = wasRunning
             vm._toastMessage.value = if (wasRunning)
@@ -179,7 +185,7 @@ internal class CallSwitchDelegate(private val vm: TaskViewModel) {
                 return
             }
 
-            vm.currentTaskOwner.set(returnTo)
+            vm.currentTaskOwner.set(returnTo, returnRef)
             vm._timerSeconds.value = returnTo.remainingSeconds
 
             if (wasRunning) {

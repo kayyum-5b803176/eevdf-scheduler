@@ -60,9 +60,14 @@ internal class AlarmOverrunDelegate(private val vm: TaskViewModel) {
             // only runs on the alarm-restore path (not on pause/cancel), so it
             // cannot interfere with an in-flight delay/wait phase.
             vm.notice.resetState()
-            vm.currentTaskOwner.setAsync(resetTask)
+            // Re-seat through the SAME placement it expired through — a
+            // hardlink/symlink-originated run must come back to that same
+            // door, not silently revert to the real placement (see
+            // TaskInstanceRef's KDoc — this was exactly that bug).
+            vm.currentTaskOwner.setAsync(resetTask, vm.taskToRestoreAfterExpireRef)
             vm._timerSeconds.postValue(resetTask.timeSliceSeconds)
             vm.taskToRestoreAfterExpire = null
+            vm.taskToRestoreAfterExpireRef = null
         }
         vm._alarmTaskName.postValue(null)
         vm._alarmElapsedSeconds.postValue(0L)

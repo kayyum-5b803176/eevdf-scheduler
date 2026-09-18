@@ -40,24 +40,49 @@ internal class CurrentTaskOwner(
     private val publisherId: String,
 ) {
     private val _current = MutableLiveData<Task?>(null)
+    private val _instanceRef = MutableLiveData<TaskInstanceRef?>(null)
 
     /** Read-only view for everything that just needs to observe/read it. */
     val current: LiveData<Task?> = _current
 
     /**
+     * WHICH PLACEMENT of [current] is dispatched — see [TaskInstanceRef]'s
+     * KDoc for why this exists alongside the bare task. Every call site that
+     * knows which placement it's acting on (has a [com.eevdf.capabilities.taskstorage.TaskDisplayItem]
+     * in hand, e.g. a row tap or a rotate-to landing) should pass a real
+     * [TaskInstanceRef] to [set]/[setAsync]; call sites that only have a bare
+     * [Task] get [TaskInstanceRef.real] as a safe default — correct for the
+     * overwhelmingly common case (a real, unlinked task), and no worse than
+     * before this type existed for the cases that still don't know better.
+     */
+    val instanceRef: LiveData<TaskInstanceRef?> = _instanceRef
+
+    /**
      * Dispatches [task] (or `null` for "nothing dispatched") on the main
      * thread. Safe to call from any delegate that used to write
-     * `vm._currentTask.value = ...` directly.
+     * `vm._currentTask.value = ...` directly. [ref] defaults to the task's
+     * real placement when the caller doesn't have a specific one in hand.
+     *
+     * [_instanceRef] is set BEFORE [_current] — not after, and this order
+     * matters: `MutableLiveData.value = x` notifies observers SYNCHRONOUSLY,
+     * inline, before the next line of code runs. An observer on [current]
+     * (e.g. refreshing the quota-exhaustion indicator) that reads
+     * [instanceRef].value would otherwise see the PREVIOUS placement for
+     * one frame — exactly the bug this class exists to prevent, just moved
+     * one field over. Setting the ref first means it's already correct by
+     * the time anything reacts to the task changing.
      */
-    fun set(task: Task?) {
+    fun set(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
         val changed = task?.id != _current.value?.id
+        _instanceRef.value = ref
         _current.value = task
         if (changed) publish(task)
     }
 
     /** Same as [set], but safe to call off the main thread (was `.postValue(...)`). */
-    fun setAsync(task: Task?) {
+    fun setAsync(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
         val changed = task?.id != _current.value?.id
+        _instanceRef.postValue(ref)
         _current.postValue(task)
         if (changed) publish(task)
     }

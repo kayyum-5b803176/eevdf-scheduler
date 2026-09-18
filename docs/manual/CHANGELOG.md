@@ -5,6 +5,181 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.35.2 — Centralized the door: TaskInstanceRef.of() ignored inherited membership
+
+### Fixed
+`TaskInstanceRef.of(item)` — the factory every call site uses to build a
+ref from a row — only ever read a row's OWN direct `membershipId`, never
+falling back to `entryMembershipId` (the door a leaf inherits from an
+ancestor hardlink placement it's merely nested inside). `matchesInstance`
+had the identical gap on the comparison side. Only one call site
+(`onRunClick`) had ever manually combined the two fields correctly — every
+other consumer of `.of()`, and the comparison function itself, disagreed
+with it. A ref could be built correctly at the moment of selection and then
+fail every subsequent "is this the one" check, because the type's own
+factory and its own comparison function used different rules than the one
+place that built it right.
+
+Fixed centrally, once, in the type itself — `.of()` and `matchesInstance`
+now both use the same combined-door logic — instead of requiring every
+caller to remember to combine `membershipId ?: entryMembershipId`
+correctly on its own, which is exactly how this was missed for as long as
+it was. Simplified `onRunClick` to just call `TaskInstanceRef.of(item)`
+directly now that the type itself gets this right.
+
+## 6.35.1 — The actual dominant bug: field-refresh calls silently reset placement
+
+### Fixed
+Every place that updates a field on the ALREADY-selected task (tick, pause,
+reset, expiry, notice reset, post-run vruntime credit) calls
+`currentTaskOwner.set/setAsync` again — and the default parameter recomputes
+"real" every time, since it has no way to know these are refreshes rather
+than a real switch. Two of these fire constantly:
+
+- **The per-second tick observer** — every single tick while any timer
+  runs was silently resetting the placement back to real. This is almost
+  certainly why a hardlink selection appeared to "become real" the moment
+  Start was pressed — the tick fires within the same second.
+- **The expiry observer** — reset to real at the exact moment accounting
+  matters most, explaining "when it expires it credits the real task."
+
+Also fixed the identical pattern in `pauseTimer`, `resetTimer`,
+`NoticeStateMachine`'s pause-phase reset, and the post-run vruntime-credit
+refresh — all now explicitly preserve `currentInstanceRef.value` instead of
+letting the default silently overwrite it.
+
+**A third, entirely separate mechanism** with the same bug: phone-call
+interrupt handling (`CallSwitchDelegate`) has its own `savedTaskBeforeCall`,
+never touched by the earlier interrupt-delegate fix — same fix applied,
+`savedRefBeforeCall` added alongside it.
+
+**`jumpToFirst`** was discarding the found row's placement by grabbing
+`.task` directly instead of building a ref from the whole row.
+
+**Cold-start / cross-device recovery** (`StartupRecoveryDelegate`,
+`TaskViewModel`'s dead-Activity recovery): a bare DB query has no placement
+info of its own — now falls back to whatever was persisted for that same
+task, instead of defaulting to real. One of these had a compounding bug:
+it defaulted to real AND then immediately re-saved that wrong "real" back
+into the persisted preference on the very next line — permanently
+destroying a correctly-saved placement on every cold start.
+
+## 6.35.0 — No bare task id may mean "the selected/running one," anywhere
+
+### Fixed
+Found via a screenshot showing a real task and its hardlink both displaying
+a live "00:02" countdown simultaneously: `TaskAdapter.runningTaskId` was a
+plain `String?`, matched by bare task id (`task.id == runningTaskId`) —
+completely separate from all the `TaskInstanceRef` work in 6.34.0, and never
+touched by it. Every row sharing that task id — real, hardlink, or symlink —
+lit up as "running" together, because the one signal deciding that was never
+placement-aware to begin with. This was the actual visible bug the whole
+`TaskInstanceRef` effort had been chasing.
+
+### Changed
+Applied the same rule everywhere this pattern was found in the adapter
+layer, not just the one spot: `runningTaskId` → `runningInstance`,
+`selectedTaskId` → `selectedInstance` (tap-highlight, same bug shape), both
+now `TaskInstanceRef?`, matched via `TaskDisplayItem.matchesInstance` (exact
+placement) instead of bare id. `positionOf` gained a placement-aware
+overload alongside its existing bare-id one (kept separate — the bare-id
+version is still legitimately used by the unrelated notice-phase mechanism).
+
+**Persisted selection** (survives app restart) had the identical gap in
+storage form: only the task id was ever saved, so a hardlink/symlink
+selection reverted to the real placement after every reboot — including the
+*read-back* path on cold start, which is worth calling out on its own,
+since it would have silently undone the fix even after fixing the save
+side. Added two more optional preference keys (membership id, symlink id)
+alongside the existing one; old saved prefs with only a task id simply mean
+"no membership/symlink" — safe, no migration needed.
+
+### Explicitly not touched
+Vruntime/quota per-hardlink accounting — confirmed working correctly and
+intentionally left exactly as it is; this pass was scoped only to
+selection/running-state representation.
+
+## 6.34.3 — Fixed missing door propagation in the class-tab builder
+
+### Fixed
+`buildFilteredScheduleList` (the Deadline/Realtime/Fair tab builder) never
+threaded the "door" (which hardlink placement, if any, a row was reached
+through) down its recursive walk at all — a leaf merely nested inside a
+hardlinked group's subtree had no way to record that, and silently fell
+back to the real placement the moment it was selected. This was a separate,
+concrete gap from the current-task/ref race fixed in 6.34.2 — likely the
+actual remaining cause of "hardlink with a clean quota chain still shows
+red." Fixed by threading the door through `render`/`renderOwnedSubtree` the
+same way the older, pre-existing list builders already do it correctly.
+
+### Known related gap (pre-existing, not introduced here)
+There is no equivalent mechanism anywhere in the app for a leaf nested
+inside a *symlinked* group — only hardlink placements have a "door" concept
+today. A symlink pointing at a group and expanded to show its real children
+has no way to record that inheritance either.
+
+## 6.34.2 — Fixed a race between current-task and its placement ref
+
+### Fixed
+`CurrentTaskOwner.set`/`setAsync` updated `_current` before `_instanceRef`.
+Since a `MutableLiveData` notifies its observers the instant its value is
+set — synchronously for `.value =`, and in call-order for `postValue` on the
+same thread — anything observing `currentTask` (like the quota-exhaustion
+refresh) could fire and read `currentInstanceRef.value` one step too early,
+seeing the PREVIOUS placement instead of the one just selected. This is what
+caused both regressions reported after 6.34.0: a hardlink with a clean
+quota chain still showing red (stale ref from before), and a real task's
+exhausted-parent indicator only appearing after the task actually ran
+(waiting for a later, coincidentally-correct refresh). Fixed by setting the
+ref first, the task second, in both functions.
+
+## 6.34.1 — Fixed TaskInstanceRef visibility compile error
+
+### Fixed
+`TaskInstanceRef` and its extension functions were `internal`, but
+`TaskViewModel` (a public class) exposes them through public members
+(`currentInstanceRef`, `setCurrentTask`) — Kotlin doesn't allow a public
+declaration to expose an internal type. Made `TaskInstanceRef` and its
+extensions public to match the visibility of what already exposes them.
+
+## 6.34.0 — TaskInstanceRef: placement-aware selection (permanent link fix)
+
+### Added
+`TaskInstanceRef` (task id + symlinkId + membershipId) — reuses the same
+identity triple `TaskDisplayItem`/the RecyclerView diff callback already use
+for row identity, promoted to a first-class concept. `CurrentTaskOwner` now
+tracks this alongside the bare `Task` (`vm.currentInstanceRef`), so "what's
+selected" can finally answer not just *which task* but *which placement of
+it* — a real task, or a specific hardlink/symlink.
+
+This closes one root cause behind four independent-looking bugs that were
+all the same underlying gap:
+
+### Fixed
+- **Quota-exhaustion indicator** walked the wrong ancestor chain for a
+  linked selection (used the real task's own parent instead of the actual
+  placement's host).
+- **Tap-to-run** discarded placement context immediately for symlinks (never
+  handled at all before this) and only partially for hardlinks.
+- **Interrupt jump/return** (`InterruptDelegate`) saved a bare task id as
+  "what to return to," so returning from an interrupt always landed on the
+  real placement, never the hardlink/symlink actually running before the
+  interrupt (in-memory only — a return-to saved right before a reboot still
+  falls back to the real placement, since there's no DB column for the
+  placement yet).
+- **Alarm/expiry re-seat** (`stopAlarmSound`) had the same loss — now
+  captures and restores the placement active at the moment of expiry.
+- **"Next"/"Global Rotate"/"Auto"** (`rotateSiblings`, `rotateGlobal`,
+  `selectAutoNextTask`) matched "current" by bare task id, which could
+  anchor on the wrong occurrence when a real task and a link to it were both
+  on screen, and could land on/return the wrong placement too. All three now
+  match and land by exact placement.
+
+### Known remaining gap
+The DB has no column yet for persisting *which placement* an interrupt
+return-to was saved through — only the in-memory case is fully fixed. A
+schema change would be needed to close this the rest of the way.
+
 ## 6.33.4 — Fixed timer-card flicker on alarm stop
 
 ### Fixed
