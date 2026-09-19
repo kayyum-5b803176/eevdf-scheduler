@@ -56,8 +56,8 @@ private fun quotaOverageRatio(task: Task, nowMs: Long): Double {
 }
 
 /**
- * Which segment (0-based) should blink for quota overage, or null when
- * nothing should blink.
+ * Which segment (0-based) should blink for quota overage, and how fast, or
+ * null when nothing should blink.
  *
  * Two independent questions, checked in this order — do not swap them:
  *
@@ -71,13 +71,19 @@ private fun quotaOverageRatio(task: Task, nowMs: Long): Double {
  *     only needs a yes/no answer, this needs the actual worst number, so a
  *     distant ancestor at 8x correctly outweighs the selected task's own
  *     2x). Each doubling of overage advances the blink one segment further:
- *     1x → segment 0, 2x → 1, 4x → 2, ... capped at the last segment (6)
- *     once there's no room left, rather than overflowing past it.
+ *     1x → segment 0, 2x → 1, 4x → 2, ... up to segment 6 at 64x. Beyond
+ *     64x there's no segment left to advance into, so instead of silently
+ *     capping with no further signal, the last segment switches to a
+ *     FASTER blink — "off the end of the scale" reads as faster, not as
+ *     "stuck," the same way a Geiger counter clicks faster rather than
+ *     just staying lit once it's pegged.
  */
+internal data class QuotaBlink(val segmentIndex: Int, val fast: Boolean)
+
 internal fun quotaBlinkSegment(
     activeStates: List<PhaseStatusState>, ref: TaskInstanceRef, allTasks: List<Task>,
     links: List<TaskLink>, memberships: List<TaskMembership>, nowMs: Long,
-): Int? {
+): QuotaBlink? {
     if (activeStates != listOf(PhaseStatusState.QUOTA)) return null   // the gate
 
     val tasksById = allTasks.associateBy { it.id }
@@ -86,8 +92,12 @@ internal fun quotaBlinkSegment(
     if (worstRatio < 1.0) return null   // nothing in the chain is actually exceeded
 
     val level = kotlin.math.floor(kotlin.math.ln(worstRatio) / kotlin.math.ln(2.0)).toInt()
-    return level.coerceIn(0, SEGMENT_COUNT - 1)
+    val fast  = worstRatio >= FAST_BLINK_THRESHOLD_RATIO
+    return QuotaBlink(level.coerceIn(0, SEGMENT_COUNT - 1), fast)
 }
+
+/** Overage at or beyond this ratio switches the last segment to a faster blink. */
+private const val FAST_BLINK_THRESHOLD_RATIO = 64.0
 
 /**
  * Index into [PhaseStatusState]s (0 until n) for bar position [i] under a
@@ -131,15 +141,15 @@ private const val SEGMENT_COUNT = 7
  * single active state colors every segment the same; 2+ states bounce
  * across them.
  *
- * [blinkSegmentIndex] (from [quotaBlinkSegment]) — when non-null, that ONE
- * segment slowly pulses its alpha instead of sitting static; every other
- * segment is untouched. The animation is only (re)started when the blink
- * TARGET actually changes (a different segment, or blinking turning on/off)
- * — not on every refresh, so a steady blink isn't restarted every second
- * even though this function itself is called that often.
+ * [blink] (from [quotaBlinkSegment]) — when non-null, its segment slowly
+ * toggles red/neutral instead of sitting static (faster once severity
+ * crosses the threshold); every other segment is untouched. The animation
+ * is only (re)started when the blink TARGET or SPEED actually changes —
+ * not on every refresh, so a steady blink isn't restarted every second even
+ * though this function itself is called that often.
  */
 internal fun buildPhaseStatusSegments(
-    container: LinearLayout, activeStates: List<PhaseStatusState>, blinkSegmentIndex: Int? = null,
+    container: LinearLayout, activeStates: List<PhaseStatusState>, blink: QuotaBlink? = null,
 ) {
     container.visibility = View.VISIBLE
     val context = container.context
@@ -164,14 +174,20 @@ internal fun buildPhaseStatusSegments(
         val color = if (activeStates.isEmpty()) neutralColor
                     else ContextCompat.getColor(context, activeStates[pingPongIndex(i, activeStates.size)].colorRes)
 
-        val shouldBlink   = i == blinkSegmentIndex
-        val alreadyBlinking = segment.getTag(R.id.phase_status_blink_tag) != null
+        val shouldBlink   = i == blink?.segmentIndex
+        val intervalMs    = if (blink?.fast == true) FAST_BLINK_INTERVAL_MS else NORMAL_BLINK_INTERVAL_MS
+        val currentHandle = segment.getTag(R.id.phase_status_blink_tag) as? BlinkHandle
         when {
-            shouldBlink && !alreadyBlinking -> segment.startBlinkToggle(onColor = quotaColor, offColor = neutralColor)
-            !shouldBlink && alreadyBlinking -> segment.stopBlinkToggle(color)
-            !shouldBlink                     -> segment.setBackgroundColor(color)
-            // shouldBlink && alreadyBlinking → already toggling on its own
-            // schedule; leave it running rather than restarting it.
+            shouldBlink && currentHandle == null -> segment.startBlinkToggle(quotaColor, neutralColor, intervalMs)
+            shouldBlink && currentHandle?.intervalMs != intervalMs ->
+                // Same segment, but severity crossed the fast-blink threshold
+                // (or dropped back below it) since the last refresh — restart
+                // at the new speed rather than leaving the old one running.
+                segment.startBlinkToggle(quotaColor, neutralColor, intervalMs)
+            !shouldBlink && currentHandle != null -> segment.stopBlinkToggle(color)
+            !shouldBlink -> segment.setBackgroundColor(color)
+            // shouldBlink && currentHandle.intervalMs == intervalMs → already
+            // toggling correctly at the right speed; leave it running.
         }
     }
 }
@@ -185,28 +201,37 @@ internal fun buildPhaseStatusSegments(
  * system, since that only interpolates continuously — a discrete two-state
  * toggle needed its own small mechanism instead.
  */
-private fun View.startBlinkToggle(onColor: Int, offColor: Int) {
+private class BlinkHandle(val handler: android.os.Handler, val runnable: Runnable, val intervalMs: Long)
+
+private fun View.startBlinkToggle(onColor: Int, offColor: Int, intervalMs: Long) {
+    (getTag(R.id.phase_status_blink_tag) as? BlinkHandle)?.let { it.handler.removeCallbacks(it.runnable) }
     val handler = android.os.Handler(android.os.Looper.getMainLooper())
     var isOn = true
     lateinit var toggle: Runnable
     toggle = Runnable {
         setBackgroundColor(if (isOn) onColor else offColor)
         isOn = !isOn
-        handler.postDelayed(toggle, BLINK_INTERVAL_MS)
+        handler.postDelayed(toggle, intervalMs)
     }
-    setTag(R.id.phase_status_blink_tag, handler to toggle)
+    setTag(R.id.phase_status_blink_tag, BlinkHandle(handler, toggle, intervalMs))
     handler.post(toggle)
 }
 
 /** Cancels a running [startBlinkToggle] and leaves the segment at [staticColor]. */
 private fun View.stopBlinkToggle(staticColor: Int) {
-    @Suppress("UNCHECKED_CAST")
-    (getTag(R.id.phase_status_blink_tag) as? Pair<android.os.Handler, Runnable>)?.let { (handler, toggle) ->
-        handler.removeCallbacks(toggle)
-    }
+    (getTag(R.id.phase_status_blink_tag) as? BlinkHandle)?.let { it.handler.removeCallbacks(it.runnable) }
     setTag(R.id.phase_status_blink_tag, null)
     setBackgroundColor(staticColor)
 }
 
-/** Each on/off half-cycle — 700ms reads as a clear, unhurried blink, not a flicker. */
-private const val BLINK_INTERVAL_MS = 700L
+/** Each on/off half-cycle at ordinary severity — unhurried, not a flicker. */
+private const val NORMAL_BLINK_INTERVAL_MS = 700L
+
+/**
+ * Each on/off half-cycle once overage is ≥64x — this can ONLY ever apply to
+ * the last segment (index 6): reaching this speed requires
+ * [FAST_BLINK_THRESHOLD_RATIO], and any ratio that high already computes
+ * segment index 6 on its own (see [quotaBlinkSegment]) — there is no ratio
+ * that triggers the fast interval on an earlier segment.
+ */
+private const val FAST_BLINK_INTERVAL_MS = 250L

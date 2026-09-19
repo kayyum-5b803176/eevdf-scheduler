@@ -435,10 +435,10 @@ class MainActivity : AppCompatActivity() {
 
         // Blink gate needs the FINAL states list (must be exactly [QUOTA],
         // nothing else mixed in) — computed only now that it's complete.
-        val blinkSegment = ref?.let {
+        val blink = ref?.let {
             quotaBlinkSegment(states, it, allTasks, links, memberships, nowMs)
         }
-        buildPhaseStatusSegments(viewPhaseStatus, states, blinkSegment)
+        buildPhaseStatusSegments(viewPhaseStatus, states, blink)
     }
 
     private fun tickQuotaOnVisibleItems() {

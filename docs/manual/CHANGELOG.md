@@ -5,6 +5,27 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.36.4 — Fixed compile error: unsafe call on nullable BlinkHandle
+
+### Fixed
+`currentHandle.intervalMs` in one `when` branch didn't compile — Kotlin's
+smart-cast from the earlier `currentHandle == null` branch doesn't carry
+across to a separate branch condition. Changed to a safe call
+(`currentHandle?.intervalMs`); no behavior change, since that branch is
+only reached once the prior one has already ruled out `currentHandle` being
+null.
+
+## 6.36.3 — Fast blink past 64x overage
+
+### Added
+Once the worst overage anywhere in the ancestor chain reaches 64x, the
+blinking segment switches from the normal 700ms toggle to a faster 250ms
+one — "off the end of the scale" now reads as faster, not as stuck at the
+same rate no matter how bad it gets. This can only ever affect the last
+(7th) segment: reaching 64x overage always computes segment index 6 on its
+own, so there's no code path where the fast blink shows on an earlier
+segment.
+
 ## 6.36.2 — Blink changed from fade to hard on/off (red / neutral)
 
 ### Changed
