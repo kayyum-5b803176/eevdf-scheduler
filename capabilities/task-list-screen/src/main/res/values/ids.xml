@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- View.setTag(key, value) key for phase-status-bar.kt's blink toggle
+         handle (Handler + Runnable pair) — a plain resource id, declared
+         here rather than reused from some unrelated view, purely so the tag
+         key is guaranteed unique and never collides with a tag any other
+         component might set on the same view. -->
+    <item name="phase_status_blink_tag" type="id" />
+</resources>

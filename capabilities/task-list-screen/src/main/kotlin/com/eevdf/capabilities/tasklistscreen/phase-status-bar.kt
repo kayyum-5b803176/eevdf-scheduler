@@ -158,29 +158,55 @@ internal fun buildPhaseStatusSegments(
     }
 
     val neutralColor = ContextCompat.getColor(context, DesignSystemR.color.divider)
+    val quotaColor   = ContextCompat.getColor(context, PhaseStatusState.QUOTA.colorRes)
     for (i in 0 until SEGMENT_COUNT) {
         val segment = container.getChildAt(i)
         val color = if (activeStates.isEmpty()) neutralColor
                     else ContextCompat.getColor(context, activeStates[pingPongIndex(i, activeStates.size)].colorRes)
-        segment.setBackgroundColor(color)
 
-        val shouldBlink  = i == blinkSegmentIndex
-        val alreadyBlinking = segment.animation != null
+        val shouldBlink   = i == blinkSegmentIndex
+        val alreadyBlinking = segment.getTag(R.id.phase_status_blink_tag) != null
         when {
-            shouldBlink && !alreadyBlinking -> segment.startSlowPulse()
-            !shouldBlink && alreadyBlinking -> { segment.clearAnimation(); segment.alpha = 1f }
-            // shouldBlink && alreadyBlinking → leave the running animation alone.
-            // !shouldBlink && !alreadyBlinking → nothing to do.
+            shouldBlink && !alreadyBlinking -> segment.startBlinkToggle(onColor = quotaColor, offColor = neutralColor)
+            !shouldBlink && alreadyBlinking -> segment.stopBlinkToggle(color)
+            !shouldBlink                     -> segment.setBackgroundColor(color)
+            // shouldBlink && alreadyBlinking → already toggling on its own
+            // schedule; leave it running rather than restarting it.
         }
     }
 }
 
-/** The actual slow alpha pulse used by [buildPhaseStatusSegments]'s blink segment. */
-private fun View.startSlowPulse() {
-    val fade = android.view.animation.AlphaAnimation(1f, 0.25f).apply {
-        duration = 1400L
-        repeatMode = android.view.animation.Animation.REVERSE
-        repeatCount = android.view.animation.Animation.INFINITE
+/**
+ * Hard on/off color toggle — NOT a smooth fade. "On" is the quota-red color;
+ * "off" is the same neutral track color the bar already uses for "nothing
+ * active" (so the blinking segment reads as "red / same as an idle segment,"
+ * not red-fading-to-black or red-fading-to-transparent). Runs via a
+ * self-rescheduling [Runnable] rather than Android's [android.view.animation.Animation]
+ * system, since that only interpolates continuously — a discrete two-state
+ * toggle needed its own small mechanism instead.
+ */
+private fun View.startBlinkToggle(onColor: Int, offColor: Int) {
+    val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    var isOn = true
+    lateinit var toggle: Runnable
+    toggle = Runnable {
+        setBackgroundColor(if (isOn) onColor else offColor)
+        isOn = !isOn
+        handler.postDelayed(toggle, BLINK_INTERVAL_MS)
     }
-    startAnimation(fade)
+    setTag(R.id.phase_status_blink_tag, handler to toggle)
+    handler.post(toggle)
 }
+
+/** Cancels a running [startBlinkToggle] and leaves the segment at [staticColor]. */
+private fun View.stopBlinkToggle(staticColor: Int) {
+    @Suppress("UNCHECKED_CAST")
+    (getTag(R.id.phase_status_blink_tag) as? Pair<android.os.Handler, Runnable>)?.let { (handler, toggle) ->
+        handler.removeCallbacks(toggle)
+    }
+    setTag(R.id.phase_status_blink_tag, null)
+    setBackgroundColor(staticColor)
+}
+
+/** Each on/off half-cycle — 700ms reads as a clear, unhurried blink, not a flicker. */
+private const val BLINK_INTERVAL_MS = 700L

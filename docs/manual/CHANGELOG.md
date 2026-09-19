@@ -5,6 +5,17 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.36.2 — Blink changed from fade to hard on/off (red / neutral)
+
+### Changed
+Replaced the alpha-fade animation with a discrete two-state toggle: "on" is
+the quota-red color, "off" is the same neutral track color the bar already
+uses for "nothing active" — not a fade to transparent/black. Implemented as
+a small self-rescheduling toggle (700ms per half-cycle) rather than
+Android's `Animation` system, since that only interpolates continuously and
+can't express a hard cut between two fixed colors. Added `ids.xml` for the
+tag key used to track which segment is currently toggling.
+
 ## 6.36.1 — Fixed blink never appearing: segments rebuilt every second
 
 ### Fixed
