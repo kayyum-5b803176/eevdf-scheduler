@@ -72,9 +72,9 @@ private fun quotaOverageRatio(task: Task, nowMs: Long): Double {
  *     distant ancestor at 8x correctly outweighs the selected task's own
  *     2x). Each doubling of overage advances the blink one segment further:
  *     1x → segment 0, 2x → 1, 4x → 2, ... up to segment 6 at 64x. Beyond
- *     64x there's no segment left to advance into, so instead of silently
- *     capping with no further signal, the last segment switches to a
- *     FASTER blink — "off the end of the scale" reads as faster, not as
+ *     that, segment 6 has its own adjustable range instead of a fixed
+ *     doubling: it blinks at the normal rate from 64x up to 128x, then
+ *     switches to a faster blink at 128x and beyond — "off the end of the scale" reads as faster, not as
  *     "stuck," the same way a Geiger counter clicks faster rather than
  *     just staying lit once it's pegged.
  */
@@ -97,7 +97,7 @@ internal fun quotaBlinkSegment(
 }
 
 /** Overage at or beyond this ratio switches the last segment to a faster blink. */
-private const val FAST_BLINK_THRESHOLD_RATIO = 64.0
+private const val FAST_BLINK_THRESHOLD_RATIO = 128.0
 
 /**
  * Index into [PhaseStatusState]s (0 until n) for bar position [i] under a
@@ -228,10 +228,11 @@ private fun View.stopBlinkToggle(staticColor: Int) {
 private const val NORMAL_BLINK_INTERVAL_MS = 700L
 
 /**
- * Each on/off half-cycle once overage is ≥64x — this can ONLY ever apply to
- * the last segment (index 6): reaching this speed requires
- * [FAST_BLINK_THRESHOLD_RATIO], and any ratio that high already computes
- * segment index 6 on its own (see [quotaBlinkSegment]) — there is no ratio
- * that triggers the fast interval on an earlier segment.
+ * Each on/off half-cycle once overage reaches [FAST_BLINK_THRESHOLD_RATIO]
+ * (128x) — this can ONLY ever apply to the last segment (index 6): reaching
+ * a ratio this high already computes segment index 6 on its own (see
+ * [quotaBlinkSegment]) — there is no ratio that triggers the fast interval
+ * on an earlier segment. Between 64x and 128x, segment 6 still blinks, just
+ * at [NORMAL_BLINK_INTERVAL_MS] like every other segment.
  */
 private const val FAST_BLINK_INTERVAL_MS = 250L

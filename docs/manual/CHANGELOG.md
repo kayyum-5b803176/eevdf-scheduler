@@ -5,6 +5,15 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.36.5 — Corrected fast-blink threshold to 128x (doc fix, code was already right)
+
+### Fixed
+The fast-blink threshold constant was already correctly set to 128x, but
+its surrounding doc comments still described 64x as the fast-blink point —
+a real inconsistency between what the code does and what it claims to do.
+Corrected: 64x–127x blinks segment 7 at the normal rate (same as segments
+1–6); 128x and above switches it to the fast rate.
+
 ## 6.36.4 — Fixed compile error: unsafe call on nullable BlinkHandle
 
 ### Fixed
