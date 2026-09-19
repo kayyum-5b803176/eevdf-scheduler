@@ -5,6 +5,50 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.37.1 — Quota chain now collapse-independent (real fix, not display-based)
+
+### Fixed
+6.37.0's fix read the ancestor chain off the currently-rendered display
+list — correct at any hardlink depth, but a collapsed ancestor anywhere
+above the selection removes it (and everything below it) from that list
+entirely, so the chain came back empty and the bar fell back to neutral —
+for real tasks and hardlinks alike, at whatever depth the first collapsed
+group happened to sit. Quota state doesn't stop existing just because a
+folder is collapsed; reading from something collapse-PRUNED was the wrong
+source, not a small bug in how it was read.
+
+Replaced with `findAncestorChain`: a direct depth-first search over the
+FULL real + membership tree from root (the same `EEVDFScheduler.withMemberships`
+data and door-threading the list builders use), with NO collapse-based
+pruning at all. A hardlink or symlink nested inside another hardlink's
+position is resolved by finding the actual path through the tree that
+reaches it — not by re-deriving door logic independently a third time.
+
+## 6.37.0 — Quota ancestor chain now read from the display list (Option B)
+
+### Fixed
+`TaskInstanceRef.ancestorChain` only resolved ONE hop of placement-aware
+traversal correctly (a hardlink/symlink's own host), then fell back to
+walking real `parentId`s above that. Correct for a single hardlink; wrong
+the moment two or more were stacked (a host group only reachable via
+another hardlink) — the walk silently left the path actually on screen and
+reported an unrelated branch's quota state, which is why severity appeared
+to behave arbitrarily at multi-hop depth (landing on segment 1 or slamming
+to segment 7 fast with nothing in between).
+
+Replaced with `ancestorChainFromDisplayLists`: reads the chain directly off
+whichever on-screen list (Schedule or Queue tab) currently renders the
+selected instance, instead of re-deriving it from the task graph a second
+time. The list builders already thread the correct door through arbitrary
+depth — any mix of real/hardlink/symlink hops — because that's what they
+already have to do to draw a row in the right place at all; depth 3 and
+depth 100 now cost the walk nothing extra, since there's only one
+implementation of "find the ancestors" left, not two that can disagree.
+
+Removed the now-unused graph-walking `TaskInstanceRef.ancestorChain` —
+deliberately not kept around as a fallback, since leaving the disproven
+approach in place only invites it to be reached for again later.
+
 ## 6.36.5 — Corrected fast-blink threshold to 128x (doc fix, code was already right)
 
 ### Fixed

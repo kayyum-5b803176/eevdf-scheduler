@@ -416,15 +416,22 @@ class MainActivity : AppCompatActivity() {
      */
     internal fun refreshPhaseStatusBar() {
         val states = mutableListOf<PhaseStatusState>()
-        val current = viewModel.currentTask.value
-        val ref     = viewModel.currentInstanceRef.value
-        val allTasks    = viewModel.activeTasks.value ?: emptyList()
-        val links       = viewModel.allTaskLinks.value ?: emptyList()
-        val memberships = viewModel.allTaskMemberships.value ?: emptyList()
-        val nowMs       = viewModel.clock.nowEpochMillis()
+        val ref   = viewModel.currentInstanceRef.value
+        val nowMs = viewModel.clock.nowEpochMillis()
 
-        if (current != null && ref != null &&
-            isQuotaChainExhausted(ref, allTasks, links, memberships, nowMs)) {
+        // Searches the FULL tree from root, collapse-independent — see
+        // findAncestorChain's KDoc for why reading from the rendered
+        // (collapse-pruned) display list was the wrong source.
+        val chain = ref?.let {
+            findAncestorChain(
+                it,
+                viewModel.activeTasks.value ?: emptyList(),
+                viewModel.allTaskLinks.value ?: emptyList(),
+                viewModel.allTaskMemberships.value ?: emptyList(),
+            )
+        } ?: emptyList()
+
+        if (chain.isNotEmpty() && isQuotaChainExhausted(chain, nowMs)) {
             states.add(PhaseStatusState.QUOTA)
         }
         when (viewModel.noticePhase.value) {
@@ -435,9 +442,7 @@ class MainActivity : AppCompatActivity() {
 
         // Blink gate needs the FINAL states list (must be exactly [QUOTA],
         // nothing else mixed in) — computed only now that it's complete.
-        val blink = ref?.let {
-            quotaBlinkSegment(states, it, allTasks, links, memberships, nowMs)
-        }
+        val blink = if (chain.isNotEmpty()) quotaBlinkSegment(states, chain, nowMs) else null
         buildPhaseStatusSegments(viewPhaseStatus, states, blink)
     }
 

@@ -85,25 +85,3 @@ fun TaskInstanceRef.effectiveParentId(
 fun TaskDisplayItem.matchesInstance(ref: TaskInstanceRef?): Boolean =
     ref != null && task.id == ref.taskId && symlinkId == ref.symlinkId &&
         (membershipId ?: entryMembershipId) == ref.membershipId
-
-/**
- * The full ancestor chain for this instance, root first, this instance
- * last — the FIRST hop uses [effectiveParentId] (placement-aware); every
- * hop above that walks real parentIds, since once you're above the
- * placement's own host, you're back on the real tree regardless of how you
- * reached the placement itself.
- */
-fun TaskInstanceRef.ancestorChain(
-    links: List<TaskLink>, memberships: List<TaskMembership>, tasksById: Map<String, Task>,
-): List<Task> {
-    val self = tasksById[taskId] ?: return emptyList()
-    val chain = mutableListOf(self)
-    var parentId = effectiveParentId(links, memberships, tasksById)
-    while (parentId != null) {
-        val parent = tasksById[parentId] ?: break
-        chain.add(parent)
-        parentId = parent.parentId
-    }
-    chain.reverse()
-    return chain
-}
