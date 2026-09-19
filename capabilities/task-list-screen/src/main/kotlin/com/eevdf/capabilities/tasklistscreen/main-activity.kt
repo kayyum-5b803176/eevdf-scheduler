@@ -418,20 +418,27 @@ class MainActivity : AppCompatActivity() {
         val states = mutableListOf<PhaseStatusState>()
         val current = viewModel.currentTask.value
         val ref     = viewModel.currentInstanceRef.value
-        if (current != null && ref != null) {
-            val allTasks    = viewModel.activeTasks.value ?: emptyList()
-            val links       = viewModel.allTaskLinks.value ?: emptyList()
-            val memberships = viewModel.allTaskMemberships.value ?: emptyList()
-            if (isQuotaChainExhausted(ref, allTasks, links, memberships, viewModel.clock.nowEpochMillis())) {
-                states.add(PhaseStatusState.QUOTA)
-            }
+        val allTasks    = viewModel.activeTasks.value ?: emptyList()
+        val links       = viewModel.allTaskLinks.value ?: emptyList()
+        val memberships = viewModel.allTaskMemberships.value ?: emptyList()
+        val nowMs       = viewModel.clock.nowEpochMillis()
+
+        if (current != null && ref != null &&
+            isQuotaChainExhausted(ref, allTasks, links, memberships, nowMs)) {
+            states.add(PhaseStatusState.QUOTA)
         }
         when (viewModel.noticePhase.value) {
             is NoticePhase.Delay -> states.add(PhaseStatusState.DELAY)
             is NoticePhase.Wait  -> states.add(PhaseStatusState.WAIT)
             else -> {}
         }
-        buildPhaseStatusSegments(viewPhaseStatus, states)
+
+        // Blink gate needs the FINAL states list (must be exactly [QUOTA],
+        // nothing else mixed in) — computed only now that it's complete.
+        val blinkSegment = ref?.let {
+            quotaBlinkSegment(states, it, allTasks, links, memberships, nowMs)
+        }
+        buildPhaseStatusSegments(viewPhaseStatus, states, blinkSegment)
     }
 
     private fun tickQuotaOnVisibleItems() {

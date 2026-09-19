@@ -5,6 +5,33 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.36.1 — Fixed blink never appearing: segments rebuilt every second
+
+### Fixed
+`buildPhaseStatusSegments` tore down and recreated all 7 segment views on
+every call — and this bar refreshes every second, on every quota tick. A
+blinking segment's animation restarted from full opacity every single time
+its View was recreated, so it could never actually complete a visible fade.
+Segments are now created once and updated in place on every later call;
+the blink animation is only (re)started when the blink target actually
+changes, not on every refresh. This also removes the "tear down all 7,
+then rebuild" window entirely, which was a plausible source of the
+inconsistent/partially-stale colors also reported.
+
+## 6.36.0 — Quota-overage blink on the phase-status bar
+
+### Added
+When the phase-status bar has nothing else to show (exactly `[QUOTA]`
+active — no delay/wait mixed in), one segment now slowly pulses to indicate
+overage severity: the root-to-current ancestor chain (placement-aware, same
+as the existing quota-exhaustion check) is walked, the WORST overage ratio
+found anywhere in it is taken (not just the selected task's own — a distant
+ancestor at 8x correctly outweighs the task's own 2x), and each doubling of
+that ratio advances the blinking segment one further: 1x → segment 1, 2x →
+segment 2, 4x → segment 3, capped at segment 7. Any other active state
+(delay/wait) disables blinking entirely and reverts to the existing static
+bar — the gate is checked before the severity calculation, not after.
+
 ## 6.35.2 — Centralized the door: TaskInstanceRef.of() ignored inherited membership
 
 ### Fixed
