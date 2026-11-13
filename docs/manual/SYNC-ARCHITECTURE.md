@@ -1,4 +1,4 @@
-# Sync & Restore Architecture (v6.41.0)
+# Sync & Restore Architecture (v6.42.0)
 
 **Read this before touching `capabilities/multi-device-sync` or the restore
 path in `capabilities/backup-restore`.** It describes what the code does now,
@@ -165,7 +165,37 @@ sync then reads them, so the merge engine does not know a second phone exists.
   sync screen and in the event log.
 - **Two phones.** The deletion rule assumes exactly two phones in the group.
 
+## 5d. One alarm across phones (6.42.0)
 
+`alarm-sync.kt` + `shared-state.kt`, tested in `alarm-sync-test.kt`.
+
+- **Shared record:** two tables owned by this capability, created before the
+  engine discovers tables (so they sync like any other; Room ignores them):
+  `shared_alarm(id = taskId@runStart, state ringing|stopped, …)` and
+  `shared_setting(ring_mode, ring_owner, ring_owner_name)`. "ringing" is
+  INSERT OR IGNORE and "stopped" is never undone.
+- **Stop everywhere:** `alarm.stopped` here (any stop path) → write
+  "stopped" → sent at once. A merge bringing "stopped" for the alarm ringing
+  here → `alarm.stop-requested` (the same full stop as the Stop button). This
+  includes a stop by another Android user of the same phone.
+- **Ring modes:** `alarm.should-ring-requested` (asked by alarm-ringer at
+  expiry, answered from memory). Swarm: ring. Handover: only the phone that
+  last saved a task (`ring_owner`, updated on `task.saved`) rings; others stay
+  silent only while a live link to that phone exists. A silent alarm is a
+  normal alarm with `AlarmRingingEvent.silent = true` (sound/vibration skip
+  it; no banner, no full-screen screen). An alarm already stopped elsewhere
+  does not ring at all.
+- **Duplicate credit:** both phones may credit the same expired run;
+  `TaskRunInvariants.dedupeRecentRuns` keeps one row per (task, start) in the
+  last 48 h, chosen identically on every phone.
+- **Background sync:** `SyncLinkService` (foreground service, type
+  connectedDevice, permanent silent notification) keeps the process — and so
+  the live link — alive while the app is closed. Started only while on screen.
+  With the app closed, a merged timer start/pause schedules/cancels this
+  phone's alarm (`ALARM_TIMER_START/PAUSE_REQUESTED`), which the task list
+  screen would otherwise do.
+
+## 6. Bus topics
 
 | Topic | Publisher | Subscriber |
 |---|---|---|
@@ -178,6 +208,10 @@ sync then reads them, so the merge engine does not know a second phone exists.
 | `backup.restore-requested` | backup-restore | multi-device-sync |
 | `backup.restore-finished` | multi-device-sync | backup-restore |
 | `backup.safety-copies-requested` (request) | backup-restore | multi-device-sync |
+| `sync.device-exchanged` | multi-device-sync | event log |
+| `alarm.should-ring-requested` (request) | alarm-ringer | multi-device-sync |
+| `alarm.ringing` / `alarm.stopped` | alarm-ringer | multi-device-sync (+ sound, vibration, task list) |
+| `alarm.stop-requested` / `alarm.timer-start-requested` / `alarm.timer-pause-requested` | multi-device-sync (also task-list-screen) | alarm-ringer |
 
 Retired: `backup.import-requested`, `task.conflict-detected`.
 
@@ -204,8 +238,9 @@ first join.
 - **The self-check only fires when two members are quiet at the same point**
   (they alternate use, so mostly yes) and can only repair what a snapshot
   contains. It reports through `sync.maintenance`.
-- **Bluetooth needs the app open on both phones.** No background service
-  yet (planned with the ring modes). Two phones only.
+- **Bluetooth needs the app open on both phones** unless background sync is
+  switched on. Two phones only. Background sync between Android users of the
+  same phone depends on Android keeping the switched-away user running.
 - **Settings are per user and not synced.** `eevdf_sync` (member id, folder)
   is deliberately outside `SettingsBackup`.
 - **Content fingerprints assume the same columns** on the members that first
@@ -215,12 +250,12 @@ first join.
 - Android Auto Backup (`allowBackup=true`) could clone a member id to another
   phone. Irrelevant on one device; revisit before Bluetooth sync (build 2).
 
-## 9. Planned next (not in this build)
+## 9. Planned next
 
-- **Build 2 — Bluetooth:** a second transport for the same journal lines
-  (`SyncOp`s through `SyncEngine.apply`). Needs clock-offset correction.
-- **Build 3 — Ring modes:** handover / swarm, plus the optional keep-listening
-  service.
+All three planned builds are in (SD card sync and backup; Bluetooth; alarms
+and background sync). Open items: the scheduler still saves lag /
+eligibleTime / virtualDeadline for every task on each pause (internal-storage
+writes); per-row sync bookkeeping for large history could be smaller.
 
 ## 9a. Measured (simulation on a PC, real schema, not a phone)
 
@@ -231,7 +266,7 @@ the absent user catches up in one read. Internal database: +102% (was +295%).
 
 ## 10. Tests
 
-`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 29 tests, `device-exchange-test.kt` — 15 tests (two phones over a pipe, incl. the live link),
+`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 29 tests, `device-exchange-test.kt` — 15 tests (two phones over a pipe, incl. the live link), `alarm-sync-test.kt` — 9 tests (stop everywhere, ring modes, duplicate credit, alarms kept in step while closed),
 each named as the promise it checks (empty joiner erases nothing; timer
 started by one user stopped by another; torn write skipped; card missing;
 card wiped; snapshot + late joiner; older/newer builds; restore merge/replace;

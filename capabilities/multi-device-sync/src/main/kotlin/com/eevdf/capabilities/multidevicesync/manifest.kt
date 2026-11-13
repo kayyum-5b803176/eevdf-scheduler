@@ -15,6 +15,12 @@ object MultiDeviceSyncManifest : CapabilityManifest {
         Topics.SYNC_MAINTENANCE,
         Topics.SYNC_DEVICE_EXCHANGED,
         Topics.BACKUP_RESTORE_FINISHED,
+        // v6.42.0 — one alarm across phones (AlarmSync): stop here because it
+        // was stopped elsewhere; with the app closed, keep this phone's alarm
+        // in step with a timer started/paused on the other phone.
+        Topics.ALARM_STOP_REQUESTED,
+        Topics.ALARM_TIMER_START_REQUESTED,
+        Topics.ALARM_TIMER_PAUSE_REQUESTED,
     )
 
     override val subscribes: Set<Topic<*>> = setOf(
@@ -22,6 +28,9 @@ object MultiDeviceSyncManifest : CapabilityManifest {
         Topics.APP_FOREGROUND_CHANGED,
         Topics.SYNC_NOW_REQUESTED,
         Topics.BACKUP_RESTORE_REQUESTED,
+        // v6.42.0 — learn which alarm rings here, and that it was stopped here.
+        Topics.ALARM_RINGING,
+        Topics.ALARM_STOPPED,
     )
 
     override fun fallbackWhenUnavailable(topic: Topic<*>) {
@@ -40,6 +49,11 @@ object MultiDeviceSyncManifest : CapabilityManifest {
 }
 
 /**
+ * ALSO ANSWERS `Topics.ALARM_SHOULD_RING_REQUESTED` (v6.42.0): asked by
+ * alarm-ringer at expiry; answered from memory by AlarmSync (Swarm / Handover).
+ * If this capability is unavailable the asker gets no answer and rings —
+ * the safe default.
+ *
  * ALSO ANSWERS one request topic, `Topics.SAFETY_COPIES_REQUESTED`
  * (`bus.respondTo`, not `subscribe`, so it is not in the sets above):
  * backup-restore asks which automatic safety copies exist.

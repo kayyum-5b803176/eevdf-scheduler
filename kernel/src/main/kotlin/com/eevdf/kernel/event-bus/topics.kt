@@ -207,6 +207,16 @@ object Topics {
     val ALARM_CANCEL_SCHEDULED_REQUESTED = Topic<Unit>("alarm.cancel-scheduled-requested")
     val ALARM_DELAY_START_REQUESTED = Topic<AlarmDelayStartRequest>("alarm.delay-start-requested")
 
+    /**
+     * Asked by alarm-ringer the moment a timer expires: "should THIS phone
+     * make a sound?" Payload: the task name. Answered by multi-device-sync
+     * from memory (no disk access), according to the ring mode shared by the
+     * synced phones: Swarm → yes; Handover → only the phone used last, unless
+     * that phone cannot be reached right now. No answer (sync not set up, or a
+     * timeout) means ring — an extra ring is better than a missed one.
+     */
+    val ALARM_SHOULD_RING_REQUESTED = RequestTopic<String, Boolean>("alarm.should-ring-requested")
+
     // ── Overlay commands (published by task-list-screen, subscribed by ───────
     // call-autoswitch). Replace the 2 methods of the old OverlayController.
 
@@ -407,4 +417,14 @@ data class AlarmDelayStartRequest(val taskName: String, val delaySecs: Long)
  * pick the right ALARM/NOTIFICATION/CUSTOM preference profile, exactly like
  * [AlarmTimerExpireRequest] already does for the same reason.
  */
-data class AlarmRingingEvent(val taskName: String, val taskType: String = "DEFAULT")
+data class AlarmRingingEvent(
+    val taskName: String,
+    val taskType: String = "DEFAULT",
+    /**
+     * True when this phone shows the expired alarm but must not make a sound
+     * or vibrate, because another phone is the one ringing (multi-device sync
+     * "Handover" mode). Sound and vibration skip silent events; everything
+     * else (notification, stop, overrun) behaves exactly as for a ringing alarm.
+     */
+    val silent: Boolean = false,
+)

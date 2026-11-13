@@ -236,6 +236,8 @@ internal class SyncFolder(root: File, private val peerId: String) {
         val peerName: String? = null,
         /** The other phone's id, learned on the first successful exchange. */
         val peerDeviceId: String? = null,
+        /** Keep the Bluetooth link (and alarms in step) while the app is closed. */
+        val keepAlive: Boolean = false,
     )
 
     private val deviceFile = File(base, "device.json")
@@ -256,6 +258,7 @@ internal class SyncFolder(root: File, private val peerId: String) {
                 peerAddress = parsed["peerAddress"] as? String,
                 peerName = parsed["peerName"] as? String,
                 peerDeviceId = parsed["peerDevice"] as? String,
+                keepAlive = parsed["bg"] == true,
             )
         }
         val alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -273,7 +276,7 @@ internal class SyncFolder(root: File, private val peerId: String) {
         val json = MiniJson.write(
             linkedMapOf(
                 "id" to s.id, "bt" to s.bluetoothEnabled, "peerAddress" to s.peerAddress,
-                "peerName" to s.peerName, "peerDevice" to s.peerDeviceId,
+                "peerName" to s.peerName, "peerDevice" to s.peerDeviceId, "bg" to s.keepAlive,
             )
         )
         val tmp = File(base, "device.json.tmp")

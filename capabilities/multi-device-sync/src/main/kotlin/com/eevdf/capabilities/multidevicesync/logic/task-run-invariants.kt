@@ -24,6 +24,7 @@ package com.eevdf.capabilities.multidevicesync.logic
 internal object TaskRunInvariants {
 
     private const val TABLE = "tasks"
+    private const val RUN_LOG = "run_log"
     private val NEEDED = listOf("id", "isRunning", "startTimeEpoch", "accumulatedMs")
 
     /** Returns how many tasks were paused. */
@@ -54,6 +55,44 @@ internal object TaskRunInvariants {
             }
         }
         running.size - 1
+    }
+
+    /**
+     * When two phones both see the same run expire, both credit it, and each
+     * writes its own history row (the details differ slightly: duration to
+     * the millisecond, load snapshots). After a merge those are two rows for
+     * ONE run. Keep one.
+     *
+     * Same run = same task and same start time (a task cannot start twice in
+     * the same millisecond). The kept row is chosen the same way on every
+     * phone — longest duration, then the smallest content fingerprint — so
+     * every phone deletes the same rows and the deletions agree when they
+     * meet. Only runs since [sinceEpochMs] are checked, which keeps this
+     * cheap and leaves old history untouched. Returns rows removed.
+     */
+    fun dedupeRecentRuns(db: SyncDb, sinceEpochMs: Long): Int = db.transaction {
+        val info = SyncSchema.describe(db, RUN_LOG) ?: return@transaction 0
+        if (listOf("taskId", "startEpoch", "durationSecs").any { info.column(it) == null }) return@transaction 0
+        val groups = db.queryRows(
+            "SELECT taskId, startEpoch FROM run_log WHERE startEpoch >= ? GROUP BY taskId, startEpoch HAVING COUNT(*) > 1",
+            listOf(sinceEpochMs)
+        )
+        var removed = 0
+        for (g in groups) {
+            val rows = db.queryRows(
+                "SELECT rowid AS _rid, * FROM run_log WHERE taskId = ? AND startEpoch = ?",
+                listOf(g["taskId"], g["startEpoch"])
+            )
+            val ranked = rows.sortedWith(
+                compareByDescending<Map<String, Any?>> { (it["durationSecs"] as? Number)?.toLong() ?: 0L }
+                    .thenBy { row -> SyncCodec.contentId(RUN_LOG, info.dataColumns.associateWith { row[it] }) }
+            )
+            for (r in ranked.drop(1)) {
+                db.exec("DELETE FROM run_log WHERE rowid = ?", listOf(r["_rid"]))
+                removed++
+            }
+        }
+        removed
     }
 
     /**

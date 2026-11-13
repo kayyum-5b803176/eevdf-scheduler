@@ -28,6 +28,8 @@ class SoundCueHandler(
 ) {
     init {
         bus.subscribe(Topics.ALARM_RINGING, CAPABILITY_ID) { event ->
+            // Another synced phone is the one ringing (Handover mode).
+            if (event.silent) return@subscribe
             SoundManager.startAlarmForType(appContext, prefs(), event.taskType)
             bus.publish(Topics.SOUND_STARTED, "alarm:${event.taskType}", CAPABILITY_ID)
         }

@@ -8,7 +8,15 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
+    <!-- "Keep syncing when the app is closed" (v6.42.0): a connectedDevice
+         foreground service holding the Bluetooth link. Optional, off by default. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
     <application>
+        <service
+            android:name="com.eevdf.capabilities.multidevicesync.logic.SyncLinkService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
         <activity
             android:name="com.eevdf.capabilities.multidevicesync.MultiUserSyncActivity"
             android:exported="false"

@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
@@ -81,6 +82,9 @@ class AlarmForegroundService : Service() {
 
     companion object {
         private const val TAG = "EEVDFAlarm"
+
+        /** How long to wait for the multi-device ring decision before ringing anyway. */
+        private const val SHOULD_RING_TIMEOUT_MS = 1_000L
 
         const val ACTION_TIMER_START  = "com.eevdf.scheduler.TIMER_START"
         const val ACTION_DELAY_START  = "com.eevdf.scheduler.DELAY_START"
@@ -334,11 +338,27 @@ class AlarmForegroundService : Service() {
                     val excludeAppMatch = !appForeground &&
                         NotificationPrefs.isAppExcluded(this, foregroundPkg)
 
-                    val decision = AlarmNotificationPolicy.decide(
+                    // Multi-device sync (rule 3: asked over the bus, never
+                    // imported): in Handover mode only the phone used last
+                    // rings; this one then shows the alarm WITHOUT sound,
+                    // vibration, banner or full-screen screen, and stops when
+                    // the ringing phone is stopped. No answer within a second
+                    // (sync not set up, or slow) means ring as always.
+                    val silent = try {
+                        runBlocking {
+                            withTimeoutOrNull(SHOULD_RING_TIMEOUT_MS) {
+                                bus.request(Topics.ALARM_SHOULD_RING_REQUESTED, taskName, "alarm-ringer")
+                            }
+                        } == false
+                    } catch (e: Exception) {
+                        false
+                    }
+                    val policy = AlarmNotificationPolicy.decide(
                         appForeground = appForeground,
                         excludeAppMatch = excludeAppMatch,
                         lockScreenOverlayEnabled = NotificationPrefs.isLockScreenOverlayEnabled(this),
                     )
+                    val decision = if (silent) policy.copy(suppressBanner = true, attachFullScreenIntent = false) else policy
                     AlarmDeliveryLog.recordRinging(this, taskName, clock.nowEpochMillis())
 
                     // Diagnostic snapshot only — never gates behavior. Channel
@@ -372,12 +392,12 @@ class AlarmForegroundService : Service() {
                     // — only the sound/vibration layers do, matching their
                     // own fallbackWhenUnavailable KDocs ("never load-bearing
                     // for alarm delivery").
-                    scope.launch { bus.publish(Topics.ALARM_RINGING, AlarmRingingEvent(taskName, taskType), "alarm-ringer") }
+                    scope.launch { bus.publish(Topics.ALARM_RINGING, AlarmRingingEvent(taskName, taskType, silent), "alarm-ringer") }
 
                     // AOSP-parity: broadcast that the alarm started ringing so any
                     // listener (overlay, external apps / Tasker) can react.  Sent
                     // unrestricted (exported, no permission) for max interop.
-                    sendBroadcast(
+                    if (!silent) sendBroadcast(
                         Intent(ACTION_ALARM_ALERT).apply {
                             putExtra(EXTRA_TASK_NAME, taskName)
                             putExtra(EXTRA_TASK_TYPE, taskType)

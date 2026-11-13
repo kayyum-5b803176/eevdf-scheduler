@@ -5,6 +5,46 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.42.0 — One alarm across phones: stop everywhere, Swarm / Handover, background sync (build 3 of 3)
+
+### Why
+Timer state synced, but an alarm is local: stopping it on one phone wrote
+nothing shared, so the other phone kept ringing. (Sync also deliberately left
+a ringing alarm alone.)
+
+### Added
+- **Stop on one, stop on all.** A shared alarm record (task + run start)
+  carries "stopped" to every phone (within a second or two over the live
+  Bluetooth link), where it stops exactly like the Stop button. Works for every
+  stop path: in-app, notification, full-screen alarm, the 1-hour limit, and a
+  stop in another Android user of the same phone.
+- **Ring modes** ("When a timer ends" on the sync screen; one setting for all
+  phones): *Swarm* (default), every phone rings; *Handover*, only the phone
+  that last started, paused or changed a timer rings, the others show the
+  alarm silently and stop with it. A phone that cannot reach the ringing phone
+  rings anyway. An alarm already stopped elsewhere does not ring.
+- **Keep syncing when the app is closed** (Bluetooth section, off by default):
+  a background service with a permanent silent notification keeps the link up,
+  merges what arrives, and schedules or cancels this phone's alarm to match a
+  timer started or paused on the other phone.
+- **Duplicate history guard:** a run credited on both phones leaves one entry,
+  the same one on every phone.
+- Topic `alarm.should-ring-requested`; `AlarmRingingEvent.silent`.
+  Permission `FOREGROUND_SERVICE_CONNECTED_DEVICE`.
+- 9 tests with the real event bus and sync engine (57 total).
+
+### Changed outside sync (small)
+- alarm-ringer asks the ring question at expiry (1 s timeout means ring).
+- sound and vibration skip an alarm marked silent.
+
+### Fixed
+- SYNC-ARCHITECTURE.md had lost its "6. Bus topics" heading in 6.40.0.
+
+### Not verified by a build
+The background service, alarm-ringer change, coordinator wiring and screen
+were type-checked (alarm-ringer: reviewed by reading) only. Background sync
+between Android users of one phone depends on Android and is untested.
+
 ## 6.41.0 — Bluetooth: live link, changes cross in about a second
 
 ### Why

@@ -51,6 +51,9 @@ class MultiUserSyncActivity : AppCompatActivity() {
     private lateinit var tvBluetoothPeer: TextView
     private lateinit var tvBluetoothStatus: TextView
     private lateinit var btnChoosePhone: MaterialButton
+    private lateinit var switchKeepAlive: SwitchMaterial
+    private lateinit var groupRingMode: android.widget.RadioGroup
+    private lateinit var tvRingMode: TextView
     private var bindingBluetooth = false
 
     /** "Nearby devices" — needed once in every Android user that should take part. */
@@ -104,6 +107,16 @@ class MultiUserSyncActivity : AppCompatActivity() {
         tvBluetoothPeer = findViewById(R.id.tvBluetoothPeer)
         tvBluetoothStatus = findViewById(R.id.tvBluetoothStatus)
         btnChoosePhone = findViewById(R.id.btnChoosePhone)
+        switchKeepAlive = findViewById(R.id.switchKeepAlive)
+        groupRingMode = findViewById(R.id.groupRingMode)
+        tvRingMode = findViewById(R.id.tvRingMode)
+
+        switchKeepAlive.setOnCheckedChangeListener { _, checked ->
+            if (!bindingBluetooth) coordinator.setKeepAlive(checked)
+        }
+        groupRingMode.setOnCheckedChangeListener { _, id ->
+            if (!bindingBluetooth) coordinator.setRingMode(handover = id == R.id.radioHandover)
+        }
 
         switchBluetooth.setOnCheckedChangeListener { _, checked ->
             if (bindingBluetooth) return@setOnCheckedChangeListener
@@ -235,6 +248,21 @@ class MultiUserSyncActivity : AppCompatActivity() {
         if (!state.enabled) lines.add("Switch Multiuser Sync on first.") else lines.add(state.btStatus)
         if (state.btLastExchangeMs > 0L) lines.add("Last exchange: ${formatAgo(state.btLastExchangeMs)} — ${state.btLastSummary ?: ""}")
         state.btClockWarning?.let { lines.add("⚠  $it") }
+        if (state.btKeepAlive) lines.add("Background sync is on: a permanent notification shows while it runs.")
+
+        bindingBluetooth = true
+        switchKeepAlive.isChecked = state.btKeepAlive
+        switchKeepAlive.isEnabled = state.btEnabled && state.btPermission
+        groupRingMode.check(if (state.ringHandover) R.id.radioHandover else R.id.radioSwarm)
+        bindingBluetooth = false
+        groupRingMode.isEnabled = state.enabled
+        tvRingMode.text = if (state.ringHandover) {
+            "Ringing now goes to: ${state.ringOwnerName ?: "the phone used last"}. The other phones stay silent " +
+                "and stop with it. A phone that cannot reach the ringing phone rings anyway."
+        } else {
+            "Every synced phone rings. Stop it on any one and the others stop within a second or two " +
+                "(with Bluetooth), or when their app next syncs."
+        }
         tvBluetoothStatus.text = lines.filter { it.isNotBlank() }.joinToString("\n")
     }
 

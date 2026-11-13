@@ -37,3 +37,12 @@ object AlarmRingerManifest : CapabilityManifest {
  * name-only `AlarmState` without a task-storage dependency this capability
  * deliberately doesn't have.
  */
+
+/**
+ * ALSO ASKS `Topics.ALARM_SHOULD_RING_REQUESTED` (v6.42.0) when a timer
+ * expires: multi-device-sync answers whether THIS phone should make a sound
+ * (Handover mode keeps the other phones silent). No answer within 1 s means
+ * ring. A silent alarm still posts its notification (no banner, no
+ * full-screen screen) and publishes ALARM_RINGING with silent = true, which
+ * sound and vibration skip; stopping works exactly as for a ringing alarm.
+ */

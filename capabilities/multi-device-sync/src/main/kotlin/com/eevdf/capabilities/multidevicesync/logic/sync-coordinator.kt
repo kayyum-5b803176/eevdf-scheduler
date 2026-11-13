@@ -110,6 +110,11 @@ class SyncCoordinator(
         val btLastSummary: String? = null,
         /** Set when the phones' clocks differ enough to matter for running timers. */
         val btClockWarning: String? = null,
+        val btKeepAlive: Boolean = false,
+        /** True = Handover, false = Swarm. */
+        val ringHandover: Boolean = false,
+        /** In Handover: the phone that currently rings. */
+        val ringOwnerName: String? = null,
     )
 
     private val appContext = context.applicationContext
@@ -135,18 +140,41 @@ class SyncCoordinator(
     /** When the oldest save that has not been written to the card yet happened; 0 = none waiting. */
     @Volatile private var pendingSince: Long = 0L
 
+    /** One alarm across the synced phones: shared stop, ring modes, alarms kept in step while closed. */
+    private val alarms: AlarmSync by lazy {
+        AlarmSync(
+            bus = bus,
+            clock = clock,
+            scope = scope,
+            lock = lock,
+            syncEnabled = { isEnabled() },
+            database = { db() },
+            phoneId = { runCatching { phoneFolder()?.deviceId() }.getOrNull() },
+            phoneName = { Build.MODEL ?: "phone" },
+            linkedPhone = { btSession?.takeIf { it.isOpen }?.peer?.deviceId },
+            appOnScreen = { bus.getLast(Topics.APP_FOREGROUND_CHANGED) == true },
+            sendSoon = { if (linkOpen()) quickPush() else schedulePush() },
+            report = { text -> report(Topics.SYNC_MAINTENANCE, text) },
+        )
+    }
+
     init {
+        alarms.start()
         bus.subscribe(Topics.TASK_SAVED, CAPABILITY_ID) {
             schedulePush()
             if (linkOpen()) quickPush()
+            alarms.onLocalAction()
         }
         bus.subscribe(Topics.APP_FOREGROUND_CHANGED, CAPABILITY_ID) { foreground ->
             if (foreground) {
                 requestSync(quiet = false)
                 startBluetooth()
+                updateLinkService()
             } else {
+                alarms.onBackground()
                 scope.launch { pushNow() }
-                stopBluetooth()
+                // With "keep syncing when closed" the link stays up.
+                if (!keepAliveOn()) stopBluetooth()
             }
         }
         bus.subscribe(Topics.SYNC_NOW_REQUESTED, CAPABILITY_ID) { syncNow() }
@@ -238,6 +266,7 @@ class SyncCoordinator(
         } catch (e: Exception) {
             report(Topics.SYNC_FAILED, "Sync could not start: ${short(e)}")
         }
+        alarms.refresh()
         refreshUi()
         if (isEnabled()) {
             publishStatus(SyncPhase.IDLE, null)
@@ -245,6 +274,8 @@ class SyncCoordinator(
         } else {
             publishStatus(SyncPhase.DISABLED, null)
         }
+        // Restarted by Android while closed (background sync on): pick the link back up.
+        if (keepAliveOn()) startBluetooth()
         pollLoop()
     }
 
@@ -257,7 +288,11 @@ class SyncCoordinator(
     private suspend fun pollLoop() {
         while (scope.isActive) {
             delay(POLL_MS)
-            if (!isEnabled() || bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true) continue
+            if (!isEnabled()) continue
+            if (bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true) {
+                if (keepAliveOn()) maybeConnectToPhone()
+                continue
+            }
             val dir = resolveFolder() ?: continue
             maybeConnectToPhone()
             val changed = fingerprint(dir) != lastFingerprint
@@ -351,6 +386,8 @@ class SyncCoordinator(
                 val r = s.cycle(joinChoice())
                 if (r.applied.applied > 0) {
                     repaired = TaskRunInvariants.enforceSingleRunningTask(db())
+                    // Both phones may have credited the same expired run.
+                    repaired += TaskRunInvariants.dedupeRecentRuns(db(), clock.nowEpochMillis() - DEDUPE_WINDOW_MS)
                     if (repaired > 0) runCatching { s.pushOnly() }
                 }
                 sessionDir?.let { lastFingerprint = fingerprint(it) }
@@ -394,6 +431,8 @@ class SyncCoordinator(
                 SyncRemoteApplied("sync", r.applied.applied, r.applied.tables.toList()),
                 CAPABILITY_ID,
             )
+            // An alarm stopped elsewhere stops here; with the app closed, alarms follow the other phone.
+            alarms.afterMerge()
         }
         val writeError = r.writeError
         if (writeError != null) {
@@ -521,7 +560,42 @@ class SyncCoordinator(
             btLive = ""
             stopBluetooth()
             if (enabled) startBluetooth()
+            updateLinkService()
             refreshUi()
+        }
+    }
+
+    /** Swarm (every phone rings) or Handover (only the phone used last). One setting for all phones. */
+    fun setRingMode(handover: Boolean) {
+        scope.launch {
+            alarms.setRingMode(if (handover) RingMode.HANDOVER else RingMode.SWARM)
+            refreshUi()
+        }
+    }
+
+    /** "Keep syncing when the app is closed" — this phone, all its Android users. */
+    fun setKeepAlive(on: Boolean) {
+        scope.launch {
+            val folder = phoneFolder() ?: return@launch
+            try { folder.saveDeviceSettings(folder.deviceSettings().copy(keepAlive = on)) } catch (_: Exception) { }
+            updateLinkService()
+            refreshUi()
+        }
+    }
+
+    private fun keepAliveOn(): Boolean {
+        val s = bluetoothSettings()
+        return s?.keepAlive == true && bluetoothReady(s)
+    }
+
+    /** Starts or stops the background link service to match the setting. Only works while on screen. */
+    private fun updateLinkService() {
+        if (keepAliveOn()) {
+            if (!SyncLinkService.start(appContext, bluetoothSettings()?.peerName)) {
+                setBtStatus("Background sync could not start — open the app and try again")
+            }
+        } else {
+            SyncLinkService.stop(appContext)
         }
     }
 
@@ -612,7 +686,7 @@ class SyncCoordinator(
         if (linkOpen()) return
         val s = bluetoothSettings()
         if (!bluetoothReady(s) || s == null) return
-        if (bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true) return
+        if (bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true && !keepAliveOn()) return
         val now = clock.nowEpochMillis()
         if (!force && now - lastAttemptMs < retryMs) return
         if (!dialing.compareAndSet(false, true)) return
@@ -783,9 +857,13 @@ class SyncCoordinator(
     private fun db(): RoomSyncDb = RoomSyncDb(TaskDatabase.getDatabase(appContext))
 
     /** Call only while holding [lock]. */
-    private fun engine(): SyncEngine = engine ?: SyncEngine(db(), peerId(), clock::nowEpochMillis).also {
-        it.init()
-        engine = it
+    private fun engine(): SyncEngine = engine ?: run {
+        // Created before the engine looks at the schema, so they are synced like any table.
+        SharedState(db()).ensure()
+        SyncEngine(db(), peerId(), clock::nowEpochMillis).also {
+            it.init()
+            engine = it
+        }
     }
 
     /** Call only while holding [lock]. Throws if no usable folder is set. */
@@ -851,6 +929,9 @@ class SyncCoordinator(
         )
         val bt = bluetoothSettings()
         _ui.value = _ui.value.copy(
+            btKeepAlive = bt?.keepAlive == true,
+            ringHandover = alarms.mode == RingMode.HANDOVER,
+            ringOwnerName = alarms.ownerName,
             btAvailable = link.isAvailable,
             btEnabled = bt?.bluetoothEnabled == true,
             btPermission = link.hasPermission(),
@@ -1001,6 +1082,9 @@ class SyncCoordinator(
         private const val BT_STALL_MS = 20L * 1000L
         /** Above this, running timers would visibly disagree between the phones. */
         private const val BT_CLOCK_WARN_MS = 2_000L
+
+        /** How far back to look for a run credited on both phones. */
+        private const val DEDUPE_WINDOW_MS = 48L * 60L * 60L * 1000L
 
         private const val PUSH_QUIET_MS = 5L * 60L * 1000L
         private const val PUSH_MAX_WAIT_MS = 15L * 60L * 1000L

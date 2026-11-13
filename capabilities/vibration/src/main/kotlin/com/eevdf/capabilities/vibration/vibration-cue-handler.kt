@@ -17,6 +17,8 @@ class VibrationCueHandler(
 ) {
     init {
         bus.subscribe(Topics.ALARM_RINGING, CAPABILITY_ID) { event ->
+            // Another synced phone is the one ringing (Handover mode).
+            if (event.silent) return@subscribe
             VibrationManager.startAlarmForType(appContext, prefs(), event.taskType)
             bus.publish(Topics.VIBRATION_STARTED, "alarm:${event.taskType}", CAPABILITY_ID)
         }
