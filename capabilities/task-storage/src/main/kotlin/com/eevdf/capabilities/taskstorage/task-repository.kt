@@ -894,6 +894,27 @@ class TaskRepository @Inject constructor(
         }
     }
 
+    /**
+     * Recomputes `lag` / `eligibleTime` / `virtualDeadline` for every active
+     * task and stores the ones that changed. Same calculation as
+     * [refreshAllAndReturn], but it writes only those three columns and only
+     * for tasks whose values moved.
+     *
+     * Called after changes made elsewhere were merged in (multi-user sync, a
+     * restore): the task lists sort by the stored copy, and the other user
+     * never sends these columns. Returns how many tasks were rewritten.
+     */
+    suspend fun recalculateScheduleCache(): Int = withContext(Dispatchers.IO) {
+        val active = dao.getActiveTasksSync()
+        val before = active.associate { it.id to Triple(it.lag, it.eligibleTime, it.virtualDeadline) }
+        EEVDFScheduler.recalculate(active)
+        val changed = active
+            .filter { before[it.id] != Triple(it.lag, it.eligibleTime, it.virtualDeadline) }
+            .map { ScheduleCache(it.id, it.lag, it.eligibleTime, it.virtualDeadline) }
+        if (changed.isNotEmpty()) dao.updateScheduleCache(changed)
+        changed.size
+    }
+
     suspend fun getScheduleOrder(): List<Task> = withContext(Dispatchers.IO) {
         val activeTasks = dao.getActiveTasksSync()
         EEVDFScheduler.getScheduleOrder(activeTasks)

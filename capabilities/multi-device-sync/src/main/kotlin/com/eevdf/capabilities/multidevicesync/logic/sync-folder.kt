@@ -47,6 +47,7 @@ internal class SyncFolder(root: File, private val peerId: String) {
     private val base = File(root, DIR)
     private val journalDir = File(base, "journal")
     private val snapDir = File(base, "snap")
+    private val ackDir = File(base, "ack")
 
     data class Segment(val peer: String, val seg: Int, val file: File)
 
@@ -66,7 +67,8 @@ internal class SyncFolder(root: File, private val peerId: String) {
 
     /** True when the folder exists (or can be created) and accepts writes. */
     fun ensureWritable(): Boolean = try {
-        (journalDir.isDirectory || journalDir.mkdirs()) && (snapDir.isDirectory || snapDir.mkdirs()) && base.canWrite()
+        (journalDir.isDirectory || journalDir.mkdirs()) && (snapDir.isDirectory || snapDir.mkdirs()) &&
+            (ackDir.isDirectory || ackDir.mkdirs()) && base.canWrite()
     } catch (_: SecurityException) {
         false
     }
@@ -177,6 +179,49 @@ internal class SyncFolder(root: File, private val peerId: String) {
 
     fun myJournalBytes(): Long = segments()[peerId].orEmpty().sumOf { it.file.length() }
 
+    // ── Acknowledgements ──────────────────────────────────────────────────────
+    //
+    // A member's ack is a small file saying how far it has read into everyone
+    // else's journal. The owner of a journal file deletes it once every
+    // active member's ack has moved past it. Same rule as the rest of the
+    // folder: only the owner writes (or deletes) its own ack, and a new ack is
+    // a NEW file (a-<member>-<time>.json), never an overwrite, so a reader
+    // sees a complete one or an older complete one.
+
+    /** Every member's ack files, newest first. */
+    fun ackFiles(): Map<String, List<File>> {
+        val out = HashMap<String, MutableList<File>>()
+        for (f in ackDir.listFiles().orEmpty()) {
+            val m = ACK_NAME.matchEntire(f.name) ?: continue
+            out.getOrPut(m.groupValues[1]) { ArrayList() }.add(f)
+        }
+        out.values.forEach { list -> list.sortByDescending { it.name } }
+        return out
+    }
+
+    fun readText(file: File): String? = try { file.readText(Charsets.UTF_8) } catch (_: IOException) { null }
+
+    /** Writes this member's ack and removes its older ones. Returns the new file. */
+    @Throws(IOException::class)
+    fun writeAck(at: Long, json: String): File {
+        val name = "a-$peerId-" + String.format("%013d", at) + ".json"
+        val tmp = File(ackDir, "$name.tmp")
+        val target = File(ackDir, name)
+        try {
+            FileOutputStream(tmp).use { fos ->
+                fos.write(json.toByteArray(Charsets.UTF_8))
+                fos.flush()
+                fos.fd.sync()
+            }
+            if (target.exists()) target.delete()
+            if (!tmp.renameTo(target)) throw IOException("could not write ack")
+        } finally {
+            if (tmp.exists()) tmp.delete()
+        }
+        ackFiles()[peerId].orEmpty().filter { it.name != name }.forEach { it.delete() }
+        return target
+    }
+
     // ── Snapshots ─────────────────────────────────────────────────────────────
 
     /** Snapshots in the folder, newest first. */
@@ -266,6 +311,7 @@ internal class SyncFolder(root: File, private val peerId: String) {
         var n = 0L
         journalDir.listFiles()?.forEach { n += it.length() }
         snapDir.listFiles()?.forEach { n += it.length() }
+        ackDir.listFiles()?.forEach { n += it.length() }
         return n
     }
 
@@ -274,6 +320,7 @@ internal class SyncFolder(root: File, private val peerId: String) {
         const val KEEP_SNAPSHOTS = 2
         private const val STALE_TMP_MS = 60L * 60L * 1000L
         private val JOURNAL_NAME = Regex("j-([A-Za-z0-9]+)-(\\d{6})\\.log")
+        private val ACK_NAME = Regex("a-([A-Za-z0-9]+)-(\\d{13})\\.json")
         private val SNAP_NAME = Regex("s-(\\d{13})-([A-Za-z0-9]+)\\.snap\\.gz")
     }
 }

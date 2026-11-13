@@ -5,6 +5,59 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.39.0 — Sync writes only what changed: local scheduler values, confirm-then-delete, batched pushes
+
+Includes everything in 6.38.2 (journal cleanup fix). Named 6.39.0 rather than
+6.38.3 because it adds behaviour, not only fixes.
+
+### Why
+Measured against the real schema: every pause rewrote `lag`, `eligibleTime`
+and `virtualDeadline` of ALL active tasks, and those travelled through sync
+(~40 KB per start/stop with 200 tasks); snapshots were rewritten every 2 MB of
+journal regardless of database size; every save was pushed to the card.
+
+### Changed
+- **`tasks.lag / eligibleTime / virtualDeadline` are no longer synced.** Each
+  user recomputes them after a merge (`TaskRepository.recalculateScheduleCache`,
+  one transaction, only changed rows). The update trigger now fires only when a
+  shared column really changed, so Room's all-column `@Update` no longer marks
+  rows dirty. Card writes per start/stop: 40 KB → ~1 KB (simulation).
+- **Confirm-then-delete.** Every member publishes a tiny ack (how far it has
+  read in each journal). A journal file is deleted once a snapshot covers it
+  and every member has confirmed it; a member silent for 3 days is no longer
+  waited for and catches up from the snapshot.
+- **Snapshots only when they pay for themselves:** after the journal written
+  since the last one reaches 4× its size (min 2 MB). Total writes ≤ 1.25× the
+  real changes for any database size.
+- **Pushes are batched:** idle 5 min / at most every 15 min / immediately on
+  leaving the app (was: 0.8 s after every save).
+- **Journal files are 128 KB** (was 512 KB): finer deletion.
+- **Compact bookkeeping:** partial index for baseline rows, compact per-column
+  clocks for `tasks`.
+- **Chunked, compressed first sync:** history is handed to the card batch by
+  batch (the outbox no longer holds it all, which left ~10 MB of unused space in
+  the database file) and large batches are written as compressed frames.
+  Update every user before the first big sync: builds before this one skip
+  compressed frames.
+
+### Added
+- **Self-check:** members at the same point in the journals compare a
+  fingerprint; a difference triggers a fresh snapshot and a 24 h merge of the
+  others' snapshots (never removes data). Reported in the event log.
+- `ScheduleCache` partial entity + `TaskDao.updateScheduleCache`.
+- Tests: local-only columns, Room-style full-row updates, compressed first
+  sync, snapshot amortisation, ack-based deletion, absence cut-off, drift
+  detection and repair, no false alarms (33 total).
+
+### Measured (simulation, not a phone)
+Per start/stop: 118 KB (old) → 1 KB. One week of 1,500 cycles with a second
+user absent: 1.3 MB in 10 files; the absent user catches up in one read.
+Database growth from sync bookkeeping: +295% → +102%; local page writes: ~10× → 1.7×.
+
+### Not verified by a build
+New Room partial-entity `@Update` and the coordinator/UI were type-checked
+against stubs only. Expect small compile errors on the first Gradle build.
+
 ## 6.38.2 — Journal files were never deleted while the app was in daily use
 
 ### Fixed

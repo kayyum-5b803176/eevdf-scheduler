@@ -1,6 +1,7 @@
 package com.eevdf.capabilities.multidevicesync.logic
 
 import java.security.MessageDigest
+import java.util.Base64
 import java.util.zip.CRC32
 
 /**
@@ -200,6 +201,39 @@ internal object SyncCodec {
         val crc = CRC32()
         crc.update(text.toByteArray(Charsets.UTF_8))
         return String.format("%08x", crc.value)
+    }
+
+    // ── Compressed frames ─────────────────────────────────────────────────────
+
+    /**
+     * Several journal lines packed into ONE line: `{"o":"z","n":<count>,"d":"<base64 of gzip>"}`.
+     * Used when a batch is large (the first sync of a big history), where the
+     * text compresses five to ten times. The frame carries the same per-line
+     * checksum as any other line, so a damaged frame is skipped as a whole.
+     *
+     * Builds that predate frames skip an unknown line kind, so every user
+     * must be on a build that reads them before another user writes one.
+     */
+    fun encodeFrame(lines: List<String>): String {
+        val raw = lines.joinToString("\n").toByteArray(Charsets.UTF_8)
+        val bos = java.io.ByteArrayOutputStream(raw.size / 4 + 64)
+        java.util.zip.GZIPOutputStream(bos).use { it.write(raw) }
+        return MiniJson.write(
+            linkedMapOf("o" to "z", "n" to lines.size.toLong(), "d" to Base64.getEncoder().encodeToString(bos.toByteArray()))
+        )
+    }
+
+    fun isFrame(json: String): Boolean = json.startsWith("{\"o\":\"z\"")
+
+    /** The lines inside a frame. Throws if the frame is malformed (the caller counts it as damaged). */
+    @Suppress("UNCHECKED_CAST")
+    fun expandFrame(json: String): List<String> {
+        val m = MiniJson.parse(json) as Map<String, Any?>
+        val data = Base64.getDecoder().decode(m["d"] as String)
+        val text = java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(data)).use { String(it.readBytes(), Charsets.UTF_8) }
+        val lines = if (text.isEmpty()) emptyList() else text.split("\n")
+        require(lines.size.toLong() == (m["n"] as Number).toLong()) { "frame line count mismatch" }
+        return lines
     }
 
     // ── Fingerprints ──────────────────────────────────────────────────────────

@@ -26,13 +26,26 @@ internal data class TableInfo(
     val localIds: Boolean,
     /** True when changes are tracked and merged column by column instead of row by row. */
     val perColumn: Boolean,
+    /**
+     * Columns that exist in this database but are NEVER shared: each user
+     * works them out for itself. See [SyncSchema.LOCAL_ONLY_COLUMNS].
+     */
+    val localOnly: Set<String> = emptySet(),
 ) {
     val columnNames: List<String> = columns.map { it.name }
     private val byName: Map<String, ColumnInfo> = columns.associateBy { it.name }
     fun column(name: String): ColumnInfo? = byName[name]
 
-    /** Columns that travel in the journal: all of them, minus a machine-local id. */
-    val dataColumns: List<String> = if (localIds) columnNames.filter { it != pk[0] } else columnNames
+    /** Columns that travel in the journal: all of them, minus a machine-local id and minus [localOnly]. */
+    val dataColumns: List<String> =
+        columnNames.filter { !(localIds && it == pk[0]) && it !in localOnly }
+    private val dataSet: Set<String> = dataColumns.toSet()
+
+    /** True if [name] is a column whose values are shared with the other users. */
+    fun syncs(name: String): Boolean = name in dataSet
+
+    /** Columns an INSERT must name: everything except a machine-local id (local-only ones get their default). */
+    val insertColumns: List<String> = if (localIds) columnNames.filter { it != pk[0] } else columnNames
 }
 
 internal data class ColumnInfo(
@@ -95,6 +108,21 @@ internal object SyncSchema {
      */
     private val PER_COLUMN_TABLES = setOf("tasks")
 
+    /**
+     * Columns that are cache, not data: each user recomputes them from the
+     * shared columns, so sending them only costs card writes.
+     *
+     * `tasks.lag / eligibleTime / virtualDeadline` are what the EEVDF
+     * scheduler derives from vruntime, weight and the other tasks. Every
+     * pause recomputes them for ALL active tasks, so as shared columns they
+     * produced one journal line per task per pause (about 40 KB for 200
+     * tasks); kept local they cost nothing. After a sync the task list screen
+     * recomputes them (`TaskRepository.recalculateScheduleCache`), because
+     * the lists sort by the stored copy.
+     */
+    val LOCAL_ONLY_COLUMNS: Map<String, Set<String>> =
+        mapOf("tasks" to setOf("lag", "eligibleTime", "virtualDeadline"))
+
     /** Largest primary key the dirty table can hold; wider keys are left unsynced (none exist today). */
     const val MAX_PK_COLUMNS = 4
 
@@ -121,7 +149,10 @@ internal object SyncSchema {
                 "PRIMARY KEY(tbl, gk)) WITHOUT ROWID"
         )
         db.exec("CREATE INDEX IF NOT EXISTS _sync_row_lid ON _sync_row(tbl, lid)")
-        db.exec("CREATE INDEX IF NOT EXISTS _sync_row_ts ON _sync_row(ts)")
+        // Only rows still at baseline (ts = 0) are ever looked up by stamp. The
+        // old index covered every row and was about a third of the bookkeeping.
+        db.exec("DROP INDEX IF EXISTS _sync_row_ts")
+        db.exec("CREATE INDEX IF NOT EXISTS _sync_row_base ON _sync_row(tbl) WHERE ts = 0")
         // Changes stamped and ready to leave, in order. Survives the SD card
         // being unreachable (a background user, a pulled card): nothing is
         // lost, it simply leaves on the next successful write.
@@ -183,6 +214,7 @@ internal object SyncSchema {
             pk = pk.values.toList(),
             localIds = localIds,
             perColumn = !localIds && table in PER_COLUMN_TABLES,
+            localOnly = LOCAL_ONLY_COLUMNS[table].orEmpty().filter { n -> cols.any { it.name == n } }.toSet(),
         )
     }
 
@@ -239,12 +271,19 @@ internal object SyncSchema {
         // member, the triggers stay silent — otherwise every received change
         // would be sent straight back out again, forever.
         val guard = "WHEN (SELECT v FROM _sync_meta WHERE k = 'applying') IS NOT '1'"
+        // An UPDATE only counts when a SHARED column really changed. Room's
+        // @Update rewrites every column of the row, so without this the
+        // scheduler's cache refresh (three local-only columns on every active
+        // task, after every pause) would mark every task as changed.
+        val watched = (t.dataColumns + t.pk).distinct()
+        val changed = watched.joinToString(" OR ") { "OLD.${qi(it)} IS NOT NEW.${qi(it)}" }
+        val updateGuard = "$guard AND ($changed)"
         val (ai, au, ad) = triggerNames(t.name)
         return linkedMapOf(
             ai to "CREATE TRIGGER ${qi(ai)} AFTER INSERT ON ${qi(t.name)} $guard BEGIN ${mark("NEW")} END",
             // OLD as well as NEW: an UPDATE that changes the primary key is,
             // to every other device, one row vanishing and another appearing.
-            au to "CREATE TRIGGER ${qi(au)} AFTER UPDATE ON ${qi(t.name)} $guard BEGIN ${mark("OLD")} ${mark("NEW")} END",
+            au to "CREATE TRIGGER ${qi(au)} AFTER UPDATE ON ${qi(t.name)} $updateGuard BEGIN ${mark("OLD")} ${mark("NEW")} END",
             ad to "CREATE TRIGGER ${qi(ad)} AFTER DELETE ON ${qi(t.name)} $guard BEGIN ${mark("OLD")} END",
         )
     }

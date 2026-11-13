@@ -52,6 +52,15 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isCompleted = 0")
     suspend fun getActiveTasksSync(): List<Task>
 
+    /**
+     * Rewrites ONLY the scheduler's cached columns, for every item in one
+     * transaction (Room wraps a list update in one). A partial entity, so no
+     * other column is touched and a concurrent edit of the same row is not
+     * overwritten with a stale copy, which a full-row [update] would do.
+     */
+    @Update(entity = Task::class)
+    suspend fun updateScheduleCache(items: List<ScheduleCache>)
+
     /** All non-completed tasks whose parent is the given id (or root if null). */
     @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND parentId IS :parentId")
     suspend fun getChildrenOf(parentId: String?): List<Task>

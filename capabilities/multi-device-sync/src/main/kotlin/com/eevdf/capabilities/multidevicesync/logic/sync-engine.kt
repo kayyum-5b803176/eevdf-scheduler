@@ -291,7 +291,7 @@ internal class SyncEngine(
      * Rows the group already had are not re-sent: the pull replaced their
      * baseline with the group's stamp, so they no longer match here.
      */
-    fun announce(): Int {
+    fun announce(flush: () -> Boolean = { true }): Int {
         var produced = 0
         while (true) {
             val n = db.transaction {
@@ -312,6 +312,12 @@ internal class SyncEngine(
                 batch.size
             }
             if (n == 0) break
+            // Hand each batch to the card before preparing the next, so the
+            // outbox never holds the whole history at once (it used to, which
+            // left ~10 MB of unused space in the database file). If the card
+            // cannot take it, stop here WITHOUT marking the join finished: the
+            // rows still at baseline are picked up by the next cycle.
+            if (!flush()) return produced
         }
         SyncSchema.setMeta(db, META_ANNOUNCED, "1")
         return produced
@@ -420,7 +426,7 @@ internal class SyncEngine(
         // Columns this build does not have are kept for a build that does.
         val unknown = op.cells.filterKeys { t.column(it) == null }
         if (unknown.isNotEmpty()) { park(t.name, op.key, unknown, null); result.parked++ }
-        val known = op.cells.filterKeys { t.column(it) != null && !(t.localIds && it == t.pk[0]) }
+        val known = op.cells.filterKeys { t.syncs(it) }   // local-only columns in old lines are ignored
 
         val meta = loadMeta(t, op.key)
         if (meta == null || meta.del) {
@@ -475,7 +481,9 @@ internal class SyncEngine(
         val names = ArrayList<String>()
         val values = ArrayList<Any?>()
         val pkFromKey: List<Any?>? = if (t.localIds) null else parseNaturalKey(op.key)
-        for (c in t.dataColumns) {
+        // Every column an INSERT needs, including the local-only ones (which
+        // simply get their default and are recomputed locally afterwards).
+        for (c in t.insertColumns) {
             val pkIndex = t.pk.indexOf(c)
             when {
                 // The key is the authority for key columns, whatever the line says.
@@ -588,7 +596,7 @@ internal class SyncEngine(
     private fun mergeParkedInto(t: TableInfo, meta: RowMeta) {
         if ((db.queryLong("SELECT EXISTS(SELECT 1 FROM _sync_foreign WHERE tbl = ? AND gk = ?)",
                 listOf(t.name, meta.key)) ?: 0L) == 0L) return
-        val parked = loadParked(t.name, meta.key).filterKeys { it != SyncCodec.ROW_MARK && t.column(it) != null }
+        val parked = loadParked(t.name, meta.key).filterKeys { it != SyncCodec.ROW_MARK && t.syncs(it) }
         if (parked.isEmpty()) return
         val winners = LinkedHashMap<String, Any?>()
         if (t.perColumn) {
@@ -630,7 +638,7 @@ internal class SyncEngine(
                 val t = tables[table] ?: continue
                 val parked = loadParked(table, key)
                 val mark = parked[SyncCodec.ROW_MARK]
-                val usable = parked.filterKeys { it != SyncCodec.ROW_MARK && t.column(it) != null }
+                val usable = parked.filterKeys { it != SyncCodec.ROW_MARK && t.syncs(it) }
                 if (mark == null && usable.isEmpty()) continue
                 for (c in usable.keys + listOfNotNull(mark?.let { SyncCodec.ROW_MARK })) {
                     db.exec("DELETE FROM _sync_foreign WHERE tbl = ? AND gk = ? AND col = ?", listOf(table, key, c))
@@ -856,7 +864,7 @@ internal class SyncEngine(
     private fun insertRestored(t: TableInfo, row: Map<String, Any?>) {
         val names = ArrayList<String>()
         val values = ArrayList<Any?>()
-        for (c in t.dataColumns) {
+        for (c in t.insertColumns) {
             when {
                 row.containsKey(c) -> { names.add(c); values.add(row[c]) }
                 t.column(c)?.defaultSql != null -> Unit
@@ -978,6 +986,50 @@ internal class SyncEngine(
         }
     }
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // Self-check
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /** True when everything this member has done is already in its journal and the join is finished. */
+    fun isClean(): Boolean = isBootstrapped && isAnnounced && !hasPendingLocalChanges()
+
+    /** A short name for the table layout this build has; fingerprints are only comparable between equal ones. */
+    fun schemaId(): String = digestHex(schemaSignature()).take(12)
+
+    /**
+     * A fingerprint of "who last wrote what" across every shared row and
+     * tombstone. Two members that have applied exactly the same changes have
+     * the same fingerprint — whatever order the changes arrived in — so a
+     * difference between members at the same point means one of them has
+     * silently lost or gained something. Reads the bookkeeping only; writes
+     * nothing.
+     */
+    fun fingerprint(): String {
+        val md = java.security.MessageDigest.getInstance("SHA-1")
+        var afterTbl = ""
+        var afterKey = ""
+        while (true) {
+            val page = ArrayList<RowMeta>()
+            db.query(
+                "SELECT tbl, gk, lid, ts, peer, del, vh, cols FROM _sync_row " +
+                    "WHERE ts > 0 AND (tbl > ? OR (tbl = ? AND gk > ?)) ORDER BY tbl, gk LIMIT $BATCH",
+                listOf(afterTbl, afterTbl, afterKey)
+            ) { c -> while (c.next()) page.add(metaOf(c)) }
+            if (page.isEmpty()) break
+            for (m in page) {
+                afterTbl = m.table; afterKey = m.key
+                if (m.table !in tables) continue
+                val newest = m.newest()
+                md.update("${m.table}\u0000${m.key}\u0000${newest.ts}\u0000${newest.peer}\u0000${if (m.del) 1 else 0}\n".toByteArray(Charsets.UTF_8))
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }.take(20)
+    }
+
+    private fun digestHex(text: String): String =
+        java.security.MessageDigest.getInstance("SHA-1").digest(text.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
     // ── Bookkeeping rows ──────────────────────────────────────────────────────
 
     private class ColClock(val stamp: Stamp, val hash: Long)
@@ -1015,27 +1067,35 @@ internal class SyncEngine(
     private fun loadMetaByLid(t: TableInfo, lid: Long): RowMeta? =
         readMeta("SELECT tbl, gk, lid, ts, peer, del, vh, cols FROM _sync_row WHERE tbl = ? AND lid = ? LIMIT 1", listOf(t.name, lid))
 
+    private fun readMeta(sql: String, args: List<Any?>): RowMeta? =
+        db.query<RowMeta?>(sql, args) { c -> if (c.next()) metaOf(c) else null }
+
+    /** Builds a [RowMeta] from a cursor positioned on `tbl, gk, lid, ts, peer, del, vh, cols`. */
     @Suppress("UNCHECKED_CAST")
-    private fun readMeta(sql: String, args: List<Any?>): RowMeta? = db.query<RowMeta?>(sql, args) { c ->
-        if (!c.next()) return@query null
+    private fun metaOf(c: SyncCursor): RowMeta {
         val colsJson = c.value(7)?.toString()
+        val rowStamp = Stamp((c.value(3) as Number).toLong(), c.value(4).toString())
         val cols: MutableMap<String, ColClock>? = colsJson?.let { text ->
             val parsed = MiniJson.parse(text) as? Map<String, Any?> ?: return@let null
             val out = HashMap<String, ColClock>(parsed.size * 2)
             for ((name, v) in parsed) {
-                val l = v as? List<Any?> ?: continue
-                out[name] = ColClock(
-                    Stamp((l[0] as Number).toLong(), l[1] as String),
-                    (l[2] as Number).toLong()
-                )
+                when (v) {
+                    // Compact form: a column last written together with the row
+                    // keeps just its fingerprint; its stamp is the row's.
+                    is Number -> out[name] = ColClock(rowStamp, v.toLong())
+                    is List<*> -> out[name] = ColClock(
+                        Stamp((v[0] as Number).toLong(), v[1] as String),
+                        (v[2] as Number).toLong()
+                    )
+                }
             }
             out
         }
-        RowMeta(
+        return RowMeta(
             table = c.value(0).toString(),
             key = c.value(1).toString(),
             lid = (c.value(2) as? Number)?.toLong(),
-            stamp = Stamp((c.value(3) as Number).toLong(), c.value(4).toString()),
+            stamp = rowStamp,
             del = (c.value(5) as Number).toInt() != 0,
             vh = (c.value(6) as? Number)?.toLong(),
             cols = cols,
@@ -1044,7 +1104,13 @@ internal class SyncEngine(
 
     private fun saveMeta(m: RowMeta) {
         val colsJson = m.cols?.let { cols ->
-            MiniJson.write(cols.mapValues { listOf(it.value.stamp.ts, it.value.stamp.peer, it.value.hash) })
+            // Compact: most columns of a row were written with the row, so only
+            // their fingerprint is stored; only the ones changed since carry
+            // their own stamp. Roughly halves the bookkeeping for `tasks`.
+            MiniJson.write(cols.mapValues {
+                if (it.value.stamp == m.stamp) it.value.hash
+                else listOf(it.value.stamp.ts, it.value.stamp.peer, it.value.hash)
+            })
         }
         db.exec(
             "INSERT OR REPLACE INTO _sync_row(tbl, gk, lid, ts, peer, del, vh, cols) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",

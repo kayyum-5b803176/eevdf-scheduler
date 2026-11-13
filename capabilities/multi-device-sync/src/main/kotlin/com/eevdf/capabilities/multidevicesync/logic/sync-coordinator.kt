@@ -114,6 +114,9 @@ class SyncCoordinator(
     private var pushJob: Job? = null
     private var lastFingerprint: String = ""
 
+    /** When the oldest save that has not been written to the card yet happened; 0 = none waiting. */
+    @Volatile private var pendingSince: Long = 0L
+
     init {
         bus.subscribe(Topics.TASK_SAVED, CAPABILITY_ID) { schedulePush() }
         bus.subscribe(Topics.APP_FOREGROUND_CHANGED, CAPABILITY_ID) { foreground ->
@@ -237,12 +240,29 @@ class SyncCoordinator(
         scope.launch { syncCycle(quiet) }
     }
 
-    /** task.saved fires in bursts (one user action can save many tasks); wait for the burst to end. */
+    /**
+     * Writing to the card costs a few file-system blocks however small the
+     * change, so writes are batched rather than made per save:
+     *
+     *  - while the app is in use, wait until the user has been quiet for
+     *    [PUSH_QUIET_MS] — saves in the meantime change the same rows again
+     *    and again, and a row saved ten times is still ONE journal line;
+     *  - but never wait longer than [PUSH_MAX_WAIT_MS] since the first unsent
+     *    save;
+     *  - and always write the moment the app leaves the screen (see init), which
+     *    is the only moment another Android user can start reading.
+     *
+     * Nothing is at risk while a change waits: it is already recorded in the
+     * database in the same transaction as the change itself.
+     */
     private fun schedulePush() {
         if (!isEnabled()) return
+        val now = clock.nowEpochMillis()
+        if (pendingSince == 0L) pendingSince = now
+        val wait = minOf(PUSH_QUIET_MS, maxOf(0L, PUSH_MAX_WAIT_MS - (now - pendingSince)))
         pushJob?.cancel()
         pushJob = scope.launch {
-            delay(PUSH_DEBOUNCE_MS)
+            delay(wait)
             pushNow()
         }
     }
@@ -253,6 +273,7 @@ class SyncCoordinator(
 
     /** Writes local changes to the card and nothing else. Cheap; used on every save and on leaving the screen. */
     private suspend fun pushNow() {
+        pendingSince = 0L
         if (!isEnabled()) return
         var published: SyncLocalPublished? = null
         var failure: String? = null
@@ -327,6 +348,9 @@ class SyncCoordinator(
         if (r.discarded > 0) report(Topics.SYNC_MAINTENANCE, "Joined: dropped ${r.discarded} rows the group did not have")
         if (r.snapshotLoaded) report(Topics.SYNC_MAINTENANCE, "Caught up from a snapshot")
         if (r.snapshotWritten) report(Topics.SYNC_MAINTENANCE, "Journal folded into a new snapshot")
+        if (r.drift.isNotEmpty()) report(Topics.SYNC_MAINTENANCE, "Self-check: data differed from ${r.drift.joinToString()} at the same point — repairing from snapshots")
+        if (r.repairLoaded > 0) report(Topics.SYNC_MAINTENANCE, "Repair: merged ${r.repairLoaded} snapshot(s) from other users")
+        if (r.journalFilesRemoved > 0) report(Topics.SYNC_MAINTENANCE, "Removed ${r.journalFilesRemoved} old journal file(s) everyone has already read")
         if (r.damagedLines > 0) report(Topics.SYNC_MAINTENANCE, "Skipped ${r.damagedLines} damaged journal line(s)")
         if (r.gaps > 0) report(Topics.SYNC_MAINTENANCE, "Part of another member's journal was missing (${r.gaps})")
         if (r.applied.parked > 0) report(Topics.SYNC_MAINTENANCE, "Kept ${r.applied.parked} change(s) this app version cannot use yet")
@@ -610,7 +634,8 @@ class SyncCoordinator(
         private const val KEY_LEGACY_DONE = "legacy_migrated"
 
         private const val POLL_MS = 10_000L
-        private const val PUSH_DEBOUNCE_MS = 800L
+        private const val PUSH_QUIET_MS = 5L * 60L * 1000L
+        private const val PUSH_MAX_WAIT_MS = 15L * 60L * 1000L
         private const val KEEP_SAFETY_COPIES = 5
     }
 }

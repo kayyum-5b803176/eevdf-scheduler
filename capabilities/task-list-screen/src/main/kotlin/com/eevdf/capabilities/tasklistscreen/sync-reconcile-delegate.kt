@@ -49,6 +49,10 @@ internal class SyncReconcileDelegate(private val vm: TaskViewModel) {
 
     suspend fun onRemoteApplied(event: SyncRemoteApplied) {
         if (TASKS_TABLE in event.tables) {
+            // Sync does not carry lag / eligibleTime / virtualDeadline: every
+            // user works them out for itself. Do it now, before anything sorts
+            // by the stored copy (the lists, the schedule order).
+            vm.repository.recalculateScheduleCache()
             // The ViewModel's LiveData setters and the timer engine's
             // CountDownTimer both belong to the main thread.
             withContext(Dispatchers.Main) { reconcile() }

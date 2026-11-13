@@ -58,7 +58,7 @@ class SyncEngineTest {
         fun sync(): SyncSession.CycleResult { tick(); return session.cycle() }
 
         fun task(id: String, name: String) = db.exec(
-            "INSERT OR REPLACE INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId) VALUES(?,?,0,0,0,1.5,NULL)",
+            "INSERT OR REPLACE INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId,lag,eligibleTime,virtualDeadline) VALUES(?,?,0,0,0,1.5,NULL,0,0,0)",
             listOf(id, name)
         )
 
@@ -156,11 +156,11 @@ class SyncEngineTest {
         val b = user("B"); b.join()
         // Room's @Update/@Delete/@Insert spell these out; SQLite then applies the
         // outer clause to the trigger's own statements.
-        a.db.exec("INSERT OR ABORT INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId) VALUES('t2','Beta',0,0,0,1.0,NULL)")
+        a.db.exec("INSERT OR ABORT INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId,lag,eligibleTime,virtualDeadline) VALUES('t2','Beta',0,0,0,1.0,NULL,0,0,0)")
         a.db.exec("UPDATE OR ABORT tasks SET name = 'Beta 2' WHERE id = 't2'")
         a.db.exec("UPDATE OR ABORT tasks SET name = 'Beta 3' WHERE id = 't2'")   // same row marked again
         a.db.exec("UPDATE OR ABORT tasks SET id = 't2b' WHERE id = 't2'")        // primary key changes
-        a.db.exec("INSERT OR REPLACE INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId) VALUES('t1','Alpha 2',0,0,0,1.0,NULL)")
+        a.db.exec("INSERT OR REPLACE INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId,lag,eligibleTime,virtualDeadline) VALUES('t1','Alpha 2',0,0,0,1.0,NULL,0,0,0)")
         a.db.exec("DELETE FROM tasks WHERE id = 't1'")
         a.sync(); b.sync()
         assertEquals("Beta 3", b.name("t2b")); assertNull(b.name("t2")); assertNull(b.name("t1"))
@@ -237,43 +237,168 @@ class SyncEngineTest {
 
     // ── Large data ────────────────────────────────────────────────────────────
 
-    @Test fun `a long journal is folded into a snapshot and a late joiner catches up from it`() {
-        val a = user("A"); a.task("t1", "Alpha"); a.join()
-        val b = user("B"); b.join()
-        a.db.transaction { for (i in 0 until 16_000) a.log("t1", 10_000_000L + i, 5) }
-        assertTrue(a.sync().snapshotWritten)
-        // A user that syncs regularly catches up from the journal, not the snapshot.
-        val regular = b.sync()
-        assertEquals(false, regular.snapshotLoaded); assertEquals(16_000L, b.count("run_log"))
-        // Past the grace period the covered journal files are removed…
-        tick(SyncSession.PRUNE_DELAY_MS + 1); a.task("t10", "PostSnapshot"); a.sync()
-        val left = File(shared, "eevdf-sync/journal").listFiles()!!.count { it.name.startsWith("j-A-") }
-        assertTrue("covered journal files should be pruned, found $left", left <= 2)
-        // …and someone joining now gets everything from the snapshot plus what came after.
-        val d = user("D")
-        assertTrue(d.join().snapshotLoaded)
-        assertEquals(a.tasksDump(), d.tasksDump()); assertEquals(16_000L, d.count("run_log"))
+    /** Text that does not compress, so journal sizes in tests mean what they say. */
+    private fun noise(chars: Int, seed: Long = chars.toLong()): String {
+        val bytes = ByteArray(chars * 3 / 4); java.util.Random(seed).nextBytes(bytes)
+        return java.util.Base64.getEncoder().encodeToString(bytes)
     }
 
-    @Test fun `a user in heavy daily use keeps the card tidy and an idle user still catches up from the snapshot`() {
+    private fun journalFiles(owner: String) =
+        File(shared, "eevdf-sync/journal").listFiles().orEmpty().filter { it.name.startsWith("j-$owner-") }
+
+    @Test fun `a long journal is folded into a snapshot, confirmed files are deleted, and a late joiner catches up from the snapshot`() {
+        val a = user("A"); a.task("t1", "Alpha"); a.join()
+        val b = user("B"); b.join()
+        var snapshots = 0
+        for (i in 0 until 14) {
+            a.db.exec("UPDATE tasks SET name = ? WHERE id = 't1'", listOf("v$i-" + noise(200_000, i.toLong())))
+            if (a.sync().snapshotWritten) snapshots++
+        }
+        assertTrue("a snapshot should have been written once enough journal existed", snapshots >= 1)
+        val before = journalFiles("A").size
+        // B reads everything (and says so); A may now delete what B confirmed and the snapshot covers.
+        b.sync(); a.sync()
+        val after = journalFiles("A").size
+        assertTrue("confirmed, covered journal files should go: $before -> $after", after < before && after <= 3)
+        assertEquals(a.name("t1"), b.name("t1"))
+        // Someone joining now gets everything from the snapshot plus what came after.
+        val d = user("D")
+        assertTrue(d.join().snapshotLoaded)
+        assertEquals(a.tasksDump(), d.tasksDump())
+    }
+
+    @Test fun `a snapshot is only written once the journal since the last one is at least four times its size`() {
+        val a = user("A"); a.task("t1", "Alpha")
+        a.db.transaction { for (i in 0 until 6000) a.task("big$i", noise(600, i.toLong())) }   // state worth a snapshot of ~2.7 MB
+        a.join()                                                                  // the first snapshot is written here
+        fun newestSnapshot() = File(shared, "eevdf-sync/snap").listFiles().orEmpty().maxByOrNull { it.name }?.length() ?: 0L
+        var size = newestSnapshot()
+        assertTrue("a first snapshot should exist after the join (size $size)", size > 0L)
+        var journalSince = 0L
+        var snapshotsAfter = 0
+        for (i in 0 until 80) {
+            a.db.exec("UPDATE tasks SET name = ? WHERE id = 't1'", listOf("v$i-" + noise(250_000, i.toLong())))
+            val r = a.sync()
+            journalSince += r.bytesWritten      // this cycle's own lines are part of what the snapshot replaces
+            if (r.snapshotWritten) {
+                snapshotsAfter++
+                // The old fixed 2 MB trigger would have fired after ~8 cycles; this one must have waited for 4 x S.
+                assertTrue("snapshot of $size B written after only $journalSince B of journal", journalSince >= SyncSession.SNAPSHOT_AMORTISE * size)
+                size = newestSnapshot(); journalSince = 0L
+                break
+            }
+        }
+        assertEquals("a later snapshot should still happen once the journal justified it", 1, snapshotsAfter)
+    }
+
+    @Test fun `a user in heavy daily use keeps the card bounded and an absent user still catches up from the snapshot`() {
         val a = user("A"); a.task("t1", "Alpha"); a.join()
         val b = user("B"); b.join()                       // joins, then never opens the app again
         // ~10 days: one sync every 30 minutes, each carrying ~40 KB of change.
         for (i in 0 until 500) {
             tick(30L * 60_000L)
-            a.db.exec("UPDATE tasks SET name = ? WHERE id = 't1'", listOf("n$i-" + "x".repeat(40_000)))
+            a.db.exec("UPDATE tasks SET name = ? WHERE id = 't1'", listOf("n$i-" + noise(40_000, i.toLong())))
             a.session.cycle()
         }
-        val files = File(shared, "eevdf-sync/journal").listFiles()!!.count { it.name.startsWith("j-A-") }
-        val snaps = File(shared, "eevdf-sync/snap").listFiles()!!.count { it.name.endsWith(".snap.gz") }
-        // 12 h of journal is ~1 MB, i.e. a handful of files — not the ~40 that 10 days would leave.
-        assertTrue("journal files should stay bounded, found $files", files <= 8)
-        assertTrue("snapshots should stay at most 2, found $snaps", snaps <= 2)
+        val retained = journalFiles("A").sumOf { it.length() }
+        val perDay = 48L * 40_000L
+        // Waiting for B is bounded by the absence cut-off (3 days), plus one snapshot interval and slack.
+        val bound = 3L * perDay + SyncSession.SNAPSHOT_MIN_BYTES + 1_000_000L
+        assertTrue("retained journal $retained B should stay under $bound B (10 days would be ${10 * perDay} B)", retained <= bound)
         tick(60L * 60_000L)
         val caught = b.sync()
-        assertTrue("an idle user whose journal files were pruned must load the snapshot", caught.snapshotLoaded)
+        assertTrue("an absent user whose journal files were deleted must load the snapshot", caught.snapshotLoaded)
         assertEquals(0, caught.gaps)
         assertEquals(a.name("t1"), b.name("t1"))
+    }
+
+    @Test fun `a member that is silent is waited for only until the absence cut-off`() {
+        val a = user("A"); a.task("t1", "Alpha"); a.join()
+        val b = user("B"); b.join()
+        for (i in 0 until 14) { a.db.exec("UPDATE tasks SET name = ? WHERE id = 't1'", listOf("v$i-" + noise(200_000, i.toLong()))); a.sync() }
+        val waiting = journalFiles("A").size
+        assertTrue("B has not confirmed, so A keeps the covered files", waiting > 6)
+        tick(SyncSession.ABSENT_MS + 1); a.sync()
+        assertTrue("after the cut-off they go: $waiting -> ${journalFiles("A").size}", journalFiles("A").size <= 3)
+    }
+
+    // ── Cost ──────────────────────────────────────────────────────────────────
+
+    @Test fun `values the scheduler recalculates are never written to the card`() {
+        val a = user("A"); a.task("t1", "Alpha"); a.task("t2", "Beta"); a.join()
+        val b = user("B"); b.join()
+        // The scheduler's cache refresh, written the way Room does it: every column of every row.
+        for (round in 1..3) {
+            tick()
+            for (id in listOf("t1", "t2")) a.db.exec(
+                "UPDATE OR ABORT tasks SET id=id, name=name, isRunning=isRunning, startTimeEpoch=startTimeEpoch, accumulatedMs=accumulatedMs, " +
+                    "vruntime=vruntime, parentId=parentId, lag=?, eligibleTime=?, virtualDeadline=? WHERE id=?",
+                listOf(round * 1.5, round * 2.5, round * 3.5, id)
+            )
+        }
+        assertEquals(0L, a.count("_sync_dirty"))                          // not even marked as changed
+        assertEquals(0L, a.sync().bytesWritten)
+        // ...while a real change in the same rows still travels.
+        a.db.exec("UPDATE tasks SET vruntime = 9.5, lag = 77 WHERE id = 't1'")
+        a.sync(); b.sync()
+        assertEquals(9.5, b.field("t1", "vruntime"))
+        assertEquals(0.0, b.field("t1", "lag"))                         // B works its own lag out
+    }
+
+    @Test fun `a task created elsewhere arrives with the local-only columns defaulted, not failing the insert`() {
+        val a = user("A"); a.join()
+        val b = user("B"); b.join()
+        a.task("n1", "NewTask"); a.sync(); b.sync()
+        assertEquals("NewTask", b.name("n1"))
+        assertEquals(0.0, b.field("n1", "virtualDeadline"))
+    }
+
+    @Test fun `the first sync of a large history is compressed and arrives complete`() {
+        val a = user("A"); a.task("t1", "Alpha")
+        a.db.transaction { for (i in 0 until 20_000) a.log("t1", 5_000_000L + i * 7L, 30L + i % 50) }
+        val raw = 20_000L * 120L
+        val joined = a.join()
+        val journal = journalFiles("A").sumOf { it.length() }
+        assertTrue("journal ($journal B) should be well under the raw size ($raw B)", journal < raw / 2)
+        assertEquals(0L, a.engine.outboxSize())
+        val b = user("B"); b.join()
+        assertEquals(20_000L, b.count("run_log"))
+        assertTrue(joined.announced >= 20_000)
+    }
+
+    // ── Self-check ────────────────────────────────────────────────────────────
+
+    @Test fun `two members that disagree at the same point are detected and repaired from a snapshot`() {
+        val a = user("A"); a.task("t1", "Alpha"); a.task("t2", "Beta"); a.task("t3", "Gamma"); a.join()
+        val b = user("B"); b.join(); a.sync(); b.sync()
+        assertEquals(a.tasksDump(), b.tasksDump())
+        // B silently loses a task AND its bookkeeping (something went wrong that no journal line describes).
+        b.db.exec("UPDATE _sync_meta SET v = '1' WHERE k = 'applying'")
+        b.db.exec("DELETE FROM tasks WHERE id = 't2'"); b.db.exec("DELETE FROM _sync_row WHERE gk = '[\"t2\"]'")
+        b.db.exec("UPDATE _sync_meta SET v = '0' WHERE k = 'applying'")
+        var detected = false
+        repeat(6) {
+            tick(7L * 60L * 60L * 1000L)           // acks are refreshed at most every few hours
+            if (a.session.cycle().drift.isNotEmpty()) detected = true
+            tick(60_000L)
+            if (b.session.cycle().drift.isNotEmpty()) detected = true
+        }
+        assertTrue("the disagreement should have been noticed", detected)
+        assertEquals("Beta", b.name("t2"))
+        assertEquals(a.tasksDump(), b.tasksDump())
+    }
+
+    @Test fun `members that agree are never flagged`() {
+        val all = listOf("A", "B", "C").map { user(it) }
+        all[0].task("t1", "Alpha"); all.forEach { it.join() }
+        var flagged = 0
+        repeat(8) { round ->
+            tick(7L * 60L * 60L * 1000L)
+            all[round % 3].db.exec("UPDATE tasks SET name = ? WHERE id = 't1'", listOf("r$round"))
+            all.forEach { flagged += it.session.cycle().drift.size; tick(60_000L) }
+            all.forEach { flagged += it.session.cycle().drift.size; tick(60_000L) }
+        }
+        assertEquals(0, flagged)
     }
 
     // ── Different app versions ────────────────────────────────────────────────
@@ -395,7 +520,8 @@ class SyncEngineTest {
         val SCHEMA = listOf(
             // text key, merged column by column
             """CREATE TABLE tasks(id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, isRunning INTEGER NOT NULL,
-               startTimeEpoch INTEGER NOT NULL, accumulatedMs INTEGER NOT NULL, vruntime REAL NOT NULL, parentId TEXT)""",
+               startTimeEpoch INTEGER NOT NULL, accumulatedMs INTEGER NOT NULL, vruntime REAL NOT NULL, parentId TEXT,
+               lag REAL NOT NULL, eligibleTime REAL NOT NULL, virtualDeadline REAL NOT NULL)""",
             // machine-local auto-increment id, matched by content
             """CREATE TABLE run_log(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, taskId TEXT NOT NULL,
                startEpoch INTEGER NOT NULL, durationSecs INTEGER NOT NULL, prevTaskId TEXT)""",
