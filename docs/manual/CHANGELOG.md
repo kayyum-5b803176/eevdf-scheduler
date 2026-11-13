@@ -5,6 +5,31 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.38.2 — Journal files were never deleted while the app was in daily use
+
+### Fixed
+Old journal files piled up on the SD card without limit for any user who used
+the app regularly (measured: 65 files / 32 MB after a simulated week of heavy
+use). Cleanup waited until the newest snapshot was 48 h old, but a busy user
+writes a new snapshot every ~2 MB, so that never happened. Each journal file
+now has its own clock, started when the file is closed, and is deleted once it
+is covered by a snapshot AND 12 h old. Measured after the fix: a flat ~3 MB on
+the card (5 journal files + 2 snapshots) across the same week. Files from an
+earlier build start their clock on first run, so the existing backlog clears
+about 12 h after the update.
+
+A user who does not open the app for longer than that catches up from the
+snapshot instead of the journal (verified: week-long absence, all data equal,
+2 s instead of 18 s on the test machine). The grace period was shortened from
+48 h to 12 h.
+
+### Known, not fixed here
+Every task pause rewrites the three derived scheduling values of ALL active
+tasks, and those travel through sync (about 40 KB per start/stop with 200
+tasks). Keeping them local to each user would cut that to ~1 KB; pending
+approval. Also pending: compact the per-row bookkeeping that grows each user's
+own database.
+
 ## 6.38.1 — Fix crash on every task save when sync is installed
 
 ### Fixed

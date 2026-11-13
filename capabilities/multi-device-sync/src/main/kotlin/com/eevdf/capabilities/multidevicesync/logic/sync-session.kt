@@ -141,6 +141,7 @@ internal class SyncSession(
             if (batch.isEmpty()) break
             val before = folder.mySegmentLength(seg)
             if (before > SEGMENT_BYTES) {
+                engine.setMeta(META_SEG_END + seg, now().toString())
                 seg += 1
                 engine.setMeta(META_MY_SEG, seg.toString())
                 continue
@@ -304,15 +305,33 @@ internal class SyncSession(
         val newest = folder.snapshots().firstOrNull()
         val coveredBelow = newest?.let { vectorOf(it)?.get(me)?.first } ?: 0
 
-        // Covered journal files are dead weight, but they are not deleted
-        // straight away: a member that syncs regularly catches up from them
-        // with a few hundred bytes of reading, where loading the snapshot
-        // means going through the whole data set. After the grace period only
-        // members that were away that long need the snapshot. Only the owner
-        // deletes its own files (one writer per file), and never the one it
-        // is still appending to.
-        if (newest != null && coveredBelow > 0 && now() - newest.createdAt > PRUNE_DELAY_MS) {
-            folder.pruneMySegmentsBelow(minOf(coveredBelow, mySeg))
+        // Covered journal files are dead weight, but each one is kept for a
+        // grace period after it was CLOSED (stopped being appended to): a
+        // member that syncs regularly then catches up from them with a few
+        // hundred bytes of reading, where loading the snapshot means going
+        // through the whole data set. After the grace period only members
+        // that were away that long need the snapshot. Only the owner deletes
+        // its own files (one writer per file), and never the one it is still
+        // appending to.
+        //
+        // The grace period is measured per file. It used to be measured from
+        // the NEWEST SNAPSHOT'S age — but a busy user writes a new snapshot
+        // every couple of MB, so that snapshot was never old enough and no
+        // journal file was ever deleted while the app was in daily use.
+        if (coveredBelow > 0) {
+            for (seg in folder.mySegmentNumbers()) {
+                if (seg >= coveredBelow || seg >= mySeg) continue
+                val closedAt = engine.getMeta(META_SEG_END + seg)?.toLongOrNull()
+                if (closedAt == null) {
+                    // Closed before this was tracked (an earlier version, or a
+                    // snapshot hand-over): start its clock now.
+                    engine.setMeta(META_SEG_END + seg, now().toString())
+                    continue
+                }
+                if (now() - closedAt >= PRUNE_DELAY_MS && folder.deleteMySegment(seg)) {
+                    engine.setMeta(META_SEG_END + seg, null)
+                }
+            }
         }
 
         val uncovered = mine.filter { it.seg >= coveredBelow }.sumOf { it.file.length() }
@@ -336,6 +355,7 @@ internal class SyncSession(
             )
         )
         val written = folder.writeSnapshot(createdAt, header) { sink -> engine.exportSnapshot(sink) }
+        engine.setMeta(META_SEG_END + mySeg, createdAt.toString())
         val length = folder.append(nextSeg, journalHeader(nextSeg), emptyList())
         engine.setMeta(META_MY_SEG, nextSeg.toString())
         engine.setMeta(META_MY_LEN, length.toString())
@@ -380,8 +400,12 @@ internal class SyncSession(
         /** Once a member's journal files total this much, they are folded into a snapshot. */
         const val SNAPSHOT_BYTES = 2L * 1024L * 1024L
 
-        /** How long covered journal files are kept so regular members never need the snapshot. */
-        const val PRUNE_DELAY_MS = 48L * 60L * 60L * 1000L
+        /**
+         * How long a closed, snapshot-covered journal file is kept so members
+         * that sync regularly never need the snapshot. Anyone away longer
+         * catches up from the snapshot instead.
+         */
+        const val PRUNE_DELAY_MS = 12L * 60L * 60L * 1000L
 
         private const val OUTBOX_BATCH = 1000
         private const val READ_BATCH = 1000
@@ -389,6 +413,7 @@ internal class SyncSession(
         private const val META_MY_SEG = "my_seg"
         private const val META_MY_LEN = "my_len"
         private const val META_NEED_SNAPSHOT = "need_snapshot"
+        private const val META_SEG_END = "seg_end_"
         private const val META_LAST_SNAPSHOT = "last_snapshot"
     }
 }

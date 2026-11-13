@@ -255,6 +255,27 @@ class SyncEngineTest {
         assertEquals(a.tasksDump(), d.tasksDump()); assertEquals(16_000L, d.count("run_log"))
     }
 
+    @Test fun `a user in heavy daily use keeps the card tidy and an idle user still catches up from the snapshot`() {
+        val a = user("A"); a.task("t1", "Alpha"); a.join()
+        val b = user("B"); b.join()                       // joins, then never opens the app again
+        // ~10 days: one sync every 30 minutes, each carrying ~40 KB of change.
+        for (i in 0 until 500) {
+            tick(30L * 60_000L)
+            a.db.exec("UPDATE tasks SET name = ? WHERE id = 't1'", listOf("n$i-" + "x".repeat(40_000)))
+            a.session.cycle()
+        }
+        val files = File(shared, "eevdf-sync/journal").listFiles()!!.count { it.name.startsWith("j-A-") }
+        val snaps = File(shared, "eevdf-sync/snap").listFiles()!!.count { it.name.endsWith(".snap.gz") }
+        // 12 h of journal is ~1 MB, i.e. a handful of files — not the ~40 that 10 days would leave.
+        assertTrue("journal files should stay bounded, found $files", files <= 8)
+        assertTrue("snapshots should stay at most 2, found $snaps", snaps <= 2)
+        tick(60L * 60_000L)
+        val caught = b.sync()
+        assertTrue("an idle user whose journal files were pruned must load the snapshot", caught.snapshotLoaded)
+        assertEquals(0, caught.gaps)
+        assertEquals(a.name("t1"), b.name("t1"))
+    }
+
     // ── Different app versions ────────────────────────────────────────────────
 
     @Test fun `data for a table or column an older build lacks is kept and applied after it updates`() {

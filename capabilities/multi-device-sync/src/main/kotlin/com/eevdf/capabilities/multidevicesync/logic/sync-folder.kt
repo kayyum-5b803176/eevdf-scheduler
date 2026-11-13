@@ -169,14 +169,11 @@ internal class SyncFolder(root: File, private val peerId: String) {
         return ReadResult(lines, consumed, damaged, more)
     }
 
-    /** Deletes this member's own journal segments numbered below [seg]. Returns how many were removed. */
-    fun pruneMySegmentsBelow(seg: Int): Int {
-        var n = 0
-        for (s in segments()[peerId].orEmpty()) {
-            if (s.seg < seg && s.file.delete()) n++
-        }
-        return n
-    }
+    /** This member's own journal segment numbers currently on the card. */
+    fun mySegmentNumbers(): List<Int> = segments()[peerId].orEmpty().map { it.seg }
+
+    /** Deletes one of this member's own journal segments. Never touches another member's file. */
+    fun deleteMySegment(seg: Int): Boolean = segmentFile(seg).let { it.exists() && it.delete() }
 
     fun myJournalBytes(): Long = segments()[peerId].orEmpty().sumOf { it.file.length() }
 
