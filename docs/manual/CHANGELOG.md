@@ -5,6 +5,57 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.38.0 — Multi-user sync and restore rebuilt (build 1 of 3)
+
+### Why
+The whole-database-file sync could erase everyone's data from an empty or
+stale user, crashed/restarted the app on every received change, could be torn
+by a write cut short, broke between app versions, and could collide with a
+restore. Full description: `docs/manual/SYNC-ARCHITECTURE.md`.
+
+### Changed
+- **Sync is now a change journal.** Each user keeps their own database; only
+  small stamped lines describing changes are appended to the shared folder
+  (one file per user, append-only, checksummed). Merged into the live
+  database — no file swap, no restart. Newest change wins, per column for
+  `tasks`. An empty user can only add.
+- **Restore no longer replaces the database file or restarts the app.** It
+  merges the backup's rows through the same engine, with two modes: *Add
+  missing* (changes nothing you have) and *Replace*. Works with a backup from
+  any app version. Sync and restore share one lock.
+- **Automatic safety copies** before every restore and before first joining;
+  the last five can be restored from the Data & Backup screen.
+- **task-list-screen no longer imports multi-device-sync** (flagged debt since
+  v6.10.8). Toolbar dot, sync tap and "data changed elsewhere" are bus topics.
+  The "Sync received — reloading…" restart is replaced by
+  `SyncReconcileDelegate`, which re-reads the timer in place.
+- **Settings are per user**; they are no longer copied between users by sync.
+
+### Added
+- Topics: `sync.status-changed`, `sync.now-requested`, `sync.local-published`,
+  `sync.remote-applied`, `sync.failed`, `sync.maintenance`,
+  `backup.restore-requested`, `backup.restore-finished`, and the request topic
+  `backup.safety-copies-requested`. Every sync step shows in the event log.
+- `SyncCoordinator` (injected singleton) replaces the `MultiUserSyncManager`
+  global object and `TaskSavedSyncHandler`.
+- 24 JVM unit tests running the real merge SQL against SQLite
+  (`sqlite-jdbc`, test-only).
+
+### Removed
+- Topics `backup.import-requested` and `task.conflict-detected`; the conflict
+  dialog; `SyncFieldGuard`, `TaskFieldClassification` (+ test), `SyncConflict`,
+  `SyncState`, `SyncWriteStats`. Run `scripts/apply-6.38.0-deletions.sh`.
+
+### First run (important)
+Update the app in **every** Android user first. Then switch sync on first in
+the user whose data is most up to date; then in the others. A user whose copy
+is old should choose *Shared only* when asked.
+
+### Not verified by a build
+This release was written without access to an Android build. The merge engine
+is unit-tested; the Android-facing files were type-checked against stubs only.
+Expect to fix small compile errors on the first `./gradlew assembleDebug`.
+
 ## 6.37.1 — Quota chain now collapse-independent (real fix, not display-based)
 
 ### Fixed

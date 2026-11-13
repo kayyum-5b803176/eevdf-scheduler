@@ -89,14 +89,77 @@ object Topics {
     /** Published by call-autoswitch. Payload: the task id the overlay now shows. */
     val OVERLAY_SHOWN = Topic<String>("overlay.shown")
 
-    /** Published by multi-device-sync. Payload: the conflicting task's id. */
-    val TASK_CONFLICT_DETECTED = Topic<String>("task.conflict-detected")
 
     /** Published by backup-restore. Payload: unused (Unit) — a pure signal. */
     val BACKUP_EXPORT_REQUESTED = Topic<Unit>("backup.export-requested")
 
-    /** Published by backup-restore. Payload: unused (Unit) — a pure signal. */
-    val BACKUP_IMPORT_REQUESTED = Topic<Unit>("backup.import-requested")
+    // ── Restore (published by backup-restore, carried out by multi-device-sync) ─
+    //
+    // REPLACES `backup.import-requested`, which asked task-storage to CLOSE
+    // the database so backup-restore could overwrite the .db file and kill
+    // the process. Nothing closes or replaces the database any more: a
+    // restore reads the backup's rows and writes them into the live database
+    // as ordinary edits, through the same merge engine sync uses. That is
+    // why the engine's owner (multi-device-sync) is the subscriber, and why a
+    // restore can no longer collide with a sync or leave a closed Room
+    // handle behind.
+
+    /**
+     * Published by backup-restore once it has unpacked the backup's database
+     * to a private file. Subscribed by multi-device-sync, which answers with
+     * [BACKUP_RESTORE_FINISHED]. The handler returns immediately and does the
+     * work on its own coroutine — a restore can take longer than the bus's
+     * hang timeout allows a handler to run.
+     */
+    val BACKUP_RESTORE_REQUESTED = Topic<BackupRestoreRequest>("backup.restore-requested")
+
+    /** Published by multi-device-sync when a requested restore ends, successfully or not. */
+    val BACKUP_RESTORE_FINISHED = Topic<BackupRestoreResult>("backup.restore-finished")
+
+    /**
+     * Asked by backup-restore, answered by multi-device-sync: the automatic
+     * safety copies currently kept (taken before a restore and before first
+     * joining a sync group), newest first, as absolute file paths.
+     */
+    val SAFETY_COPIES_REQUESTED = RequestTopic<Unit, List<String>>("backup.safety-copies-requested")
+
+    // ── Sync (published by multi-device-sync unless noted) ───────────────────
+    //
+    // Every step of a sync is a topic, so the event-log screen shows what
+    // actually happened — what was written to the card, what arrived, what
+    // went wrong — not just that "a sync ran".
+
+    /**
+     * The sync feature's current state, for anything that displays it (the
+     * toolbar dot in task-list-screen). Retained, so a screen that opens
+     * later still learns the current state. Replaces task-list-screen
+     * reading `MultiUserSyncManager.syncState` by direct import.
+     */
+    val SYNC_STATUS_CHANGED = Topic<SyncStatus>("sync.status-changed", retained = true)
+
+    /**
+     * Published by whoever wants a sync right now (task-list-screen's toolbar
+     * icon). Payload: unused. Replaces the direct
+     * `MultiUserSyncManager.scheduleExport()` calls.
+     */
+    val SYNC_NOW_REQUESTED = Topic<Unit>("sync.now-requested")
+
+    /** This member's own changes were written to the shared folder. */
+    val SYNC_LOCAL_PUBLISHED = Topic<SyncLocalPublished>("sync.local-published")
+
+    /**
+     * Changes made elsewhere (another user, a restore) were merged into the
+     * live database. Subscribed by task-list-screen, which re-reads whatever
+     * it keeps in memory — the running timer above all — instead of the app
+     * being restarted, which is what used to happen here.
+     */
+    val SYNC_REMOTE_APPLIED = Topic<SyncRemoteApplied>("sync.remote-applied")
+
+    /** A sync could not complete. Payload: a short human-readable reason. Nothing is lost; it is retried. */
+    val SYNC_FAILED = Topic<String>("sync.failed")
+
+    /** Housekeeping worth seeing in the log: snapshot written/loaded, damaged lines skipped, safety copy taken. */
+    val SYNC_MAINTENANCE = Topic<String>("sync.maintenance")
 
     /**
      * Published by task-list-screen AND call-autoswitch — both are
@@ -262,6 +325,43 @@ data class CurrentTaskState(
     val taskId: String? = null,
     val taskName: String? = null,
     val isRunning: Boolean = false,
+)
+
+/** Coarse state of the sync feature — see [Topics.SYNC_STATUS_CHANGED]. */
+enum class SyncPhase { DISABLED, IDLE, SYNCING, OK, ERROR }
+
+/** Payload for [Topics.SYNC_STATUS_CHANGED]. [message] is set for [SyncPhase.ERROR]. */
+data class SyncStatus(val phase: SyncPhase = SyncPhase.DISABLED, val message: String? = null)
+
+/** Payload for [Topics.SYNC_LOCAL_PUBLISHED]. */
+data class SyncLocalPublished(val changes: Int, val bytes: Long)
+
+/**
+ * Payload for [Topics.SYNC_REMOTE_APPLIED].
+ *
+ * [source] is "sync" or "restore". [tables] names the tables that actually
+ * changed, so a subscriber can ignore what does not concern it.
+ */
+data class SyncRemoteApplied(val source: String, val changes: Int, val tables: List<String>)
+
+/** How a backup is brought in — see [Topics.BACKUP_RESTORE_REQUESTED]. */
+enum class RestoreMode {
+    /** Add what the backup has and this device lacks. Never changes or removes anything. */
+    MERGE,
+    /** Make the data equal to the backup: add, overwrite and remove. Travels to every synced member. */
+    REPLACE,
+}
+
+/** Payload for [Topics.BACKUP_RESTORE_REQUESTED]. [databasePath] is a private, temporary SQLite file. */
+data class BackupRestoreRequest(val databasePath: String, val mode: RestoreMode)
+
+/** Payload for [Topics.BACKUP_RESTORE_FINISHED]. */
+data class BackupRestoreResult(
+    val ok: Boolean,
+    val message: String,
+    val added: Int = 0,
+    val updated: Int = 0,
+    val removed: Int = 0,
 )
 
 /** Which short, built-in UI cue to play — see [Topics.SOUND_CUE_REQUESTED]. */

@@ -174,10 +174,9 @@ Two options:
 - **Local-only data** (UI state, device-specific preferences) — correct as-is.
   Say so in a comment on the entity so the next person does not assume it is a
   bug.
-- **Should sync** — extend the sync payload with a section for your table and
-  add a round-trip test modelled on `BackupRoundTripCoverageTest`. Follow the
-  `TaskFieldClassification` pattern: decide per field whether a remote blank may
-  overwrite a local value.
+- **Should sync** — nothing to do since v6.38.0: the sync engine discovers
+  tables from the database and merges a new one automatically (whole row,
+  newest write wins). See `SYNC-ARCHITECTURE.md`.
 
 Decide deliberately and write the decision down. Silent divergence between two
 users' devices is among the hardest bugs to diagnose in this app.

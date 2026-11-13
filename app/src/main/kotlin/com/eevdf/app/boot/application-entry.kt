@@ -7,7 +7,7 @@ import com.eevdf.capabilities.callautoswitch.OverlayCommandHandler
 import com.eevdf.capabilities.featuretoggles.LogcatCrashReporter
 import com.eevdf.capabilities.sound.SoundCueHandler
 import com.eevdf.capabilities.vibration.VibrationCueHandler
-import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
+import com.eevdf.capabilities.multidevicesync.logic.SyncCoordinator
 import com.eevdf.capabilities.notification.NotificationCancelHandler
 import com.eevdf.capabilities.appforeground.AppForegroundTracker
 import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
@@ -55,7 +55,7 @@ class ApplicationEntry : Application() {
     @Inject lateinit var backupCheckpointHandler: BackupCheckpointHandler
     @Inject lateinit var alarmCommandHandler: AlarmCommandHandler
     @Inject lateinit var overlayCommandHandler: OverlayCommandHandler
-    @Inject lateinit var taskSavedSyncHandler: TaskSavedSyncHandler
+    @Inject lateinit var syncCoordinator: SyncCoordinator
     @Inject lateinit var taskSavedCompactionHandler: TaskSavedCompactionHandler
     @Inject lateinit var soundCueHandler: SoundCueHandler
     @Inject lateinit var vibrationCueHandler: VibrationCueHandler

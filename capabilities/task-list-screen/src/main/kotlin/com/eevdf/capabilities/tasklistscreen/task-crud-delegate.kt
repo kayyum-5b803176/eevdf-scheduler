@@ -37,7 +37,6 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
         vm.repository.insert(task)
         syncPinnedWeights()
         vm.refreshSchedule()
-        vm.triggerSyncExport()
         vm._toastMessage.postValue("Task \"${task.name}\" added to scheduler")
     }
 
@@ -45,7 +44,6 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
         vm.repository.update(task)
         syncPinnedWeights()
         vm.refreshSchedule()
-        vm.triggerSyncExport()
     }
 
     fun deleteTask(task: Task) = vm.viewModelScope.launch {
@@ -57,7 +55,6 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
         vm.repository.delete(task)
         syncPinnedWeights()
         vm.refreshSchedule()
-        vm.triggerSyncExport()
         vm._toastMessage.postValue("Task \"${task.name}\" deleted")
     }
 
@@ -69,7 +66,6 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
     }
 
     fun markCompleted(task: Task) = vm.viewModelScope.launch {
-        vm.triggerSyncExport()               // notify other users: task completed
         if (task.id == vm.currentTask.value?.id) vm.stopTimer(completed = true)
         else vm.repository.markCompleted(task)
         syncPinnedWeights()

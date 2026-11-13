@@ -15,9 +15,15 @@ class TopicsTest {
             Topics.TASK_SAVED.name,
             Topics.PHONE_CALL_STATE_CHANGED.name,
             Topics.OVERLAY_SHOWN.name,
-            Topics.TASK_CONFLICT_DETECTED.name,
             Topics.BACKUP_EXPORT_REQUESTED.name,
-            Topics.BACKUP_IMPORT_REQUESTED.name,
+            Topics.BACKUP_RESTORE_REQUESTED.name,
+            Topics.BACKUP_RESTORE_FINISHED.name,
+            Topics.SYNC_STATUS_CHANGED.name,
+            Topics.SYNC_NOW_REQUESTED.name,
+            Topics.SYNC_LOCAL_PUBLISHED.name,
+            Topics.SYNC_REMOTE_APPLIED.name,
+            Topics.SYNC_FAILED.name,
+            Topics.SYNC_MAINTENANCE.name,
         )
         assertEquals(names.size, names.toSet().size)
     }
@@ -31,6 +37,5 @@ class TopicsTest {
         assertEquals("task.saved", Topics.TASK_SAVED.name)
         assertEquals("phone.call-state-changed", Topics.PHONE_CALL_STATE_CHANGED.name)
         assertEquals("overlay.shown", Topics.OVERLAY_SHOWN.name)
-        assertEquals("task.conflict-detected", Topics.TASK_CONFLICT_DETECTED.name)
     }
 }

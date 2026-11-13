@@ -7,7 +7,7 @@ import com.eevdf.kernel.eventbus.Topics
 object CountdownTimerManifest : CapabilityManifest {
     override val capabilityId = "countdown-timer"
     override val publishes: Set<Topic<*>> = setOf(Topics.TIMER_EXPIRED)
-    override val subscribes: Set<Topic<*>> = setOf(Topics.BACKUP_EXPORT_REQUESTED, Topics.BACKUP_IMPORT_REQUESTED)
+    override val subscribes: Set<Topic<*>> = setOf(Topics.BACKUP_EXPORT_REQUESTED)
 
     override fun fallbackWhenUnavailable(topic: Topic<*>) {
         // A missed timer.expired means alarm-ringer's diagnostic-only

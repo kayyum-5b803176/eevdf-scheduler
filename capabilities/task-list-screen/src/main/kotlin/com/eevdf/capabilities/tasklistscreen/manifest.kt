@@ -17,18 +17,23 @@ object TaskListScreenManifest : CapabilityManifest {
         // to change "which task is dispatched." See its KDoc and
         // Topics.CURRENT_TASK_CHANGED's KDoc.
         Topics.CURRENT_TASK_CHANGED,
+        // The toolbar sync icon (v6.38.0 — replaces the direct
+        // MultiUserSyncManager.scheduleExport() call).
+        Topics.SYNC_NOW_REQUESTED,
     )
     override val subscribes: Set<Topic<*>> = setOf(
         Topics.TIMER_RUNNING_CHANGED,
         Topics.BUBBLE_TAPPED,
         Topics.PHONE_CALL_STATE_CHANGED,
         Topics.BACKUP_EXPORT_REQUESTED,
-        Topics.BACKUP_IMPORT_REQUESTED,
         Topics.TIMER_EXPIRED,
         Topics.ALARM_STOPPED,
         Topics.OVERLAY_SHOWN,
         Topics.TASK_SAVED,
-        Topics.TASK_CONFLICT_DETECTED,
+        // v6.38.0: the toolbar dot, and "data changed underneath you — re-read
+        // the timer" (TaskViewModel.subscribeToSync / SyncReconcileDelegate).
+        Topics.SYNC_STATUS_CHANGED,
+        Topics.SYNC_REMOTE_APPLIED,
     )
 
     override fun fallbackWhenUnavailable(topic: Topic<*>) {
@@ -60,10 +65,13 @@ object TaskListScreenManifest : CapabilityManifest {
  */
 
 /**
- * `OVERLAY_SHOWN` and `TASK_CONFLICT_DETECTED`: both RESOLVED with real
- * `bus.subscribe()` calls — see `TaskViewModel.subscribeToOverlayShown` and
- * `subscribeToTaskConflictDetected`. Both feed a coarse `LiveData<taskId(s)>`
- * (`overlayShownTaskId`, `conflictedTaskIds`) intended for the task list to
- * badge/highlight the relevant row; nothing currently reads either one from
- * the UI layer, but the data plumbing is real, not a placeholder.
+ * `OVERLAY_SHOWN`: RESOLVED with a real `bus.subscribe()` call — see
+ * `TaskViewModel.subscribeToOverlayShown`. Feeds a coarse
+ * `LiveData<taskId>` (`overlayShownTaskId`) intended for the task list to
+ * badge/highlight the relevant row; nothing currently reads it from the UI
+ * layer, but the data plumbing is real, not a placeholder.
+ *
+ * `TASK_CONFLICT_DETECTED` (and `conflictedTaskIds`) were retired in
+ * v6.38.0 together with the sync conflict dialog — see multi-device-sync's
+ * manifest.kt.
  */

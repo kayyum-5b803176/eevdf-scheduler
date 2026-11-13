@@ -17,14 +17,9 @@ dependencies {
     implementation(project(":capabilities:run-history"))
     implementation(project(":capabilities:countdown-timer"))
     implementation(project(":capabilities:notification"))
-    // v6.10.8 (flagged, not a cycle): TaskViewModel calls MultiUserSyncManager
-    // and reads SyncState directly (triggerSyncExport, sync icon state).
-    // multi-device-sync has no dependency back on task-list-screen, so this
-    // is one-way and safe -- but it is the same class of broad, un-narrow
-    // coupling flagged for add-task-screen in v6.10.6. Properly resolving it
-    // means TaskViewModel publishing a sync-requested bus event instead of
-    // holding a direct reference -- out of scope for a build-fix release.
-    implementation(project(":capabilities:multi-device-sync"))
+    // v6.38.0: the multi-device-sync dependency that used to be declared here
+    // (flagged debt since v6.10.8) is gone. The sync icon, its status dot and
+    // the "data changed elsewhere" reaction are all bus topics now.
     // v6.10.8 (flagged, narrow): reads AlarmActivity.EXTRA_RESTART_AFTER_EXPIRE
     // / EXTRA_TASK_NAME -- Intent-extra-key string constants only, for the
     // hardware-key restart-after-expire path. No reverse dependency exists.

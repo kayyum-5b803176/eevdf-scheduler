@@ -17,6 +17,8 @@ dependencies {
     // is implementation, not api, so it is not visible transitively).
     implementation(libs.androidx.room.runtime)
     testImplementation(libs.junit)
+    // v6.38.0: the merge engine is tested against a real SQLite file on the JVM.
+    testImplementation(libs.sqlite.jdbc)
     testImplementation(kotlin("reflect"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

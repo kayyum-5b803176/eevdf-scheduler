@@ -21,8 +21,10 @@ import com.eevdf.kernel.eventbus.Topics
  *   3. `TaskDatabase.checkpointWal()` /
  *      `checkpointAndClose()`          -> task-storage  <- THIS FILE
  *
- * Now backup-restore publishes `backup.export-requested` /
- * `backup.import-requested` and each owning capability handles its own part.
+ * Now backup-restore publishes `backup.export-requested` and each owning
+ * capability handles its own part. (`backup.import-requested`, which made
+ * this handler CLOSE the database, was retired in v6.38.0 together with the
+ * replace-the-file restore it existed for.)
  *
  * ORDERING GUARANTEE (important — do not "optimise" this away)
  * -----------------------------------------------------------
@@ -47,13 +49,10 @@ class BackupCheckpointHandler(
             // Room stays open and the cached Hilt handle remains valid.
             TaskDatabase.checkpointWal(appContext)
         }
-        bus.subscribe(Topics.BACKUP_IMPORT_REQUESTED, CAPABILITY_ID) {
-            // Import overwrites the .db file on disk, so Room must be CLOSED
-            // and hold no file locks during the swap. Safe only because every
-            // import path restarts the process immediately afterwards,
-            // rebuilding the Hilt graph — the closed instance is never reused.
-            TaskDatabase.checkpointAndClose(appContext)
-        }
+        // v6.38.0: there is no import-side subscription any more. A restore
+        // no longer overwrites the .db file — it writes rows into the live
+        // database (see Topics.BACKUP_RESTORE_REQUESTED) — so Room is never
+        // closed and no capability has to restart the process afterwards.
     }
 
     private companion object {

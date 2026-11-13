@@ -18,9 +18,8 @@ Copy this into the PR description.
 - [ ] Does **not** import from another `feature/<name>/` package (importing `feature/ui/`, the shared design system, or `feature/shared/`, cross-feature prefs/signals, is fine) — `scripts/check_architecture.sh` enforces this
 - [ ] Persisted data is in **its own table**, not new columns on `tasks`
       (`tasks` is frozen — `TaskSchemaFreezeTest` fails the build if it grows)
-- [ ] Decided explicitly whether the new table needs to sync (backup is automatic; sync is not)
+- [ ] Nothing to do for sync or backup: both pick a new table up automatically (v6.38.0 — see `SYNC-ARCHITECTURE.md`). If the table must NOT be shared between users, say so in the PR; that needs an explicit exclusion in `SyncSchema`
 - [ ] If it added a Room migration: version bumped, migration registered in `addMigrations()`, schema JSON committed
-- [ ] Any new `Task` field is classified in `TaskFieldClassification` (the test forces this)
 - [ ] Any new `Task` field round-trips through backup (the test forces this)
 - [ ] No new `object` holding mutable state — use an injected `@Singleton` with `StateFlow`
 - [ ] Gated behind a `FeatureFlag` for its first release
@@ -76,8 +75,12 @@ migration. Use the pattern in [`SIDE_TABLE_TEMPLATE.md`](SIDE_TABLE_TEMPLATE.md)
 Two things worth knowing about a side table:
 
 - **Backup covers it for free.** Export copies the raw `.db` file into a zip.
-- **Sync does not.** Sync is field-by-field JSON that only knows about `Task`.
-  Decide deliberately whether your table should sync, and write it down.
+- **Sync covers it for free too** (since v6.38.0). The sync engine reads the
+  table list from the database itself, so a new table is captured, merged and
+  restored with no change to the sync code. Rows are merged whole ("newest
+  write wins"); only `tasks` is merged column by column. If your table has an
+  auto-increment id, its rows are matched across users by content, not by id —
+  never store that id in another table. See `SYNC-ARCHITECTURE.md`.
 
 The narrow exception: a field the **scheduler itself** reasons about on every
 tick (a `vruntime`-class value). Joining for those on a hot path costs real

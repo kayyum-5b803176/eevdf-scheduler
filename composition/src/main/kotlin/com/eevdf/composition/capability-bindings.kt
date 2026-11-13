@@ -14,7 +14,7 @@ import com.eevdf.capabilities.sound.SoundCueHandler
 import com.eevdf.capabilities.vibration.VibrationCueHandler
 import com.eevdf.capabilities.featuretoggles.FeatureFlags
 import com.eevdf.capabilities.featuretoggles.SharedPrefsFeatureFlags
-import com.eevdf.capabilities.multidevicesync.logic.TaskSavedSyncHandler
+import com.eevdf.capabilities.multidevicesync.logic.SyncCoordinator
 import com.eevdf.capabilities.appforeground.AppForegroundTracker
 import com.eevdf.capabilities.notification.NotificationCancelHandler
 import com.eevdf.capabilities.runhistory.RunLogDao
@@ -117,11 +117,20 @@ object CapabilityBindings {
         bus: EventBus,
     ): OverlayCommandHandler = OverlayCommandHandler(context, bus)
 
-    /** multi-device-sync: schedules a debounced export on every task.saved. */
+    /**
+     * multi-device-sync: the one object that reacts to task.saved,
+     * app.foreground-changed, sync.now-requested and backup.restore-requested
+     * (v6.38.0 — replaces TaskSavedSyncHandler and the MultiUserSyncManager
+     * global object). Also injected into that capability's own settings
+     * screen; no other capability holds a reference to it.
+     */
     @Provides
     @Singleton
-    fun provideTaskSavedSyncHandler(bus: EventBus): TaskSavedSyncHandler =
-        TaskSavedSyncHandler(bus)
+    fun provideSyncCoordinator(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+        clock: Clock,
+    ): SyncCoordinator = SyncCoordinator(context, bus, clock)
 
     /** run-history: opportunistic tier-compaction check on every task.saved. */
     @Provides

@@ -360,7 +360,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         quotaTickHandler.post(quotaTickRunnable)
         loadTickHandler.postDelayed(loadTickRunnable, 60_000L)
-        viewModel.onSyncResume()
         // Reconcile ViewModel with DB in case CallSwitchService switched tasks
         // while the app was backgrounded or the process was dead.
         viewModel.syncFromDb()

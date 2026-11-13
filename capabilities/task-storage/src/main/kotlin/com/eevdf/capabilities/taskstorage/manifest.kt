@@ -7,7 +7,7 @@ import com.eevdf.kernel.eventbus.Topics
 object TaskStorageManifest : CapabilityManifest {
     override val capabilityId = "task-storage"
     override val publishes = setOf(Topics.TASK_SAVED)
-    override val subscribes = setOf(Topics.BACKUP_EXPORT_REQUESTED, Topics.BACKUP_IMPORT_REQUESTED)
+    override val subscribes = setOf(Topics.BACKUP_EXPORT_REQUESTED)
 
     override fun fallbackWhenUnavailable(topic: Topic<*>) {
         // FLAGGED, not yet resolved: task-storage is still reached by direct

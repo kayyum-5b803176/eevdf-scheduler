@@ -8,7 +8,8 @@ import android.view.View
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import com.eevdf.capabilities.navigationroutes.AppRoutes
-import com.eevdf.capabilities.multidevicesync.logic.SyncState
+import com.eevdf.kernel.eventbus.SyncPhase
+import com.eevdf.kernel.eventbus.SyncStatus
 import com.eevdf.capabilities.tasklistscreen.R
 import com.eevdf.capabilities.countdowntimer.TimerCardAction
 import android.widget.Toast
@@ -46,8 +47,8 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
             activity.syncDotView  = syncView.findViewById(R.id.viewSyncDot)
             activity.syncIconView = syncView.findViewById(R.id.ivSyncIcon)
             syncView.setOnClickListener {
-                // Tap sync icon → trigger an immediate sync export
-                activity.viewModel.triggerSyncExport()
+                // Tap sync icon → ask for a full sync now (Topics.SYNC_NOW_REQUESTED)
+                activity.viewModel.requestSyncNow()
                 Toast.makeText(activity, "Syncing…", Toast.LENGTH_SHORT).show()
             }
         }
@@ -276,28 +277,27 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
 
     /**
      * Updates the sync status dot color and the sync icon spin animation
-     * based on the current [SyncState].
+     * from the current [SyncStatus] (`Topics.SYNC_STATUS_CHANGED`).
      *
-     *   Disabled / Idle  → gray dot,  no spin
-     *   Syncing          → gray dot,  spin animation
+     *   DISABLED / IDLE  → gray dot,  no spin
+     *   SYNCING          → amber dot, spin animation
      *   OK               → green dot, no spin
-     *   Error            → red dot,   no spin
+     *   ERROR            → red dot,   no spin
      */
-    fun updateSyncIcon(state: SyncState) {
+    fun updateSyncIcon(state: SyncStatus) {
         val dot  = activity.syncDotView  ?: return
         val icon = activity.syncIconView ?: return
 
-        // Colors
-        val color = when (state) {
-            SyncState.OK       -> android.graphics.Color.parseColor("#4CAF50") // green
-            is SyncState.Error -> android.graphics.Color.parseColor("#F44336") // red
-            SyncState.Syncing  -> android.graphics.Color.parseColor("#FF9800") // amber
-            else               -> android.graphics.Color.parseColor("#9E9E9E") // gray
+        val color = when (state.phase) {
+            SyncPhase.OK      -> android.graphics.Color.parseColor("#4CAF50") // green
+            SyncPhase.ERROR   -> android.graphics.Color.parseColor("#F44336") // red
+            SyncPhase.SYNCING -> android.graphics.Color.parseColor("#FF9800") // amber
+            else              -> android.graphics.Color.parseColor("#9E9E9E") // gray
         }
         dot.backgroundTintList = ColorStateList.valueOf(color)
 
         // Spin animation while syncing
-        if (state == SyncState.Syncing) {
+        if (state.phase == SyncPhase.SYNCING) {
             if (activity.syncSpinAnim?.isRunning != true) {
                 activity.syncSpinAnim = ObjectAnimator.ofFloat(icon, "rotation", 0f, 360f).apply {
                     duration    = 1000
@@ -311,11 +311,7 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
             icon.rotation = 0f
         }
 
-        // Show a tooltip / snackbar on error so the user knows what went wrong
-        if (state is SyncState.Error) {
-            dot.contentDescription = "Sync error: ${state.message}"
-        } else {
-            dot.contentDescription = null
-        }
+        dot.contentDescription =
+            if (state.phase == SyncPhase.ERROR) "Sync error: ${state.message ?: "unknown"}" else null
     }
 }

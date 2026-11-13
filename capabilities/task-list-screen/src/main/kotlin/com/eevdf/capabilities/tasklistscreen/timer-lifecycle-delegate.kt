@@ -117,7 +117,6 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         vm.lastRun.update(task, vm.activeTasks.value ?: emptyList())
         vm.viewModelScope.launch {
             vm.repository.update(updated)
-            vm.triggerSyncExport()          // notify other users: timer started
         }
         vm.viewModelScope.launch {
             vm.bus.publish(
@@ -160,7 +159,6 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
             applyVruntimeUpdate(session)
         }
         vm.viewModelScope.launch { vm.bus.publish(Topics.ALARM_TIMER_PAUSE_REQUESTED, Unit, "task-list-screen") }
-        vm.triggerSyncExport()               // notify other users: timer paused
     }
 
     /**

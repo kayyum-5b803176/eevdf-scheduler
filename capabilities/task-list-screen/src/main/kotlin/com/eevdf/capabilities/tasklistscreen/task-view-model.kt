@@ -23,8 +23,7 @@ import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.scheduling.SchedulerStats
 import com.eevdf.capabilities.countdowntimer.TimerEngine
 import kotlinx.coroutines.launch
-import com.eevdf.capabilities.multidevicesync.logic.MultiUserSyncManager
-import com.eevdf.capabilities.multidevicesync.logic.SyncState
+import com.eevdf.kernel.eventbus.SyncStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.eevdf.kernel.contracts.AlarmRingingQuery
@@ -160,18 +159,11 @@ class TaskViewModel @Inject constructor(
     internal val _overlayShownTaskId   = MutableLiveData<String?>(null)
     val           overlayShownTaskId: LiveData<String?> = _overlayShownTaskId
 
-    /**
-     * Ids of tasks with an unresolved multi-device-sync conflict, backed by
-     * `Topics.TASK_CONFLICT_DETECTED` — see [subscribeToTaskConflictDetected].
-     * Secondary to [syncState]'s own `ConflictPending.conflicts` (which
-     * carries the full detail — field name, local/remote values — for the
-     * warning dialog); this is coarser but lets the task list badge the
-     * specific rows involved. Cleared whenever [syncState] moves off
-     * `ConflictPending` (accepted or skipped), since that's the single
-     * authoritative signal for "resolved," not a separate bus topic.
-     */
-    internal val _conflictedTaskIds    = MutableLiveData<Set<String>>(emptySet())
-    val           conflictedTaskIds: LiveData<Set<String>> = _conflictedTaskIds
+    // ── Multi-user sync (bus-only — see the MULTI-USER SYNC section below) ───
+    private val _syncState = MutableLiveData<SyncStatus>(bus.getLast(Topics.SYNC_STATUS_CHANGED) ?: SyncStatus())
+
+    /** Sync state for the toolbar dot observer in MainActivity. */
+    val syncState: LiveData<SyncStatus> = _syncState
 
     // ── Auto mode state ───────────────────────────────────────────────────────
 
@@ -299,6 +291,7 @@ class TaskViewModel @Inject constructor(
     internal val alarmOverrun = AlarmOverrunDelegate(this)
     internal val bubbleTap   = BubbleTapDelegate(this)
     internal val startupRecovery = StartupRecoveryDelegate(this)
+    private val syncReconcile    = SyncReconcileDelegate(this)
     internal val timerLifecycle = TimerLifecycleDelegate(this)
 
     // ── Flat task lists (built by listBuilder) ────────────────────────────────
@@ -385,6 +378,7 @@ class TaskViewModel @Inject constructor(
 
     private companion object {
         const val CAPABILITY_ID = "task-list-screen"
+        const val SYNC_SUBSCRIBER_ID = "task-list-screen.sync"
     }
 
     init {
@@ -397,7 +391,7 @@ class TaskViewModel @Inject constructor(
         subscribeToBackupRequests()
         subscribeToTaskSaved()
         subscribeToOverlayShown()
-        subscribeToTaskConflictDetected()
+        subscribeToSync()
 
         // ── Wire TimerEngine outputs via named observers ───────────────────────
         tickObserver = Observer { remainingSecs: Long ->
@@ -438,16 +432,6 @@ class TaskViewModel @Inject constructor(
         listBuilder.setup()
         flatActiveTasks   = listBuilder.flatActiveTasks
         flatScheduleOrder = listBuilder.flatScheduleOrder
-
-        // ── Multi-user sync ───────────────────────────────────────────────────
-        MultiUserSyncManager.init(application, bus)
-
-        // When a remote sync import completes, the local DB file has been
-        // replaced. Signal MainActivity to restart the app so Room opens the
-        // new file with a clean singleton (same path as manual DB import).
-        MultiUserSyncManager.importEvent.observeForever { _ ->
-            _restartNeeded.postValue(Unit)
-        }
     }
 
     // =========================================================================
@@ -781,6 +765,7 @@ class TaskViewModel @Inject constructor(
         overrunTimer?.cancel()
         notice.cancelTimers()
         listBuilder.stop()
+        bus.unsubscribeAll(SYNC_SUBSCRIBER_ID)
     }
 
     // =========================================================================
@@ -822,7 +807,10 @@ class TaskViewModel @Inject constructor(
             currentTaskOwner.setAsync(null)
         }
         bus.subscribe(Topics.BACKUP_EXPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
-        bus.subscribe(Topics.BACKUP_IMPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
+        // v6.38.0: no import-side subscription. A restore no longer needs the
+        // timer stopped and the selection cleared before it runs — it merges
+        // rows into the live database and this screen reconciles afterwards
+        // through Topics.SYNC_REMOTE_APPLIED (see subscribeToSync).
     }
 
     /**
@@ -867,46 +855,48 @@ class TaskViewModel @Inject constructor(
         }
     }
 
-    /**
-     * See [_conflictedTaskIds]'s KDoc. The bus subscription only ever adds;
-     * clearing observes `MultiUserSyncManager.syncState` directly (not this
-     * ViewModel's own `syncState` property, which is declared later in this
-     * file and would still be uninitialized this early in `init{}`) — that
-     * object's LiveData, not a bus event, is this app's one authoritative
-     * "conflict resolved" signal.
-     */
-    private fun subscribeToTaskConflictDetected() {
-        bus.subscribe(Topics.TASK_CONFLICT_DETECTED, CAPABILITY_ID) { taskId ->
-            _conflictedTaskIds.postValue(_conflictedTaskIds.value.orEmpty() + taskId)
-        }
-        MultiUserSyncManager.syncState.observeForever { state ->
-            if (state !is SyncState.ConflictPending &&
-                _conflictedTaskIds.value?.isNotEmpty() == true) {
-                _conflictedTaskIds.postValue(emptySet())
-            }
-        }
-    }
-
     // =========================================================================
     // MULTI-USER SYNC
     // =========================================================================
+    //
+    // v6.38.0: this ViewModel no longer imports multi-device-sync at all (the
+    // direct MultiUserSyncManager/SyncState dependency flagged since v6.10.8
+    // is gone). Everything below is bus-only:
+    //
+    //   sync.status-changed (retained)  → the toolbar dot
+    //   sync.remote-applied             → re-read the timer in place
+    //   sync.now-requested              ← the toolbar icon tap
+    //
+    // There is no "restartNeeded" any more. A received sync used to replace
+    // the database file, so the app killed and relaunched itself; now rows
+    // change underneath the running app and [SyncReconcileDelegate] brings
+    // the in-memory timer back in line.
 
-    /** Exposes sync state LiveData for the toolbar dot observer in MainActivity. */
-    val syncState = MultiUserSyncManager.syncState
+    // (_syncState / syncState / syncReconcile are declared with the other
+    // fields above init{} — Kotlin initialises properties in source order,
+    // and init{} is where the subscriptions that use them are registered.)
 
     /**
-     * Fires with Unit when a remote sync import has replaced the local DB file.
-     * MainActivity observes this and restarts the app so Room opens cleanly.
+     * Subscribed under its own id, NOT [CAPABILITY_ID]: MainActivity calls
+     * `bus.unsubscribeAll(CAPABILITY_ID)` in onDestroy, which also removes
+     * every ViewModel subscription made under that id — and this ViewModel
+     * outlives the Activity across a rotation. Losing this subscription
+     * would mean a timer stopped by another user keeps counting here.
+     * Removed in [onCleared].
      */
-    private val _restartNeeded = MutableLiveData<Unit>()
-    val restartNeeded: LiveData<Unit> = _restartNeeded
+    private fun subscribeToSync() {
+        bus.subscribe(Topics.SYNC_STATUS_CHANGED, SYNC_SUBSCRIBER_ID) { status ->
+            _syncState.postValue(status)
+        }
+        bus.subscribe(Topics.SYNC_REMOTE_APPLIED, SYNC_SUBSCRIBER_ID) { event ->
+            // Returns at once: the bus allows a handler 5 seconds, and the
+            // reconcile waits briefly and reads the database.
+            viewModelScope.launch { syncReconcile.onRemoteApplied(event) }
+        }
+    }
 
-    /** Called from MainActivity.onResume to restart polling if it was stopped. */
-    fun onSyncResume() = MultiUserSyncManager.onResume()
-
-    /**
-     * Triggers a debounced export after any local DB write.
-     * Also used for the Sync Now toolbar tap.
-     */
-    fun triggerSyncExport() = MultiUserSyncManager.scheduleExport()
+    /** The toolbar sync icon: ask for a full sync now. */
+    fun requestSyncNow() {
+        viewModelScope.launch { bus.publish(Topics.SYNC_NOW_REQUESTED, Unit, CAPABILITY_ID) }
+    }
 }

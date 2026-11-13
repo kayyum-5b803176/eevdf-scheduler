@@ -1,6 +1,5 @@
 package com.eevdf.capabilities.tasklistscreen
 
-import android.content.Intent
 import android.view.View
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -280,26 +279,16 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         }
     }
 
-    /** Sync status dot, and the restart-after-remote-import path. */
+    /**
+     * Sync status dot.
+     *
+     * v6.38.0: the "Sync received — reloading…" restart that used to live
+     * here is gone. A received sync no longer replaces the database file, so
+     * there is nothing to restart for; the lists refresh through Room and
+     * the timer through SyncReconcileDelegate.
+     */
     private fun observeSync() {
-        // ── Sync state → toolbar dot color ────────────────────────────────────
         activity.viewModel.syncState.observe(activity) { state -> activity.menuSyncDelegate.updateSyncIcon(state) }
-
-        // ── Remote sync import → restart app so Room opens the new DB cleanly ─
-        activity.viewModel.restartNeeded.observe(activity) {
-            Toast.makeText(
-                activity, "Sync received — reloading…", Toast.LENGTH_SHORT
-            ).show()
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                val intent = activity.packageManager.getLaunchIntentForPackage(activity.packageName)!!
-                intent.addFlags(
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_NEW_TASK
-                )
-                activity.startActivity(intent)
-                android.os.Process.killProcess(android.os.Process.myPid())
-            }, 600)
-        }
     }
 
     /** The Next/Auto and INT buttons.

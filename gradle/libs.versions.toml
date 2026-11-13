@@ -25,6 +25,7 @@ androidxTestRunner = "1.5.2"
 androidxTestJunit = "1.1.5"
 robolectric = "4.11.1"
 json = "20240303"
+sqliteJdbc = "3.45.3.0"
 detekt = "1.23.6"
 
 [libraries]
@@ -77,6 +78,8 @@ androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "a
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 json = { module = "org.json:json", version.ref = "json" }
+# JVM-only SQLite, so the sync merge engine's real SQL runs in plain unit tests.
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqliteJdbc" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
