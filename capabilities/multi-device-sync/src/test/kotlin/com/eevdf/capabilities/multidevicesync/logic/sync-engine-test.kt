@@ -149,6 +149,24 @@ class SyncEngineTest {
         assertEquals("from B, later", a.name("t1")); assertEquals("from B, later", b.name("t1"))
     }
 
+    // ── How Room writes ───────────────────────────────────────────────────────
+
+    @Test fun `writes made with an explicit conflict clause, as Room does, are captured and never fail`() {
+        val a = user("A"); a.task("t1", "Alpha"); a.join()
+        val b = user("B"); b.join()
+        // Room's @Update/@Delete/@Insert spell these out; SQLite then applies the
+        // outer clause to the trigger's own statements.
+        a.db.exec("INSERT OR ABORT INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId) VALUES('t2','Beta',0,0,0,1.0,NULL)")
+        a.db.exec("UPDATE OR ABORT tasks SET name = 'Beta 2' WHERE id = 't2'")
+        a.db.exec("UPDATE OR ABORT tasks SET name = 'Beta 3' WHERE id = 't2'")   // same row marked again
+        a.db.exec("UPDATE OR ABORT tasks SET id = 't2b' WHERE id = 't2'")        // primary key changes
+        a.db.exec("INSERT OR REPLACE INTO tasks(id,name,isRunning,startTimeEpoch,accumulatedMs,vruntime,parentId) VALUES('t1','Alpha 2',0,0,0,1.0,NULL)")
+        a.db.exec("DELETE FROM tasks WHERE id = 't1'")
+        a.sync(); b.sync()
+        assertEquals("Beta 3", b.name("t2b")); assertNull(b.name("t2")); assertNull(b.name("t1"))
+        assertEquals(a.tasksDump(), b.tasksDump())
+    }
+
     // ── Deleting ──────────────────────────────────────────────────────────────
 
     @Test fun `a delete reaches every user`() {

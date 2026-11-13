@@ -5,6 +5,21 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.38.1 — Fix crash on every task save when sync is installed
+
+### Fixed
+`android.database.sqlite.SQLiteConstraintException: UNIQUE constraint failed:
+_sync_dirty…` killed the app on the first task write. The change-capture
+triggers used `INSERT OR REPLACE`, but SQLite lets the statement that fires a
+trigger override the conflict clause of statements inside it, and Room's
+generated `UPDATE OR ABORT` / `DELETE` / `INSERT OR ABORT` all specify one. An
+UPDATE marks the row twice (old and new key), so the second mark became a
+constraint violation. The triggers now use an update-then-insert-if-absent
+pair that cannot conflict whatever the outer statement says. The trigger text
+is rewritten automatically the next time the app starts (`SyncEngine.init`).
+The unit tests missed it because they wrote with plain SQL; a regression test
+now writes the way Room does and was confirmed to fail on the old triggers.
+
 ## 6.38.0 — Multi-user sync and restore rebuilt (build 1 of 3)
 
 ### Why

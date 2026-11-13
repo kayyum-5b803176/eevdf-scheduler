@@ -218,10 +218,22 @@ internal object SyncSchema {
     private fun triggerSql(t: TableInfo): Map<String, String> {
         val tbl = ql(t.name)
         fun mark(rowAlias: String): String {
-            val keys = (0 until MAX_PK_COLUMNS).joinToString(", ") { i ->
+            val keys = (0 until MAX_PK_COLUMNS).map { i ->
                 if (i < t.pk.size) "IFNULL($rowAlias.${qi(t.pk[i])}, '')" else "''"
             }
-            return "INSERT OR REPLACE INTO _sync_dirty(tbl, k1, k2, k3, k4, ts) VALUES($tbl, $keys, $NOW_MS);"
+            val same = keys.mapIndexed { i, k -> "k${i + 1} = $k" }.joinToString(" AND ")
+            // Deliberately NOT "INSERT OR REPLACE": SQLite lets the statement
+            // that fires a trigger override the conflict clause of statements
+            // inside it, and Room's @Update / @Delete / @Insert all say
+            // "OR ABORT" (or "OR REPLACE") explicitly. Under that override a
+            // second mark for a row already marked dirty — which every
+            // UPDATE produces, since it marks OLD and NEW — became a
+            // constraint violation and crashed the write. These two plain
+            // statements cannot conflict whatever the outer statement says.
+            return "UPDATE _sync_dirty SET ts = $NOW_MS WHERE tbl = $tbl AND $same; " +
+                "INSERT INTO _sync_dirty(tbl, k1, k2, k3, k4, ts) " +
+                "SELECT $tbl, ${keys.joinToString(", ")}, $NOW_MS " +
+                "WHERE NOT EXISTS (SELECT 1 FROM _sync_dirty WHERE tbl = $tbl AND $same);"
         }
         // While the engine itself is writing rows it received from another
         // member, the triggers stay silent — otherwise every received change
