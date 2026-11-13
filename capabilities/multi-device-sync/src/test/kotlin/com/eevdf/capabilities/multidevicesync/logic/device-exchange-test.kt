@@ -215,6 +215,127 @@ class DeviceExchangeTest {
         assertEquals("from C, after seeing A", c.name("t1"))
     }
 
+    // ── The live link ─────────────────────────────────────────────────────────
+
+    /** A one-way in-memory byte channel; closing the writer ends the reader. */
+    private class Channel {
+        private val q = java.util.concurrent.LinkedBlockingQueue<ByteArray>()
+        private val eof = ByteArray(0)
+        val output = object : java.io.OutputStream() {
+            override fun write(b: Int) { q.put(byteArrayOf(b.toByte())) }
+            override fun write(b: ByteArray, off: Int, len: Int) { if (len > 0) q.put(b.copyOfRange(off, off + len)) }
+            override fun close() { q.put(eof) }
+        }
+        val input = object : InputStream() {
+            private var cur: ByteArray? = null; private var pos = 0; private var done = false
+            private fun fill(): Boolean {
+                while (!done && (cur == null || pos >= cur!!.size)) { val c = q.take(); if (c === eof) { done = true; q.put(eof) } else { cur = c; pos = 0 } }
+                return !done
+            }
+            override fun read(): Int = if (fill()) cur!![pos++].toInt() and 0xff else -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (!fill()) return -1
+                val n = minOf(len, cur!!.size - pos); System.arraycopy(cur!!, pos, b, off, n); pos += n; return n
+            }
+        }
+    }
+
+    private inner class Link(keepAliveMs: Long = 10_000L) {
+        val xToY = Channel(); val yToX = Channel()
+        val xRounds = java.util.concurrent.LinkedBlockingQueue<DeviceExchange.Result>()
+        val yRounds = java.util.concurrent.LinkedBlockingQueue<DeviceExchange.Result>()
+        val x = DeviceSession(DeviceExchange(SyncFolder(phoneX, "radio"), "phone X", { System.currentTimeMillis() }), true,
+            yToX.input, xToY.output, closeLink = { xToY.output.close() }, onRound = { xRounds.put(it) }, keepAliveMs = keepAliveMs)
+        val y = DeviceSession(DeviceExchange(SyncFolder(phoneY, "radio"), "phone Y", { System.currentTimeMillis() }), false,
+            xToY.input, yToX.output, closeLink = { yToX.output.close() }, onRound = { yRounds.put(it) }, keepAliveMs = keepAliveMs)
+        var xError: Throwable? = null; var yError: Throwable? = null
+        val tx = Thread { try { x.run() } catch (e: Throwable) { xError = e } }.apply { start() }
+        val ty = Thread { try { y.run() } catch (e: Throwable) { yError = e } }.apply { start() }
+        init { nextX(); nextY() }   // the first round after connecting
+        fun nextX(): DeviceExchange.Result = xRounds.poll(10, java.util.concurrent.TimeUnit.SECONDS) ?: throw AssertionError("no round on X")
+        fun nextY(): DeviceExchange.Result = yRounds.poll(10, java.util.concurrent.TimeUnit.SECONDS) ?: throw AssertionError("no round on Y")
+        fun close() { x.close(); y.close(); tx.join(5_000); ty.join(5_000) }
+    }
+
+    @Test fun `on a live link a change on either phone arrives within a moment, without reconnecting`() {
+        val a = member("A", phoneX); a.task("t1", "Alpha"); a.join()
+        val c = member("C", phoneY); c.join()
+        val link = Link()
+        try {
+            c.sync(); assertEquals("Alpha", c.name("t1"))
+            // Phone X (dialled) changes something.
+            tick(); a.db.exec("UPDATE tasks SET isRunning = 1, startTimeEpoch = ? WHERE id = 't1'", listOf(time)); a.session.pushOnly()
+            val t0 = System.nanoTime()
+            link.x.requestRound(); link.nextX(); link.nextY()
+            val ms = (System.nanoTime() - t0) / 1_000_000
+            c.sync(); assertEquals(1L, c.field("t1", "isRunning"))
+            // Phone Y (answered) changes something back.
+            tick(); c.db.exec("UPDATE tasks SET isRunning = 0, accumulatedMs = 4000 WHERE id = 't1'"); c.session.pushOnly()
+            link.y.requestRound(); link.nextY(); link.nextX()
+            a.sync(); assertEquals(0L, a.field("t1", "isRunning")); assertEquals(4000L, a.field("t1", "accumulatedMs"))
+            assertTrue("a round over the link took $ms ms", ms < 2_000)
+        } finally { link.close() }
+    }
+
+    @Test fun `both phones asking at the same moment still exchange everything`() {
+        val a = member("A", phoneX); a.task("t1", "Alpha"); a.join()
+        val c = member("C", phoneY); c.task("t2", "Gamma"); c.join()
+        val link = Link()
+        try {
+            tick(); a.task("x1", "from X"); a.session.pushOnly()
+            tick(); c.task("y1", "from Y"); c.session.pushOnly()
+            link.x.requestRound(); link.y.requestRound()
+            // However the two requests interleave, within a few rounds both have both.
+            repeat(4) { link.xRounds.poll(500, java.util.concurrent.TimeUnit.MILLISECONDS) }
+            a.sync(); c.sync()
+            assertEquals("from Y", a.name("y1")); assertEquals("from X", c.name("x1"))
+            assertEquals(a.dump(), c.dump())
+            assertNull(link.xError); assertNull(link.yError)
+        } finally { link.close() }
+    }
+
+    @Test fun `a burst of requests is folded into a few rounds`() {
+        val a = member("A", phoneX); a.join()
+        val c = member("C", phoneY); c.join()
+        val link = Link()
+        try {
+            for (i in 0 until 50) { tick(); a.task("b$i", "burst $i") }
+            a.session.pushOnly()
+            val before = link.x.rounds
+            // 50 requests faster than a round can run (in the app, saves within
+            // 0.4 s are first folded into one request before this point).
+            repeat(50) { link.x.requestRound() }
+            Thread.sleep(800)
+            val rounds = link.x.rounds - before
+            assertTrue("50 requests while busy should cost at most a few rounds (got $rounds)", rounds in 1..3)
+            link.xRounds.clear(); link.x.requestRound(); link.nextX()   // clear first, or a fast round is lost
+            c.sync(); assertEquals("burst 49", c.name("b49"))
+        } finally { link.close() }
+    }
+
+    @Test fun `an idle link sends only keep-alives and survives them`() {
+        val a = member("A", phoneX); a.join()
+        val c = member("C", phoneY); c.join()
+        val link = Link(keepAliveMs = 30L)
+        try {
+            Thread.sleep(400)
+            assertEquals("no rounds without a request", 1, link.x.rounds)
+            assertTrue(link.x.isOpen && link.y.isOpen)
+            tick(); a.task("k1", "after idle"); a.session.pushOnly(); link.x.requestRound(); link.nextX(); link.nextY()
+            c.sync(); assertEquals("after idle", c.name("k1"))
+        } finally { link.close() }
+    }
+
+    @Test fun `when one phone leaves, the other's link ends instead of hanging`() {
+        val a = member("A", phoneX); a.join()
+        val c = member("C", phoneY); c.join()
+        val link = Link()
+        link.x.close()
+        link.ty.join(5_000)
+        assertTrue("phone Y's side should have ended", !link.ty.isAlive)
+        link.close()
+    }
+
     @Test fun `a name the other phone sends that this folder would never hold is ignored`() {
         val f = SyncFolder(phoneX, "radio")
         assertNull(f.fileFor('j', "../../etc/passwd"))

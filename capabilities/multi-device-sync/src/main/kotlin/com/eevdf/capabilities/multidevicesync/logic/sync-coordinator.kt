@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -128,7 +129,6 @@ class SyncCoordinator(
     private val link = BluetoothLink(appContext)
     private var listenJob: Job? = null
     @Volatile private var serverSocket: android.bluetooth.BluetoothServerSocket? = null
-    private val exchangeBusy = java.util.concurrent.atomic.AtomicBoolean(false)
     @Volatile private var lastAttemptMs = 0L
     @Volatile private var retryMs = BT_RETRY_MIN_MS
 
@@ -136,7 +136,10 @@ class SyncCoordinator(
     @Volatile private var pendingSince: Long = 0L
 
     init {
-        bus.subscribe(Topics.TASK_SAVED, CAPABILITY_ID) { schedulePush() }
+        bus.subscribe(Topics.TASK_SAVED, CAPABILITY_ID) {
+            schedulePush()
+            if (linkOpen()) quickPush()
+        }
         bus.subscribe(Topics.APP_FOREGROUND_CHANGED, CAPABILITY_ID) { foreground ->
             if (foreground) {
                 requestSync(quiet = false)
@@ -371,6 +374,7 @@ class SyncCoordinator(
         for (n in notes) report(Topics.SYNC_MAINTENANCE, n)
         if (r.linesWritten > 0) {
             bus.publish(Topics.SYNC_LOCAL_PUBLISHED, SyncLocalPublished(r.linesWritten, r.bytesWritten), CAPABILITY_ID)
+            btSession?.requestRound()
         }
         if (r.announced > 0) report(Topics.SYNC_MAINTENANCE, "Joined: shared ${r.announced} rows that only this user had")
         if (r.discarded > 0) report(Topics.SYNC_MAINTENANCE, "Joined: dropped ${r.discarded} rows the group did not have")
@@ -523,6 +527,8 @@ class SyncCoordinator(
 
     /** "Sync now" also tries the other phone straight away. */
     private fun syncPhoneNow() {
+        val session = btSession
+        if (session != null && session.isOpen) { session.requestRound(); return }
         lastAttemptMs = 0L
         retryMs = BT_RETRY_MIN_MS
         scope.launch { maybeConnectToPhone(force = true) }
@@ -537,7 +543,28 @@ class SyncCoordinator(
         isEnabled() && s != null && s.bluetoothEnabled && s.peerAddress != null &&
             link.isAvailable && link.hasPermission() && link.isOn()
 
-    /** Listens for the other phone while the app is on screen. */
+    // ── The live link ─────────────────────────────────────────────────────────
+    //
+    // One connection stays open while the app is on screen on both phones
+    // (DeviceSession). A change here is written to the folder ~0.4 s after the
+    // save and the other phone is told at once, so it shows there within a
+    // second or two.
+    //
+    // Battery: between changes the link is silent except for a one-byte
+    // keep-alive every [BT_KEEPALIVE_MS]; nothing runs while the app is in the
+    // background; and since a phone dials the moment its app opens, the other
+    // phone only needs to retry rarely ([BT_RETRY_MIN_MS] doubling to
+    // [BT_RETRY_MAX_MS]) — each attempt is what wakes the radio.
+
+    @Volatile private var btSession: DeviceSession? = null
+    /** The phone that dialled the current link; decides which link wins if both phones dialled at once. */
+    @Volatile private var btSessionDialer: String? = null
+    private val dialing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var quickPushJob: Job? = null
+
+    private fun linkOpen(): Boolean = btSession?.isOpen == true
+
+    /** Listens for the other phone while the app is on screen, and dials it once straight away. */
     private fun startBluetooth() {
         if (listenJob?.isActive == true) return
         val s = bluetoothSettings()
@@ -546,7 +573,7 @@ class SyncCoordinator(
             try {
                 val server = link.listen()
                 serverSocket = server
-                setBtStatus("Waiting for ${s?.peerName ?: "the other phone"}")
+                if (!linkOpen()) setBtStatus("Waiting for ${s?.peerName ?: "the other phone"}")
                 while (isActive) {
                     val socket = server.accept() // blocks; ends when stopBluetooth closes the server
                     val trusted = bluetoothSettings()?.peerAddress
@@ -555,13 +582,20 @@ class SyncCoordinator(
                         try { socket.close() } catch (_: java.io.IOException) { }
                         continue
                     }
-                    runExchange(socket, initiator = false)
+                    runSession(socket, initiator = false)
                 }
             } catch (_: java.io.IOException) {
                 // closed by stopBluetooth, or Bluetooth switched off
             } finally {
                 serverSocket = null
             }
+        }
+        // Opening the app is the moment the other phone is most likely waiting.
+        lastAttemptMs = 0L
+        retryMs = BT_RETRY_MIN_MS
+        scope.launch {
+            delay((0L..BT_DIAL_JITTER_MS).random())
+            maybeConnectToPhone(force = true)
         }
     }
 
@@ -570,113 +604,166 @@ class SyncCoordinator(
         serverSocket = null
         listenJob?.cancel()
         listenJob = null
+        btSession?.close()
+    }
+
+    /** Dials the other phone when there is no live link and it is time to try again. */
+    private suspend fun maybeConnectToPhone(force: Boolean = false) {
+        if (linkOpen()) return
+        val s = bluetoothSettings()
+        if (!bluetoothReady(s) || s == null) return
+        if (bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true) return
+        val now = clock.nowEpochMillis()
+        if (!force && now - lastAttemptMs < retryMs) return
+        if (!dialing.compareAndSet(false, true)) return
+        lastAttemptMs = now
+        try {
+            val socket = try {
+                link.connect(s.peerAddress!!)
+            } catch (_: java.io.IOException) {
+                // Out of range, Bluetooth off there, or the app not open there.
+                // Routine: back off quietly instead of filling the event log.
+                retryMs = minOf(retryMs * 2, BT_RETRY_MAX_MS)
+                if (!linkOpen()) setBtStatus("Not reachable — is the app open on ${s.peerName ?: "the other phone"}?")
+                return
+            }
+            if (linkOpen()) { try { socket.close() } catch (_: java.io.IOException) { }; return }
+            runSession(socket, initiator = true)
+        } finally {
+            dialing.set(false)
+        }
+    }
+
+    /** Starts a live session on [socket]; returns at once (the session runs on its own thread). */
+    private fun runSession(socket: android.bluetooth.BluetoothSocket, initiator: Boolean) {
+        scope.launch {
+            val folder = phoneFolder()
+            if (folder == null) { try { socket.close() } catch (_: java.io.IOException) { }; return@launch }
+            val myId = folder.deviceId()
+            val lastProgress = java.util.concurrent.atomic.AtomicLong(clock.nowEpochMillis())
+            val inRound = java.util.concurrent.atomic.AtomicBoolean(false)
+            val exchange = DeviceExchange(folder, memberName(), clock::nowEpochMillis) { lastProgress.set(clock.nowEpochMillis()) }
+            val holder = arrayOfNulls<DeviceSession>(1)
+            val session = DeviceSession(
+                exchange = exchange,
+                initiator = initiator,
+                input = socket.inputStream,
+                output = socket.outputStream,
+                closeLink = { try { socket.close() } catch (_: java.io.IOException) { } },
+                onConnected = { peer -> registerSession(holder[0]!!, if (initiator) myId else peer.deviceId, peer, folder) },
+                aroundRound = { body ->
+                    // A round never overlaps a local sync, restore or snapshot.
+                    runBlocking {
+                        lock.withLock {
+                            lastProgress.set(clock.nowEpochMillis()); inRound.set(true)
+                            try { body() } finally { inRound.set(false) }
+                        }
+                    }
+                },
+                onRound = { r -> onRoundDone(r) },
+                keepAliveMs = BT_KEEPALIVE_MS,
+            )
+            holder[0] = session
+            // A round whose bytes stop moving is cut off; it resumes on the next link.
+            val watchdog = launch {
+                while (isActive) {
+                    delay(2_000L)
+                    if (inRound.get() && clock.nowEpochMillis() - lastProgress.get() > BT_STALL_MS) { session.close(); break }
+                }
+            }
+            var failure: String? = null
+            try {
+                session.run()
+            } catch (e: DeviceExchange.ProtocolException) {
+                failure = "The other phone: ${short(e)}"
+            } catch (_: Exception) {
+                // the link ended: other app closed, out of range, Bluetooth off
+            } finally {
+                watchdog.cancel()
+                val wasCurrent = synchronized(this@SyncCoordinator) {
+                    (btSession === session).also { if (it) { btSession = null; btSessionDialer = null } }
+                }
+                if (wasCurrent) {
+                    retryMs = BT_RETRY_MIN_MS
+                    lastAttemptMs = clock.nowEpochMillis()
+                    setBtStatus(failure ?: "Disconnected — reconnects when the app is open on both phones")
+                }
+            }
+            failure?.let { report(Topics.SYNC_FAILED, it) }
+        }
     }
 
     /**
-     * Tries the other phone when it is time. Only ONE side starts a
-     * connection once the phones know each other (the one with the smaller
-     * phone id), so they never dial each other at the same moment; before
-     * that, both try and the first connection wins.
+     * Called right after the handshake. If both phones dialled at the same
+     * moment there are two links; both phones keep the one dialled by the
+     * phone with the smaller id, so they always agree on which one survives.
      */
-    private suspend fun maybeConnectToPhone(force: Boolean = false) {
-        val s = bluetoothSettings()
-        if (!bluetoothReady(s) || s == null) return
-        if (bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true && !force) return
-        val now = clock.nowEpochMillis()
-        if (!force && now - lastAttemptMs < retryMs) return
-        val peerDevice = s.peerDeviceId
-        if (peerDevice != null && s.id > peerDevice) return // the other phone dials
-        if (exchangeBusy.get()) return
-        lastAttemptMs = now
-        val socket = try {
-            link.connect(s.peerAddress!!)
-        } catch (_: java.io.IOException) {
-            // Out of range, Bluetooth off there, or the app not open there.
-            // Routine: back off quietly instead of filling the event log.
-            retryMs = minOf(retryMs * 2, BT_RETRY_MAX_MS)
-            setBtStatus("Not reachable — is the app open on ${s.peerName ?: "the other phone"}?")
-            return
+    private fun registerSession(
+        session: DeviceSession,
+        dialer: String,
+        peer: DeviceExchange.Peer,
+        folder: SyncFolder,
+    ): Boolean {
+        synchronized(this) {
+            val current = btSession
+            if (current != null && current !== session && current.isOpen) {
+                val currentDialer = btSessionDialer ?: ""
+                if (currentDialer < dialer) return false // keep the existing link
+                current.close()
+            }
+            btSession = session
+            btSessionDialer = dialer
         }
-        runExchange(socket, initiator = true)
+        try {
+            val s = folder.deviceSettings()
+            if (s.peerDeviceId != peer.deviceId) folder.saveDeviceSettings(s.copy(peerDeviceId = peer.deviceId))
+        } catch (_: Exception) { }
+        retryMs = BT_RETRY_MIN_MS
+        setBtStatus("Connected to ${peer.name} — changes go across within a second or two")
+        return true
     }
 
-    private suspend fun runExchange(socket: android.bluetooth.BluetoothSocket, initiator: Boolean) {
-        if (!exchangeBusy.compareAndSet(false, true)) {
-            try { socket.close() } catch (_: java.io.IOException) { }
-            return
-        }
-        var result: DeviceExchange.Result? = null
-        var failure: String? = null
-        try {
-            setBtStatus("Exchanging with the other phone…")
-            lock.withLock {
-                val folder = phoneFolder() ?: throw java.io.IOException(folderProblem())
-                // Our own latest changes go into the folder first, so they travel too.
-                try {
-                    val e = engine()
-                    if (e.isBootstrapped && e.isAnnounced) currentSession().pushOnly()
-                } catch (_: Exception) { }
-                val lastProgress = java.util.concurrent.atomic.AtomicLong(clock.nowEpochMillis())
-                val watchdog = scope.launch {
-                    // A link that stops moving is closed, which ends the blocked read.
-                    while (isActive) {
-                        delay(2_000L)
-                        if (clock.nowEpochMillis() - lastProgress.get() > BT_STALL_MS) {
-                            try { socket.close() } catch (_: java.io.IOException) { }
-                            break
-                        }
-                    }
-                }
-                try {
-                    result = DeviceExchange(folder, memberName(), clock::nowEpochMillis) {
-                        lastProgress.set(clock.nowEpochMillis())
-                    }.run(initiator, socket.inputStream, socket.outputStream)
-                } finally {
-                    watchdog.cancel()
-                }
-                // Remember who the other phone is (decides who dials next time).
-                val r = result!!
-                val s = folder.deviceSettings()
-                if (s.peerDeviceId != r.remoteDevice) folder.saveDeviceSettings(s.copy(peerDeviceId = r.remoteDevice))
-            }
-        } catch (e: DeviceExchange.ProtocolException) {
-            failure = "The other phone: ${short(e)}"
-        } catch (e: Exception) {
-            failure = "Link lost: ${short(e)} — it continues next time"
-        } finally {
-            try { socket.close() } catch (_: java.io.IOException) { }
-            exchangeBusy.set(false)
-        }
-
-        val r = result
-        if (r == null) {
-            retryMs = minOf(retryMs * 2, BT_RETRY_MAX_MS)
-            setBtStatus(failure ?: "Exchange failed")
-            failure?.let { report(Topics.SYNC_FAILED, it) }
-            return
-        }
-        retryMs = BT_RETRY_MIN_MS
-        val summary = "sent ${r.filesSent} file(s) / ${kb(r.bytesSent)}, received ${r.filesReceived} / ${kb(r.bytesReceived)}"
+    private fun onRoundDone(r: DeviceExchange.Result) {
+        val moved = r.bytesSent > 0 || r.bytesReceived > 0 || r.filesDeleted > 0
         val clockWarning = if (kotlin.math.abs(r.clockOffsetMs) > BT_CLOCK_WARN_MS) {
             "The phones' clocks differ by ${kotlin.math.abs(r.clockOffsetMs) / 1000} s. Timers started on one phone will " +
                 "look that much off on the other. Turn on automatic date & time on both."
         } else null
+        val previousWarning = _ui.value.btClockWarning
         _ui.value = _ui.value.copy(
-            btLastExchangeMs = clock.nowEpochMillis(),
-            btLastSummary = summary,
+            btLastExchangeMs = if (moved) clock.nowEpochMillis() else _ui.value.btLastExchangeMs,
+            btLastSummary = if (moved) {
+                "sent ${r.filesSent} file(s) / ${kb(r.bytesSent)}, received ${r.filesReceived} / ${kb(r.bytesReceived)}"
+            } else _ui.value.btLastSummary,
             btClockWarning = clockWarning,
-            btStatus = "Connected to ${r.remoteName}",
         )
-        if (r.bytesSent > 0 || r.bytesReceived > 0 || r.filesDeleted > 0) {
-            bus.publish(
-                Topics.SYNC_DEVICE_EXCHANGED,
-                SyncDeviceExchanged(r.remoteName, r.filesSent, r.filesReceived, r.bytesSent, r.bytesReceived, r.filesDeleted, r.clockOffsetMs),
-                CAPABILITY_ID,
-            )
+        scope.launch {
+            if (moved) {
+                bus.publish(
+                    Topics.SYNC_DEVICE_EXCHANGED,
+                    SyncDeviceExchanged(r.remoteName, r.filesSent, r.filesReceived, r.bytesSent, r.bytesReceived, r.filesDeleted, r.clockOffsetMs),
+                    CAPABILITY_ID,
+                )
+            }
+            if (clockWarning != null && previousWarning == null) report(Topics.SYNC_MAINTENANCE, clockWarning)
+            // What arrived is merged now; this is what makes it appear on screen.
+            if (r.filesReceived > 0) syncCycle(quiet = true)
         }
-        clockWarning?.let { report(Topics.SYNC_MAINTENANCE, it) }
-        // What arrived is merged by the normal sync.
-        if (r.filesReceived > 0) syncCycle(quiet = true)
+    }
+
+    /**
+     * With a live link a save goes out almost at once: saves within
+     * [BT_EVENT_DEBOUNCE_MS] of each other (one tap often saves several rows)
+     * are written to the folder together, then the other phone is told.
+     * Without a link the slower card batching ([schedulePush]) applies.
+     */
+    private fun quickPush() {
+        quickPushJob?.cancel()
+        quickPushJob = scope.launch {
+            delay(BT_EVENT_DEBOUNCE_MS)
+            pushNow()
+            btSession?.requestRound()
+        }
     }
 
     /** What the link itself last reported; shown when nothing more basic is missing. */
@@ -896,9 +983,20 @@ class SyncCoordinator(
         private const val KEY_LEGACY_DONE = "legacy_migrated"
 
         private const val POLL_MS = 10_000L
-        /** How often to try the other phone while the app is open, at best and at worst (backs off on failures). */
-        private const val BT_RETRY_MIN_MS = 60L * 1000L
-        private const val BT_RETRY_MAX_MS = 10L * 60L * 1000L
+        /**
+         * How often to try the other phone when there is no link, at best and
+         * at worst (doubling on each failure). Slow on purpose: a phone dials
+         * the moment its app opens, so retries only matter when the other
+         * phone was out of range, and every attempt wakes the radio.
+         */
+        private const val BT_RETRY_MIN_MS = 30L * 1000L
+        private const val BT_RETRY_MAX_MS = 5L * 60L * 1000L
+        /** One byte on an idle link this often, so a dead link is noticed. */
+        private const val BT_KEEPALIVE_MS = 25L * 1000L
+        /** Saves this close together go across as one round. */
+        private const val BT_EVENT_DEBOUNCE_MS = 400L
+        /** Random wait before dialling on app open, so two phones opened together rarely dial at the same instant. */
+        private const val BT_DIAL_JITTER_MS = 1_500L
         /** A link with no bytes moving for this long is dropped. */
         private const val BT_STALL_MS = 20L * 1000L
         /** Above this, running timers would visibly disagree between the phones. */

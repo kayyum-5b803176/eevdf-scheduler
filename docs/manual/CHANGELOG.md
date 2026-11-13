@@ -5,6 +5,39 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.41.0 — Bluetooth: live link, changes cross in about a second
+
+### Why
+A timer start took up to a minute or more to reach the other phone: exchanges
+ran on a once-a-minute timer, only one phone was allowed to dial, and every
+exchange opened a new Bluetooth connection.
+
+### Changed
+- **One live connection** while the app is open on both phones. A save (timer
+  start, pause, any task change) is written to the sync folder 0.4 s later and
+  sent across at once; either phone can start it. Requests during a transfer
+  are folded into one more. Target: 1–2 s from tap to the other phone. On the
+  test link a round took 2 ms; the radio adds its own time.
+- **Battery:** the link is silent between changes except a 1-byte keep-alive
+  every 25 s, and closes when the app leaves the screen. A phone dials as soon
+  as its app opens, so retries are rare: 30 s, doubling to 5 min (was 1 min
+  doubling to 10). Either phone may dial; if both do at once, both keep the
+  same link.
+- **Card writes while connected:** each save is written to the card within
+  0.4 s while a link is live (the 5-minute batching still applies without one).
+- **Protocol version 2.** Update BOTH phones: a phone on 6.40.0 is told
+  "different sync version".
+
+### Added
+- `DeviceSession` (live link) and 5 tests: a change on either phone crossing
+  without reconnecting, both phones asking at the same moment, a burst of 50
+  requests costing at most 2 rounds, an idle link surviving on keep-alives, and
+  a link ending cleanly when the other phone leaves.
+
+### Not verified by a build
+The link and coordinator changes were type-checked against stubs; the
+protocol is tested over in-memory pipes, not over a real Bluetooth socket.
+
 ## 6.40.0 — Sync between two phones over Bluetooth (build 2 of 3)
 
 ### Added

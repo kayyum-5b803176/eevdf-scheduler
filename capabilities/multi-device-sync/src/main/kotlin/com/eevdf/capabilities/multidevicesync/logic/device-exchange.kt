@@ -75,41 +75,69 @@ internal class DeviceExchange(
     private var sent = 0L
     private var received = 0L
 
+    /** Who is on the other end, learned in the handshake. */
+    class Peer(val deviceId: String, val name: String, @Volatile var clockOffsetMs: Long)
+
+    /** One complete exchange on a fresh link: handshake, then one round. (The app keeps a live link — see [DeviceSession].) */
     @Throws(IOException::class)
     fun run(initiator: Boolean, input: InputStream, output: OutputStream): Result {
         val inp = DataInputStream(input.buffered(CHUNK * 2))
         val out = DataOutputStream(output.buffered(CHUNK * 2))
+        val peer = handshake(initiator, inp, out)
+        return round(initiator, inp, out, peer)
+    }
+
+    /**
+     * HELLO both ways. The initiator measures the clock difference from the
+     * round trip (other clock minus ours, assuming the delay is symmetric).
+     */
+    @Throws(IOException::class)
+    fun handshake(initiator: Boolean, inp: DataInputStream, out: DataOutputStream): Peer {
         val myId = folder.deviceId()
         folder.clearIncoming()
-
-        // ── HELLO ────────────────────────────────────────────────────────────
         val t0 = now()
         if (initiator) writeHello(out, myId, t0)
         val hello = readHello(inp)
         val t2 = now()
         if (!initiator) writeHello(out, myId, now())
         if (hello.deviceId == myId) throw ProtocolException("both phones use the same sync folder identity")
+        return Peer(hello.deviceId, hello.name, if (initiator) hello.clock - (t0 + t2) / 2 else 0L)
+    }
 
-        // ── INVENTORY ────────────────────────────────────────────────────────
+    /**
+     * One round: file lists both ways, then the files each side lacks — the
+     * initiator's first, then the responder's — and only then deletions.
+     * [onListed] runs the moment this side has taken its file list: anything
+     * written after that point needs another round.
+     */
+    @Throws(IOException::class)
+    fun round(
+        initiator: Boolean,
+        inp: DataInputStream,
+        out: DataOutputStream,
+        peer: Peer,
+        onListed: () -> Unit = {},
+    ): Result {
+        sent = 0L
+        received = 0L
+        onListed()
         val myInventory = folder.inventory()
         val myHomes = folder.memberHomes()
-        val offset: Long
         val theirs: Inventory
         if (initiator) {
-            offset = hello.clock - (t0 + t2) / 2
-            writeInventory(out, offset, myInventory, myHomes)
+            writeInventory(out, peer.clockOffsetMs, myInventory, myHomes)
             theirs = readInventory(inp)
         } else {
             theirs = readInventory(inp)
-            offset = -theirs.offset
+            peer.clockOffsetMs = -theirs.offset
             writeInventory(out, 0L, myInventory, myHomes)
         }
 
+        val myId = folder.deviceId()
         val homes = HashMap<String, String>(theirs.homes).apply { putAll(myHomes) }
-        val plan = plan(myInventory, theirs.entries, myId, hello.deviceId, homes)
+        val plan = plan(myInventory, theirs.entries, myId, peer.deviceId, homes)
 
-        // ── FILES, one direction at a time ───────────────────────────────────
-        var filesReceived: Int
+        val filesReceived: Int
         if (initiator) {
             sendAll(out, plan.send)
             filesReceived = receiveAll(inp)
@@ -118,10 +146,9 @@ internal class DeviceExchange(
             sendAll(out, plan.send)
         }
 
-        // ── Only now: deletions ──────────────────────────────────────────────
         var deleted = 0
         for (e in plan.delete) if (folder.deleteCopy(e.kind, e.name)) deleted++
-        return Result(hello.deviceId, hello.name, offset, plan.send.size, filesReceived, sent, received, deleted)
+        return Result(peer.deviceId, peer.name, peer.clockOffsetMs, plan.send.size, filesReceived, sent, received, deleted)
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -216,8 +243,20 @@ internal class DeviceExchange(
         out.flush()
     }
 
+    /**
+     * The next message type, skipping "start a round" and keep-alive bytes:
+     * when both phones start a round at the same moment, each one's start
+     * byte simply arrives where the other expected the round's first message.
+     */
+    private fun readType(inp: DataInputStream): Byte {
+        while (true) {
+            val t = inp.readByte()
+            if (t != T_ROUND && t != T_PING) return t
+        }
+    }
+
     private fun readInventory(inp: DataInputStream): Inventory {
-        if (inp.readByte() != T_INVENTORY) throw ProtocolException("expected the file list")
+        if (readType(inp) != T_INVENTORY) throw ProtocolException("expected the file list")
         val offset = inp.readLong()
         val nHomes = inp.readInt()
         if (nHomes !in 0..MAX_ENTRIES) throw ProtocolException("bad member list")
@@ -271,7 +310,7 @@ internal class DeviceExchange(
         val refused = HashSet<String>()
         try {
             while (true) {
-                when (inp.readByte()) {
+                when (readType(inp)) {
                     T_END -> return complete
                     T_CHUNK -> {
                         val kind = inp.readByte().toInt().toChar()
@@ -337,13 +376,19 @@ internal class DeviceExchange(
 
     companion object {
         private const val MAGIC = 0x45564446 // "EVDF"
-        const val VERSION = 1
-        private const val CHUNK = 32 * 1024
+        /** 2: live link with rounds (6.41.0). A phone on 1 is told "different sync version". */
+        const val VERSION = 2
+        internal const val CHUNK = 32 * 1024
         private const val MAX_ENTRIES = 100_000
 
         private const val T_INVENTORY: Byte = 2
         private const val T_CHUNK: Byte = 3
         private const val T_DONE: Byte = 4
         private const val T_END: Byte = 5
+        /** Between rounds: "let's do a round now". */
+        internal const val T_ROUND: Byte = 6
+        /** Between rounds: keep-alive, so a dead link is noticed. */
+        internal const val T_PING: Byte = 7
+        internal const val T_INVENTORY_PUBLIC: Byte = T_INVENTORY
     }
 }

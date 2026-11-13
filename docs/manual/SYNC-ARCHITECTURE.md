@@ -1,4 +1,4 @@
-# Sync & Restore Architecture (v6.40.0)
+# Sync & Restore Architecture (v6.41.0)
 
 **Read this before touching `capabilities/multi-device-sync` or the restore
 path in `capabilities/backup-restore`.** It describes what the code does now,
@@ -142,11 +142,23 @@ sync then reads them, so the merge engine does not know a second phone exists.
   initiator's files + END, responder's files + END, then deletions. One
   direction at a time; an interrupted exchange resumes (a shorter journal copy
   is simply continued; half-received whole files are discarded).
-- **Link:** secure RFCOMM to an already-paired phone, no scanning, permission
-  BLUETOOTH_CONNECT only. Runs while the app is on screen on both phones;
-  tries about once a minute (backing off to 10 min when unreachable) and on
-  Sync Now. Once the phones know each other only the one with the smaller id
-  dials. A link with no bytes moving for 20 s is dropped.
+- **Live link** (`device-session.kt`, protocol version 2): one secure RFCOMM
+  connection to an already-paired phone stays open while the app is on screen
+  on both. A save is written to the folder 0.4 s later and a *round*
+  (inventory + missing bytes) runs at once, started by either phone; requests
+  made during a round fold into one more round. Target: 1–2 s from tap to the
+  other phone. Both phones may start a round at the same instant: roles are
+  fixed per link (the dialler is the initiator) and each start byte lands
+  where the other expected the round's first message, where it is skipped.
+- **Battery:** silent between changes except a 1-byte keep-alive every 25 s;
+  nothing while the app is in the background; a phone dials the moment its app
+  opens, so the other retries only every 30 s doubling to 5 min. A round with no
+  bytes moving for 20 s is cut off. If both phones dial at once, both keep the
+  link dialled by the phone with the smaller id. No scanning; permission
+  BLUETOOTH_CONNECT only.
+- **Card writes while linked:** with a live link every save is written to the
+  card within 0.4 s (that is what makes it fast); without one the 5-minute
+  batching applies.
 - **Clocks:** stamps already follow cause and effect (an edit made after
   seeing the other phone's change always wins, whatever the clocks say). Timer
   start times are wall-clock data, so a difference over 2 s is reported on the
@@ -219,7 +231,7 @@ the absent user catches up in one read. Internal database: +102% (was +295%).
 
 ## 10. Tests
 
-`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 29 tests, `device-exchange-test.kt` — 10 tests (two phones over a pipe),
+`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 29 tests, `device-exchange-test.kt` — 15 tests (two phones over a pipe, incl. the live link),
 each named as the promise it checks (empty joiner erases nothing; timer
 started by one user stopped by another; torn write skipped; card missing;
 card wiped; snapshot + late joiner; older/newer builds; restore merge/replace;
