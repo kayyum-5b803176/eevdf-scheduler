@@ -158,6 +158,13 @@ object Topics {
     /** A sync could not complete. Payload: a short human-readable reason. Nothing is lost; it is retried. */
     val SYNC_FAILED = Topic<String>("sync.failed")
 
+    /**
+     * An exchange with the other phone over Bluetooth finished. Published by
+     * multi-device-sync; read by the event log. What arrived is merged by the
+     * normal sync that follows (and reported through [SYNC_REMOTE_APPLIED]).
+     */
+    val SYNC_DEVICE_EXCHANGED = Topic<SyncDeviceExchanged>("sync.device-exchanged")
+
     /** Housekeeping worth seeing in the log: snapshot written/loaded, damaged lines skipped, safety copy taken. */
     val SYNC_MAINTENANCE = Topic<String>("sync.maintenance")
 
@@ -332,6 +339,20 @@ enum class SyncPhase { DISABLED, IDLE, SYNCING, OK, ERROR }
 
 /** Payload for [Topics.SYNC_STATUS_CHANGED]. [message] is set for [SyncPhase.ERROR]. */
 data class SyncStatus(val phase: SyncPhase = SyncPhase.DISABLED, val message: String? = null)
+
+/**
+ * Payload for [Topics.SYNC_DEVICE_EXCHANGED]. [clockOffsetMs] is the other
+ * phone's clock minus this one's.
+ */
+data class SyncDeviceExchanged(
+    val device: String,
+    val filesSent: Int,
+    val filesReceived: Int,
+    val bytesSent: Long,
+    val bytesReceived: Long,
+    val filesDeleted: Int,
+    val clockOffsetMs: Long,
+)
 
 /** Payload for [Topics.SYNC_LOCAL_PUBLISHED]. */
 data class SyncLocalPublished(val changes: Int, val bytes: Long)

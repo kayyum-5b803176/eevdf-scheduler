@@ -13,6 +13,7 @@ object MultiDeviceSyncManifest : CapabilityManifest {
         Topics.SYNC_REMOTE_APPLIED,
         Topics.SYNC_FAILED,
         Topics.SYNC_MAINTENANCE,
+        Topics.SYNC_DEVICE_EXCHANGED,
         Topics.BACKUP_RESTORE_FINISHED,
     )
 

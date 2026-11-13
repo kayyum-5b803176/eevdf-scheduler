@@ -1,4 +1,4 @@
-# Sync & Restore Architecture (v6.39.0)
+# Sync & Restore Architecture (v6.40.0)
 
 **Read this before touching `capabilities/multi-device-sync` or the restore
 path in `capabilities/backup-restore`.** It describes what the code does now,
@@ -124,7 +124,36 @@ Response (never removes data): write a fresh snapshot, and for 24 h merge the
 other members' newest snapshots through the normal newest-wins merge. At most
 once an hour.
 
-## 6. Bus topics
+## 5c. Two phones (Bluetooth)
+
+`device-exchange.kt` (pure, tested over a pipe) + `bluetooth-link.kt` (radio).
+Bluetooth **copies the sync folder's files** between two phones; the normal
+sync then reads them, so the merge engine does not know a second phone exists.
+
+- **Phone identity:** `eevdf-sync/device.json` (never copied) holds the phone
+  id and the phone-wide choice of partner. Acks carry `dev`, the phone a member
+  lives on.
+- **Authority:** a member's journal files are originals on its home phone and
+  exact appended copies on the other. Copies are deleted only after the home
+  phone deleted the originals; a home phone never deletes because the other
+  side lacks something. Members with no ack yet: files are only added.
+  Snapshots: newest two across both phones. Acks: newest per member.
+- **Wire order:** HELLO both ways (clock measured), INVENTORY both ways,
+  initiator's files + END, responder's files + END, then deletions. One
+  direction at a time; an interrupted exchange resumes (a shorter journal copy
+  is simply continued; half-received whole files are discarded).
+- **Link:** secure RFCOMM to an already-paired phone, no scanning, permission
+  BLUETOOTH_CONNECT only. Runs while the app is on screen on both phones;
+  tries about once a minute (backing off to 10 min when unreachable) and on
+  Sync Now. Once the phones know each other only the one with the smaller id
+  dials. A link with no bytes moving for 20 s is dropped.
+- **Clocks:** stamps already follow cause and effect (an edit made after
+  seeing the other phone's change always wins, whatever the clocks say). Timer
+  start times are wall-clock data, so a difference over 2 s is reported on the
+  sync screen and in the event log.
+- **Two phones.** The deletion rule assumes exactly two phones in the group.
+
+
 
 | Topic | Publisher | Subscriber |
 |---|---|---|
@@ -163,6 +192,8 @@ first join.
 - **The self-check only fires when two members are quiet at the same point**
   (they alternate use, so mostly yes) and can only repair what a snapshot
   contains. It reports through `sync.maintenance`.
+- **Bluetooth needs the app open on both phones.** No background service
+  yet (planned with the ring modes). Two phones only.
 - **Settings are per user and not synced.** `eevdf_sync` (member id, folder)
   is deliberately outside `SettingsBackup`.
 - **Content fingerprints assume the same columns** on the members that first
@@ -188,7 +219,7 @@ the absent user catches up in one read. Internal database: +102% (was +295%).
 
 ## 10. Tests
 
-`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 29 tests,
+`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 29 tests, `device-exchange-test.kt` — 10 tests (two phones over a pipe),
 each named as the promise it checks (empty joiner erases nothing; timer
 started by one user stopped by another; torn write skipped; card missing;
 card wiped; snapshot + late joiner; older/newer builds; restore merge/replace;

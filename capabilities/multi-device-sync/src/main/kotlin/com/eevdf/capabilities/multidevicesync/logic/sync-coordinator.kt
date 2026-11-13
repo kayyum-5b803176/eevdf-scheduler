@@ -11,6 +11,7 @@ import com.eevdf.kernel.eventbus.BackupRestoreRequest
 import com.eevdf.kernel.eventbus.BackupRestoreResult
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.RestoreMode
+import com.eevdf.kernel.eventbus.SyncDeviceExchanged
 import com.eevdf.kernel.eventbus.SyncLocalPublished
 import com.eevdf.kernel.eventbus.SyncPhase
 import com.eevdf.kernel.eventbus.SyncRemoteApplied
@@ -98,6 +99,16 @@ class SyncCoordinator(
         val pendingChanges: Long = 0L,
         val folderBytes: Long = 0L,
         val members: List<Member> = emptyList(),
+        // ── The other phone (Bluetooth) ──
+        val btAvailable: Boolean = false,
+        val btEnabled: Boolean = false,
+        val btPermission: Boolean = false,
+        val btPeerName: String? = null,
+        val btStatus: String = "",
+        val btLastExchangeMs: Long = 0L,
+        val btLastSummary: String? = null,
+        /** Set when the phones' clocks differ enough to matter for running timers. */
+        val btClockWarning: String? = null,
     )
 
     private val appContext = context.applicationContext
@@ -114,15 +125,28 @@ class SyncCoordinator(
     private var pushJob: Job? = null
     private var lastFingerprint: String = ""
 
+    private val link = BluetoothLink(appContext)
+    private var listenJob: Job? = null
+    @Volatile private var serverSocket: android.bluetooth.BluetoothServerSocket? = null
+    private val exchangeBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var lastAttemptMs = 0L
+    @Volatile private var retryMs = BT_RETRY_MIN_MS
+
     /** When the oldest save that has not been written to the card yet happened; 0 = none waiting. */
     @Volatile private var pendingSince: Long = 0L
 
     init {
         bus.subscribe(Topics.TASK_SAVED, CAPABILITY_ID) { schedulePush() }
         bus.subscribe(Topics.APP_FOREGROUND_CHANGED, CAPABILITY_ID) { foreground ->
-            if (foreground) requestSync(quiet = false) else scope.launch { pushNow() }
+            if (foreground) {
+                requestSync(quiet = false)
+                startBluetooth()
+            } else {
+                scope.launch { pushNow() }
+                stopBluetooth()
+            }
         }
-        bus.subscribe(Topics.SYNC_NOW_REQUESTED, CAPABILITY_ID) { requestSync(quiet = false) }
+        bus.subscribe(Topics.SYNC_NOW_REQUESTED, CAPABILITY_ID) { syncNow() }
         bus.subscribe(Topics.BACKUP_RESTORE_REQUESTED, CAPABILITY_ID) { request ->
             scope.launch { restore(request) }
         }
@@ -164,8 +188,11 @@ class SyncCoordinator(
         refreshUi()
     }
 
-    /** Asks for a full sync now. Safe to call from any thread, any number of times. */
-    fun syncNow() = requestSync(quiet = false)
+    /** Asks for a full sync now (and an exchange with the other phone). Safe from any thread. */
+    fun syncNow() {
+        requestSync(quiet = false)
+        syncPhoneNow()
+    }
 
     /**
      * True when switching sync on would be a first-time join into a folder
@@ -229,6 +256,7 @@ class SyncCoordinator(
             delay(POLL_MS)
             if (!isEnabled() || bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true) continue
             val dir = resolveFolder() ?: continue
+            maybeConnectToPhone()
             val changed = fingerprint(dir) != lastFingerprint
             val pending = runCatching { engine?.hasPendingLocalChanges() == true }.getOrDefault(false)
             if (changed || pending) syncCycle(quiet = true)
@@ -443,6 +471,225 @@ class SyncCoordinator(
     }
 
     // ═════════════════════════════════════════════════════════════════════════
+    // The other phone (Bluetooth)
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Bluetooth copies the sync folder's files between the two phones
+    // (DeviceExchange); the normal sync then reads them. It runs only while the
+    // app is on screen on BOTH phones: Android gives Bluetooth and the card to
+    // the foreground user. The choice of phone is stored in the sync folder
+    // (device.json), so it is made once per phone, not once per Android user;
+    // the "Nearby devices" permission, however, is granted per Android user.
+
+    /** Paired devices as (name, address), for the settings screen. */
+    fun pairedPhones(): List<Pair<String, String>> = link.pairedDevices()
+
+    fun bluetoothPermissionGranted() {
+        refreshUi()
+        if (bus.getLast(Topics.APP_FOREGROUND_CHANGED) == true) startBluetooth()
+    }
+
+    /** Switches phone-to-phone sync on or off for this phone (all its Android users). */
+    fun setBluetooth(enabled: Boolean, address: String? = null, name: String? = null) {
+        scope.launch {
+            val folder = phoneFolder()
+            if (folder == null) {
+                _ui.value = _ui.value.copy(btStatus = "Choose the sync folder first")
+                return@launch
+            }
+            try {
+                val s = folder.deviceSettings()
+                val peerChanged = address != null && address != s.peerAddress
+                folder.saveDeviceSettings(
+                    s.copy(
+                        bluetoothEnabled = enabled,
+                        peerAddress = address ?: s.peerAddress,
+                        peerName = name ?: s.peerName,
+                        peerDeviceId = if (peerChanged) null else s.peerDeviceId,
+                    )
+                )
+            } catch (e: Exception) {
+                _ui.value = _ui.value.copy(btStatus = "Could not save: ${short(e)}")
+                return@launch
+            }
+            retryMs = BT_RETRY_MIN_MS
+            lastAttemptMs = 0L
+            btLive = ""
+            stopBluetooth()
+            if (enabled) startBluetooth()
+            refreshUi()
+        }
+    }
+
+    /** "Sync now" also tries the other phone straight away. */
+    private fun syncPhoneNow() {
+        lastAttemptMs = 0L
+        retryMs = BT_RETRY_MIN_MS
+        scope.launch { maybeConnectToPhone(force = true) }
+    }
+
+    private fun phoneFolder(): SyncFolder? = resolveFolder()?.let { SyncFolder(it, peerId()) }
+
+    private fun bluetoothSettings(): SyncFolder.DeviceSettings? =
+        try { phoneFolder()?.deviceSettings() } catch (_: Exception) { null }
+
+    private fun bluetoothReady(s: SyncFolder.DeviceSettings?): Boolean =
+        isEnabled() && s != null && s.bluetoothEnabled && s.peerAddress != null &&
+            link.isAvailable && link.hasPermission() && link.isOn()
+
+    /** Listens for the other phone while the app is on screen. */
+    private fun startBluetooth() {
+        if (listenJob?.isActive == true) return
+        val s = bluetoothSettings()
+        if (!bluetoothReady(s)) { refreshUi(); return }
+        listenJob = scope.launch {
+            try {
+                val server = link.listen()
+                serverSocket = server
+                setBtStatus("Waiting for ${s?.peerName ?: "the other phone"}")
+                while (isActive) {
+                    val socket = server.accept() // blocks; ends when stopBluetooth closes the server
+                    val trusted = bluetoothSettings()?.peerAddress
+                    if (trusted == null || !link.remoteAddress(socket).equals(trusted, ignoreCase = true)) {
+                        // Only the phone chosen on this side may connect.
+                        try { socket.close() } catch (_: java.io.IOException) { }
+                        continue
+                    }
+                    runExchange(socket, initiator = false)
+                }
+            } catch (_: java.io.IOException) {
+                // closed by stopBluetooth, or Bluetooth switched off
+            } finally {
+                serverSocket = null
+            }
+        }
+    }
+
+    private fun stopBluetooth() {
+        try { serverSocket?.close() } catch (_: java.io.IOException) { }
+        serverSocket = null
+        listenJob?.cancel()
+        listenJob = null
+    }
+
+    /**
+     * Tries the other phone when it is time. Only ONE side starts a
+     * connection once the phones know each other (the one with the smaller
+     * phone id), so they never dial each other at the same moment; before
+     * that, both try and the first connection wins.
+     */
+    private suspend fun maybeConnectToPhone(force: Boolean = false) {
+        val s = bluetoothSettings()
+        if (!bluetoothReady(s) || s == null) return
+        if (bus.getLast(Topics.APP_FOREGROUND_CHANGED) != true && !force) return
+        val now = clock.nowEpochMillis()
+        if (!force && now - lastAttemptMs < retryMs) return
+        val peerDevice = s.peerDeviceId
+        if (peerDevice != null && s.id > peerDevice) return // the other phone dials
+        if (exchangeBusy.get()) return
+        lastAttemptMs = now
+        val socket = try {
+            link.connect(s.peerAddress!!)
+        } catch (_: java.io.IOException) {
+            // Out of range, Bluetooth off there, or the app not open there.
+            // Routine: back off quietly instead of filling the event log.
+            retryMs = minOf(retryMs * 2, BT_RETRY_MAX_MS)
+            setBtStatus("Not reachable — is the app open on ${s.peerName ?: "the other phone"}?")
+            return
+        }
+        runExchange(socket, initiator = true)
+    }
+
+    private suspend fun runExchange(socket: android.bluetooth.BluetoothSocket, initiator: Boolean) {
+        if (!exchangeBusy.compareAndSet(false, true)) {
+            try { socket.close() } catch (_: java.io.IOException) { }
+            return
+        }
+        var result: DeviceExchange.Result? = null
+        var failure: String? = null
+        try {
+            setBtStatus("Exchanging with the other phone…")
+            lock.withLock {
+                val folder = phoneFolder() ?: throw java.io.IOException(folderProblem())
+                // Our own latest changes go into the folder first, so they travel too.
+                try {
+                    val e = engine()
+                    if (e.isBootstrapped && e.isAnnounced) currentSession().pushOnly()
+                } catch (_: Exception) { }
+                val lastProgress = java.util.concurrent.atomic.AtomicLong(clock.nowEpochMillis())
+                val watchdog = scope.launch {
+                    // A link that stops moving is closed, which ends the blocked read.
+                    while (isActive) {
+                        delay(2_000L)
+                        if (clock.nowEpochMillis() - lastProgress.get() > BT_STALL_MS) {
+                            try { socket.close() } catch (_: java.io.IOException) { }
+                            break
+                        }
+                    }
+                }
+                try {
+                    result = DeviceExchange(folder, memberName(), clock::nowEpochMillis) {
+                        lastProgress.set(clock.nowEpochMillis())
+                    }.run(initiator, socket.inputStream, socket.outputStream)
+                } finally {
+                    watchdog.cancel()
+                }
+                // Remember who the other phone is (decides who dials next time).
+                val r = result!!
+                val s = folder.deviceSettings()
+                if (s.peerDeviceId != r.remoteDevice) folder.saveDeviceSettings(s.copy(peerDeviceId = r.remoteDevice))
+            }
+        } catch (e: DeviceExchange.ProtocolException) {
+            failure = "The other phone: ${short(e)}"
+        } catch (e: Exception) {
+            failure = "Link lost: ${short(e)} — it continues next time"
+        } finally {
+            try { socket.close() } catch (_: java.io.IOException) { }
+            exchangeBusy.set(false)
+        }
+
+        val r = result
+        if (r == null) {
+            retryMs = minOf(retryMs * 2, BT_RETRY_MAX_MS)
+            setBtStatus(failure ?: "Exchange failed")
+            failure?.let { report(Topics.SYNC_FAILED, it) }
+            return
+        }
+        retryMs = BT_RETRY_MIN_MS
+        val summary = "sent ${r.filesSent} file(s) / ${kb(r.bytesSent)}, received ${r.filesReceived} / ${kb(r.bytesReceived)}"
+        val clockWarning = if (kotlin.math.abs(r.clockOffsetMs) > BT_CLOCK_WARN_MS) {
+            "The phones' clocks differ by ${kotlin.math.abs(r.clockOffsetMs) / 1000} s. Timers started on one phone will " +
+                "look that much off on the other. Turn on automatic date & time on both."
+        } else null
+        _ui.value = _ui.value.copy(
+            btLastExchangeMs = clock.nowEpochMillis(),
+            btLastSummary = summary,
+            btClockWarning = clockWarning,
+            btStatus = "Connected to ${r.remoteName}",
+        )
+        if (r.bytesSent > 0 || r.bytesReceived > 0 || r.filesDeleted > 0) {
+            bus.publish(
+                Topics.SYNC_DEVICE_EXCHANGED,
+                SyncDeviceExchanged(r.remoteName, r.filesSent, r.filesReceived, r.bytesSent, r.bytesReceived, r.filesDeleted, r.clockOffsetMs),
+                CAPABILITY_ID,
+            )
+        }
+        clockWarning?.let { report(Topics.SYNC_MAINTENANCE, it) }
+        // What arrived is merged by the normal sync.
+        if (r.filesReceived > 0) syncCycle(quiet = true)
+    }
+
+    /** What the link itself last reported; shown when nothing more basic is missing. */
+    @Volatile private var btLive: String = ""
+
+    private fun setBtStatus(text: String) {
+        btLive = text
+        if (_ui.value.btStatus != text) _ui.value = _ui.value.copy(btStatus = text)
+    }
+
+    private fun kb(bytes: Long): String = if (bytes < 1024) "$bytes B" else "${bytes / 1024} KB"
+
+    // ═════════════════════════════════════════════════════════════════════════
     // Plumbing
     // ═════════════════════════════════════════════════════════════════════════
 
@@ -514,6 +761,21 @@ class SyncCoordinator(
             folderLabel = folderUri()?.let { displayPath(it) },
             memberName = memberName(),
             pendingChanges = runCatching { e?.outboxSize() ?: 0L }.getOrDefault(0L),
+        )
+        val bt = bluetoothSettings()
+        _ui.value = _ui.value.copy(
+            btAvailable = link.isAvailable,
+            btEnabled = bt?.bluetoothEnabled == true,
+            btPermission = link.hasPermission(),
+            btPeerName = bt?.peerName,
+            btStatus = when {
+                !link.isAvailable -> "This phone has no Bluetooth"
+                bt?.bluetoothEnabled != true -> "Off"
+                !link.hasPermission() -> "Allow \"Nearby devices\" for this app (needed once in every Android user)"
+                !link.isOn() -> "Bluetooth is switched off"
+                bt.peerAddress == null -> "Choose the other phone"
+                else -> btLive.ifEmpty { "Waiting for ${bt.peerName ?: "the other phone"}" }
+            },
         )
     }
 
@@ -634,6 +896,14 @@ class SyncCoordinator(
         private const val KEY_LEGACY_DONE = "legacy_migrated"
 
         private const val POLL_MS = 10_000L
+        /** How often to try the other phone while the app is open, at best and at worst (backs off on failures). */
+        private const val BT_RETRY_MIN_MS = 60L * 1000L
+        private const val BT_RETRY_MAX_MS = 10L * 60L * 1000L
+        /** A link with no bytes moving for this long is dropped. */
+        private const val BT_STALL_MS = 20L * 1000L
+        /** Above this, running timers would visibly disagree between the phones. */
+        private const val BT_CLOCK_WARN_MS = 2_000L
+
         private const val PUSH_QUIET_MS = 5L * 60L * 1000L
         private const val PUSH_MAX_WAIT_MS = 15L * 60L * 1000L
         private const val KEEP_SAFETY_COPIES = 5

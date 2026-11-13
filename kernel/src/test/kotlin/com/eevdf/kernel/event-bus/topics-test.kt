@@ -23,6 +23,7 @@ class TopicsTest {
             Topics.SYNC_LOCAL_PUBLISHED.name,
             Topics.SYNC_REMOTE_APPLIED.name,
             Topics.SYNC_FAILED.name,
+            Topics.SYNC_DEVICE_EXCHANGED.name,
             Topics.SYNC_MAINTENANCE.name,
         )
         assertEquals(names.size, names.toSet().size)

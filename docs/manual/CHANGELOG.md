@@ -5,6 +5,38 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.40.0 — Sync between two phones over Bluetooth (build 2 of 3)
+
+### Added
+- **"Another phone (Bluetooth)"** on the Multiuser Sync screen: choose a phone
+  already paired in Android's Bluetooth settings, on both phones. While the app
+  is open on both, they exchange changes about once a minute and on Sync Now.
+  Every Android user on each phone takes part through the shared sync folder.
+- **How it works:** Bluetooth copies the sync folder's journal, snapshot and
+  ack files between the phones (`DeviceExchange`); the normal sync reads them.
+  No change to how data is merged. Each phone is the authority for its own
+  users' files; copies on the other phone are only deleted after the originals
+  were. An interrupted exchange continues where it stopped.
+- **Clock check:** the phones measure their clock difference on every exchange;
+  above 2 s the sync screen and event log say so (timers would look off).
+- Topic `sync.device-exchanged` for the event log. Permission
+  `BLUETOOTH_CONNECT` ("Nearby devices"), asked when you switch it on — once in
+  every Android user that should take part. Bluetooth is optional
+  (`required="false"`).
+- 10 tests: two simulated phones over a pipe — changes both ways, a timer
+  started on one phone stopped on the other, nothing sent when up to date, a
+  link cut mid-transfer, deletions following the home phone only, a phone that
+  lost files gets them back without the home phone deleting anything, a late
+  phone catching up from a copied snapshot, clock measurement, a slow clock
+  losing nothing, and unsafe file names rejected.
+
+### Limits
+- Both phones need the app on screen; no background listening yet (with build 3).
+- Exactly two phones.
+- The radio code (`bluetooth-link.kt`), the coordinator wiring and the screen
+  were type-checked against stubs only — never run. The exchange protocol is
+  tested; the Bluetooth socket under it is not.
+
 ## 6.39.0 — Sync writes only what changed: local scheduler values, confirm-then-delete, batched pushes
 
 Includes everything in 6.38.2 (journal cleanup fix). Named 6.39.0 rather than

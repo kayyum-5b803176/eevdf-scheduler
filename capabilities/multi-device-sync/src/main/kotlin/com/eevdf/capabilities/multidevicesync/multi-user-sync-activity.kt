@@ -47,6 +47,21 @@ class MultiUserSyncActivity : AppCompatActivity() {
     private lateinit var btnPickFolder: MaterialButton
     private lateinit var btnSyncNow: MaterialButton
     private lateinit var layoutFolderRow: View
+    private lateinit var switchBluetooth: SwitchMaterial
+    private lateinit var tvBluetoothPeer: TextView
+    private lateinit var tvBluetoothStatus: TextView
+    private lateinit var btnChoosePhone: MaterialButton
+    private var bindingBluetooth = false
+
+    /** "Nearby devices" — needed once in every Android user that should take part. */
+    private val bluetoothPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            coordinator.bluetoothPermissionGranted()
+            if (pendingPhonePicker) choosePhone()
+        }
+        pendingPhonePicker = false
+    }
+    private var pendingPhonePicker = false
 
     /** True while the switch is being set from code, so its listener ignores the change. */
     private var bindingSwitch = false
@@ -85,6 +100,31 @@ class MultiUserSyncActivity : AppCompatActivity() {
         btnPickFolder = findViewById(R.id.btnPickSyncFolder)
         btnSyncNow = findViewById(R.id.btnSyncNow)
         layoutFolderRow = findViewById(R.id.layoutSyncFolderRow)
+        switchBluetooth = findViewById(R.id.switchBluetooth)
+        tvBluetoothPeer = findViewById(R.id.tvBluetoothPeer)
+        tvBluetoothStatus = findViewById(R.id.tvBluetoothStatus)
+        btnChoosePhone = findViewById(R.id.btnChoosePhone)
+
+        switchBluetooth.setOnCheckedChangeListener { _, checked ->
+            if (bindingBluetooth) return@setOnCheckedChangeListener
+            if (checked && !coordinator.ui.value.btPermission) {
+                setBluetoothSwitch(false)
+                pendingPhonePicker = coordinator.ui.value.btPeerName == null
+                bluetoothPermission.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
+                coordinator.setBluetooth(true)
+                return@setOnCheckedChangeListener
+            }
+            coordinator.setBluetooth(checked)
+            if (checked && coordinator.ui.value.btPeerName == null) choosePhone()
+        }
+        btnChoosePhone.setOnClickListener {
+            if (!coordinator.ui.value.btPermission) {
+                pendingPhonePicker = true
+                bluetoothPermission.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
+            } else {
+                choosePhone()
+            }
+        }
 
         switchEnable.setOnCheckedChangeListener { _, checked ->
             if (!bindingSwitch) onSwitchChanged(checked)
@@ -186,6 +226,46 @@ class MultiUserSyncActivity : AppCompatActivity() {
             )
         )
         tvDetails.text = details(state)
+
+        if (switchBluetooth.isChecked != state.btEnabled) setBluetoothSwitch(state.btEnabled)
+        switchBluetooth.isEnabled = state.btAvailable && state.enabled
+        btnChoosePhone.isEnabled = state.btAvailable
+        tvBluetoothPeer.text = state.btPeerName?.let { "Other phone: $it" } ?: "No phone chosen"
+        val lines = ArrayList<String>()
+        if (!state.enabled) lines.add("Switch Multiuser Sync on first.") else lines.add(state.btStatus)
+        if (state.btLastExchangeMs > 0L) lines.add("Last exchange: ${formatAgo(state.btLastExchangeMs)} — ${state.btLastSummary ?: ""}")
+        state.btClockWarning?.let { lines.add("⚠  $it") }
+        tvBluetoothStatus.text = lines.filter { it.isNotBlank() }.joinToString("\n")
+    }
+
+    private fun setBluetoothSwitch(checked: Boolean) {
+        bindingBluetooth = true
+        switchBluetooth.isChecked = checked
+        bindingBluetooth = false
+    }
+
+    /** Lists the phones already paired in Android's Bluetooth settings; nothing is scanned. */
+    private fun choosePhone() {
+        val phones = coordinator.pairedPhones()
+        if (phones.isEmpty()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("No paired phones")
+                .setMessage("Pair the two phones in Android's Bluetooth settings first, then come back here.")
+                .setPositiveButton("Open Bluetooth settings") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Sync with which phone?")
+            .setItems(phones.map { it.first }.toTypedArray()) { _, which ->
+                val (name, address) = phones[which]
+                coordinator.setBluetooth(true, address, name)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun details(s: SyncCoordinator.UiState): String {

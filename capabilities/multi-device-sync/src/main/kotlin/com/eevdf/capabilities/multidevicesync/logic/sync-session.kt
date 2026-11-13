@@ -425,6 +425,9 @@ internal class SyncSession(
         payload["own"] = listOf(mySeg.toLong(), myLen)
         payload["fp"] = if (clean) engine.fingerprint() else null
         payload["sig"] = sig
+        // Which PHONE this member lives on. Lets a Bluetooth exchange tell
+        // whose files each phone is the authority for.
+        payload["dev"] = try { folder.deviceId() } catch (_: IOException) { null }
         folder.writeAck(t, MiniJson.write(payload))
         engine.setMeta(META_ACK_SEG, segKey)
         engine.setMeta(META_ACK_KEY, contentKey)

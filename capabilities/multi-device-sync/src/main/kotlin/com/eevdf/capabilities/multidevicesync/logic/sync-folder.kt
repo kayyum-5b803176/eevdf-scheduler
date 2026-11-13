@@ -222,6 +222,161 @@ internal class SyncFolder(root: File, private val peerId: String) {
         return target
     }
 
+    // ── This phone ────────────────────────────────────────────────────────────
+    //
+    // `device.json` identifies the PHONE this folder lives on (every Android
+    // user of the phone shares the folder, so they share the id) and holds the
+    // phone-wide Bluetooth choice. It is the one file in the folder that is
+    // rewritten in place and the one that is never copied to the other phone.
+
+    data class DeviceSettings(
+        val id: String,
+        val bluetoothEnabled: Boolean = false,
+        val peerAddress: String? = null,
+        val peerName: String? = null,
+        /** The other phone's id, learned on the first successful exchange. */
+        val peerDeviceId: String? = null,
+    )
+
+    private val deviceFile = File(base, "device.json")
+
+    /** This phone's settings, creating them (with a new random id) the first time. */
+    @Suppress("UNCHECKED_CAST")
+    fun deviceSettings(): DeviceSettings {
+        val parsed = try {
+            if (deviceFile.exists()) MiniJson.parse(deviceFile.readText(Charsets.UTF_8)) as? Map<String, Any?> else null
+        } catch (_: Exception) {
+            null
+        }
+        val id = parsed?.get("id") as? String
+        if (parsed != null && id != null && id.matches(Regex("[a-z0-9]{6,32}"))) {
+            return DeviceSettings(
+                id = id,
+                bluetoothEnabled = parsed["bt"] == true,
+                peerAddress = parsed["peerAddress"] as? String,
+                peerName = parsed["peerName"] as? String,
+                peerDeviceId = parsed["peerDevice"] as? String,
+            )
+        }
+        val alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+        val random = java.security.SecureRandom()
+        val fresh = DeviceSettings(buildString { repeat(12) { append(alphabet[random.nextInt(alphabet.length)]) } })
+        saveDeviceSettings(fresh)
+        return fresh
+    }
+
+    fun deviceId(): String = deviceSettings().id
+
+    @Throws(IOException::class)
+    fun saveDeviceSettings(s: DeviceSettings) {
+        if (!(base.isDirectory || base.mkdirs())) throw IOException("sync folder cannot be created")
+        val json = MiniJson.write(
+            linkedMapOf(
+                "id" to s.id, "bt" to s.bluetoothEnabled, "peerAddress" to s.peerAddress,
+                "peerName" to s.peerName, "peerDevice" to s.peerDeviceId,
+            )
+        )
+        val tmp = File(base, "device.json.tmp")
+        FileOutputStream(tmp).use { it.write(json.toByteArray(Charsets.UTF_8)); it.fd.sync() }
+        if (deviceFile.exists()) deviceFile.delete()
+        if (!tmp.renameTo(deviceFile)) throw IOException("could not save device settings")
+    }
+
+    // ── Copying between phones ────────────────────────────────────────────────
+    //
+    // Used only by [DeviceExchange]. On this phone the copier is the only
+    // writer of the OTHER phone's members' files, and it follows the same
+    // rules: journal files only grow by appending bytes that are an exact copy
+    // of the original, whole files (snapshots, acks) appear by rename.
+
+    /** One shareable file: 'j' journal, 's' snapshot, 'a' ack. */
+    data class Entry(val kind: Char, val name: String, val size: Long)
+
+    fun inventory(): List<Entry> {
+        val out = ArrayList<Entry>()
+        journalDir.listFiles().orEmpty().forEach { if (JOURNAL_NAME.matches(it.name)) out.add(Entry('j', it.name, it.length())) }
+        snapDir.listFiles().orEmpty().forEach { if (SNAP_NAME.matches(it.name)) out.add(Entry('s', it.name, it.length())) }
+        ackDir.listFiles().orEmpty().forEach { if (ACK_NAME.matches(it.name)) out.add(Entry('a', it.name, it.length())) }
+        return out
+    }
+
+    /** The file for a shareable name, or null if the name is not one this folder would ever hold. */
+    fun fileFor(kind: Char, name: String): File? = when {
+        kind == 'j' && JOURNAL_NAME.matches(name) -> File(journalDir, name)
+        kind == 's' && SNAP_NAME.matches(name) -> File(snapDir, name)
+        kind == 'a' && ACK_NAME.matches(name) -> File(ackDir, name)
+        else -> null
+    }
+
+    /** The member a shareable file belongs to (journal and ack names carry it). */
+    fun memberOf(kind: Char, name: String): String? = when (kind) {
+        'j' -> JOURNAL_NAME.matchEntire(name)?.groupValues?.get(1)
+        'a' -> ACK_NAME.matchEntire(name)?.groupValues?.get(1)
+        's' -> SNAP_NAME.matchEntire(name)?.groupValues?.get(2)
+        else -> null
+    }
+
+    fun segmentOf(name: String): Int? = JOURNAL_NAME.matchEntire(name)?.groupValues?.get(2)?.toInt()
+
+    /** The member id → phone id recorded in each member's newest ack. */
+    @Suppress("UNCHECKED_CAST")
+    fun memberHomes(): Map<String, String> {
+        val out = HashMap<String, String>()
+        for ((member, files) in ackFiles()) {
+            for (f in files) {
+                val dev = try {
+                    (MiniJson.parse(f.readText(Charsets.UTF_8)) as? Map<String, Any?>)?.get("dev") as? String
+                } catch (_: Exception) {
+                    null
+                }
+                if (dev != null) { out[member] = dev; break }
+            }
+        }
+        return out
+    }
+
+    /** Appends a received piece of a journal file. Refuses (false) unless the file is exactly [offset] long. */
+    @Throws(IOException::class)
+    fun appendCopy(name: String, offset: Long, bytes: ByteArray, len: Int): Boolean {
+        val file = fileFor('j', name) ?: return false
+        if (!(journalDir.isDirectory || journalDir.mkdirs())) throw IOException("journal folder cannot be created")
+        val current = if (file.exists()) file.length() else 0L
+        if (current != offset) return false
+        FileOutputStream(file, true).use { it.write(bytes, 0, len) }
+        return true
+    }
+
+    /** Forces a received journal file to the card once its last piece arrived. */
+    fun syncFile(kind: Char, name: String) {
+        val file = fileFor(kind, name) ?: return
+        try { RandomAccessFile(file, "rw").use { it.fd.sync() } } catch (_: IOException) { }
+    }
+
+    /** Temporary file a whole received file (snapshot, ack) is assembled in. */
+    fun copyTemp(kind: Char, name: String): File? {
+        val target = fileFor(kind, name) ?: return null
+        target.parentFile?.mkdirs()
+        return File(target.parentFile, ".incoming-$name")
+    }
+
+    /** Makes a fully received whole file visible under its real name. */
+    @Throws(IOException::class)
+    fun finishCopy(kind: Char, name: String, temp: File, expectedSize: Long): Boolean {
+        val target = fileFor(kind, name) ?: return false
+        if (temp.length() != expectedSize) { temp.delete(); return false }
+        RandomAccessFile(temp, "rw").use { it.fd.sync() }
+        if (target.exists()) target.delete()
+        if (!temp.renameTo(target)) { temp.delete(); throw IOException("could not finish ${target.name}") }
+        return true
+    }
+
+    fun deleteCopy(kind: Char, name: String): Boolean = fileFor(kind, name)?.let { it.exists() && it.delete() } ?: false
+
+    /** Removes half-received files left by an interrupted exchange. */
+    fun clearIncoming() {
+        for (dir in listOf(snapDir, ackDir)) dir.listFiles().orEmpty().forEach { if (it.name.startsWith(".incoming-")) it.delete() }
+    }
+
     // ── Snapshots ─────────────────────────────────────────────────────────────
 
     /** Snapshots in the folder, newest first. */

@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Per-capability manifest fragment; AGP merges these at build time. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Phone-to-phone sync (v6.40.0). Paired devices only, no scanning, so
+         Android 12+ needs only "Nearby devices" (BLUETOOTH_CONNECT). Bluetooth
+         is optional: the app installs and works on a phone without it. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+
     <application>
         <activity
             android:name="com.eevdf.capabilities.multidevicesync.MultiUserSyncActivity"
