@@ -137,6 +137,22 @@ object EEVDFScheduler {
         task.vruntime = EevdfScheduler.initialVruntime(task.toSched(), existingTasks.map { it.toSched() })
     }
 
+    /**
+     * Lag [task] carries into sleep (clamped to one slice) — see
+     * [EevdfScheduler.sleepLag]. [awakeSiblings]: same-parent, non-completed,
+     * non-sleeping tasks; the task itself may be included.
+     */
+    fun sleepLag(task: Task, awakeSiblings: List<Task>): Double =
+        EevdfScheduler.sleepLag(task.toSched(), awakeSiblings.map { it.toSched() })
+
+    /**
+     * Wake placement (Linux `place_entity` for a woken task): the vruntime that
+     * restores [savedLag] once [task] rejoins [awakeSiblings]. Returns the value;
+     * the caller persists it. See [EevdfScheduler.wakeVruntime].
+     */
+    fun wakeVruntime(task: Task, savedLag: Double, awakeSiblings: List<Task>): Double =
+        EevdfScheduler.wakeVruntime(task.toSched(), savedLag, awakeSiblings.map { it.toSched() })
+
     fun updateVruntime(task: Task, secondsRan: Long) {
         task.vruntime = EevdfScheduler.advanceVruntime(task.toSched(), secondsRan)
         task.totalRunTime += secondsRan

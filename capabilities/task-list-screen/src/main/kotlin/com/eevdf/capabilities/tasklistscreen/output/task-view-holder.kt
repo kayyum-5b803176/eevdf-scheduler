@@ -33,6 +33,7 @@ class TaskViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
     val btnGroupToggle:    ImageButton  = itemView.findViewById(R.id.btnGroupToggle)
     val btnResetSlice:     ImageButton  = itemView.findViewById(R.id.btnResetSlice)
     val btnRevert:         ImageButton  = itemView.findViewById(R.id.btnRevert)
+    val btnSleep:          ImageButton  = itemView.findViewById(R.id.btnSleep)
     val tvRunCount:        TextView     = itemView.findViewById(R.id.tvRunCount)
     val viewRunning:       View         = itemView.findViewById(R.id.viewRunningIndicator)
     // ── UI Customization: layout containers for spacing & compact mode ────

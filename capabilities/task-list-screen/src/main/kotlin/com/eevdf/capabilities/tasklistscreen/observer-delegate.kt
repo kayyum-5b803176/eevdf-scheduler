@@ -103,11 +103,12 @@ internal class ObserverDelegate(private val activity: MainActivity) {
             activity.updateScheduleRankBadge()
         }
 
-        // Completed tab — flat (no group hierarchy for completed)
-        activity.viewModel.completedTasks.observe(activity) { tasks ->
-            activity.completedAdapter.submitList(tasks.map {
-                com.eevdf.capabilities.taskstorage.TaskDisplayItem(it, 0)
-            })
+        // Third tab — finished tasks, or the sleeping ones when its mode is Sleep.
+        // Observed for the activity's whole lifetime (not only while the tab is
+        // open) so the Sleep source LiveData stays active and the 1 s wake pass
+        // always sees a fresh list.
+        activity.viewModel.listBuilder.completedTabDisplayList.observe(activity) { items ->
+            activity.completedAdapter.submitList(items)
             activity.updateEmptyView()
         }
     }

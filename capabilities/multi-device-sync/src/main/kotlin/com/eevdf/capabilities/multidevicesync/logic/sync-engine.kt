@@ -93,6 +93,7 @@ internal class SyncEngine(
                 val signature = schemaSignature()
                 if (SyncSchema.getMeta(db, META_SCHEMA) != signature) {
                     indexUnknownRows()
+                    seedNewColumnClocks()
                     replayParked()
                     SyncSchema.setMeta(db, META_SCHEMA, signature)
                 }
@@ -132,6 +133,44 @@ internal class SyncEngine(
             SyncSchema.setMeta(db, META_SCHEMA, schemaSignature())
             SyncSchema.setMeta(db, META_BOOTSTRAPPED, "1")
             SyncSchema.setMeta(db, META_ANNOUNCED, "0")
+        }
+    }
+
+    /**
+     * After an app update added columns to a per-column table: every existing
+     * row gets a "nobody has vouched for this" clock (the baseline) for each
+     * column it has no clock for, holding the column's CURRENT value.
+     *
+     * Without this, the first time such a row was saved, capture saw a column
+     * with no clock, took it for a change and sent its default value stamped
+     * "now" — which then beat a real value another phone had written a moment
+     * earlier but this phone had not read yet (a task put to sleep woke up,
+     * for instance). With it, a new column is sent only once it really changes,
+     * and anything another phone wrote for it (read later, or parked and
+     * replayed right after this) carries a real stamp and wins over the baseline.
+     */
+    private fun seedNewColumnClocks() {
+        for (t in tables.values) {
+            if (!t.perColumn) continue
+            var after = ""
+            while (true) {
+                val page = ArrayList<RowMeta>()
+                db.query(
+                    "SELECT tbl, gk, lid, ts, peer, del, vh, cols FROM _sync_row WHERE tbl = ? AND gk > ? AND del = 0 ORDER BY gk LIMIT $BATCH",
+                    listOf(t.name, after)
+                ) { c -> while (c.next()) page.add(metaOf(c)) }
+                if (page.isEmpty()) break
+                for (meta in page) {
+                    after = meta.key
+                    val cols = meta.cols ?: HashMap<String, ColClock>().also { meta.cols = it }
+                    if (t.dataColumns.all { it in cols }) continue
+                    val row = loadLocalRowFor(t, meta) ?: continue
+                    for (c in t.dataColumns) {
+                        if (c !in cols) cols[c] = ColClock(Stamp.BASELINE, SyncCodec.valueHash(row[c]))
+                    }
+                    saveMeta(meta)
+                }
+            }
         }
     }
 

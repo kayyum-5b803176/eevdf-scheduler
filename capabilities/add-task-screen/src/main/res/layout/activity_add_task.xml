@@ -11,6 +11,7 @@
     section_add_task_tasktype.xml       — Task type, group/interrupt switches, notice fields
     section_add_task_realtimeshare.xml  — Realtime share toggle + pinned-% field
     section_add_task_quota.xml          — Quota limit toggle + quota/period fields
+    section_add_task_sleep.xml          — Sleep duration (moon button) text field
     section_add_task_scheduler.xml      — Scheduler class toggle + DL + RT sub-sections
     section_add_task_category.xml       — Category chip group
     section_add_task_buttons.xml        — Save / Cancel action buttons
@@ -50,6 +51,7 @@
             <include layout="@layout/section_add_task_taskconfig" />
             <include layout="@layout/section_add_task_realtimeshare" />
             <include layout="@layout/section_add_task_quota" />
+            <include layout="@layout/section_add_task_sleep" />
             <include layout="@layout/section_add_task_scheduler" />
             <include layout="@layout/section_add_task_category" />
             <include layout="@layout/section_add_task_buttons" />

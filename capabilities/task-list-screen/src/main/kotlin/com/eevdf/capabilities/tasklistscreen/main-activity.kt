@@ -128,6 +128,7 @@ class MainActivity : AppCompatActivity() {
     private val quotaTickHandler  = android.os.Handler(android.os.Looper.getMainLooper())
     private val quotaTickRunnable = object : Runnable {
         override fun run() {
+            viewModel.wakeExpiredSleepers()   // sleeping tasks whose time passed come back (no alarm — see SleepDelegate)
             tickQuotaOnVisibleItems()
             refreshPhaseStatusBar()
             quotaTickHandler.postDelayed(this, 1_000L)
@@ -564,6 +565,7 @@ class MainActivity : AppCompatActivity() {
         onGroupToggleDeep    = { if (scheduleTab) viewModel.deepToggleScheduleGroupExpanded(it)
                                  else viewModel.deepToggleQueueGroupExpanded(it) },
         onResetSliceClick    = { viewModel.resetSlice(it) },
+        onSleepClick         = { viewModel.toggleSleep(it) },
         showScheduleRank     = showRank,
         expandStateProvider  = { id -> if (scheduleTab) viewModel.getScheduleExpanded(id)
                                         else viewModel.getQueueExpanded(id) },
@@ -622,6 +624,7 @@ class MainActivity : AppCompatActivity() {
             onRunClick       = {},
             onGroupToggle    = {},
             onRevertClick    = { viewModel.revertTask(it) },
+            onSleepClick     = { viewModel.toggleSleep(it) },   // Sleep view: wake now
             isCompletedTab   = true
         )
     }
@@ -658,8 +661,17 @@ class MainActivity : AppCompatActivity() {
             // the existing tab itself being the anchor.
             override fun onTabReselected(tab: TabLayout.Tab) {
                 if (tab.position == 1) showScheduleClassFilterMenu(tab)
+                if (tab.position == 2) showCompletedTabModeMenu(tab)
             }
         })
+
+        // Third tab: label + content follow the chosen mode (Completed / Sleep).
+        viewModel.completedTabMode.observe(this) { mode ->
+            tabLayout.getTabAt(2)?.text = mode.label
+            completedAdapter.isSleepView = mode == CompletedTabMode.SLEEP
+            menuSyncDelegate.syncTabVisibility()
+            updateEmptyView()
+        }
 
         viewModel.scheduleClassFilter.observe(this) {
             updateScheduleTabLabel()
@@ -724,6 +736,22 @@ class MainActivity : AppCompatActivity() {
         popup.setForceShowIcon(true)
         popup.setOnMenuItemClickListener { item ->
             viewModel.setScheduleClassFilter(ScheduleClassFilter.values()[item.itemId])
+            true
+        }
+        popup.show()
+    }
+
+    /**
+     * Tapping the already-selected third tab opens a pop-up — same mechanism as the
+     * Schedule tab's class filter — to switch between finished tasks and sleeping
+     * ones. The tab's label renames itself to the choice (see the observer in
+     * [setupTabs]). View-only: it never changes any task.
+     */
+    private fun showCompletedTabModeMenu(tab: TabLayout.Tab) {
+        val popup = android.widget.PopupMenu(this, tabView(tab), android.view.Gravity.CENTER_HORIZONTAL)
+        CompletedTabMode.values().forEach { m -> popup.menu.add(0, m.ordinal, m.ordinal, m.label) }
+        popup.setOnMenuItemClickListener { item ->
+            viewModel.setCompletedTabMode(CompletedTabMode.values()[item.itemId])
             true
         }
         popup.show()
@@ -833,7 +861,7 @@ class MainActivity : AppCompatActivity() {
         val isEmpty = when (currentTab) {
             0    -> viewModel.listBuilder.queueDisplayList.value?.isEmpty() ?: true
             1    -> viewModel.listBuilder.scheduleDisplayList.value?.isEmpty() ?: true
-            else -> viewModel.completedTasks.value?.isEmpty() ?: true
+            else -> viewModel.listBuilder.completedTabDisplayList.value?.isEmpty() ?: true
         }
         emptyView.visibility    = if (isEmpty) View.VISIBLE else View.GONE
         recyclerView.visibility = if (isEmpty) View.GONE   else View.VISIBLE

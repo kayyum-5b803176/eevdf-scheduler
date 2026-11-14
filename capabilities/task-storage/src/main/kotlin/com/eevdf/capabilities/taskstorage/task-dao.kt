@@ -96,6 +96,23 @@ interface TaskDao {
     @Query("UPDATE tasks SET isInterrupt = 0 WHERE interruptSlot = :slot")
     suspend fun clearInterruptsForSlot(slot: String)
 
+    // ── Sleep / wake ──────────────────────────────────────────────────────────
+    //
+    // Column-targeted writes on purpose: sleeping a task must never rewrite the
+    // rest of the row from a possibly-stale in-memory copy (the running timer
+    // keeps its own copy), and a wake must never resurrect old values.
+
+    /** Puts [id] to sleep until [untilEpochMs], remembering the [lag] it slept with. */
+    @Query("UPDATE tasks SET sleepUntilEpoch = :untilEpochMs, sleepLag = :lag WHERE id = :id")
+    suspend fun setSleep(id: String, untilEpochMs: Long, lag: Double)
+
+    /** Wakes [id]: clears the sleep state and writes the re-placed EEVDF state. */
+    @Query(
+        "UPDATE tasks SET sleepUntilEpoch = 0, sleepLag = 0.0, vruntime = :vruntime, " +
+        "eligibleTime = :eligibleTime, virtualDeadline = :virtualDeadline, lag = :lag WHERE id = :id"
+    )
+    suspend fun wake(id: String, vruntime: Double, eligibleTime: Double, virtualDeadline: Double, lag: Double)
+
     // ── Backup / Restore ──────────────────────────────────────────────────────
 
     /** Returns every task (active + completed) for full backup. */

@@ -61,6 +61,12 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     /** Per-class counts for the Schedule tab's popup-menu badge — see [classCounts]. */
     lateinit var scheduleClassCounts: MediatorLiveData<Map<ScheduleClassFilter, Int>>
 
+    /**
+     * Third tab: finished tasks, or the sleeping ones when its mode is SLEEP.
+     * Always flat; the Sleep view shows a sleeping group's contents beneath it.
+     */
+    lateinit var completedTabDisplayList: MediatorLiveData<List<TaskDisplayItem>>
+
     // ── DL period-expiry auto-resort ──────────────────────────────────────────
     //
     // Problem: isDlBudgetActive is a pure computed property (reads wall-clock).
@@ -259,6 +265,20 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // needs its own direct trigger to stay correct if that indirect
             // coupling ever changes (fixes issue 2: collapse not working).
             addSource(vm.groupExpand.scheduleExpandTrigger) { rebuild() }
+        }
+
+        completedTabDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
+            fun rebuild() {
+                value = when (vm.completedTabMode.value ?: CompletedTabMode.COMPLETED) {
+                    CompletedTabMode.COMPLETED ->
+                        (vm.completedTasks.value ?: emptyList()).map { TaskDisplayItem(it, 0) }
+                    CompletedTabMode.SLEEP ->
+                        vm.sleep.buildSleepList(vm.activeTasksIncludingSleeping.value ?: emptyList())
+                }
+            }
+            addSource(vm.completedTasks)               { rebuild() }
+            addSource(vm.activeTasksIncludingSleeping) { rebuild() }
+            addSource(vm.completedTabMode)             { rebuild() }
         }
 
         scheduleClassCounts = MediatorLiveData<Map<ScheduleClassFilter, Int>>().apply {

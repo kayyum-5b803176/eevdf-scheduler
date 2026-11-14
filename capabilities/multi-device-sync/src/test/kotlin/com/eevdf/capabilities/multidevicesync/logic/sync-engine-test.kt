@@ -432,6 +432,71 @@ class SyncEngineTest {
         assertEquals(7L, a.field("old1", "weight"))
     }
 
+    // ── Task sleep / wake (schema 29 → 30) ────────────────────────────────────
+
+    /** Exactly what the app's MIGRATION_29_30 adds to `tasks`. */
+    private val SLEEP_MIGRATION = listOf(
+        "ALTER TABLE tasks ADD COLUMN sleepDurationSeconds INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN sleepUntilEpoch INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN sleepLag REAL NOT NULL DEFAULT 0.0",
+    )
+
+    @Test fun `a task put to sleep reaches a user that has not updated yet, and applies once it does`() {
+        val a = user("A", SCHEMA + SLEEP_MIGRATION); a.task("t1", "Alpha"); a.join()
+        val b = user("B"); b.join()                       // still on schema 29: no sleep columns
+        tick(); a.db.exec("UPDATE tasks SET sleepDurationSeconds = 3600, sleepUntilEpoch = 1800000000000, sleepLag = -2.5 WHERE id = 't1'")
+        a.sync(); b.sync()
+        assertEquals("the old build keeps working", "Alpha", b.name("t1"))
+        SLEEP_MIGRATION.forEach { b.db.exec(it) }         // B's app updates and migrates
+        b.engine.init()
+        assertEquals(1_800_000_000_000L, b.field("t1", "sleepUntilEpoch"))
+        assertEquals(-2.5, b.field("t1", "sleepLag"))
+        assertEquals(3600L, b.field("t1", "sleepDurationSeconds"))
+        // …and waking it travels back.
+        tick(); b.db.exec("UPDATE tasks SET sleepUntilEpoch = 0, sleepLag = 0.0 WHERE id = 't1'"); b.sync(); a.sync()
+        assertEquals(0L, a.field("t1", "sleepUntilEpoch"))
+    }
+
+    @Test fun `updating the phones one after the other never lets a default overwrite a sleep`() {
+        // Both users start on schema 29 and share a task…
+        val a = user("A"); a.task("t1", "Alpha"); a.join()
+        val b = user("B"); b.join(); a.sync(); b.sync()
+        // …A updates the app first and puts the task to sleep…
+        SLEEP_MIGRATION.forEach { a.db.exec(it) }; a.engine.init()
+        tick(); a.db.exec("UPDATE tasks SET sleepDurationSeconds = 3600, sleepUntilEpoch = 1800000000000 WHERE id = 't1'")
+        a.sync()
+        // …then B updates (without having synced) and saves the same task before anything else.
+        SLEEP_MIGRATION.forEach { b.db.exec(it) }; b.engine.init()
+        tick(); b.db.exec("UPDATE tasks SET name = 'Alpha 2' WHERE id = 't1'")
+        b.sync(); a.sync(); b.sync()
+        for (u in listOf(a, b)) {
+            assertEquals("${u.name}: the sleep must survive", 1_800_000_000_000L, u.field("t1", "sleepUntilEpoch"))
+            assertEquals("${u.name}: B's rename must arrive", "Alpha 2", u.name("t1"))
+        }
+    }
+
+    @Test fun `a task created before the update arrives on an updated user with the sleep columns at their defaults`() {
+        val a = user("A", SCHEMA + SLEEP_MIGRATION); a.join()
+        val c = user("C"); c.join()                       // not updated
+        c.task("c1", "FromOldBuild"); c.sync(); a.sync()
+        assertEquals("FromOldBuild", a.name("c1"))
+        assertEquals(0L, a.field("c1", "sleepUntilEpoch"))
+        assertEquals(0L, a.field("c1", "sleepDurationSeconds"))
+    }
+
+    @Test fun `every user waking the same task on its own settles on one value and then goes quiet`() {
+        val a = user("A", SCHEMA + SLEEP_MIGRATION); a.task("t1", "Alpha"); a.join()
+        val b = user("B", SCHEMA + SLEEP_MIGRATION); b.join(); a.sync(); b.sync()
+        tick(); a.db.exec("UPDATE tasks SET sleepUntilEpoch = 1800000000000, sleepLag = -1.0 WHERE id = 't1'"); a.sync(); b.sync()
+        // The wake time passes: each user's wake pass writes the task back on its own.
+        tick(); a.db.exec("UPDATE tasks SET sleepUntilEpoch = 0, sleepLag = 0.0, vruntime = 7.5 WHERE id = 't1'")
+        tick(); b.db.exec("UPDATE tasks SET sleepUntilEpoch = 0, sleepLag = 0.0, vruntime = 7.6 WHERE id = 't1'")
+        repeat(2) { a.sync(); b.sync() }
+        assertEquals(a.field("t1", "vruntime"), b.field("t1", "vruntime"))
+        assertEquals(0L, a.field("t1", "sleepUntilEpoch")); assertEquals(0L, b.field("t1", "sleepUntilEpoch"))
+        assertEquals("nothing left to say", 0L, a.sync().bytesWritten + b.sync().bytesWritten)
+    }
+
     // ── Restore ───────────────────────────────────────────────────────────────
 
     private fun backup(): JdbcSyncDb {

@@ -293,6 +293,24 @@
                 android:layout_marginTop="@dimen/app_spacing_md"
                 android:gravity="end">
 
+                <!-- Sleep (moon) — far-left edge of the action row. Sleeps the task for its
+                     saved sleep time; in the Sleep tab it wakes the task now. -->
+                <ImageButton
+                    android:id="@+id/btnSleep"
+                    android:layout_width="@dimen/app_btn_icon"
+                    android:layout_height="@dimen/app_btn_icon"
+                    android:src="@drawable/ic_moon_24"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/app_blue_nd"
+                    android:contentDescription="Sleep"
+                    android:visibility="gone" />
+
+                <!-- Blank space between the moon and the right-aligned buttons. -->
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
                 <ImageButton
                     android:id="@+id/btnRevert"
                     android:layout_width="@dimen/app_btn_icon"

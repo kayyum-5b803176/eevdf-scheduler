@@ -112,6 +112,10 @@ internal fun applyColumnGap(holder: TaskViewHolder, density: Float) {
         holder.btnRevert, holder.btnResetSlice, holder.btnGroupToggle,
         holder.btnRun, holder.btnComplete, holder.btnDelete,
     )
+    // The moon button (btnSleep) is anchored to the left edge, separated from the
+    // right-aligned group by a flexible spacer, so it is deliberately not part of
+    // this left-to-right gap sequence — the first button AFTER the spacer must
+    // still get no leading margin.
     var seenFirstVisible = false
     for (button in buttonsInOrder) {
         val lp = button.layoutParams as? LinearLayout.LayoutParams ?: continue

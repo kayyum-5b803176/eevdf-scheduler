@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sleep card — how long the moon button on this task's card puts it to sleep.
+
+  switchSleepEnabled — shows/hides layoutSleepFields (OFF = no sleep time set)
+  layoutSleepFields  — hidden by default
+  etSleep            — NdNhNmNs format (same as Quota Limit); parsed by parseQuotaInput()
+  tvSleepPreview     — live formatted display updated by SleepSection
+  tvSleepError       — inline validation message shown by saveTask()
+-->
+<com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="@dimen/app_card_gap"
+    android:layout_marginEnd="@dimen/app_card_gap"
+    android:layout_marginTop="@dimen/app_card_gap"
+    android:layout_marginBottom="@dimen/app_card_gap">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/app_card_padding_md">
+
+        <!-- Header row: title + subtitle + toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sleep"
+                    android:textSize="@dimen/app_text_size_md"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Moon button hides this task for this long, then it wakes back into the queue"
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_hint"
+                    android:layout_marginTop="@dimen/app_spacing_cs" />
+            </LinearLayout>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchSleepEnabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- Fields: shown when toggle is ON -->
+        <LinearLayout
+            android:id="@+id/layoutSleepFields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="@dimen/app_spacing_lg"
+            android:visibility="gone">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/app_divider"
+                android:background="@color/app_divider_inner"
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Format: NdNhNmNs  e.g. 30s · 45m · 2h · 1d4h · 7d (1s–365d)"
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_hint" />
+
+                <TextView
+                    android:id="@+id/tvSleepPreview"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/app_spacing_md"
+                    android:text=""
+                    android:textSize="@dimen/app_text_size_md"
+                    android:textColor="@color/app_text_label"
+                    android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:hint="Sleep for  (e.g. 30m, 2h, 1d)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etSleep"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:digits="0123456789dDhHmMsS "
+                    android:maxLength="20" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                android:id="@+id/tvSleepError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_color_error"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -50,11 +50,26 @@ class TaskAdapter(
     private val onSymlinkDelete:      (TaskDisplayItem) -> Unit = {},
     /** Hardlink row's delete button — removes only this one placement, never the real task or its other placements. */
     private val onMembershipDelete:   (TaskDisplayItem) -> Unit = {},
+    /** Moon button: sleep the task (normal tabs) or wake it now (Sleep view). */
+    private val onSleepClick:       (Task) -> Unit = {},
     private val showScheduleRank:   Boolean = false,
     private val isCompletedTab:     Boolean = false,
     /** Returns the expanded state for a group task id — used for rotation icon. */
     private val expandStateProvider: (String) -> Boolean = { true }
 ) : ListAdapter<TaskDisplayItem, TaskViewHolder>(DiffCallback()) {
+
+    // ── Sleep view (third tab in SLEEP mode) ──────────────────────────────────
+    /**
+     * Only meaningful on the third tab's adapter. When true the cards list sleeping
+     * tasks: no run/complete/revert actions, a "wakes in …" countdown, and the
+     * moon button wakes the task now.
+     */
+    var isSleepView: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            notifyDataSetChanged()      // every row's actions change, not just its data
+        }
 
     // ── Running / notice state ────────────────────────────────────────────────
     // Placement-aware, not a bare task id — see TaskInstanceRef's KDoc. A
@@ -434,6 +449,9 @@ class TaskAdapter(
             }
         }
 
+        // ── Sleep (moon) button + Sleep-view overrides ─────────────────────────
+        bindSleepButton(holder, item)
+
         // Button visibility for this bind is now final — safe to compute gaps.
         applyColumnGap(holder, density)
 
@@ -595,8 +613,70 @@ class TaskAdapter(
             payloads.any { it == PAYLOAD_QUOTA_TICK } -> {
                 val item = getItem(position) ?: return
                 bindQuotaOnly(holder, item)
+                if (isCompletedTab && isSleepView) bindSleepCountdown(holder, item)
             }
             else -> super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    // ── Sleep button ─────────────────────────────────────────────────────────
+
+    /**
+     * Moon button + Sleep-view overrides. Runs after the group/leaf blocks so it
+     * has the last word on visibility.
+     *
+     *  • Sleep view — rows are read-only apart from the moon (wake now) and delete:
+     *    run / complete / reset / revert / group toggle are hidden, and the remaining
+     *    time replaces the stat line. Only a task whose OWN sleep is active gets the
+     *    moon; a child shown beneath a sleeping group has nothing of its own to wake.
+     *  • Completed view — no moon.
+     *  • Normal tabs — the moon on real rows only. Symlink / hardlink placement rows
+     *    are pointers to a task that lives elsewhere, so sleeping from one would be
+     *    ambiguous; they offer no moon.
+     */
+    private fun bindSleepButton(holder: TaskViewHolder, item: TaskDisplayItem) {
+        val task = item.task
+        when {
+            isCompletedTab && isSleepView -> {
+                holder.btnRevert.visibility      = View.GONE
+                holder.btnRun.visibility         = View.GONE
+                holder.btnComplete.visibility    = View.GONE
+                holder.btnResetSlice.visibility  = View.GONE
+                holder.btnGroupToggle.visibility = View.GONE
+                bindSleepCountdown(holder, item)
+                if (task.isAsleep) {
+                    holder.btnSleep.visibility = View.VISIBLE
+                    holder.btnSleep.imageTintList = android.content.res.ColorStateList.valueOf(
+                        androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.app_orange_nd))
+                    holder.btnSleep.contentDescription = "Wake now"
+                    holder.btnSleep.setOnClickListener { onSleepClick(task) }
+                } else {
+                    holder.btnSleep.visibility = View.GONE
+                    holder.btnSleep.setOnClickListener(null)
+                }
+            }
+            isCompletedTab || item.symlinkId != null || item.membershipId != null -> {
+                holder.btnSleep.visibility = View.GONE
+                holder.btnSleep.setOnClickListener(null)
+            }
+            else -> {
+                holder.btnSleep.visibility = View.VISIBLE
+                holder.btnSleep.imageTintList = android.content.res.ColorStateList.valueOf(
+                    androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.app_blue_nd))
+                holder.btnSleep.contentDescription = "Sleep"
+                holder.btnSleep.setOnClickListener { onSleepClick(task) }
+            }
+        }
+    }
+
+    /** "Wakes in 1h 20m" on the stat line of a sleeping row; a group's children say they sleep with the group. */
+    private fun bindSleepCountdown(holder: TaskViewHolder, item: TaskDisplayItem) {
+        val task = item.task
+        holder.tvRemaining.text = if (task.isAsleep) {
+            val left = ((task.sleepUntilEpoch - System.currentTimeMillis()) / 1_000L).coerceAtLeast(0L)
+            "Wakes in ${formatQuota(left)}"
+        } else {
+            "Asleep with group"
         }
     }
 

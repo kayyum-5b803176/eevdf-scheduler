@@ -135,6 +135,10 @@ internal fun AddTaskActivity.saveTask() {
         quotaPeriodSeconds = 86400L
     }
 
+    // ── Sleep duration (moon button) ──────────────────────────────────────────
+    // null = text present but not a valid duration → inline error already shown.
+    val sleepSeconds = readSleepSeconds() ?: return
+
     // ── Scheduler class ───────────────────────────────────────────────────────
     val schedulerEnabled = switchSchedulerEnabled.isChecked
     val schedulerClass: String = if (schedulerEnabled)
@@ -244,6 +248,7 @@ internal fun AddTaskActivity.saveTask() {
             internalWeight      = internalWeight,
             quotaSeconds        = quotaSeconds,
             quotaPeriodSeconds  = quotaPeriodSeconds,
+            sleepDurationSeconds = sleepSeconds,
             schedulerClass      = schedulerClass,
             dlRuntimeSeconds    = dlRuntimeSeconds,
             dlDeadlineSeconds   = dlDeadlineSeconds,
@@ -288,6 +293,7 @@ internal fun AddTaskActivity.saveTask() {
             internalWeight      = internalWeight,
             quotaSeconds        = quotaSeconds,
             quotaPeriodSeconds  = quotaPeriodSeconds,
+            sleepDurationSeconds = sleepSeconds,
             schedulerClass      = schedulerClass,
             dlRuntimeSeconds    = dlRuntimeSeconds,
             dlDeadlineSeconds   = dlDeadlineSeconds,

@@ -37,6 +37,7 @@ import javax.inject.Inject
  *   • PinnedShareSection.kt       — realtime / pinned share + weight calc
  *   • TypeSection.kt              — task type spinner + notice delay fields
  *   • QuotaSection.kt             — quota limit switch + duration fields
+ *   • SleepSection.kt             — sleep switch + duration field (moon button length)
  *   • SchedulerSection.kt         — scheduler class, DL, and RT sub-sections
  *   • SaveHandler.kt              — full saveTask() validation + persistence
  */
@@ -119,6 +120,13 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var tvPeriodPreview:    TextView
     internal lateinit var tvQuotaError:       TextView
 
+    // ── Sleep section ─────────────────────────────────────────────────────────
+    internal lateinit var switchSleepEnabled: SwitchMaterial
+    internal lateinit var layoutSleepFields:  LinearLayout
+    internal lateinit var etSleep:            TextInputEditText
+    internal lateinit var tvSleepPreview:     TextView
+    internal lateinit var tvSleepError:       TextView
+
     // ── Scheduler class section ───────────────────────────────────────────────
     internal lateinit var switchSchedulerEnabled: SwitchMaterial
     internal lateinit var layoutSchedulerFields:  LinearLayout
@@ -200,6 +208,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupPinnedShare()
         setupRealtimeShare()
         setupQuotaSection()
+        setupSleepSection()
         setupSchedulerClassSection()
 
         // Observe activeTasks here (not just in validation) so .value is populated
@@ -274,6 +283,12 @@ class AddTaskActivity : AppCompatActivity() {
         tvPeriodPreview    = findViewById(R.id.tvPeriodPreview)
         tvQuotaError       = findViewById(R.id.tvQuotaError)
 
+        switchSleepEnabled = findViewById(R.id.switchSleepEnabled)
+        layoutSleepFields  = findViewById(R.id.layoutSleepFields)
+        etSleep            = findViewById(R.id.etSleep)
+        tvSleepPreview     = findViewById(R.id.tvSleepPreview)
+        tvSleepError       = findViewById(R.id.tvSleepError)
+
         switchSchedulerEnabled = findViewById(R.id.switchSchedulerEnabled)
         layoutSchedulerFields  = findViewById(R.id.layoutSchedulerFields)
         actvSchedulerClass  = findViewById(R.id.actvSchedulerClass)
@@ -339,6 +354,7 @@ class AddTaskActivity : AppCompatActivity() {
         populateInterruptSection(task)
         populatePinnedShareSection(task)
         populateQuotaSection(task)
+        populateSleepSection(task)
         populateSchedulerSection(task)
     }
 

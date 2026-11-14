@@ -3,6 +3,7 @@ import com.eevdf.capabilities.runhistory.RunLogRepository
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
@@ -31,14 +32,55 @@ class TaskRepository @Inject constructor(
 ) {
 
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
-    val activeTasks: LiveData<List<Task>> = dao.getActiveTasks()
+
+    /**
+     * EVERY non-completed task, sleeping ones included. Only the Sleep tab and the
+     * wake pass read this; everything else uses [activeTasks].
+     */
+    val activeTasksIncludingSleeping: LiveData<List<Task>> = dao.getActiveTasks()
+
+    /**
+     * The tasks every list, scheduler and share computation sees: non-completed
+     * and NOT effectively asleep (own sleep or an asleep ancestor — see
+     * [SleepRules]). A sleeping task behaves as if it did not exist; because
+     * this is derived from the same Room LiveData, it updates the moment a task
+     * is put to sleep or woken.
+     */
+    val activeTasks: LiveData<List<Task>> = MediatorLiveData<List<Task>>().apply {
+        addSource(activeTasksIncludingSleeping) { value = SleepRules.awake(it) }
+    }
     val completedTasks: LiveData<List<Task>> = dao.getCompletedTasks()
     val activeGroups: LiveData<List<Task>> = dao.getActiveGroups()
 
     // ── Links (symlinks) + Memberships (hardlinks) ────────────────────────────
 
-    val allTaskLinks: LiveData<List<TaskLink>> = taskLinkDao.getAll()
-    val allTaskMemberships: LiveData<List<TaskMembership>> = taskMembershipDao.getAll()
+    /** Symlinks whose target is asleep are hidden too — they must not render as "broken". */
+    val allTaskLinks: LiveData<List<TaskLink>> = MediatorLiveData<List<TaskLink>>().apply {
+        var links: List<TaskLink>? = null
+        var tasks: List<Task>?     = null
+        fun rebuild() {
+            val l = links ?: return
+            val t = tasks ?: return
+            val asleep = SleepRules.asleepIds(t)
+            value = if (asleep.isEmpty()) l else l.filter { it.targetTaskId !in asleep }
+        }
+        addSource(taskLinkDao.getAll())          { links = it; rebuild() }
+        addSource(activeTasksIncludingSleeping)  { tasks = it; rebuild() }
+    }
+
+    /** Hardlink placements of an asleep task are hidden with it. */
+    val allTaskMemberships: LiveData<List<TaskMembership>> = MediatorLiveData<List<TaskMembership>>().apply {
+        var memberships: List<TaskMembership>? = null
+        var tasks: List<Task>?                 = null
+        fun rebuild() {
+            val m = memberships ?: return
+            val t = tasks ?: return
+            val asleep = SleepRules.asleepIds(t)
+            value = if (asleep.isEmpty()) m else m.filter { it.taskId !in asleep }
+        }
+        addSource(taskMembershipDao.getAll())    { memberships = it; rebuild() }
+        addSource(activeTasksIncludingSleeping)  { tasks = it; rebuild() }
+    }
 
     /** Creates a symlink: [hostGroupId] shows [targetTaskId] as a live pointer. */
     suspend fun createSymlink(targetTaskId: String, hostGroupId: String) = withContext(Dispatchers.IO) {
@@ -61,7 +103,7 @@ class TaskRepository @Inject constructor(
      */
     suspend fun createHardlink(taskId: String, hostGroupId: String) = withContext(Dispatchers.IO) {
         val membership = TaskMembership(taskId = taskId, groupId = hostGroupId)
-        val realSiblingVruntimes       = dao.getChildrenOf(hostGroupId).map { it.vruntime }
+        val realSiblingVruntimes       = dao.getChildrenOf(hostGroupId).filter { !it.isAsleep }.map { it.vruntime }
         val membershipSiblingVruntimes = taskMembershipDao.getForGroup(hostGroupId).map { it.vruntime }
         val avgVruntime = (realSiblingVruntimes + membershipSiblingVruntimes)
             .average().takeIf { !it.isNaN() } ?: 0.0
@@ -102,7 +144,13 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
-        val existing = dao.getActiveTasksSync().toMutableList()
+        val rawActive = dao.getActiveTasksSync()
+        val existing  = SleepRules.awake(rawActive).toMutableList()
+        // A task added INTO a sleeping group is hidden with it, so it is placed
+        // among that group's own (non-sleeping) children and kept out of the
+        // awake pool — it must not distort anyone's average while it is hidden.
+        val parentAsleep = task.parentId != null &&
+            rawActive.any { it.id == task.parentId } && existing.none { it.id == task.parentId }
 
         // ── Bug fix: Linux EEVDF place_entity for new tasks ──────────────────
         // Before this fix, every new task started with vruntime = 0.  The scheduler
@@ -112,9 +160,9 @@ class TaskRepository @Inject constructor(
         // Fix: mirrors Linux's place_entity(ENQUEUE_INITIAL) which clamps lag to 0
         // for a never-run task → vruntime = avg_vruntime → lag = 0 → eligible
         // immediately but with no scheduling advantage over existing tasks.
-        EEVDFScheduler.placeNewTask(task, existing)
+        EEVDFScheduler.placeNewTask(task, if (parentAsleep) rawActive.filter { !it.isAsleep } else existing)
 
-        existing.add(task)
+        if (!parentAsleep) existing.add(task)
         EEVDFScheduler.recalculate(existing)
         dao.insert(task)
         existing.forEach { dao.update(it) }
@@ -375,7 +423,8 @@ class TaskRepository @Inject constructor(
     suspend fun getActiveTaskByName(name: String): Task? =
         withContext(Dispatchers.IO) { dao.getActiveTaskByName(name) }
 
-    suspend fun getActiveTasksSync(): List<Task> = withContext(Dispatchers.IO) { dao.getActiveTasksSync() }
+    /** Non-completed, non-sleeping tasks — the scheduling pool. */
+    suspend fun getActiveTasksSync(): List<Task> = withContext(Dispatchers.IO) { awakeActiveSync() }
 
     /**
      * Returns the active interrupt task occupying [slot] ("A" or "B"), or null
@@ -385,7 +434,7 @@ class TaskRepository @Inject constructor(
      */
     suspend fun getInterruptTaskBySlot(slot: String): Task? =
         withContext(Dispatchers.IO) {
-            dao.getActiveTasksSync().firstOrNull {
+            awakeActiveSync().firstOrNull {
                 it.isInterrupt && it.interruptSlot == slot && !it.isCompleted
             }
         }
@@ -541,7 +590,7 @@ class TaskRepository @Inject constructor(
      * freshness can never silently diverge from each other.
      */
     private suspend fun refreshAllAndReturn(taskId: String): Task? {
-        val allActive = dao.getActiveTasksSync()
+        val allActive = awakeActiveSync()
         EEVDFScheduler.recalculate(allActive)
         allActive.forEach { dao.update(it) }
         return allActive.find { it.id == taskId }
@@ -792,7 +841,7 @@ class TaskRepository @Inject constructor(
      * to normal EEVDF selection at the same level.
      */
     suspend fun selectNextTask(): Task? = withContext(Dispatchers.IO) {
-        val allActive = dao.getActiveTasksSync()
+        val allActive = awakeActiveSync()
         // Sampled ONCE here and threaded through every recursion level below —
         // not re-read per RT/DL check — so a single decision can't observe two
         // different instants of "now" (kernel rule 1).
@@ -905,7 +954,9 @@ class TaskRepository @Inject constructor(
      * never sends these columns. Returns how many tasks were rewritten.
      */
     suspend fun recalculateScheduleCache(): Int = withContext(Dispatchers.IO) {
-        val active = dao.getActiveTasksSync()
+        // Awake tasks only, exactly like refreshAllAndReturn: a sleeping task is
+        // not part of the pool, so counting it would skew everyone's average.
+        val active = awakeActiveSync()
         val before = active.associate { it.id to Triple(it.lag, it.eligibleTime, it.virtualDeadline) }
         EEVDFScheduler.recalculate(active)
         val changed = active
@@ -916,8 +967,101 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun getScheduleOrder(): List<Task> = withContext(Dispatchers.IO) {
-        val activeTasks = dao.getActiveTasksSync()
+        val activeTasks = awakeActiveSync()
         EEVDFScheduler.getScheduleOrder(activeTasks)
+    }
+
+    // ── Sleep / wake ──────────────────────────────────────────────────────────
+
+    /** Non-completed tasks that are not effectively asleep — one place defines "the scheduling pool". */
+    private suspend fun awakeActiveSync(): List<Task> = SleepRules.awake(dao.getActiveTasksSync())
+
+    /**
+     * Puts [taskId] (a task or a whole group) to sleep until [untilEpochMs].
+     *
+     * Saves the lag the task slept with ([EEVDFScheduler.sleepLag], clamped to one
+     * slice) so [wakeExpired] can restore it. Only the two sleep columns are
+     * written, never the rest of the row — a group's children are not touched
+     * at all; they disappear because their ancestor is asleep, and keep any sleep
+     * of their own. Afterwards the remaining tasks' derived EEVDF state is
+     * recomputed without the sleeper in the pool.
+     *
+     * The caller is responsible for stopping the timer first.
+     */
+    suspend fun sleepTask(taskId: String, untilEpochMs: Long) = withContext(Dispatchers.IO) {
+        val all  = dao.getActiveTasksSync()
+        val task = all.find { it.id == taskId } ?: return@withContext
+        if (task.isAsleep) return@withContext
+        val siblings = all.filter { it.parentId == task.parentId && !it.isCompleted && !it.isAsleep }
+        val lag = EEVDFScheduler.sleepLag(task, siblings)
+        dao.setSleep(taskId, untilEpochMs.coerceAtLeast(1L), lag)
+        task.sleepUntilEpoch = untilEpochMs.coerceAtLeast(1L)
+        task.sleepLag = lag
+        persistAwakeDerivedState(all, excludeIds = emptySet())
+        bus.publish(Topics.TASK_SAVED, taskId, "task-storage")
+    }
+
+    /** Wakes [taskId] immediately (the Sleep tab's "wake now"), re-placing it like an expired sleeper. */
+    suspend fun wakeNow(taskId: String) = withContext(Dispatchers.IO) {
+        val all  = dao.getActiveTasksSync().toMutableList()
+        val task = all.find { it.id == taskId && it.isAsleep } ?: return@withContext
+        wakeAndPlace(all, listOf(task))
+    }
+
+    /**
+     * The wake pass: every task whose own sleep has expired by [nowMs] (and whose
+     * ancestors are awake) is placed back in its queue the way Linux places a
+     * waking entity — vruntime restored from the lag it slept with, deadline
+     * recomputed — and its sleep state cleared. Loops so a child whose own timer
+     * expired while its group slept is placed right after the group wakes.
+     *
+     * Placement happens at the moment the pass notices the expiry. Nothing runs
+     * while the app is closed, so sibling vruntimes cannot have moved: the result
+     * is identical to placing at the exact expiry instant.
+     *
+     * @return the number of tasks woken (0 = nothing was due; callers skip any refresh).
+     */
+    suspend fun wakeExpired(nowMs: Long): Int = withContext(Dispatchers.IO) {
+        val all = dao.getActiveTasksSync().toMutableList()
+        var total = 0
+        while (true) {
+            val due = SleepRules.dueForWake(all, nowMs)
+            if (due.isEmpty()) break
+            wakeAndPlace(all, due)
+            total += due.size
+        }
+        total
+    }
+
+    /**
+     * Places [targets] (taken from [all], mutated in place) and persists: the woken
+     * tasks via the column-targeted [TaskDao.wake], everything else awake with its
+     * refreshed derived state.
+     */
+    private suspend fun wakeAndPlace(all: List<Task>, targets: List<Task>) {
+        for (t in targets) {
+            val siblings = all.filter {
+                it.parentId == t.parentId && it.id != t.id && !it.isCompleted && !it.isAsleep
+            }
+            t.vruntime       = EEVDFScheduler.wakeVruntime(t, t.sleepLag, siblings)
+            t.sleepUntilEpoch = 0L
+            t.sleepLag        = 0.0
+        }
+        val wokenIds = targets.mapTo(HashSet()) { it.id }
+        val awake = SleepRules.awake(all)
+        EEVDFScheduler.recalculate(awake)
+        targets.forEach { t ->
+            dao.wake(t.id, t.vruntime, t.eligibleTime, t.virtualDeadline, t.lag)
+        }
+        awake.filter { it.id !in wokenIds }.forEach { dao.update(it) }
+        targets.forEach { bus.publish(Topics.TASK_SAVED, it.id, "task-storage") }
+    }
+
+    /** Recomputes and persists derived EEVDF state for every awake task (rows already freshly read). */
+    private suspend fun persistAwakeDerivedState(all: List<Task>, excludeIds: Set<String>) {
+        val awake = SleepRules.awake(all)
+        EEVDFScheduler.recalculate(awake)
+        awake.filter { it.id !in excludeIds }.forEach { dao.update(it) }
     }
 
     // ── Interrupt task ────────────────────────────────────────────────────────
@@ -925,10 +1069,10 @@ class TaskRepository @Inject constructor(
     suspend fun getRunningTask(): Task? = withContext(Dispatchers.IO) { dao.getRunningTask() }
 
     /** Returns the INT-A interrupt task (legacy default slot). */
-    suspend fun getInterruptTask(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTask() }
+    suspend fun getInterruptTask(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTask()?.takeIf { !it.isAsleep } }
 
     /** Returns the INT-B interrupt task. */
-    suspend fun getInterruptTaskB(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTaskB() }
+    suspend fun getInterruptTaskB(): Task? = withContext(Dispatchers.IO) { dao.getInterruptTaskB()?.takeIf { !it.isAsleep } }
 
     /**
      * Atomically clears all interrupt flags in [slot] then marks [task] as that slot's interrupt.

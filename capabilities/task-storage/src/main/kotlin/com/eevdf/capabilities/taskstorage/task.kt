@@ -240,8 +240,31 @@ data class Task(
     var loadAvgPhysical: Double = 0.0,
     var loadLastUpdatePhysical: Long = 0L,
     var loadAvgEmotional: Double = 0.0,
-    var loadLastUpdateEmotional: Long = 0L
+    var loadLastUpdateEmotional: Long = 0L,
+
+    // ── Sleep / wake ──────────────────────────────────────────────────────────
+    //
+    // A sleeping task is hidden everywhere and behaves as if it did not exist
+    // (no list row, no scheduling, no share of the sibling average) until its
+    // wake time passes — see [SleepRules] and TaskRepository.wakeExpired.
+    //
+    // sleepDurationSeconds — user setting (Edit screen, 1 s … 365 d, 0 = unset):
+    //              how long the moon button puts this task to sleep for.
+    // sleepUntilEpoch      — wall-clock epoch ms the task wakes at; 0 = awake.
+    //              Stays > 0 until the wake pass runs, which re-places the task
+    //              in its queue and resets this to 0.
+    // sleepLag             — EEVDF lag captured when the task fell asleep
+    //              (clamped to one slice); restored on wake like Linux's vlag.
+    //
+    // Read by the list/scheduler on EVERY refresh, which is why these live on
+    // the row (a join on that path costs frame time) — see the freeze test.
+    val sleepDurationSeconds: Long = 0L,
+    var sleepUntilEpoch: Long = 0L,
+    var sleepLag: Double = 0.0
 ) {
+    /** True while this task's OWN sleep is active (a sleeping ancestor is checked by [SleepRules]). */
+    val isAsleep: Boolean get() = sleepUntilEpoch > 0L
+
     /** Effective EEVDF weight. Uses auto-calc value when available, else falls back to priority. */
     val weight: Double get() = internalWeight ?: priority.toDouble()
 

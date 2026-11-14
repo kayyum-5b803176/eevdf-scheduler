@@ -5,6 +5,93 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.43.1 — Sleep/wake and sync: two fixes found while testing them together
+
+Includes everything in 6.43.0.
+
+### Fixed
+- **A sleeping task could wake up when the phones were updated one after the
+  other.** The first time an updated phone saved a row, sync sent the new
+  columns' default values stamped "now", which beat a real value (here
+  `sleepUntilEpoch`) another phone had written just before. Sync now starts a
+  new column as "no claim, current value" and sends it only when it truly
+  changes (`SyncEngine.seedNewColumnClocks`). This applies to every column a
+  future update adds, not just sleep. Regression test reproduces the rollout
+  and failed before the fix.
+- **A task put to sleep on another phone stayed on this phone's timer card.**
+  A local sleep deselects the task; a sleep arriving by sync now does the same
+  (`SyncReconcileDelegate.reseat` checks the awake list).
+
+### Checked and unchanged
+The three sleep columns sync with no sync-code change; a user not yet updated
+parks them and applies them after updating; every phone running its own wake
+pass settles on one value and goes quiet.
+
+### Verified / not verified
+61 sync tests, 9 wake-placement and 9 sleep-rule tests pass off-device. The
+Android code (screens, Room migration) is not built.
+
+## 6.43.0 — Task sleep / wake (moon button), merged onto the sync line
+
+This is the sleep/wake feature (delivered separately as "6.38.0 task-sleep-wake"
+and "6.38.1 sleep-card-toggle-switch", both built on 6.37.1) merged onto 6.42.0
+by a three-way merge against 6.37.1. Those two version numbers collided with the
+sync releases, so the feature is renumbered here as one release.
+
+### Added
+A moon button at the far-left edge of every task and group card. Tapping it
+hides the item for the length set in the new **Sleep** field on the Edit screen
+(same `NdNhNmNs` text format, 1s–365d and live preview as Quota Limit). The
+Sleep card has an on/off switch like Quota Limit: OFF (default) = no sleep time
+and the field is hidden; ON reveals it, and an empty or invalid time is rejected
+on save. Sleeping a running task stops its timer first.
+
+A sleeping task behaves as if it did not exist: no list row, no scheduling, no
+share of the sibling average, CPU shares, or DL/RT/quota maths; symlinks and
+hardlink placements vanish with it. Sleeping a group hides its whole subtree
+without writing to the children.
+
+**Wake placement** follows Linux `place_entity()` for a woken task: the lag it
+slept with (clamped to ±one time slice) is restored with the `(W+w)/W`
+compensation, so sleeping can neither erase debt nor discard credit. A child
+whose own timer ran out while its group slept is placed right after the group
+wakes. There is no alarm: a task is hidden while its stored wake time is ahead,
+and the foreground 1 s tick (and resume) runs the wake pass.
+
+The third tab gains a pop-up (tap it while selected): **Completed** or **Sleep**;
+Sleep lists sleeping items soonest-first with a "Wakes in …" countdown, and the
+moon there wakes the item now.
+
+### Storage
+Schema 29 → 30: `sleepDurationSeconds`, `sleepUntilEpoch`, `sleepLag` on
+`tasks` (a justified exception to the freeze, recorded in TaskSchemaFreezeTest).
+Backup JSON carries them. **Room writes `schemas/…/30.json` on the first build —
+commit it.**
+
+### Merge notes (what changed relative to the standalone feature)
+- Dropped the feature's edit to `task-field-classification.kt`: that file was
+  removed in 6.38.0 (sync now discovers columns itself; the three new columns
+  sync like any other, nothing to register).
+- `sleep-delegate.kt` called `triggerSyncExport()`, which no longer exists. The
+  call was removed: `sleepTask` / `wakeExpired` already publish `task.saved`.
+- `TaskRepository.recalculateScheduleCache` (6.39.0) now uses the awake-only
+  task list, exactly like `refreshAllAndReturn`, so a sleeping task cannot skew
+  the order other users compute after a sync.
+- Freeze-test help text no longer names the removed `SyncFieldGuard`.
+- 3 new sync tests: sleep columns reaching a user that has not updated yet; a
+  task from an old build arriving with the sleep columns defaulted; every user
+  waking the same task settling on one value and then going quiet.
+
+### Known, not caused by this merge
+`TaskSchemaFreezeTest` fails on the original 6.37.1 as well: its list has 53
+frozen columns, the entity has 59 (six load-average columns were never added to
+the list). With sleep it is 56 against 62. Left for you to decide.
+
+### Verified / not verified
+Ran off-device: the feature's own tests (62 scheduler incl. wake placement, 9
+sleep rules), 60 sync tests, and a parse check of all 25 changed Kotlin files.
+Not built: the Android code (Room migration, screens, layouts).
+
 ## 6.42.0 — One alarm across phones: stop everywhere, Swarm / Handover, background sync (build 3 of 3)
 
 ### Why

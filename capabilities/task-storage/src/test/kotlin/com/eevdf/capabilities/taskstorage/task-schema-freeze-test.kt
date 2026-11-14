@@ -12,9 +12,10 @@ import kotlin.reflect.full.primaryConstructor
  * 51 columns and 21 migrations exist because every feature ever added became
  * columns on one shared row. That is the single mechanism by which a new
  * feature breaks a working one here: adding a column forces edits to Task,
- * TaskDatabase, TaskDao, TaskRepository, BackupManager, SyncFieldGuard and
- * every UI file that maps the entity — six shared files, six chances to break
- * something unrelated, on every single feature.
+ * TaskDatabase, TaskDao, TaskRepository, BackupManager and every UI file
+ * that maps the entity — shared files, chances to break something unrelated,
+ * on every single feature. (Since 6.38.0 multi-user sync is no longer on that
+ * list: it discovers columns from the database itself.)
  *
  * The other guards in this repo DETECT the fallout (a field missing from
  * backup, a field unclassified for sync). This one prevents the cause.
@@ -68,6 +69,14 @@ class TaskSchemaFreezeTest {
             "rtActivationSecond", "rtSliceTimeoutSeconds",
             // load tracking
             "loadFactor", "loadFactorInherited", "loadAverage", "loadLastUpdateEpoch",
+            // sleep / wake (v6.38.0) — the narrow exception, decided deliberately:
+            // `sleepUntilEpoch` is read on EVERY list refresh to hide sleeping
+            // tasks and by every scheduler pass to keep them out of the sibling
+            // average, so a side-table join would sit on the hottest path. The
+            // other two travel with it: multi-user sync snapshots the Task row
+            // as-is (a side table would silently not sync), and sleepLag is
+            // written in the same column-targeted update as sleepUntilEpoch.
+            "sleepDurationSeconds", "sleepUntilEpoch", "sleepLag",
         )
     }
 
@@ -87,7 +96,7 @@ class TaskSchemaFreezeTest {
                 appendLine(" Copy-paste slice: docs/SIDE_TABLE_TEMPLATE.md")
                 appendLine()
                 appendLine(" Why: a new column forces edits to Task, TaskDatabase, TaskDao,")
-                appendLine(" TaskRepository, BackupManager, SyncFieldGuard and the UI mappers.")
+                appendLine(" TaskRepository, BackupManager and the UI mappers (sync needs no edit).")
                 appendLine(" A new table forces edits to none of them.")
                 appendLine()
                 appendLine(" Exception — a value the scheduler reads on EVERY tick. If that is")

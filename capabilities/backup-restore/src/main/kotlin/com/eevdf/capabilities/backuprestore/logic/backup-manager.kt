@@ -124,6 +124,10 @@ object BackupManager {
         put("loadFactorInherited", t.loadFactorInherited)
         put("loadAverage", t.loadAverage)
         put("loadLastUpdateEpoch", t.loadLastUpdateEpoch)
+        // Sleep / wake
+        put("sleepDurationSeconds", t.sleepDurationSeconds)
+        put("sleepUntilEpoch", t.sleepUntilEpoch)
+        put("sleepLag", t.sleepLag)
     }
 
     private fun taskFromJson(j: JSONObject): Task = Task(
@@ -180,6 +184,9 @@ object BackupManager {
         loadFactorInherited = j.optBoolean("loadFactorInherited", false),
         loadAverage         = j.optDouble("loadAverage", 0.0),
         loadLastUpdateEpoch = j.optLong("loadLastUpdateEpoch", 0L),
+        sleepDurationSeconds = j.optLong("sleepDurationSeconds", 0L),
+        sleepUntilEpoch      = j.optLong("sleepUntilEpoch", 0L),
+        sleepLag             = j.optDouble("sleepLag", 0.0),
     )
 
     // ── Multi-user sync (preserves live timer state) ─────────────────────────────

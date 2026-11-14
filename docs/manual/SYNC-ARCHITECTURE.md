@@ -1,4 +1,4 @@
-# Sync & Restore Architecture (v6.42.0)
+# Sync & Restore Architecture (v6.43.1)
 
 **Read this before touching `capabilities/multi-device-sync` or the restore
 path in `capabilities/backup-restore`.** It describes what the code does now,
@@ -69,6 +69,16 @@ Everything marked "no" runs in JVM unit tests against a real SQLite file
   task list screen calls `TaskRepository.recalculateScheduleCache()`, because
   the lists sort by the stored copy. Add a column to this map to make any
   other derived column local.
+- **Columns added by an app update** (`seedNewColumnClocks`, run from `init()`
+  when the table layout changed): every existing row gets a baseline clock
+  holding the column's current value. A new column is therefore sent only once
+  it really changes, never as a "default, stamped now" that would beat a real
+  value another phone wrote earlier but this phone has not read yet.
+- **Task sleep columns** (`sleepDurationSeconds`, `sleepUntilEpoch`,
+  `sleepLag`, schema 30) are ordinary shared `tasks` columns: nothing to
+  register. Every phone runs its own wake pass at the wake time, so each writes
+  the woken task back; the writes settle on one value and then stop (tested).
+  A user still on schema 29 parks them and applies them after it updates.
 - **Unknown table / column** (other member runs a newer build): parked in
   `_sync_foreign`, included in snapshots, replayed by `SyncEngine.init()` the
   first time the schema has a place for it.
@@ -266,7 +276,7 @@ the absent user catches up in one read. Internal database: +102% (was +295%).
 
 ## 10. Tests
 
-`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 29 tests, `device-exchange-test.kt` — 15 tests (two phones over a pipe, incl. the live link), `alarm-sync-test.kt` — 9 tests (stop everywhere, ring modes, duplicate credit, alarms kept in step while closed),
+`capabilities/multi-device-sync/src/test/.../sync-engine-test.kt` — 33 tests, `device-exchange-test.kt` — 15 tests (two phones over a pipe, incl. the live link), `alarm-sync-test.kt` — 9 tests (stop everywhere, ring modes, duplicate credit, alarms kept in step while closed),
 each named as the promise it checks (empty joiner erases nothing; timer
 started by one user stopped by another; torn write skipped; card missing;
 card wiped; snapshot + late joiner; older/newer builds; restore merge/replace;

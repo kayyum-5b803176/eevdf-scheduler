@@ -98,6 +98,62 @@ object EevdfScheduler {
         return if (siblings.isEmpty()) 0.0 else averageVruntime(siblings)
     }
 
+    // ── Sleep / wake placement (Linux place_entity for a woken task) ─────────
+
+    /**
+     * The lag a task carries into sleep — what Linux stores as `se->vlag` when
+     * an entity is dequeued: `(avgVruntime − vruntime) · weight`, measured
+     * against the task's awake siblings (the task itself is part of that pool
+     * while it is still awake).
+     *
+     * Clamped to ±one time slice (`|lag| ≤ timeSliceSeconds`), the same idea as
+     * Linux clamping vlag to a slice-sized limit: without it a task that
+     * slept for months would wake up carrying an arbitrarily old credit or
+     * debt and distort the queue.
+     *
+     * [awakeSiblings] must be the task's same-parent, non-completed, non-sleeping
+     * siblings and may or may not include the task itself (it is added if
+     * missing). Pure: returns the value, never mutates.
+     */
+    fun sleepLag(task: SchedTask, awakeSiblings: List<SchedTask>): Double {
+        if (task.weight <= 0.0) return 0.0
+        val pool = if (awakeSiblings.any { it.id == task.id }) awakeSiblings else awakeSiblings + task
+        val lag = (averageVruntime(pool) - task.vruntime) * task.weight
+        val limit = task.timeSliceSeconds.toDouble().coerceAtLeast(0.0)
+        return lag.coerceIn(-limit, limit)
+    }
+
+    /**
+     * Linux `place_entity()` for a task that is waking up: restore the lag it
+     * slept with, so a task that was owed time stays slightly favoured and a
+     * task that was in debt still has to wait — sleeping can neither erase
+     * debt nor throw away credit.
+     *
+     * Linux re-inserts the entity and compensates for the average shifting
+     * when the entity's own weight joins the pool:
+     *
+     * ```
+     *   v = avg − (lag / w) · (W + w) / W
+     * ```
+     *
+     * With `W` = total weight of [awakeSiblings] (the waking task NOT in it)
+     * and `w` = the task's weight, this is exactly the vruntime that makes the
+     * task's lag equal [savedLag] again once it is back in the pool, so
+     * [recalculate] reproduces the saved lag instead of approximating it.
+     *
+     * No awake siblings → nothing to be fair against: same answer as a brand-new
+     * task alone in its level ([initialVruntime] → 0.0).
+     */
+    fun wakeVruntime(task: SchedTask, savedLag: Double, awakeSiblings: List<SchedTask>): Double {
+        val others = awakeSiblings.filter { it.id != task.id && !it.isCompleted }
+        if (others.isEmpty()) return 0.0
+        val avg = averageVruntime(others)
+        val w = task.weight
+        val totalOthers = totalWeight(others)
+        if (w <= 0.0 || totalOthers <= 0.0) return avg
+        return avg - (savedLag / w) * ((totalOthers + w) / totalOthers)
+    }
+
     /**
      * vruntime increment after running [secondsRan]: Δ = secondsRan / weight.
      * Returns the new vruntime; caller persists.

@@ -102,8 +102,14 @@ internal class SyncReconcileDelegate(private val vm: TaskViewModel) {
     }
 
     /** Shows [fresh] (the selected task as it now is in the database) on the card, or clears the card. */
-    private fun reseat(fresh: Task?) {
-        if (fresh == null || fresh.isCompleted) {
+    private suspend fun reseat(fresh: Task?) {
+        // A task put to sleep elsewhere (or under a group that was) is hidden
+        // here too. A local sleep deselects it first ("a hidden task must not
+        // stay the current one", SleepDelegate); a sleep that arrives from
+        // another phone must do the same. The awake list is exactly the tasks
+        // the app shows and schedules.
+        val hidden = fresh != null && vm.repository.getActiveTasksSync().none { it.id == fresh.id }
+        if (fresh == null || fresh.isCompleted || hidden) {
             vm.currentTaskOwner.set(null)
             vm.clearPersistedSelection()
             return

@@ -213,7 +213,9 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
         }
 
         // Clear Completed: the mirror image — only meaningful on Completed.
-        activity.clearCompletedMenuItem?.isVisible = onCompleted
+        // Hidden in Sleep mode: it would clear completed tasks the person cannot see.
+        activity.clearCompletedMenuItem?.isVisible =
+            onCompleted && activity.viewModel.completedTabMode.value != CompletedTabMode.SLEEP
     }
 
     // ── Key1 (Schedule Next) dot update ──────────────────────────────────────
