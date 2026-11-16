@@ -10,6 +10,7 @@
                           name (tap to open groups) + Inherit / Hide / Show circles
   tvAclEmpty            — empty state (this level has no items)
 
+  Header symbols: =  Inherit   -  Hide   +  Show (same order as the circles in each row).
   Multi-level: a rule can sit on any item at any depth and is inherited downward.
   Every change saves immediately through TaskRepository; there is no Save button.
 -->
@@ -110,7 +111,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Inherit follows the parent. Hide hides the item and everything inside it through this link only; the item itself and its other locations are unchanged."
+                    android:text="=  follows the parent      -  hides the item and everything inside it through this link only      +  shows it. The item itself and its other locations are never changed."
                     android:textSize="@dimen/app_text_size_sm"
                     android:textColor="@color/app_text_hint"
                     android:layout_marginBottom="@dimen/app_spacing_md" />
@@ -128,22 +129,28 @@
                         android:layout_width="@dimen/acl_radio_column_width"
                         android:layout_height="wrap_content"
                         android:gravity="center"
-                        android:text="Inherit"
-                        android:textSize="@dimen/app_text_size_sm"
+                        android:text="="
+                        android:contentDescription="Inherit"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
                         android:textColor="@color/app_text_label" />
                     <TextView
                         android:layout_width="@dimen/acl_radio_column_width"
                         android:layout_height="wrap_content"
                         android:gravity="center"
-                        android:text="Hide"
-                        android:textSize="@dimen/app_text_size_sm"
+                        android:text="-"
+                        android:contentDescription="Hide"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
                         android:textColor="@color/app_text_label" />
                     <TextView
                         android:layout_width="@dimen/acl_radio_column_width"
                         android:layout_height="wrap_content"
                         android:gravity="center"
-                        android:text="Show"
-                        android:textSize="@dimen/app_text_size_sm"
+                        android:text="+"
+                        android:contentDescription="Show"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
                         android:textColor="@color/app_text_label" />
                 </LinearLayout>
 

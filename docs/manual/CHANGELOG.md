@@ -5,6 +5,20 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.45.2 — ACL page: = / - / + header symbols, tighter circle columns
+
+Includes everything in 6.45.0. Layout only: same rules, data, builders and code.
+
+### Changed
+- The Inherit / Hide / Show column header is now `=`, `-`, `+` (the circles keep
+  their word descriptions for screen readers; the intro text uses the same symbols).
+- The three circle columns are 40dp wide instead of 56dp (`acl_radio_column_width`),
+  so the circles sit closer together. Header and rows read the same value, so they
+  stay aligned.
+
+### Verified / not verified
+Not built and not run. XML well-formedness checked.
+
 ## 6.45.0 — Hardlink ACL goes multi-level: rules at any depth, Inherit / Hide / Show
 
 Includes everything in 6.44.0. No database change (still version 31).

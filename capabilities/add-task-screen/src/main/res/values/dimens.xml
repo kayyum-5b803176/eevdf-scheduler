@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Width of one Inherit / Hide / Show column on the ACL page. The header row and
-         every item row use the same value so the circles line up under their labels. -->
-    <dimen name="acl_radio_column_width">56dp</dimen>
+    <!-- Width of one = / - / + column on the ACL page. The header row and every item row
+         use the same value so the circles line up under their symbols. Smaller = closer circles. -->
+    <dimen name="acl_radio_column_width">40dp</dimen>
 </resources>
