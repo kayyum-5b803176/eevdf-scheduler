@@ -5,6 +5,56 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.45.0 — Hardlink ACL goes multi-level: rules at any depth, Inherit / Hide / Show
+
+Includes everything in 6.44.0. No database change (still version 31).
+
+### Changed
+- **A rule can now sit on any item inside a hardlinked group, at any depth, and
+  is inherited downward** (Nextcloud-style). Per item: no rule = Inherit, a Hide
+  rule, or a Show rule; the deepest rule wins. 6.44.0 only covered the group's
+  direct children. Existing 6.44.0 rows keep working as Hide / Show rules on
+  direct children.
+- **"Hide new children by default"** now applies to the group's DIRECT children
+  that have no rule; deeper items follow their parent. It no longer needs rows
+  written for every child: opening the ACL page writes nothing, and flipping the
+  default affects every direct child that is still on Inherit.
+- **Nothing inside a hidden group can be shown.** The page disables the circles
+  under a hidden group ("Hidden by <group>"); a stored rule there stays but has
+  no effect until the group is visible.
+- **Builders** (Queue, Schedule, class-filtered Schedule, both drill-down
+  levels) apply the door at every level below the placement, not just the first.
+  Child counts and `childTotalRuntime` leave out hidden items at every depth, for
+  the placement row and for plain group rows listed under it. Shares are
+  recomputed for each level that has a hidden item, as that one pool.
+- Deleting or promoting a task now drops every rule keyed by it, at any depth.
+
+### Added (ACL page)
+- One level at a time: tap a group's name to open it; the breadcrumb or the back
+  arrow goes up. Each row has three circles (Inherit / Hide / Show) and a caption
+  ("Shown (inherited)", "Hidden · set here", "Hidden by <group>"); collapsed
+  groups say "N rules inside". Every tap saves immediately.
+- A hosted hardlink placement is not opened: its inside is governed by its own
+  ACL.
+
+### Removed
+- `TaskRepository.setMembershipChildHidden` / `ensureMembershipAclRows` (replaced
+  by `setMembershipChildChoice(membershipId, childKey, AclChoice)`); the DAO
+  queries `insertMissing` and `deleteChildUnderGroupDoors`.
+
+### Verified / not verified
+Not built and not run where this was written: only brace/paren balance and XML
+well-formedness were checked. `membership-acl-test.kt` was rewritten for the new
+semantics (rules at depth, default for direct children only, per-level shares,
+`resolve`); the list builders themselves still have no tests (they need a
+ViewModel).
+
+### Known, not handled
+The list builder stops at depth 64 (`MAX_TREE_DEPTH`), so rules deeper than that
+cannot show; nested doors (a ref carries one door); stale rules after moving a
+task to another parent; an open drill frame inside an item that then becomes
+hidden; memberships and rules are not in backup.
+
 ## 6.44.0 — Hardlink ACL: hide chosen children of a hardlinked group, per placement
 
 Includes everything in 6.43.1. Database 30 → 31.

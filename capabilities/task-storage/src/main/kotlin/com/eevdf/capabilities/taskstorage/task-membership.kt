@@ -41,11 +41,11 @@ import java.util.UUID
  * a second source of truth to keep in sync, and never a corruption risk.
  *
  * [newChildrenHidden] is the ONE other per-placement setting. When this
- * placement's task is a group, the placement lists all of the group's real
- * children — unless some are hidden through it (see [MembershipAcl], one row
- * per hidden/shown direct child). A child with no explicit row follows this
- * flag: `false` (the default) shows it, `true` hides it. It only decides the
- * visibility of children that have no row of their own.
+ * placement's task is a group, the placement lists everything inside it —
+ * unless some items are hidden through it (see [MembershipAcl]: a rule per
+ * item, at any depth, inherited downward). This flag is the default for the
+ * group's DIRECT children that have no rule of their own: `false` (the
+ * default) shows them, `true` hides them. Deeper items follow their parent.
  */
 @Entity(tableName = "task_memberships")
 data class TaskMembership(

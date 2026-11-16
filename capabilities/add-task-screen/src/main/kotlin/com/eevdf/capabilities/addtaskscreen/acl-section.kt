@@ -4,16 +4,21 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.CompoundButton
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.eevdf.capabilities.taskstorage.AclChoice
+import com.eevdf.capabilities.taskstorage.AclResolution
 import com.eevdf.capabilities.taskstorage.MembershipAcl
 import com.eevdf.capabilities.taskstorage.MembershipAclKeys
 import com.eevdf.capabilities.taskstorage.MembershipAclRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.capabilities.taskstorage.TaskMembership
+import com.google.android.material.radiobutton.MaterialRadioButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
@@ -26,15 +31,20 @@ import kotlinx.coroutines.launch
  * (the existing form, untouched) and "ACL"; switching only toggles visibility
  * of the form's scroll view and the ACL container, never moves the form's views.
  *
- * The ACL page lists the group's DIRECT children — real tasks/groups, plus
- * hardlink placements and symlinks hosted inside it — each with a "visible"
- * switch. Every switch saves immediately through [com.eevdf.capabilities.taskstorage.TaskRepository];
- * there is no Save button, and the form's Save is not involved.
+ * MULTI-LEVEL, ONE LEVEL AT A TIME. The page lists the items at one level of the
+ * hardlinked group: real tasks/groups, plus hardlink placements and symlinks
+ * hosted there. Each row has three circles — Inherit / Hide / Show — and tapping
+ * a GROUP's name opens it (breadcrumb or the back arrow goes up). Rules inherit
+ * downward, so a rule on a group covers everything inside it until a deeper rule
+ * overrides it; see [MembershipAcl].
  *
- * Opening the page gives every listed child an explicit row holding its current
- * state ([com.eevdf.capabilities.taskstorage.TaskRepository.ensureMembershipAclRows]),
- * so flipping "Hide new children by default" later only affects children added
- * afterwards.
+ *  - Inherit = no rule (follow the parent); Hide / Show write a rule. Every tap
+ *    saves immediately through [com.eevdf.capabilities.taskstorage.TaskRepository];
+ *    there is no Save button, and the form's Save is not involved.
+ *  - Under a hidden group every circle is disabled: nothing inside a hidden group
+ *    can be shown, so make the group visible first.
+ *  - A hosted hardlink placement is not opened: its inside is governed by ITS own
+ *    rules (it is a door of its own), so nothing here would apply to it.
  */
 internal fun AddTaskActivity.setupAclSection() {
     val membershipId = intent.getStringExtra("membership_id") ?: return   // no door: tab bar stays hidden, screen unchanged
@@ -49,32 +59,41 @@ internal class AclTab(
     private val configScroll: View     = activity.findViewById(R.id.configScroll)
     private val aclContainer: View     = activity.findViewById(R.id.aclContainer)
     private val switchHideNew: SwitchMaterial = activity.findViewById(R.id.switchAclHideNew)
-    private val tvTitle: TextView      = activity.findViewById(R.id.tvAclGroupTitle)
+    private val breadcrumb: LinearLayout = activity.findViewById(R.id.aclBreadcrumb)
+    private val tvLocked: TextView     = activity.findViewById(R.id.tvAclLocked)
     private val tvEmpty: TextView      = activity.findViewById(R.id.tvAclEmpty)
     private val rv: RecyclerView       = activity.findViewById(R.id.rvAclChildren)
 
     private val repository = activity.repository
-    private val adapter    = Adapter { row, visible ->
-        activity.lifecycleScope.launch { repository.setMembershipChildHidden(membershipId, row.key, !visible) }
+    private val adapter = Adapter(
+        onChoice = { row, choice ->
+            activity.lifecycleScope.launch { repository.setMembershipChildChoice(membershipId, row.key, choice) }
+        },
+        onOpen = { row -> open(row) },
+    )
+
+    private var tasks: List<Task>                 = emptyList()
+    private var links: List<TaskLink>             = emptyList()
+    private var memberships: List<TaskMembership> = emptyList()
+    private var aclRows: List<MembershipAcl>      = emptyList()
+    private var tabsShown = false
+    private var aclShown  = false
+
+    /** The groups opened below the hardlinked group, outermost first. Empty = the group's own level. */
+    private val stack = ArrayList<Level>()
+
+    private val backCallback = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() { goUp() }
     }
 
-    private var tasks: List<Task>               = emptyList()
-    private var links: List<TaskLink>           = emptyList()
-    private var memberships: List<TaskMembership> = emptyList()
-    private var aclRows: List<MembershipAcl>    = emptyList()
-    private var tabsShown = false
-
     private val onHideNewChanged = CompoundButton.OnCheckedChangeListener { _, checked ->
-        val keys = currentRows().map { it.key }
-        activity.lifecycleScope.launch {
-            repository.ensureMembershipAclRows(membershipId, keys)
-            repository.setMembershipNewChildrenHidden(membershipId, checked)
-        }
+        activity.lifecycleScope.launch { repository.setMembershipNewChildrenHidden(membershipId, checked) }
     }
 
     fun start() {
         rv.layoutManager = LinearLayoutManager(activity)
         rv.adapter = adapter
+        activity.onBackPressedDispatcher.addCallback(activity, backCallback)
 
         tabs.addTab(tabs.newTab().setText("Config"), true)
         tabs.addTab(tabs.newTab().setText("ACL"))
@@ -83,9 +102,6 @@ internal class AclTab(
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             override fun onTabReselected(tab: TabLayout.Tab) {}
         })
-
-        // The default applies to children with no explicit row. Freeze the listed
-        // ones at their CURRENT state first so only later arrivals follow the switch.
         switchHideNew.setOnCheckedChangeListener(onHideNewChanged)
 
         repository.activeTasks.observe(activity)        { tasks = it;       refresh() }
@@ -94,36 +110,30 @@ internal class AclTab(
         repository.allMembershipAcl.observe(activity)   { aclRows = it;     refresh() }
     }
 
+    /** Toolbar back arrow / system back while on the ACL tab: one level up. False when already at the top. */
+    fun goUp(): Boolean {
+        if (!aclShown || stack.isEmpty()) return false
+        stack.removeAt(stack.lastIndex)
+        refresh()
+        return true
+    }
+
     private fun showAcl(acl: Boolean) {
-        configScroll.visibility  = if (acl) View.GONE else View.VISIBLE
-        aclContainer.visibility  = if (acl) View.VISIBLE else View.GONE
+        aclShown = acl
+        configScroll.visibility = if (acl) View.GONE else View.VISIBLE
+        aclContainer.visibility = if (acl) View.VISIBLE else View.GONE
+        backCallback.isEnabled = acl && stack.isNotEmpty()
+    }
+
+    private fun open(row: Row) {
+        if (!row.drillable) return
+        stack.add(Level(row.key, row.realId, row.name))
+        refresh()
     }
 
     private fun membership(): TaskMembership? = memberships.firstOrNull { it.id == membershipId }
 
     private fun group(): Task? = membership()?.let { m -> tasks.firstOrNull { it.id == m.taskId } }
-
-    /** The group's direct children as ACL rows: real children first, then hosted hardlinks, then symlinks. */
-    private fun currentRows(): List<Row> {
-        val m = membership() ?: return emptyList()
-        val g = group() ?: return emptyList()
-        val byId = tasks.associateBy { it.id }
-        val real = tasks.filter { it.parentId == g.id && !it.isCompleted }
-            .sortedBy { it.name.lowercase() }
-            .map { Row(MembershipAclKeys.real(it.id), it.name, if (it.isGroup) "cgroup" else "task", visible(m, MembershipAclKeys.real(it.id))) }
-        val hard = memberships.filter { it.groupId == g.id }.mapNotNull { h ->
-            val t = byId[h.taskId] ?: return@mapNotNull null
-            val key = MembershipAclKeys.membership(h.id)
-            Row(key, t.name, "hardlink", visible(m, key))
-        }.sortedBy { it.name.lowercase() }
-        val sym = links.filter { it.hostGroupId == g.id }.map { l ->
-            val key = MembershipAclKeys.symlink(l.id)
-            Row(key, byId[l.targetTaskId]?.name ?: "(broken link)", "symlink", visible(m, key))
-        }.sortedBy { it.name.lowercase() }
-        return real + hard + sym
-    }
-
-    private fun visible(m: TaskMembership, key: String) = !MembershipAclRules.isHidden(m, key, aclRows)
 
     private fun refresh() {
         val m = membership()
@@ -133,11 +143,24 @@ internal class AclTab(
         if (m == null || g == null || !g.isGroup) {
             tabs.visibility = View.GONE
             tabsShown = false
+            stack.clear()
             showAcl(false)
             return
         }
         if (!tabsShown) { tabs.visibility = View.VISIBLE; tabsShown = true }
-        tvTitle.text = "Direct children of \"${g.name}\""
+
+        // A level that no longer exists (deleted / moved / asleep) cuts the path there.
+        val byId = tasks.associateBy { it.id }
+        var parentId = g.id
+        val valid = ArrayList<Level>()
+        for (level in stack) {
+            val t = byId[level.realId]
+            if (t == null || !t.isGroup || t.parentId != parentId) break
+            valid.add(level)
+            parentId = t.id
+        }
+        if (valid.size != stack.size) { stack.clear(); stack.addAll(valid) }
+        backCallback.isEnabled = aclShown && stack.isNotEmpty()
 
         // No listener feedback while syncing the switch to stored state.
         if (switchHideNew.isChecked != m.newChildrenHidden) {
@@ -146,22 +169,108 @@ internal class AclTab(
             switchHideNew.setOnCheckedChangeListener(onHideNewChanged)
         }
 
-        val rows = currentRows()
+        renderBreadcrumb(g)
+        val nodeId = stack.lastOrNull()?.realId ?: g.id
+        val ancestorKeys = stack.map { it.key }
+
+        // Is the level being viewed itself hidden? Then nothing in it can be changed.
+        val here = stack.lastOrNull()?.let { MembershipAclRules.resolve(m, ancestorKeys.dropLast(1), it.key, aclRows) }
+        if (here != null && here.hidden) {
+            tvLocked.text = "\"${stack.last().name}\" is hidden, so everything inside it is hidden too. " +
+                "Make it visible to change these."
+            tvLocked.visibility = View.VISIBLE
+        } else {
+            tvLocked.visibility = View.GONE
+        }
+
+        val rows = buildRows(m, nodeId, ancestorKeys)
         adapter.submit(rows)
         tvEmpty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+    }
 
-        // Give every listed child an explicit row (current state) — see class KDoc.
-        val explicit = aclRows.filter { it.membershipId == membershipId }.map { it.childKey }.toSet()
-        val missing = rows.map { it.key }.filter { it !in explicit }
-        if (missing.isNotEmpty()) {
-            activity.lifecycleScope.launch { repository.ensureMembershipAclRows(membershipId, missing) }
+    private fun renderBreadcrumb(g: Task) {
+        breadcrumb.removeAllViews()
+        val inflater = LayoutInflater.from(activity)
+        val names = listOf(g.name) + stack.map { it.name }
+        names.forEachIndexed { index, name ->
+            if (index > 0) breadcrumb.addView((inflater.inflate(R.layout.item_acl_crumb, breadcrumb, false) as TextView).apply {
+                text = "›"; alpha = 0.5f
+            })
+            val last = index == names.lastIndex
+            breadcrumb.addView((inflater.inflate(R.layout.item_acl_crumb, breadcrumb, false) as TextView).apply {
+                text = name
+                alpha = if (last) 1f else 0.7f
+                if (!last) setOnClickListener {          // jump up to this level
+                    while (stack.size > index) stack.removeAt(stack.lastIndex)
+                    refresh()
+                }
+            })
         }
     }
 
-    internal data class Row(val key: String, val name: String, val kind: String, val visible: Boolean)
+    /** The items at one level: real children first, then hosted hardlinks, then symlinks. */
+    private fun buildRows(m: TaskMembership, nodeId: String, ancestorKeys: List<String>): List<Row> {
+        val byId = tasks.associateBy { it.id }
+        val nameOfKey = stack.associate { it.key to it.name }
+        val doorRules = aclRows.filter { it.membershipId == m.id }
+
+        fun caption(res: AclResolution): String {
+            val lockedBy = res.lockedByKey   // local copy: a public property of another module can't be smart-cast
+            return when {
+                lockedBy != null              -> "Hidden by ${nameOfKey[lockedBy] ?: "a parent"}"
+                res.choice == AclChoice.HIDE  -> "Hidden · set here"
+                res.choice == AclChoice.SHOW  -> "Shown · set here"
+                res.hidden                    -> "Hidden (inherited)"
+                else                          -> "Shown (inherited)"
+            }
+        }
+
+        fun row(key: String, realId: String, name: String, kind: String, drillable: Boolean): Row {
+            val res = MembershipAclRules.resolve(m, ancestorKeys, key, aclRows)
+            val inside = if (drillable) rulesInside(realId, doorRules) else 0
+            val text = caption(res) + if (inside > 0) " · $inside rule${if (inside == 1) "" else "s"} inside" else ""
+            return Row(key, realId, name, kind, drillable, res.choice, locked = res.lockedByKey != null, caption = text)
+        }
+
+        val real = tasks.filter { it.parentId == nodeId && !it.isCompleted }
+            .sortedBy { it.name.lowercase() }
+            .map { row(MembershipAclKeys.real(it.id), it.id, it.name, if (it.isGroup) "cgroup" else "task", drillable = it.isGroup) }
+        val hard = memberships.filter { it.groupId == nodeId }.mapNotNull { h ->
+            val t = byId[h.taskId] ?: return@mapNotNull null
+            row(MembershipAclKeys.membership(h.id), h.taskId, t.name, "hardlink · has its own ACL", drillable = false)
+        }.sortedBy { it.name.lowercase() }
+        val sym = links.filter { it.hostGroupId == nodeId }.map { l ->
+            row(MembershipAclKeys.symlink(l.id), l.targetTaskId, byId[l.targetTaskId]?.name ?: "(broken link)", "symlink", drillable = false)
+        }.sortedBy { it.name.lowercase() }
+        return real + hard + sym
+    }
+
+    /** How many rules of this door sit on items inside the real group [groupId] (any depth, not the group itself). */
+    private fun rulesInside(groupId: String, doorRules: List<MembershipAcl>): Int {
+        if (doorRules.isEmpty()) return 0
+        val keys = HashSet<String>()
+        val stackIds = ArrayDeque<String>().apply { add(groupId) }
+        val seen = HashSet<String>()
+        while (stackIds.isNotEmpty()) {
+            val id = stackIds.removeLast()
+            if (!seen.add(id)) continue
+            for (t in tasks) if (t.parentId == id) { keys.add(MembershipAclKeys.real(t.id)); if (t.isGroup) stackIds.add(t.id) }
+            for (h in memberships) if (h.groupId == id) keys.add(MembershipAclKeys.membership(h.id))
+            for (l in links) if (l.hostGroupId == id) keys.add(MembershipAclKeys.symlink(l.id))
+        }
+        return doorRules.count { it.childKey in keys }
+    }
+
+    private data class Level(val key: String, val realId: String, val name: String)
+
+    internal data class Row(
+        val key: String, val realId: String, val name: String, val kind: String,
+        val drillable: Boolean, val choice: AclChoice, val locked: Boolean, val caption: String,
+    )
 
     private class Adapter(
-        private val onToggle: (Row, Boolean) -> Unit,
+        private val onChoice: (Row, AclChoice) -> Unit,
+        private val onOpen: (Row) -> Unit,
     ) : RecyclerView.Adapter<Adapter.VH>() {
 
         private var rows: List<Row> = emptyList()
@@ -176,17 +285,33 @@ internal class AclTab(
         override fun onBindViewHolder(holder: VH, position: Int) {
             val row = rows[position]
             holder.name.text = row.name
+            holder.open.visibility = if (row.drillable) View.VISIBLE else View.GONE
             holder.kind.text = row.kind
-            // Bind state without firing the listener, then attach it.
-            holder.visible.setOnCheckedChangeListener(null)
-            holder.visible.isChecked = row.visible
-            holder.visible.setOnCheckedChangeListener { _, checked -> onToggle(row, checked) }
+            holder.caption.text = row.caption
+            // Tapping the name area opens a group; other kinds have nothing to open.
+            holder.text.setOnClickListener(if (row.drillable) View.OnClickListener { onOpen(row) } else null)
+            holder.text.isClickable = row.drillable
+
+            holder.radios.forEach { (choice, pair) ->
+                val (frame, radio) = pair
+                radio.isChecked = choice == row.choice
+                radio.isEnabled = !row.locked
+                frame.isEnabled = !row.locked
+                frame.setOnClickListener { if (!row.locked && choice != row.choice) onChoice(row, choice) }
+            }
         }
 
         class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val name: TextView         = v.findViewById(R.id.tvAclChildName)
-            val kind: TextView         = v.findViewById(R.id.tvAclChildKind)
-            val visible: SwitchMaterial = v.findViewById(R.id.switchAclChildVisible)
+            val text: View        = v.findViewById(R.id.layoutAclText)
+            val name: TextView    = v.findViewById(R.id.tvAclChildName)
+            val open: TextView    = v.findViewById(R.id.tvAclChildOpen)
+            val kind: TextView    = v.findViewById(R.id.tvAclChildKind)
+            val caption: TextView = v.findViewById(R.id.tvAclChildCaption)
+            val radios: Map<AclChoice, Pair<View, MaterialRadioButton>> = mapOf(
+                AclChoice.INHERIT to (v.findViewById<View>(R.id.frameAclInherit) to v.findViewById<MaterialRadioButton>(R.id.radioAclInherit)),
+                AclChoice.HIDE    to (v.findViewById<View>(R.id.frameAclHide)    to v.findViewById<MaterialRadioButton>(R.id.radioAclHide)),
+                AclChoice.SHOW    to (v.findViewById<View>(R.id.frameAclShow)    to v.findViewById<MaterialRadioButton>(R.id.radioAclShow)),
+            )
         }
     }
 }

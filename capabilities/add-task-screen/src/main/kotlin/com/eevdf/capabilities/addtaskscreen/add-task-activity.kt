@@ -376,5 +376,9 @@ class AddTaskActivity : AppCompatActivity() {
         populateTimeSliceSection(task)
     }
 
-    override fun onSupportNavigateUp(): Boolean { finish(); return true }
+    /** On the ACL tab the toolbar back arrow goes up one level first, then leaves the screen. */
+    override fun onSupportNavigateUp(): Boolean {
+        if (aclTab?.goUp() == true) return true
+        finish(); return true
+    }
 }

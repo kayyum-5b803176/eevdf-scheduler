@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One direct child in the ACL tab: name, kind indicator, "visible" switch. -->
+<!--
+  One item on the ACL page: name (tap to open, groups only), kind, a caption saying
+  the effective result and where it comes from, and three circles: Inherit / Hide / Show.
+
+  The three circles are a hand-managed single-select (no RadioGroup): each circle sits in
+  a fixed-width frame that takes the tap, so it can be centred under its column header
+  and stays tappable while the circle itself is small.
+-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -10,20 +17,39 @@
     android:paddingBottom="@dimen/app_spacing_sm">
 
     <LinearLayout
+        android:id="@+id/layoutAclText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:paddingEnd="@dimen/app_spacing_md">
 
-        <TextView
-            android:id="@+id/tvAclChildName"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="@dimen/app_text_size_md"
-            android:textColor="@color/app_text_title"
-            android:fontFamily="sans-serif-medium"
-            android:ellipsize="end"
-            android:maxLines="1" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvAclChildName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_title"
+                android:fontFamily="sans-serif-medium"
+                android:ellipsize="end"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/tvAclChildOpen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" ›"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_label"
+                android:fontFamily="sans-serif-medium"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvAclChildKind"
@@ -31,18 +57,72 @@
             android:layout_height="wrap_content"
             android:textSize="@dimen/app_text_size_sm"
             android:textColor="@color/app_text_caption" />
+
+        <TextView
+            android:id="@+id/tvAclChildCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/app_text_size_sm"
+            android:textColor="@color/app_text_hint" />
     </LinearLayout>
 
-    <TextView
-        android:layout_width="wrap_content"
+    <FrameLayout
+        android:id="@+id/frameAclInherit"
+        android:layout_width="@dimen/acl_radio_column_width"
         android:layout_height="wrap_content"
-        android:text="Visible"
-        android:textSize="@dimen/app_text_size_sm"
-        android:textColor="@color/app_text_hint"
-        android:layout_marginEnd="@dimen/app_spacing_md" />
+        android:minHeight="48dp"
+        android:contentDescription="Inherit"
+        android:clickable="true"
+        android:focusable="true">
+        <com.google.android.material.radiobutton.MaterialRadioButton
+            android:id="@+id/radioAclInherit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="0dp"
+            android:clickable="false"
+            android:focusable="false" />
+    </FrameLayout>
 
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/switchAclChildVisible"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
+    <FrameLayout
+        android:id="@+id/frameAclHide"
+        android:layout_width="@dimen/acl_radio_column_width"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:contentDescription="Hide"
+        android:clickable="true"
+        android:focusable="true">
+        <com.google.android.material.radiobutton.MaterialRadioButton
+            android:id="@+id/radioAclHide"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="0dp"
+            android:clickable="false"
+            android:focusable="false" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/frameAclShow"
+        android:layout_width="@dimen/acl_radio_column_width"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:contentDescription="Show"
+        android:clickable="true"
+        android:focusable="true">
+        <com.google.android.material.radiobutton.MaterialRadioButton
+            android:id="@+id/radioAclShow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="0dp"
+            android:clickable="false"
+            android:focusable="false" />
+    </FrameLayout>
 </LinearLayout>

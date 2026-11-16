@@ -84,7 +84,7 @@ class TaskRepository @Inject constructor(
     }
 
     /**
-     * Every hardlink ACL row (see [MembershipAcl]) — the same shape as
+     * Every hardlink ACL rule (see [MembershipAcl]) — the same shape as
      * [allTaskMemberships], so a list builder subscribes to both the same way
      * and flipping one switch refreshes the lists immediately. Unfiltered: a
      * row for an asleep task's placement is simply never consulted.
@@ -140,44 +140,37 @@ class TaskRepository @Inject constructor(
     }
 
     // ── Hardlink ACL ──────────────────────────────────────────────────────────
-    // Hide chosen DIRECT children of a hardlinked group when viewed through ONE
-    // placement. Nothing here touches the hidden child or the real placement.
+    // Hide chosen items — at ANY depth — inside a hardlinked group when viewed
+    // through ONE placement. Nothing here touches the hidden item or its real
+    // placement. A rule row = Hide / Show; no row = Inherit (see MembershipAcl).
 
     suspend fun getMembership(membershipId: String): TaskMembership? =
         withContext(Dispatchers.IO) { taskMembershipDao.getById(membershipId) }
 
-    /** The explicit ACL rows of one placement. A child with no row follows [TaskMembership.newChildrenHidden]. */
+    /** The rules of one placement. An item with no rule inherits from its parent chain. */
     suspend fun getMembershipAcl(membershipId: String): List<MembershipAcl> =
         withContext(Dispatchers.IO) { membershipAclDao.getForMembership(membershipId) }
 
-    /** Writes an EXPLICIT row for [childKey] (see [MembershipAclKeys]) — `hidden = false` is an explicit "visible". */
-    suspend fun setMembershipChildHidden(membershipId: String, childKey: String, hidden: Boolean) =
+    /**
+     * Stores what the user picked for the item [childKey] (see [MembershipAclKeys])
+     * under this placement: [AclChoice.INHERIT] removes its rule, HIDE / SHOW
+     * write one. Takes effect at any depth below the placement's group.
+     */
+    suspend fun setMembershipChildChoice(membershipId: String, childKey: String, choice: AclChoice) =
         withContext(Dispatchers.IO) {
-            membershipAclDao.upsert(MembershipAcl(membershipId, childKey, hidden))
+            when (choice) {
+                AclChoice.INHERIT -> membershipAclDao.deleteRule(membershipId, childKey)
+                AclChoice.HIDE    -> membershipAclDao.upsert(MembershipAcl(membershipId, childKey, hidden = true))
+                AclChoice.SHOW    -> membershipAclDao.upsert(MembershipAcl(membershipId, childKey, hidden = false))
+            }
         }
 
     /**
-     * Sets the placement's default for children that have no explicit row.
-     * Changing it never changes a child that already has a row.
+     * Sets the placement's default for the group's DIRECT children that have
+     * no rule of their own. Deeper items follow their parent, not this flag.
      */
     suspend fun setMembershipNewChildrenHidden(membershipId: String, hidden: Boolean) =
         withContext(Dispatchers.IO) { taskMembershipDao.updateNewChildrenHidden(membershipId, hidden) }
-
-    /**
-     * Gives every key in [childKeys] that has no row yet an explicit one
-     * holding its CURRENT effective state (the placement's default at this
-     * moment). Existing rows are left alone. The ACL page calls this for every
-     * child it lists, so a later change of [setMembershipNewChildrenHidden]
-     * only affects children added afterwards.
-     */
-    suspend fun ensureMembershipAclRows(membershipId: String, childKeys: Collection<String>) =
-        withContext(Dispatchers.IO) {
-            if (childKeys.isEmpty()) return@withContext
-            val membership = taskMembershipDao.getById(membershipId) ?: return@withContext
-            membershipAclDao.insertMissing(
-                childKeys.distinct().map { MembershipAcl(membershipId, it, membership.newChildrenHidden) }
-            )
-        }
 
     suspend fun getMembershipsForGroup(groupId: String): List<TaskMembership> =
         withContext(Dispatchers.IO) { taskMembershipDao.getForGroup(groupId) }
@@ -418,9 +411,9 @@ class TaskRepository @Inject constructor(
         val remaining = taskMembershipDao.getForTask(task.id)
         if (remaining.isNotEmpty()) {
             val promoted = remaining.first()
-            // The old real placement stops being a direct child of its old
-            // parent: forget what that parent's doors said about it.
-            task.parentId?.let { membershipAclDao.deleteChildUnderGroupDoors(MembershipAclKeys.real(task.id), it) }
+            // The old real placement is gone: forget every rule keyed by this task,
+            // under any door and at any depth (it has exactly one real parent).
+            membershipAclDao.deleteByChildKey(MembershipAclKeys.real(task.id))
             // The promoted placement turns into the task's real child of
             // promoted.groupId — carry over what that group's doors said about
             // the placement, so a hidden child doesn't pop back into view.

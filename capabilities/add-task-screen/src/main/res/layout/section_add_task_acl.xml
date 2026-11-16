@@ -3,11 +3,15 @@
   ACL tab — which DIRECT children of a hardlinked group this ONE placement shows.
 
   aclContainer          — GONE unless AddTaskActivity was opened with "membership_id"
-  switchAclHideNew      — placement default for children with no explicit choice
-  tvAclEmpty            — empty state (group has no children)
-  rvAclChildren         — one row per direct child (item_acl_child.xml)
+  switchAclHideNew      — default for the group's DIRECT children that have no rule
+  aclBreadcrumb         — Group › sub › sub; tap a segment to go up to that level
+  tvAclLocked           — shown when the level being viewed is itself hidden
+  rvAclChildren         — one row per item at this level (item_acl_child.xml):
+                          name (tap to open groups) + Inherit / Hide / Show circles
+  tvAclEmpty            — empty state (this level has no items)
 
-  Every switch saves immediately through TaskRepository; there is no Save button.
+  Multi-level: a rule can sit on any item at any depth and is inherited downward.
+  Every change saves immediately through TaskRepository; there is no Save button.
 -->
 <androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -54,7 +58,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Children added to the group later start hidden here. Children listed below keep their own choice."
+                        android:text="Direct children with no rule start hidden. Deeper items follow their parent."
                         android:textSize="@dimen/app_text_size_sm"
                         android:textColor="@color/app_text_hint"
                         android:layout_marginTop="@dimen/app_spacing_cs" />
@@ -81,23 +85,73 @@
                 android:orientation="vertical"
                 android:padding="@dimen/app_card_padding_md">
 
-                <TextView
-                    android:id="@+id/tvAclGroupTitle"
-                    android:layout_width="wrap_content"
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Direct children"
-                    android:textSize="@dimen/app_text_size_md"
-                    android:fontFamily="sans-serif-medium"
-                    android:textColor="@color/app_text_label"
-                    android:layout_marginBottom="@dimen/app_spacing_sm" />
+                    android:scrollbars="none"
+                    android:layout_marginBottom="@dimen/app_spacing_sm">
+                    <LinearLayout
+                        android:id="@+id/aclBreadcrumb"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical" />
+                </HorizontalScrollView>
+
+                <TextView
+                    android:id="@+id/tvAclLocked"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_color_error"
+                    android:layout_marginBottom="@dimen/app_spacing_md"
+                    android:visibility="gone" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Switched off = hidden through this placement only. The child itself, its real location and other placements are unchanged."
+                    android:text="Inherit follows the parent. Hide hides the item and everything inside it through this link only; the item itself and its other locations are unchanged."
                     android:textSize="@dimen/app_text_size_sm"
                     android:textColor="@color/app_text_hint"
                     android:layout_marginBottom="@dimen/app_spacing_md" />
+
+                <!-- Column header: same widths as the three frames in item_acl_child.xml -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:layout_weight="1" />
+                    <TextView
+                        android:layout_width="@dimen/acl_radio_column_width"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:text="Inherit"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_label" />
+                    <TextView
+                        android:layout_width="@dimen/acl_radio_column_width"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:text="Hide"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_label" />
+                    <TextView
+                        android:layout_width="@dimen/acl_radio_column_width"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:text="Show"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_label" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/app_divider"
+                    android:background="@color/app_divider_inner"
+                    android:layout_marginTop="@dimen/app_spacing_sm" />
 
                 <TextView
                     android:id="@+id/tvAclEmpty"
