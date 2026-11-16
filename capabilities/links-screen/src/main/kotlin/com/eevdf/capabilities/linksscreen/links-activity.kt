@@ -21,6 +21,7 @@ import javax.inject.Inject
 import com.eevdf.capabilities.taskstorage.logic.SortHelper
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.switchmaterial.SwitchMaterial
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -50,6 +51,8 @@ class LinksActivity : AppCompatActivity() {
     private lateinit var actvLinkTarget: AutoCompleteTextView
     private lateinit var actvLinkHost:   AutoCompleteTextView
     private lateinit var tvLinkError:    TextView
+    private lateinit var layoutHideNewChildren: View
+    private lateinit var switchHideNewChildren: SwitchMaterial
     private lateinit var btnCreateLink:  MaterialButton
     private lateinit var tvNoLinks:      TextView
     private lateinit var rvExistingLinks: RecyclerView
@@ -77,6 +80,8 @@ class LinksActivity : AppCompatActivity() {
         actvLinkTarget   = findViewById(R.id.actvLinkTarget)
         actvLinkHost     = findViewById(R.id.actvLinkHost)
         tvLinkError      = findViewById(R.id.tvLinkError)
+        layoutHideNewChildren = findViewById(R.id.layoutHideNewChildren)
+        switchHideNewChildren = findViewById(R.id.switchHideNewChildren)
         btnCreateLink    = findViewById(R.id.btnCreateLink)
         tvNoLinks        = findViewById(R.id.tvNoLinks)
         rvExistingLinks  = findViewById(R.id.rvExistingLinks)
@@ -137,6 +142,9 @@ class LinksActivity : AppCompatActivity() {
     }
 
     private fun updateTypeDescription() {
+        // The default-visibility switch only means something for a hardlink.
+        layoutHideNewChildren.visibility =
+            if (toggleLinkType.checkedButtonId == R.id.btnTypeHardlink) View.VISIBLE else View.GONE
         tvLinkTypeDesc.text = if (toggleLinkType.checkedButtonId == R.id.btnTypeHardlink)
             "A real, extra placement of the target inside the host group. Fully independent " +
                 "scheduling/runtime there; every other setting is shared with the original."
@@ -166,7 +174,8 @@ class LinksActivity : AppCompatActivity() {
         tvLinkError.visibility = View.GONE
 
         if (toggleLinkType.checkedButtonId == R.id.btnTypeHardlink) {
-            lifecycleScope.launch { repository.createHardlink(targetId, hostId) }
+            val hideNew = switchHideNewChildren.isChecked
+            lifecycleScope.launch { repository.createHardlink(targetId, hostId, newChildrenHidden = hideNew) }
         } else {
             lifecycleScope.launch { repository.createSymlink(targetId, hostId) }
         }
@@ -174,6 +183,7 @@ class LinksActivity : AppCompatActivity() {
         selectedHostId   = null
         actvLinkTarget.setText("", false)
         actvLinkHost.setText("", false)
+        switchHideNewChildren.isChecked = false
     }
 
     /**

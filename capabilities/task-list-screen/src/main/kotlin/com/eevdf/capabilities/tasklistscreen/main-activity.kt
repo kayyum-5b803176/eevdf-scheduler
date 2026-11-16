@@ -537,6 +537,11 @@ class MainActivity : AppCompatActivity() {
         onTaskClick          = { /* tap does nothing — use long-press to edit */ },
         onTaskLongClick      = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
         else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
+        // Hardlink rows pass their placement id so the edit screen can show the ACL tab.
+        onMembershipLongClick = { item ->
+            if (viewModel.allowEditEnabled.value == true) showTaskDetail(item.task, item.membershipId)
+            else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show()
+        },
         onDeleteClick        = { confirmDelete(it) },
         onCompleteClick      = { viewModel.markCompleted(it) },
         onRunClick           = { item ->
@@ -908,9 +913,11 @@ class MainActivity : AppCompatActivity() {
         drillBackCallback.isEnabled = currentTab != 2 && (drill?.canGoBack == true)
     }
 
-    private fun showTaskDetail(task: Task) {
+    private fun showTaskDetail(task: Task, membershipId: String? = null) {
         startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK).apply {
             putExtra("task_id", task.id)
+            // Only when launched from a hardlink row: AddTaskActivity shows the ACL tab.
+            if (membershipId != null) putExtra("membership_id", membershipId)
         })
     }
 

@@ -121,6 +121,45 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- Hardlink only: default visibility of the target group's children through this placement. -->
+                    <LinearLayout
+                        android:id="@+id/layoutHideNewChildren"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:visibility="gone"
+                        android:layout_marginBottom="@dimen/app_spacing_xl">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Hide new children by default"
+                                android:textSize="@dimen/app_text_size_md"
+                                android:fontFamily="sans-serif-medium"
+                                android:textColor="@color/app_text_label" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Every child of a linked group starts hidden here; pick the ones to show from the link's ACL tab."
+                                android:textSize="@dimen/app_text_size_sm"
+                                android:textColor="@color/app_text_hint"
+                                android:layout_marginTop="@dimen/app_spacing_cs" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchHideNewChildren"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
                     <TextView
                         android:id="@+id/tvLinkError"
                         android:layout_width="match_parent"

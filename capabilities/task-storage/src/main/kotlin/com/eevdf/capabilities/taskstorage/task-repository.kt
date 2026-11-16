@@ -24,6 +24,7 @@ class TaskRepository @Inject constructor(
     private val loadFactorDao: TaskLoadFactorDao,
     private val taskLinkDao: TaskLinkDao,               // ← new: symlinks
     private val taskMembershipDao: TaskMembershipDao,   // ← new: hardlinks
+    private val membershipAclDao: MembershipAclDao,     // ← new: hardlink ACL (hidden direct children)
     /** Kernel event bus — publishes `task.saved` (rule 3: bus-only, never a direct call out). */
     private val bus: EventBus,
     /** Single source of "now" for every scheduling decision (kernel rule 1) —
@@ -82,6 +83,14 @@ class TaskRepository @Inject constructor(
         addSource(activeTasksIncludingSleeping)  { tasks = it; rebuild() }
     }
 
+    /**
+     * Every hardlink ACL row (see [MembershipAcl]) — the same shape as
+     * [allTaskMemberships], so a list builder subscribes to both the same way
+     * and flipping one switch refreshes the lists immediately. Unfiltered: a
+     * row for an asleep task's placement is simply never consulted.
+     */
+    val allMembershipAcl: LiveData<List<MembershipAcl>> = membershipAclDao.getAll()
+
     /** Creates a symlink: [hostGroupId] shows [targetTaskId] as a live pointer. */
     suspend fun createSymlink(targetTaskId: String, hostGroupId: String) = withContext(Dispatchers.IO) {
         taskLinkDao.insert(TaskLink(targetTaskId = targetTaskId, hostGroupId = hostGroupId))
@@ -89,6 +98,8 @@ class TaskRepository @Inject constructor(
 
     suspend fun deleteSymlink(linkId: String) = withContext(Dispatchers.IO) {
         taskLinkDao.deleteById(linkId)
+        // The pointer was a hosted child of its group: drop any row hiding it.
+        membershipAclDao.deleteByChildKey(MembershipAclKeys.symlink(linkId))
     }
 
     /**
@@ -100,9 +111,16 @@ class TaskRepository @Inject constructor(
      * only real children would under-seed (or over-seed) the new placement's
      * starting vruntime whenever the group's siblings are themselves mostly
      * hardlinks, letting it unfairly dominate or starve relative to them.
+     *
+     * [newChildrenHidden] is the placement's default visibility for the
+     * children of [taskId] when it is a group (see [TaskMembership.newChildrenHidden]).
+     * Existing children have no ACL row yet, so `true` hides all of them
+     * through this new placement too; un-hide the ones wanted afterwards.
      */
-    suspend fun createHardlink(taskId: String, hostGroupId: String) = withContext(Dispatchers.IO) {
-        val membership = TaskMembership(taskId = taskId, groupId = hostGroupId)
+    suspend fun createHardlink(
+        taskId: String, hostGroupId: String, newChildrenHidden: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        val membership = TaskMembership(taskId = taskId, groupId = hostGroupId, newChildrenHidden = newChildrenHidden)
         val realSiblingVruntimes       = dao.getChildrenOf(hostGroupId).filter { !it.isAsleep }.map { it.vruntime }
         val membershipSiblingVruntimes = taskMembershipDao.getForGroup(hostGroupId).map { it.vruntime }
         val avgVruntime = (realSiblingVruntimes + membershipSiblingVruntimes)
@@ -112,7 +130,54 @@ class TaskRepository @Inject constructor(
 
     suspend fun deleteHardlink(membershipId: String) = withContext(Dispatchers.IO) {
         taskMembershipDao.deleteById(membershipId)
+        removeMembershipAcl(membershipId)
     }
+
+    /** Drops the placement's own ACL, and the row (under its host group's doors) that named it as a hosted child. */
+    private suspend fun removeMembershipAcl(membershipId: String) {
+        membershipAclDao.deleteByMembership(membershipId)
+        membershipAclDao.deleteByChildKey(MembershipAclKeys.membership(membershipId))
+    }
+
+    // ── Hardlink ACL ──────────────────────────────────────────────────────────
+    // Hide chosen DIRECT children of a hardlinked group when viewed through ONE
+    // placement. Nothing here touches the hidden child or the real placement.
+
+    suspend fun getMembership(membershipId: String): TaskMembership? =
+        withContext(Dispatchers.IO) { taskMembershipDao.getById(membershipId) }
+
+    /** The explicit ACL rows of one placement. A child with no row follows [TaskMembership.newChildrenHidden]. */
+    suspend fun getMembershipAcl(membershipId: String): List<MembershipAcl> =
+        withContext(Dispatchers.IO) { membershipAclDao.getForMembership(membershipId) }
+
+    /** Writes an EXPLICIT row for [childKey] (see [MembershipAclKeys]) — `hidden = false` is an explicit "visible". */
+    suspend fun setMembershipChildHidden(membershipId: String, childKey: String, hidden: Boolean) =
+        withContext(Dispatchers.IO) {
+            membershipAclDao.upsert(MembershipAcl(membershipId, childKey, hidden))
+        }
+
+    /**
+     * Sets the placement's default for children that have no explicit row.
+     * Changing it never changes a child that already has a row.
+     */
+    suspend fun setMembershipNewChildrenHidden(membershipId: String, hidden: Boolean) =
+        withContext(Dispatchers.IO) { taskMembershipDao.updateNewChildrenHidden(membershipId, hidden) }
+
+    /**
+     * Gives every key in [childKeys] that has no row yet an explicit one
+     * holding its CURRENT effective state (the placement's default at this
+     * moment). Existing rows are left alone. The ACL page calls this for every
+     * child it lists, so a later change of [setMembershipNewChildrenHidden]
+     * only affects children added afterwards.
+     */
+    suspend fun ensureMembershipAclRows(membershipId: String, childKeys: Collection<String>) =
+        withContext(Dispatchers.IO) {
+            if (childKeys.isEmpty()) return@withContext
+            val membership = taskMembershipDao.getById(membershipId) ?: return@withContext
+            membershipAclDao.insertMissing(
+                childKeys.distinct().map { MembershipAcl(membershipId, it, membership.newChildrenHidden) }
+            )
+        }
 
     suspend fun getMembershipsForGroup(groupId: String): List<TaskMembership> =
         withContext(Dispatchers.IO) { taskMembershipDao.getForGroup(groupId) }
@@ -306,8 +371,17 @@ class TaskRepository @Inject constructor(
         dao.delete(task)
         interruptReturnDao.clearByTask(task.id)
         loadFactorDao.clearByTask(task.id)
+        // ACL rows first: their cleanup subqueries read task_memberships, which is
+        // about to lose the very rows that name them.
+        membershipAclDao.deleteByMembershipsOfTask(task.id)           // ACLs of this task's own placements
+        membershipAclDao.deleteChildKeysOfMembershipsOfTask(task.id)  // those placements as hosted children elsewhere
+        membershipAclDao.deleteByChildKey(MembershipAclKeys.real(task.id)) // this task as a real child, under every door
         taskMembershipDao.deleteByTask(task.id)
         if (task.isGroup) {
+            // Doors OF this group went with deleteByMembershipsOfTask above (every
+            // row hiding its hosted symlinks/placements is keyed by those doors).
+            // What's left is the ACLs of placements hosted INSIDE it.
+            membershipAclDao.deleteByMembershipsHostedIn(task.id)
             taskLinkDao.deleteByHost(task.id)
             taskMembershipDao.deleteByGroup(task.id)
         }
@@ -344,11 +418,22 @@ class TaskRepository @Inject constructor(
         val remaining = taskMembershipDao.getForTask(task.id)
         if (remaining.isNotEmpty()) {
             val promoted = remaining.first()
+            // The old real placement stops being a direct child of its old
+            // parent: forget what that parent's doors said about it.
+            task.parentId?.let { membershipAclDao.deleteChildUnderGroupDoors(MembershipAclKeys.real(task.id), it) }
+            // The promoted placement turns into the task's real child of
+            // promoted.groupId — carry over what that group's doors said about
+            // the placement, so a hidden child doesn't pop back into view.
+            val carried = membershipAclDao.getForChildKey(MembershipAclKeys.membership(promoted.id))
             dao.update(task.copy(
                 parentId = promoted.groupId,
                 vruntime = promoted.vruntime,
             ))
             taskMembershipDao.deleteById(promoted.id)
+            removeMembershipAcl(promoted.id)
+            if (carried.isNotEmpty()) {
+                membershipAclDao.upsertAll(carried.map { it.copy(childKey = MembershipAclKeys.real(task.id)) })
+            }
             return
         }
         forceDelete(task)
@@ -500,7 +585,10 @@ class TaskRepository @Inject constructor(
         membershipId: String? = null,
     ): Task = withContext(Dispatchers.IO) {
         val secondsRan = session.wallClockSeconds
+        // A door that now hides this task (hardlink ACL) no longer owns the run:
+        // credit the real placement instead, exactly as if no door was given.
         val door = membershipId?.let { taskMembershipDao.getById(it) }
+            ?.takeUnless { isHiddenThroughDoor(task, it) }
 
         if (door != null && door.taskId == task.id) {
             // Direction: task run via its OWN membership placement `door`.
@@ -545,6 +633,22 @@ class TaskRepository @Inject constructor(
 
         creditAncestors(task.parentId, secondsRan, door = door)
         refreshAllAndReturn(task.id) ?: task
+    }
+
+    /** True when [door]'s ACL hides [task] (or the direct child of the door's group it sits under). */
+    private suspend fun isHiddenThroughDoor(task: Task, door: TaskMembership): Boolean {
+        val rows = membershipAclDao.getForMembership(door.id)
+        if (rows.none { it.hidden } && !door.newChildrenHidden) return false
+        val parents = HashMap<String, String?>()
+        parents[task.id] = task.parentId
+        var id = task.parentId
+        var hops = 0
+        while (id != null && id !in parents && hops++ < 64) {
+            val parent = dao.getTaskById(id)?.parentId
+            parents[id] = parent
+            id = parent
+        }
+        return MembershipAclRules.isTaskHiddenThroughDoor(task.id, door, rows) { parents[it] }
     }
 
     /**

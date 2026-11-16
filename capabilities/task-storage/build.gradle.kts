@@ -35,6 +35,13 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
+    // Unit tests (src/test) — SleepRulesTest, TaskSchemaFreezeTest and the hardlink-ACL
+    // tests. Without these the module's `test` task cannot compile at all (the existing
+    // tests import org.junit and kotlin.reflect.full). No new coordinates: both are
+    // already used by sibling modules (task-scheduling, backup-restore).
+    testImplementation(libs.junit)
+    testImplementation(kotlin("reflect"))
+
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.androidx.test.core)

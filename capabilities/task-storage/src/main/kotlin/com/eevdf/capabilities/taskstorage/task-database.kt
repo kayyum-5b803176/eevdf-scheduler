@@ -23,8 +23,9 @@ import com.eevdf.capabilities.taskstorage.Task
         TaskLoadFactor::class,
         TaskLink::class,                // ← new: symlinks
         TaskMembership::class,          // ← new: hardlink extra placements
+        MembershipAcl::class,           // ← new: per-placement child visibility (hardlink ACL)
     ],
-    version  = 30,                      // ← bumped from 29 (sleep / wake columns)
+    version  = 31,                      // ← bumped from 30 (hardlink ACL table + newChildrenHidden)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -35,6 +36,7 @@ abstract class TaskDatabase : RoomDatabase() {
     abstract fun taskLoadFactorDao(): TaskLoadFactorDao
     abstract fun taskLinkDao(): TaskLinkDao             // ← new
     abstract fun taskMembershipDao(): TaskMembershipDao // ← new
+    abstract fun membershipAclDao(): MembershipAclDao   // ← new: hardlink ACL
 
     companion object {
         @Volatile
@@ -564,6 +566,32 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 30 → 31 — hardlink ACL: hide chosen DIRECT children of a
+         * hardlinked group when it is viewed through one specific placement.
+         *
+         * membership_acl            — one row per (placement, direct child),
+         *                             composite primary key. No row means "follow
+         *                             the placement's newChildrenHidden default".
+         * task_memberships.newChildrenHidden — that default (0 = visible).
+         *
+         * Existing placements keep showing every child: no ACL rows exist yet
+         * and the new column defaults to 0.
+         */
+        private val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS membership_acl (
+                        membershipId TEXT NOT NULL,
+                        childKey TEXT NOT NULL,
+                        hidden INTEGER NOT NULL,
+                        PRIMARY KEY(membershipId, childKey)
+                    )
+                """.trimIndent())
+                db.execSQL("ALTER TABLE task_memberships ADD COLUMN newChildrenHidden INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -579,7 +607,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
-                        MIGRATION_29_30,
+                        MIGRATION_29_30, MIGRATION_30_31,
                     )
                     .build()
                 INSTANCE = instance

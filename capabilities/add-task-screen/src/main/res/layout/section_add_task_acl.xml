@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ACL tab — which DIRECT children of a hardlinked group this ONE placement shows.
+
+  aclContainer          — GONE unless AddTaskActivity was opened with "membership_id"
+  switchAclHideNew      — placement default for children with no explicit choice
+  tvAclEmpty            — empty state (group has no children)
+  rvAclChildren         — one row per direct child (item_acl_child.xml)
+
+  Every switch saves immediately through TaskRepository; there is no Save button.
+-->
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/aclContainer"
+    style="@style/App.PageScroll"
+    android:layout_height="match_parent"
+    android:visibility="gone"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+    <LinearLayout
+        style="@style/App.PageContent">
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/App.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginTop="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="@dimen/app_card_padding_md">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Hide new children by default"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/app_text_label" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Children added to the group later start hidden here. Children listed below keep their own choice."
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_hint"
+                        android:layout_marginTop="@dimen/app_spacing_cs" />
+                </LinearLayout>
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchAclHideNew"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/App.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/app_card_gap"
+            android:layout_marginEnd="@dimen/app_card_gap"
+            android:layout_marginBottom="@dimen/app_card_gap">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/app_card_padding_md">
+
+                <TextView
+                    android:id="@+id/tvAclGroupTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Direct children"
+                    android:textSize="@dimen/app_text_size_md"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label"
+                    android:layout_marginBottom="@dimen/app_spacing_sm" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Switched off = hidden through this placement only. The child itself, its real location and other placements are unchanged."
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_hint"
+                    android:layout_marginBottom="@dimen/app_spacing_md" />
+
+                <TextView
+                    android:id="@+id/tvAclEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="This group has no children yet."
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_caption"
+                    android:visibility="gone" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvAclChildren"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

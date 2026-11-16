@@ -199,6 +199,9 @@ class TaskViewModel @Inject constructor(
     /** Every hardlink placement in the app. Spliced into the tree by [ListBuilderDelegate]. */
     val allTaskMemberships: LiveData<List<com.eevdf.capabilities.taskstorage.TaskMembership>> = repository.allTaskMemberships
 
+    /** Every hardlink ACL row — which direct children each placement hides. Read by [ListBuilderDelegate]. */
+    val allMembershipAcl: LiveData<List<com.eevdf.capabilities.taskstorage.MembershipAcl>> = repository.allMembershipAcl
+
     /**
      * Non-null while the currently selected/running task ([currentTaskOwner]) was
      * seated via a hardlink placement rather than its real, primary parent.
@@ -263,6 +266,8 @@ class TaskViewModel @Inject constructor(
     private var tickObserver:           Observer<Long> = Observer {}
     private var expiredObserver:        Observer<Task> = Observer {}
     private var expiredSessionObserver: Observer<RunSession> = Observer {}
+    /** Hardlink ACL changed: if the selected task just got hidden through its door, fall back to its real placement. */
+    private val aclReseatObserver: Observer<Any?> = Observer { reseatIfDoorHidesCurrent() }
 
     // ── Overrun counter ───────────────────────────────────────────────────────
 
@@ -436,6 +441,11 @@ class TaskViewModel @Inject constructor(
         timerEngine.tickSeconds.observeForever(tickObserver)
         timerEngine.expiredSession.observeForever(expiredSessionObserver)
         timerEngine.expiredTask.observeForever(expiredObserver)
+
+        // Hardlink ACL: no selection may stay seated on a door that hides it.
+        currentTaskOwner.refGuard = { visibleRefOrReal(it) }
+        allMembershipAcl.observeForever(aclReseatObserver)
+        allTaskMemberships.observeForever(aclReseatObserver)
 
         // ── Startup / app-kill recovery ────────────────────────────────────────
         // See StartupRecoveryDelegate for the actual 3-step decision logic.
@@ -778,6 +788,8 @@ class TaskViewModel @Inject constructor(
         timerEngine.tickSeconds.removeObserver(tickObserver)
         timerEngine.expiredSession.removeObserver(expiredSessionObserver)
         timerEngine.expiredTask.removeObserver(expiredObserver)
+        allMembershipAcl.removeObserver(aclReseatObserver)
+        allTaskMemberships.removeObserver(aclReseatObserver)
         timerEngine.clear()
         overrunTimer?.cancel()
         notice.cancelTimers()

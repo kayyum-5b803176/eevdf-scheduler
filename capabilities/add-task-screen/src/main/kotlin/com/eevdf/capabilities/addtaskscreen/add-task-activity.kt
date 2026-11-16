@@ -8,6 +8,7 @@ import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.capabilities.addtaskscreen.R
 import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.tasklistscreen.TaskViewModel
 import com.eevdf.kernel.clock.Clock
 import com.google.android.material.button.MaterialButton
@@ -40,6 +41,7 @@ import javax.inject.Inject
  *   • SleepSection.kt             — sleep switch + duration field (moon button length)
  *   • SchedulerSection.kt         — scheduler class, DL, and RT sub-sections
  *   • SaveHandler.kt              — full saveTask() validation + persistence
+ *   • AclSection.kt               — Config/ACL tabs for hardlink placements (intent extra membership_id)
  */
 @AndroidEntryPoint
 class AddTaskActivity : AppCompatActivity() {
@@ -48,6 +50,12 @@ class AddTaskActivity : AppCompatActivity() {
 
     /** Kernel's single source of "now" — injected the same way [bus] is elsewhere in the app (kernel rule 1). */
     @Inject lateinit var clock: Clock
+
+    /** Direct repository access for the ACL tab (same approach as LinksActivity). */
+    @Inject lateinit var repository: TaskRepository
+
+    /** Non-null only when opened from a hardlink row (intent extra `membership_id`) — see AclSection.kt. */
+    internal var aclTab: AclTab? = null
 
     // ── Basic task fields ─────────────────────────────────────────────────────
     internal lateinit var etName:           TextInputEditText
@@ -210,6 +218,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupQuotaSection()
         setupSleepSection()
         setupSchedulerClassSection()
+        setupAclSection()   // no-op without the membership_id extra
 
         // Observe activeTasks here (not just in validation) so .value is populated
         // the moment the user opens this screen and types a pinned share value.

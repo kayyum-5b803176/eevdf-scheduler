@@ -39,6 +39,13 @@ import java.util.UUID
  * fresh every time the scheduler needs them. Persisting them here would just
  * be a second copy of a value already fully determined by [vruntime] — never
  * a second source of truth to keep in sync, and never a corruption risk.
+ *
+ * [newChildrenHidden] is the ONE other per-placement setting. When this
+ * placement's task is a group, the placement lists all of the group's real
+ * children — unless some are hidden through it (see [MembershipAcl], one row
+ * per hidden/shown direct child). A child with no explicit row follows this
+ * flag: `false` (the default) shows it, `true` hides it. It only decides the
+ * visibility of children that have no row of their own.
  */
 @Entity(tableName = "task_memberships")
 data class TaskMembership(
@@ -48,6 +55,7 @@ data class TaskMembership(
     val groupId: String,
     var vruntime: Double = 0.0,
     val createdAt: Long = System.currentTimeMillis(),
+    val newChildrenHidden: Boolean = false,
 )
 
 @Dao
@@ -80,6 +88,10 @@ interface TaskMembershipDao {
      *  alone an update query, of their own. */
     @Query("UPDATE task_memberships SET vruntime = :vruntime WHERE id = :id")
     suspend fun updateVruntime(id: String, vruntime: Double)
+
+    /** Default visibility for children of this placement that have no explicit [MembershipAcl] row. */
+    @Query("UPDATE task_memberships SET newChildrenHidden = :hidden WHERE id = :id")
+    suspend fun updateNewChildrenHidden(id: String, hidden: Boolean)
 
     @Query("DELETE FROM task_memberships WHERE id = :id")
     suspend fun deleteById(id: String)

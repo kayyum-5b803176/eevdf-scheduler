@@ -211,7 +211,9 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
         vm.scheduler.scheduleNext()
     }
 
-    fun setCurrentTask(task: Task, ref: TaskInstanceRef? = null) {
+    fun setCurrentTask(task: Task, requestedRef: TaskInstanceRef? = null) {
+        // A door that hides this task (hardlink ACL) falls back to the real placement.
+        val ref = vm.visibleRefOrReal(requestedRef)
         // Derived from the SAME ref passed in — never a separate assumption
         // set after the fact. That "set it afterward" pattern is exactly what
         // let this drift out of sync with the real selection previously.

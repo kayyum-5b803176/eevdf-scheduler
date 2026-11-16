@@ -35,6 +35,13 @@ import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 class TaskAdapter(
     private val onTaskClick:        (Task) -> Unit,
     private val onTaskLongClick:    (Task) -> Unit = {},
+    /**
+     * Long-press on a hardlink placement row. Receives the whole item so the
+     * caller can pass the placement's [TaskDisplayItem.membershipId] on to the
+     * edit screen (which then offers the ACL tab). When null, membership rows
+     * fall back to [onTaskLongClick] exactly as before.
+     */
+    private val onMembershipLongClick: ((TaskDisplayItem) -> Unit)? = null,
     private val onDeleteClick:      (Task) -> Unit,
     private val onCompleteClick:    (Task) -> Unit,
     private val onRunClick:         (TaskDisplayItem) -> Unit,
@@ -589,7 +596,9 @@ class TaskAdapter(
                 holder.btnDelete.setOnClickListener { onSymlinkDelete(item) }
             }
             item.membershipId != null -> {
-                holder.card.setOnLongClickListener { onTaskLongClick(task); true }  // shared config IS editable
+                holder.card.setOnLongClickListener {   // shared config IS editable
+                    onMembershipLongClick?.invoke(item) ?: onTaskLongClick(task); true
+                }
                 holder.btnDelete.setOnClickListener { onMembershipDelete(item) }
             }
             else -> {

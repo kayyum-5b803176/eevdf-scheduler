@@ -58,6 +58,13 @@ internal class CurrentTaskOwner(
     val instanceRef: LiveData<TaskInstanceRef?> = _instanceRef
 
     /**
+     * Optional last-chance rewrite of every ref that goes in — used to fall
+     * back to the real placement when a hardlink ACL hides the task through
+     * the ref's door (see door-ref-guard.kt). Null = no rewriting.
+     */
+    internal var refGuard: ((TaskInstanceRef?) -> TaskInstanceRef?)? = null
+
+    /**
      * Dispatches [task] (or `null` for "nothing dispatched") on the main
      * thread. Safe to call from any delegate that used to write
      * `vm._currentTask.value = ...` directly. [ref] defaults to the task's
@@ -74,7 +81,7 @@ internal class CurrentTaskOwner(
      */
     fun set(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
         val changed = task?.id != _current.value?.id
-        _instanceRef.value = ref
+        _instanceRef.value = refGuard?.invoke(ref) ?: ref
         _current.value = task
         if (changed) publish(task)
     }
@@ -82,7 +89,7 @@ internal class CurrentTaskOwner(
     /** Same as [set], but safe to call off the main thread (was `.postValue(...)`). */
     fun setAsync(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
         val changed = task?.id != _current.value?.id
-        _instanceRef.postValue(ref)
+        _instanceRef.postValue(refGuard?.invoke(ref) ?: ref)
         _current.postValue(task)
         if (changed) publish(task)
     }

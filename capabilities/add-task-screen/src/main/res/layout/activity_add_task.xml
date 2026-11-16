@@ -15,6 +15,11 @@
     section_add_task_scheduler.xml      — Scheduler class toggle + DL + RT sub-sections
     section_add_task_category.xml       — Category chip group
     section_add_task_buttons.xml        — Save / Cancel action buttons
+    section_add_task_acl.xml            — ACL tab (hardlink placements only): hidden direct children
+
+  The tab bar and the ACL container are GONE unless the screen was opened from a
+  hardlink row (intent extra "membership_id"). Tabs only toggle visibility of
+  @id/configScroll (the unchanged form) and @id/aclContainer.
 -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -33,9 +38,20 @@
             android:layout_height="?attr/actionBarSize"
             android:background="@color/app_text_label"
             app:titleTextColor="@android:color/white" />
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabAddTask"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/app_text_label"
+            android:visibility="gone"
+            app:tabTextColor="#B3FFFFFF"
+            app:tabSelectedTextColor="@android:color/white"
+            app:tabIndicatorColor="@android:color/white" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/configScroll"
         style="@style/App.PageScroll"
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
@@ -63,5 +79,7 @@
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
+
+    <include layout="@layout/section_add_task_acl" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
