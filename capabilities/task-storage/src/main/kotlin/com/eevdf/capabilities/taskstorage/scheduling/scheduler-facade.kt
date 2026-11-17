@@ -126,6 +126,18 @@ object EEVDFScheduler {
         }
     }
 
+    /**
+     * Relative lag of [entry] among [siblingPool] — see [EevdfScheduler.relativeLag].
+     * Pure and read-only: nothing is written back onto the entities.
+     *
+     * Both arguments are entries of an "effective" list ([withMemberships]), so a
+     * hardlink placement is just another entry: its synthetic copy carries the
+     * placement's own vruntime and competes in the pool under its host group.
+     * [siblingPool] must be ONE level only (same `parentId`); the caller shapes it.
+     */
+    fun relativeLag(entry: Task, siblingPool: List<Task>): Double? =
+        EevdfScheduler.relativeLag(entry.toSched(), siblingPool.map { it.toSched() })
+
     fun selectNext(tasks: List<Task>): Task? {
         val recalced = EevdfScheduler.recalculate(tasks.map { it.toSched() })
         val winner = EevdfScheduler.selectNext(recalced) ?: return null

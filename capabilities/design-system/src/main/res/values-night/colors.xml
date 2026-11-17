@@ -41,6 +41,11 @@
     <color name="rankDl">#90CAF9</color>
     <color name="rankRt">#A5D6A7</color>
 
+    <!-- Relative lag text on dark cards — same lightened green / amber already used
+         above for rankRt and quotaTextWarning. -->
+    <color name="relativeLagBehind">#A5D6A7</color>
+    <color name="relativeLagAhead">#FFB74D</color>
+
     <!-- ── Timer / alarm card surfaces and buttons ────────────────────────── -->
     <!-- timerCardBackground: deep dark blue — replaces bright colorPrimary -->
     <color name="timerCardBackground">#0D2137</color>

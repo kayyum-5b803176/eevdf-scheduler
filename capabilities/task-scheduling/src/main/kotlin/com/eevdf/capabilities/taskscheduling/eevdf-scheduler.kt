@@ -123,6 +123,54 @@ object EevdfScheduler {
         return lag.coerceIn(-limit, limit)
     }
 
+    // ── Relative lag (display) ───────────────────────────────────────────────
+
+    /**
+     * "Relative lag" (RL) of [entity] among its siblings, mapped to a small,
+     * comparable number for display — never the raw lag.
+     *
+     * ```
+     *   lag = (avgVruntime − vruntime) · weight          // same formula as [recalculate]
+     *   RL  = clamp(lag / sliceSeconds · (N / 2), −N/2, +N/2)
+     * ```
+     *
+     * where `N` is the number of entities in the sibling pool INCLUDING
+     * [entity] itself and `avgVruntime` is that pool's weight-weighted mean.
+     * One full slice of lag therefore reads as N/2 (the limit), so the range
+     * scales with the size of the level: 6 siblings give −3…+3, 5 give ±2.5.
+     * Positive = behind the siblings (owed time, eligible); negative = ahead
+     * (ineligible); zero = at the average.
+     *
+     * [siblingPool] must be the entities that actually compete at ONE level —
+     * the same `parentId`, awake, leaf tasks and groups together — and is
+     * computed fresh by the caller; never use the stored [SchedTask.lag], which
+     * is recalculated against a flat pool of every active task and is not
+     * sibling-relative. Completed and non-fair entries are ignored (as in
+     * [pickNextHierarchical]); [entity] is added when missing, as [sleepLag]
+     * does. The running entity is deliberately NOT excluded: this is a status
+     * readout, and N should not jump while something runs.
+     *
+     * Returns null when there is nothing to compare against — [entity] is
+     * completed or not fair-class, or the pool has fewer than 2 entities (lag
+     * is always 0 for a lone entity). A non-positive weight or slice gives 0.0
+     * rather than a division by zero. Pure: never mutates its inputs.
+     */
+    fun relativeLag(entity: SchedTask, siblingPool: List<SchedTask>): Double? {
+        if (entity.isCompleted || !entity.isFair) return null
+        val competing = siblingPool.filter { !it.isCompleted && it.isFair }
+        val pool = if (competing.any { it.id == entity.id }) competing else competing + entity
+        val n = pool.size
+        if (n < 2) return null
+
+        val slice = entity.timeSliceSeconds.toDouble()
+        if (entity.weight <= 0.0 || slice <= 0.0) return 0.0
+
+        val lag = (averageVruntime(pool) - entity.vruntime) * entity.weight
+        val half = n / 2.0
+        val rl = lag / slice * half
+        return if (rl.isNaN()) 0.0 else rl.coerceIn(-half, half)
+    }
+
     /**
      * Linux `place_entity()` for a task that is waking up: restore the lag it
      * slept with, so a task that was owed time stays slightly favoured and a

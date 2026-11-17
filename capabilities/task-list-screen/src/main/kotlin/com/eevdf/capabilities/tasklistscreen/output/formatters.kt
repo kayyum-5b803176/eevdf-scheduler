@@ -14,7 +14,27 @@ package com.eevdf.capabilities.tasklistscreen.output
  *
  * The three adapter-state-aware wrappers [fmtFloat], [fmtInt], [fmtDur] that
  * branch on [TaskAdapter.unitFormatEnabled] live in UnitFormat.kt.
+ *
+ * [relativeLagSign] / [formatRelativeLag] (group cards' "RL: +1.5") are pure and
+ * deliberately NOT unit-format aware: RL is a small, sibling-scaled number, so
+ * one plain decimal is always right.
  */
+
+/** −1 / 0 / +1 for a relative-lag value AS DISPLAYED (rounded to one decimal), so 0.04 reads as 0, not +. */
+internal fun relativeLagSign(v: Double): Int {
+    val tenths = Math.round(v * 10.0)
+    return when { tenths > 0L -> 1; tenths < 0L -> -1; else -> 0 }
+}
+
+/** One decimal with an explicit sign: "+1.5", "-0.5"; an exact (displayed) zero is "0.0" — never "+0.0" or "-0.0". */
+internal fun formatRelativeLag(v: Double): String {
+    val magnitude = "%.1f".format(kotlin.math.abs(v))
+    return when (relativeLagSign(v)) {
+        1    -> "+$magnitude"
+        -1   -> "-$magnitude"
+        else -> "0.0"
+    }
+}
 
 /**
  * Format a duration in seconds as a compact real-time string, showing only

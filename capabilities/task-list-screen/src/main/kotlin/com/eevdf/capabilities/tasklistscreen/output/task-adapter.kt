@@ -362,7 +362,16 @@ class TaskAdapter(
             // Group header row
             holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
-            holder.tvRemaining.text = "VRT: ${fmtFloat(displayVrt)}"
+            // Groups show Relative Lag here instead of VRT (the metrics row below still
+            // shows the raw VRT). null = nothing to compare against → "RL: —".
+            val rl = item.relativeLag
+            holder.tvRemaining.text = if (rl == null) "RL: —" else "RL: ${formatRelativeLag(rl)}"
+            setTimeInfoColor(holder, when {
+                rl == null                -> R.color.app_text_label
+                relativeLagSign(rl) > 0   -> R.color.relativeLagBehind
+                relativeLagSign(rl) < 0   -> R.color.relativeLagAhead
+                else                      -> R.color.app_text_label
+            })
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.progressBar.visibility    = View.GONE
             holder.progressNotice.visibility = View.GONE  // fix: hide notice bar on recycled group ViewHolders
@@ -392,6 +401,7 @@ class TaskAdapter(
             holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
+            setTimeInfoColor(holder, R.color.app_text_label)   // views are recycled: undo a group's RL colour
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.btnGroupToggle.visibility = View.GONE  // fix: hide group toggle on recycled leaf ViewHolders
             // NOTIFICATION tasks: show segmented bar (execute=blue, wait=green) with live fill.
@@ -678,9 +688,14 @@ class TaskAdapter(
         }
     }
 
+    /** Sets the colour of the right-hand time-info text ([TaskViewHolder.tvRemaining]) — set on EVERY bind, never assumed. */
+    private fun setTimeInfoColor(holder: TaskViewHolder, colorRes: Int) =
+        holder.tvRemaining.setTextColor(androidx.core.content.ContextCompat.getColor(holder.itemView.context, colorRes))
+
     /** "Wakes in 1h 20m" on the stat line of a sleeping row; a group's children say they sleep with the group. */
     private fun bindSleepCountdown(holder: TaskViewHolder, item: TaskDisplayItem) {
         val task = item.task
+        setTimeInfoColor(holder, R.color.app_text_label)   // overrides the text a group row just set, so also its RL colour
         holder.tvRemaining.text = if (task.isAsleep) {
             val left = ((task.sleepUntilEpoch - System.currentTimeMillis()) / 1_000L).coerceAtLeast(0L)
             "Wakes in ${formatQuota(left)}"

@@ -248,6 +248,11 @@
     <color name="rankDl">@color/app_azure_xd</color>
     <color name="rankRt">@color/app_green_xd</color>
 
+    <!-- Relative lag (RL) on group cards. Behind the siblings (RL > 0) = owed time,
+         eligible; ahead (RL < 0) = ineligible. RL = 0 and "RL: —" use app_text_label. -->
+    <color name="relativeLagBehind">@color/app_success_text</color>
+    <color name="relativeLagAhead">@color/app_warning_text</color>
+
     <color name="pinActive">@color/app_orange_nd</color>
     <!-- Was app_grey_lt (#E0E0E0) — same near-invisible-on-card tone as the
          old `divider`-as-text bug. Repointed to app_text_caption so the
