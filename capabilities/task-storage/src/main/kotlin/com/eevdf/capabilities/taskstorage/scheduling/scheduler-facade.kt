@@ -127,16 +127,17 @@ object EEVDFScheduler {
     }
 
     /**
-     * Relative lag of [entry] among [siblingPool] — see [EevdfScheduler.relativeLag].
-     * Pure and read-only: nothing is written back onto the entities.
+     * Relative-lag numbers (id → small centred integer) for the GROUPS of one sibling
+     * level — see [EevdfScheduler.relativeLagRanks]. Pure and read-only: nothing is
+     * written back onto the entities.
      *
-     * Both arguments are entries of an "effective" list ([withMemberships]), so a
-     * hardlink placement is just another entry: its synthetic copy carries the
-     * placement's own vruntime and competes in the pool under its host group.
-     * [siblingPool] must be ONE level only (same `parentId`); the caller shapes it.
+     * [siblingPool] is a level of an "effective" list ([withMemberships]), so a hardlink
+     * placement is just another entry: its synthetic copy carries the placement's own
+     * vruntime and is ranked under its host group, keyed by its synthetic id. ONE level
+     * only (same `parentId`); the caller shapes it. Leaf tasks and lone groups get no entry.
      */
-    fun relativeLag(entry: Task, siblingPool: List<Task>): Double? =
-        EevdfScheduler.relativeLag(entry.toSched(), siblingPool.map { it.toSched() })
+    fun relativeLagRanks(siblingPool: List<Task>): Map<String, Int> =
+        EevdfScheduler.relativeLagRanks(siblingPool.map { it.toSched() })
 
     fun selectNext(tasks: List<Task>): Task? {
         val recalced = EevdfScheduler.recalculate(tasks.map { it.toSched() })

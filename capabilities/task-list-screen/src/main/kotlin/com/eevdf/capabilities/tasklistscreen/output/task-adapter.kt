@@ -362,15 +362,15 @@ class TaskAdapter(
             // Group header row
             holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
-            // Groups show Relative Lag here instead of VRT (the metrics row below still
-            // shows the raw VRT). null = nothing to compare against → "RL: —".
+            // Groups show their Relative Lag rank here instead of VRT (the metrics row
+            // below still shows the raw VRT). null = no other group at this level → "RL: —".
             val rl = item.relativeLag
             holder.tvRemaining.text = if (rl == null) "RL: —" else "RL: ${formatRelativeLag(rl)}"
             setTimeInfoColor(holder, when {
-                rl == null                -> R.color.app_text_label
-                relativeLagSign(rl) > 0   -> R.color.relativeLagBehind
-                relativeLagSign(rl) < 0   -> R.color.relativeLagAhead
-                else                      -> R.color.app_text_label
+                rl == null -> R.color.app_text_label
+                rl > 0     -> R.color.relativeLagBehind
+                rl < 0     -> R.color.relativeLagAhead
+                else       -> R.color.app_text_label
             })
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.progressBar.visibility    = View.GONE

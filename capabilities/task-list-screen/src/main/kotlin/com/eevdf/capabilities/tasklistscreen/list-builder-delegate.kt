@@ -493,6 +493,13 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             return candidates.minOrNull() ?: Double.MAX_VALUE
         }
 
+        // Relative-lag numbers per (level, door) — rows here are built one at a time, so cache the level.
+        val rlCache = HashMap<Pair<String?, String?>, Map<String, Int>>()
+        fun rlRanksAt(parentId: String?, door: String?): Map<String, Int> =
+            rlCache.getOrPut(parentId to door) {
+                EEVDFScheduler.relativeLagRanks(acl.visibleChildren(byParentEff[parentId].orEmpty(), door, parentId))
+            }
+
         fun itemFor(entry: Task, realTask: Task, depth: Int, contextOnly: Boolean, inheritedDoor: String?): TaskDisplayItem {
             val membership = if (entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX))
                 membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
@@ -520,12 +527,9 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     entryMembershipId = inheritedDoor,
                 )
             }
-            // RL needs the REAL sibling pool at this row's level, not the class-filtered view.
-            val relativeLag = if (entry.isGroup)
-                groupRelativeLag(entry, acl.visibleChildren(byParentEff[entry.parentId].orEmpty(), inheritedDoor, entry.parentId))
-            else null
             return base.copy(
-                relativeLag = relativeLag,
+                // RL needs the REAL sibling pool at this row's level, not the class-filtered view.
+                relativeLag = if (entry.isGroup) rlRanksAt(entry.parentId, inheritedDoor)[entry.id] else null,
                 isDlActive = realTask.ownScheduleClass() == ScheduleClassFilter.DEADLINE,
                 isRtActive = realTask.ownScheduleClass() == ScheduleClassFilter.REALTIME,
                 isExpanded = if (realTask.isGroup) (vm.groupExpand.scheduleExpandState[realTask.id] ?: true) else true,
@@ -672,19 +676,6 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     }
 
     /**
-     * Relative lag for a GROUP row — null for a leaf row. [pool] is the row's
-     * siblings at ITS level as the list shows them (effective entries: real
-     * tasks plus hardlink placements, minus anything hidden through the active
-     * door), so RL is computed fresh per level and never from the stored
-     * `Task.lag`, which is measured against a flat pool of every active task.
-     * A hardlink row passes its synthetic entry, i.e. the placement's own
-     * vruntime competing among the siblings under the placement's host group.
-     * Display-only: see [TaskDisplayItem.relativeLag].
-     */
-    private fun groupRelativeLag(entry: Task, pool: List<Task>): Double? =
-        if (entry.isGroup) EEVDFScheduler.relativeLag(entry, pool) else null
-
-    /**
      * True when [taskId] is targeted by at least one symlink, or is the real
      * task of at least one hardlink placement, anywhere in the app. Drives
      * the "R" square badge on an ordinary (non-link) row — see
@@ -745,6 +736,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // Doors with hidden children get their own share pool; every other
             // level uses the global shares unchanged.
             val levelShares = acl.sharesFor(inheritedDoor, parentId, effectiveTasks, effectiveShares)
+            // Relative-lag numbers for the GROUPS of this level (visible siblings only), once per level.
+            val rlRanks = EEVDFScheduler.relativeLagRanks(children)
             val counter = IntArray(1)
             children.forEach { entry ->
                 val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
@@ -779,7 +772,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true,
                         displayVruntime        = vrt,
                         displayVirtualDeadline = vdl,
-                        relativeLag            = groupRelativeLag(entry, children),
+                        relativeLag            = rlRanks[entry.id],
                     ))
                 } else {
                     result.add(TaskDisplayItem(realTask, depth,
@@ -793,7 +786,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         entryMembershipId      = inheritedDoor,
                         isLinkedElsewhere      = isLinkedElsewhere(realTask.id, links, memberships),
                         isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true,
-                        relativeLag            = groupRelativeLag(entry, children)))
+                        relativeLag            = rlRanks[entry.id]))
                 }
                 if (realTask.isGroup && (vm.groupExpand.queueExpandState[realTask.id] ?: true))
                     addLevel(realTask.id, depth + 1, number, quotaExceeded, quotaWarning, childDoor)
@@ -949,6 +942,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // siblings that remain.
             val children = acl.visibleChildren(effectiveTasks.filter { it.parentId == parentId }, inheritedDoor, parentId)
             val levelShares = acl.sharesFor(inheritedDoor, parentId, effectiveTasks, effectiveShares)
+            // Relative-lag numbers for the GROUPS of this level (visible siblings only), once per level.
+            val rlRanks = EEVDFScheduler.relativeLagRanks(children)
             val ordered = orderChildren(children)
 
             ordered.forEach { entry ->
@@ -1002,7 +997,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     isRtActive             = isTaskRtActive,
                     isRtGroupHoisted       = task.isGroup && isTaskRtActive,
                     isExpanded             = if (task.isGroup) (vm.groupExpand.scheduleExpandState[task.id] ?: true) else true,
-                    relativeLag            = groupRelativeLag(entry, children)))
+                    relativeLag            = rlRanks[entry.id]))
                 // Recurse into children with the same per-level rules applied
                 // independently — the parent group's class does not cascade down.
                 if (task.isGroup && (vm.groupExpand.scheduleExpandState[task.id] ?: true))
@@ -1055,6 +1050,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             effectiveTasks.filter { it.parentId == frameId }.sortedWith(SortHelper.taskNameComparator),
             inheritedDoor, frameId,
         )
+        val rlRanks = EEVDFScheduler.relativeLagRanks(children)   // relative-lag numbers for this level's groups
         children.forEach { entry ->
                 val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
                 val membership   = if (isMembership) membershipsById[entry.id.removePrefix(MEMBERSHIP_SYNTHETIC_PREFIX)] else null
@@ -1075,7 +1071,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                             isJumpHighlighted = task.id == highlightTaskId,
                             displayVruntime = vrt,
                             displayVirtualDeadline = vdl,
-                            relativeLag = groupRelativeLag(entry, children),
+                            relativeLag = rlRanks[entry.id],
                         )
                     } else {
                         TaskDisplayItem(task, 0,
@@ -1086,7 +1082,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                             queueNumber       = number,
                             entryMembershipId = inheritedDoor,
                             isJumpHighlighted = task.id == highlightTaskId,
-                            relativeLag       = groupRelativeLag(entry, children),
+                            relativeLag       = rlRanks[entry.id],
                             isLinkedElsewhere = isLinkedElsewhere(task.id, links, memberships))
                     }
                 )
@@ -1121,6 +1117,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         // Hidden children are dropped BEFORE bucketing, like buildScheduleList.
         val children = acl.visibleChildren(effectiveTasks.filter { it.parentId == frameId }, inheritedDoor, frameId)
+        val rlRanks = EEVDFScheduler.relativeLagRanks(children)   // relative-lag numbers for this level's groups
         // Bucket membership decided ENTIRELY by each child's OWN class — see
         // buildScheduleList's identical rule and its doc comment.
         val dlActive = children.filter { it.isDlBudgetActive(nowMs) }
@@ -1169,7 +1166,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 isRtActive       = RtScheduler.isRtWindowActive(task, nowMs),
                 isRtGroupHoisted = task.isGroup && RtScheduler.isRtWindowActive(task, nowMs),
                 isJumpHighlighted = task.id == highlightTaskId,
-                relativeLag      = groupRelativeLag(entry, children)))
+                relativeLag      = rlRanks[entry.id]))
         }
 
         acl.visibleLinks(links.filter { it.hostGroupId == frameId }, inheritedDoor, frameId).forEach { link ->

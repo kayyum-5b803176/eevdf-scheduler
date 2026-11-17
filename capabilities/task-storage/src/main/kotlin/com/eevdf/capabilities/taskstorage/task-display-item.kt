@@ -153,16 +153,19 @@ data class TaskDisplayItem(
     val displayVruntime: Double? = null,
     val displayVirtualDeadline: Double? = null,
     /**
-     * Relative lag (RL) of this GROUP among its siblings, mapped to roughly
-     * ±(N/2) — see [com.eevdf.capabilities.taskscheduling.EevdfScheduler.relativeLag].
+     * Relative lag (RL) of this GROUP: its rank among the groups of its sibling
+     * level as a small integer centred on 0 — the most-behind group gets the
+     * highest positive number, every group its own; see
+     * [com.eevdf.capabilities.taskscheduling.EevdfScheduler.relativeLagRanks].
+     * A ranking for a person choosing where to look, not a lag value.
      * Display-only, computed fresh per sibling level at list-build time and
      * never written onto [task] or the database (same reason as
      * [displayVruntime]). Only the group branch of the adapter reads it; null
-     * there means "no meaningful value" (alone at its level, not fair-class,
-     * a symlink pointer, or a list that doesn't compute it) and shows `RL: —`.
-     * Always null for leaf rows.
+     * there means "no meaningful value" (the only group at its level, not
+     * fair-class, a symlink pointer, or a list that doesn't compute it) and
+     * shows `RL: —`. Always null for leaf rows.
      */
-    val relativeLag: Double? = null,
+    val relativeLag: Int? = null,
     /**
      * True when this row's REAL task/group (never set for a symlink or
      * membership row itself — those are already identified by

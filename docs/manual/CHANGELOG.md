@@ -5,6 +5,47 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.46.1 — Relative Lag becomes a ranking: small centred integers, one per group
+
+Includes everything in 6.46.0. Display only; no database or sync change.
+
+### Why
+6.46.0 scaled each group's lag by its own slice, so any gap beyond about one slice hit the
+clamp and groups showed `+2.5 +2.5 +2.5 −2.5 −2.5` — no way to tell them apart. RL is for a
+person picking, by eye, which group needs attention, so it is now a ranking.
+
+### Changed
+- **RL is the group's rank among the groups of its sibling level**, as an integer centred
+  on 0. The most-behind group gets the highest positive number; every group gets its own.
+  The range adapts to the number of groups: 5 groups → `+2 +1 0 −1 −2`; 4 → `+2 +1 −1 −2`
+  (even counts skip 0 so the halves stay symmetric); 2 → `+1 −1`; 17 → `+8 … −8`.
+- **Order** = the scheduler's own lag, `(avgVruntime − vruntime) × weight`, measured against
+  the whole fair-class sibling pool (leaf tasks and groups together). Only groups get a
+  number; leaves shape the average but are not counted in N. Gap sizes don't matter, only
+  the order.
+- **Ties** (equal lag) are still given different numbers: the earlier virtual deadline (what
+  the scheduler would pick first) gets the higher number, then the id, so the result is
+  deterministic and independent of input order.
+- Because it is relative, the sign means "more / less behind than its siblings", not
+  "owed / in debt".
+- Shown as a signed integer (`+2`, `0`, `-1`); `RL: —` for the only group at its level, a
+  non-fair group, or a symlinked group. Colours are unchanged (positive / negative / zero).
+- API: `EevdfScheduler.relativeLagRanks(siblingPool): Map<id, Int>` replaces `relativeLag`;
+  `TaskDisplayItem.relativeLag` is now `Int?`. Builders compute the map once per level (the
+  class-filtered builder caches it per level) from the visible siblings, so items hidden
+  through a hardlink ACL are not ranked.
+
+### Tests
+`relative-lag-test.kt` rewritten: centred numbers for odd / even counts, 17 groups, gap size
+irrelevant, no saturation, ties distinct and order-independent, deadline tie-break, weighted
+lag decides, leaves not counted, lone group, completed / non-fair ignored, relative sign.
+`relative-lag-facade-test.kt`: hardlink placement ranked under its host group, sleeping
+groups excluded via `SleepRules.awake`.
+
+### Verified / not verified
+Not built and not run (no Android SDK here): no Gradle tests, no on-device rendering check.
+Test expectations were worked out by hand.
+
 ## 6.46.0 — Relative Lag (RL) on group cards
 
 Includes everything in 6.45.2. No database change (still version 31), no sync change.
