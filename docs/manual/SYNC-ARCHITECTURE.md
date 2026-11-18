@@ -79,6 +79,12 @@ Everything marked "no" runs in JVM unit tests against a real SQLite file
   register. Every phone runs its own wake pass at the wake time, so each writes
   the woken task back; the writes settle on one value and then stop (tested).
   A user still on schema 29 parks them and applies them after it updates.
+- **Group semaphore columns** (`semaphoreEnabled`, `semaphoreLimit`, `semaphoreHeld`,
+  `semaphoreQueuedAt`, schema 32) are ordinary shared `tasks` columns: nothing to
+  register. A slot is released by a column-targeted write, so two phones releasing
+  at the same moment can each admit a waiter. Nothing reconciles that across
+  phones: the group may briefly hold more than N until a holder leaves (the rules
+  never evict). Not covered by a sync test.
 - **Unknown table / column** (other member runs a newer build): parked in
   `_sync_foreign`, included in snapshots, replayed by `SyncEngine.init()` the
   first time the schema has a place for it.

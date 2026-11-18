@@ -1,6 +1,7 @@
 package com.eevdf.capabilities.addtaskscreen
 
 import android.os.Bundle
+import android.view.View
 import android.widget.*
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -39,6 +40,7 @@ import javax.inject.Inject
  *   • TypeSection.kt              — task type spinner + notice delay fields
  *   • QuotaSection.kt             — quota limit switch + duration fields
  *   • SleepSection.kt             — sleep switch + duration field (moon button length)
+ *   • SemaphoreSection.kt         — group semaphore switch + N slots (card shown for containers)
  *   • SchedulerSection.kt         — scheduler class, DL, and RT sub-sections
  *   • SaveHandler.kt              — full saveTask() validation + persistence
  *   • AclSection.kt               — Config/ACL tabs for hardlink placements (intent extra membership_id)
@@ -135,6 +137,13 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var tvSleepPreview:     TextView
     internal lateinit var tvSleepError:       TextView
 
+    // ── Semaphore section ─────────────────────────────────────────────────────
+    internal lateinit var cardSemaphore:           View
+    internal lateinit var switchSemaphoreEnabled:  SwitchMaterial
+    internal lateinit var layoutSemaphoreFields:   LinearLayout
+    internal lateinit var etSemaphoreLimit:        TextInputEditText
+    internal lateinit var tvSemaphoreError:        TextView
+
     // ── Scheduler class section ───────────────────────────────────────────────
     internal lateinit var switchSchedulerEnabled: SwitchMaterial
     internal lateinit var layoutSchedulerFields:  LinearLayout
@@ -217,6 +226,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupRealtimeShare()
         setupQuotaSection()
         setupSleepSection()
+        setupSemaphoreSection()
         setupSchedulerClassSection()
         setupAclSection()   // no-op without the membership_id extra
 
@@ -298,6 +308,12 @@ class AddTaskActivity : AppCompatActivity() {
         tvSleepPreview     = findViewById(R.id.tvSleepPreview)
         tvSleepError       = findViewById(R.id.tvSleepError)
 
+        cardSemaphore          = findViewById(R.id.cardSemaphore)
+        switchSemaphoreEnabled = findViewById(R.id.switchSemaphoreEnabled)
+        layoutSemaphoreFields  = findViewById(R.id.layoutSemaphoreFields)
+        etSemaphoreLimit       = findViewById(R.id.etSemaphoreLimit)
+        tvSemaphoreError       = findViewById(R.id.tvSemaphoreError)
+
         switchSchedulerEnabled = findViewById(R.id.switchSchedulerEnabled)
         layoutSchedulerFields  = findViewById(R.id.layoutSchedulerFields)
         actvSchedulerClass  = findViewById(R.id.actvSchedulerClass)
@@ -364,6 +380,7 @@ class AddTaskActivity : AppCompatActivity() {
         populatePinnedShareSection(task)
         populateQuotaSection(task)
         populateSleepSection(task)
+        populateSemaphoreSection(task)
         populateSchedulerSection(task)
     }
 

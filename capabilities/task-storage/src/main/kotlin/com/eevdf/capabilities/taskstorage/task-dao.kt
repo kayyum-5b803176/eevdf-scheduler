@@ -113,6 +113,23 @@ interface TaskDao {
     )
     suspend fun wake(id: String, vruntime: Double, eligibleTime: Double, virtualDeadline: Double, lag: Double)
 
+    // ── Semaphore ─────────────────────────────────────────────────────────────
+    //
+    // Column-targeted for the same reason as sleep: a slot change must never
+    // rewrite the rest of the row from a possibly-stale in-memory copy.
+
+    /** Sets [id]'s slot state: held or waiting, with its arrival stamp (0 = none). */
+    @Query("UPDATE tasks SET semaphoreHeld = :held, semaphoreQueuedAt = :queuedAt WHERE id = :id")
+    suspend fun setSemaphoreSlot(id: String, held: Boolean, queuedAt: Long)
+
+    /** Admits a waiter from the queue: takes the slot and is re-placed at [vruntime] like a new arrival. */
+    @Query("UPDATE tasks SET semaphoreHeld = 1, semaphoreQueuedAt = :queuedAt, vruntime = :vruntime WHERE id = :id")
+    suspend fun admitFromQueue(id: String, queuedAt: Long, vruntime: Double)
+
+    /** Forgets every slot of [parentId]'s children — the semaphore was switched off. */
+    @Query("UPDATE tasks SET semaphoreHeld = 0, semaphoreQueuedAt = 0 WHERE parentId = :parentId")
+    suspend fun resetSemaphoreChildren(parentId: String)
+
     // ── Backup / Restore ──────────────────────────────────────────────────────
 
     /** Returns every task (active + completed) for full backup. */

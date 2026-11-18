@@ -176,6 +176,17 @@ data class TaskDisplayItem(
      * ordinary, never-linked tasks.
      */
     val isLinkedElsewhere: Boolean = false,
+    /**
+     * Number of this GROUP's direct children that are waiting for a semaphore slot
+     * (the `W: n` on its card). 0 — and the card shows nothing — when the group has
+     * no semaphore or nobody waits. Stamped at list-build time, never stored.
+     */
+    val waitingCount: Int = 0,
+    /**
+     * 1-based place in the parent's semaphore queue, set only on rows of the
+     * Wait list (0 everywhere else). Display-only.
+     */
+    val waitPosition: Int = 0,
 ) {
     /** True for either a [symlinkId] or [membershipId] row — a "links" row, not the task's primary appearance. */
     val isLinkRow: Boolean get() = symlinkId != null || membershipId != null

@@ -35,15 +35,17 @@ class TaskRepository @Inject constructor(
     val allTasks: LiveData<List<Task>> = dao.getAllTasks()
 
     /**
-     * EVERY non-completed task, sleeping ones included. Only the Sleep tab and the
-     * wake pass read this; everything else uses [activeTasks].
+     * EVERY non-completed task, sleeping ones AND tasks waiting for a semaphore
+     * slot included. Only the Sleep / Wait tabs and the wake pass read this;
+     * everything else uses [activeTasks].
      */
     val activeTasksIncludingSleeping: LiveData<List<Task>> = dao.getActiveTasks()
 
     /**
      * The tasks every list, scheduler and share computation sees: non-completed
-     * and NOT effectively asleep (own sleep or an asleep ancestor — see
-     * [SleepRules]). A sleeping task behaves as if it did not exist; because
+     * and NOT hidden: not effectively asleep (own sleep or an asleep ancestor — see
+     * [SleepRules]) and not waiting for a group-semaphore slot ([SemaphoreRules]).
+     * A hidden task behaves as if it did not exist; because
      * this is derived from the same Room LiveData, it updates the moment a task
      * is put to sleep or woken.
      */
@@ -62,7 +64,7 @@ class TaskRepository @Inject constructor(
         fun rebuild() {
             val l = links ?: return
             val t = tasks ?: return
-            val asleep = SleepRules.asleepIds(t)
+            val asleep = SleepRules.hiddenIds(t)   // asleep OR waiting for a semaphore slot
             value = if (asleep.isEmpty()) l else l.filter { it.targetTaskId !in asleep }
         }
         addSource(taskLinkDao.getAll())          { links = it; rebuild() }
@@ -76,7 +78,7 @@ class TaskRepository @Inject constructor(
         fun rebuild() {
             val m = memberships ?: return
             val t = tasks ?: return
-            val asleep = SleepRules.asleepIds(t)
+            val asleep = SleepRules.hiddenIds(t)   // asleep OR waiting for a semaphore slot
             value = if (asleep.isEmpty()) m else m.filter { it.taskId !in asleep }
         }
         addSource(taskMembershipDao.getAll())    { memberships = it; rebuild() }
@@ -203,6 +205,10 @@ class TaskRepository @Inject constructor(
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
         val rawActive = dao.getActiveTasksSync()
+        // A task created in a semaphore group ARRIVES: back of the queue, and it
+        // takes a slot only if one is free and nobody waits ahead of it. Stamped
+        // in place so the caller's object carries the result.
+        SemaphoreRules.stamp(task, rawActive, clock.nowEpochMillis())
         val existing  = SleepRules.awake(rawActive).toMutableList()
         // A task added INTO a sleeping group is hidden with it, so it is placed
         // among that group's own (non-sleeping) children and kept out of the
@@ -220,7 +226,10 @@ class TaskRepository @Inject constructor(
         // immediately but with no scheduling advantage over existing tasks.
         EEVDFScheduler.placeNewTask(task, if (parentAsleep) rawActive.filter { !it.isAsleep } else existing)
 
-        if (!parentAsleep) existing.add(task)
+        // A task that has to wait is hidden: it must not distort anyone's average.
+        val waitsForSlot = SemaphoreRules.isWaiting(
+            task, task.parentId?.let { pid -> rawActive.firstOrNull { it.id == pid } })
+        if (!parentAsleep && !waitsForSlot) existing.add(task)
         EEVDFScheduler.recalculate(existing)
         dao.insert(task)
         existing.forEach { dao.update(it) }
@@ -233,9 +242,34 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
-        dao.update(task)
+        val prev = dao.getTaskById(task.id)
+        val toWrite: Task = if (prev == null) task else {
+            // Moving into another group, or un-doing a completed task, is an ARRIVAL:
+            // back of that group's queue. Otherwise the slot is owned by the
+            // semaphore rules, never by a caller's (possibly stale) copy.
+            val rejoined = prev.parentId != task.parentId || (prev.isCompleted && !task.isCompleted)
+            val next = if (rejoined) {
+                SemaphoreRules.arrive(task, dao.getActiveTasksSync(), clock.nowEpochMillis())
+            } else {
+                task.copy(semaphoreHeld = prev.semaphoreHeld, semaphoreQueuedAt = prev.semaphoreQueuedAt)
+            }
+            // Switching the semaphore ON: the oldest N existing children become the
+            // holders BEFORE the group row flips, so nothing flickers out of view.
+            if (next.semaphoreEnabled && !prev.semaphoreEnabled) admitExistingChildren(next)
+            next
+        }
+        dao.update(toWrite)
         propagateInheritedLoadFactor(task.id, task.loadFactor)
         propagateInheritedTimeSlice(task.id, task.timeSliceSeconds)
+        if (prev != null) {
+            // Switched OFF: every child is visible again and forgets its slot (N stays).
+            if (prev.semaphoreEnabled && !toWrite.semaphoreEnabled) dao.resetSemaphoreChildren(toWrite.id)
+            // Something that changes who holds a slot: hand freed slots to the queue.
+            if (prev.parentId != toWrite.parentId || prev.isCompleted != toWrite.isCompleted ||
+                prev.semaphoreEnabled != toWrite.semaphoreEnabled || prev.semaphoreLimit != toWrite.semaphoreLimit) {
+                reconcileSemaphores(setOfNotNull(prev.parentId, toWrite.parentId, toWrite.id))
+            }
+        }
         bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
     }
 
@@ -418,10 +452,10 @@ class TaskRepository @Inject constructor(
             // promoted.groupId — carry over what that group's doors said about
             // the placement, so a hidden child doesn't pop back into view.
             val carried = membershipAclDao.getForChildKey(MembershipAclKeys.membership(promoted.id))
-            dao.update(task.copy(
-                parentId = promoted.groupId,
-                vruntime = promoted.vruntime,
-            ))
+            // The promoted placement is a new home for the task: an arrival there.
+            val moved = task.copy(parentId = promoted.groupId, vruntime = promoted.vruntime)
+            SemaphoreRules.stamp(moved, dao.getActiveTasksSync(), clock.nowEpochMillis())
+            dao.update(moved)
             taskMembershipDao.deleteById(promoted.id)
             removeMembershipAcl(promoted.id)
             if (carried.isNotEmpty()) {
@@ -433,7 +467,11 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
+        val parentId = dao.getTaskById(task.id)?.parentId ?: task.parentId
         deleteOrPromote(task)
+        // A holder that is deleted frees its slot for the next waiter.
+        parentId?.let { reconcileSemaphores(setOf(it)) }
+        Unit
     }
 
     private suspend fun deleteDescendants(parentId: String) {
@@ -446,6 +484,8 @@ class TaskRepository @Inject constructor(
         dao.update(updated)
         // A completed task is no longer a valid return-to target.
         interruptReturnDao.clearByTask(task.id)
+        // A holder that is marked done frees its slot for the next waiter.
+        updated.parentId?.let { reconcileSemaphores(setOf(it)) }
         bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
     }
 
@@ -1089,12 +1129,23 @@ class TaskRepository @Inject constructor(
         val all  = dao.getActiveTasksSync()
         val task = all.find { it.id == taskId } ?: return@withContext
         if (task.isAsleep) return@withContext
-        val siblings = all.filter { it.parentId == task.parentId && !it.isCompleted && !it.isAsleep }
+        // A task still waiting for a semaphore slot cannot be put to sleep: it is not
+        // in the scheduler's pool, so there is no state to sleep from.
+        if (SemaphoreRules.isWaiting(task, task.parentId?.let { pid -> all.firstOrNull { it.id == pid } })) return@withContext
+        val hidden   = SleepRules.hiddenIds(all)
+        val siblings = all.filter { it.parentId == task.parentId && !it.isCompleted && it.id !in hidden }
         val lag = EEVDFScheduler.sleepLag(task, siblings)
         dao.setSleep(taskId, untilEpochMs.coerceAtLeast(1L), lag)
         task.sleepUntilEpoch = untilEpochMs.coerceAtLeast(1L)
         task.sleepLag = lag
+        // Sleeping RELEASES the slot; waking later is a fresh arrival at the back.
+        if (task.semaphoreHeld || task.semaphoreQueuedAt != 0L) {
+            dao.setSemaphoreSlot(taskId, false, 0L)
+            task.semaphoreHeld = false
+            task.semaphoreQueuedAt = 0L
+        }
         persistAwakeDerivedState(all, excludeIds = emptySet())
+        task.parentId?.let { reconcileSemaphores(setOf(it)) }
         bus.publish(Topics.TASK_SAVED, taskId, "task-storage")
     }
 
@@ -1102,7 +1153,7 @@ class TaskRepository @Inject constructor(
     suspend fun wakeNow(taskId: String) = withContext(Dispatchers.IO) {
         val all  = dao.getActiveTasksSync().toMutableList()
         val task = all.find { it.id == taskId && it.isAsleep } ?: return@withContext
-        wakeAndPlace(all, listOf(task))
+        wakeAndPlace(all, listOf(task), clock.nowEpochMillis())
     }
 
     /**
@@ -1124,7 +1175,7 @@ class TaskRepository @Inject constructor(
         while (true) {
             val due = SleepRules.dueForWake(all, nowMs)
             if (due.isEmpty()) break
-            wakeAndPlace(all, due)
+            wakeAndPlace(all, due, nowMs)
             total += due.size
         }
         total
@@ -1135,20 +1186,25 @@ class TaskRepository @Inject constructor(
      * tasks via the column-targeted [TaskDao.wake], everything else awake with its
      * refreshed derived state.
      */
-    private suspend fun wakeAndPlace(all: List<Task>, targets: List<Task>) {
+    private suspend fun wakeAndPlace(all: List<Task>, targets: List<Task>, nowMs: Long) {
         for (t in targets) {
+            val hidden = SleepRules.hiddenIds(all)
             val siblings = all.filter {
-                it.parentId == t.parentId && it.id != t.id && !it.isCompleted && !it.isAsleep
+                it.parentId == t.parentId && it.id != t.id && !it.isCompleted && it.id !in hidden
             }
             t.vruntime       = EEVDFScheduler.wakeVruntime(t, t.sleepLag, siblings)
             t.sleepUntilEpoch = 0L
             t.sleepLag        = 0.0
+            // A woken task ARRIVES in its group: back of the queue, it does not get
+            // its old slot back. (Under a group without a semaphore this clears both.)
+            SemaphoreRules.stamp(t, all, nowMs)
         }
         val wokenIds = targets.mapTo(HashSet()) { it.id }
         val awake = SleepRules.awake(all)
         EEVDFScheduler.recalculate(awake)
         targets.forEach { t ->
             dao.wake(t.id, t.vruntime, t.eligibleTime, t.virtualDeadline, t.lag)
+            dao.setSemaphoreSlot(t.id, t.semaphoreHeld, t.semaphoreQueuedAt)
         }
         awake.filter { it.id !in wokenIds }.forEach { dao.update(it) }
         targets.forEach { bus.publish(Topics.TASK_SAVED, it.id, "task-storage") }
@@ -1159,6 +1215,54 @@ class TaskRepository @Inject constructor(
         val awake = SleepRules.awake(all)
         EEVDFScheduler.recalculate(awake)
         awake.filter { it.id !in excludeIds }.forEach { dao.update(it) }
+    }
+
+    // ── Semaphore ─────────────────────────────────────────────────────────────
+
+    /**
+     * Switching a semaphore ON: the oldest [Task.semaphoreLimit] existing children
+     * become the first holders, the rest queue in creation order. Writes only the
+     * slot columns of the children and is called BEFORE the group row is saved
+     * with `semaphoreEnabled = true`, so the list never shows an in-between state.
+     * [group] is the row about to be saved.
+     */
+    private suspend fun admitExistingChildren(group: Task) {
+        val pool = dao.getActiveTasksSync().filter { it.id != group.id } + group
+        SemaphoreRules.plan(pool, setOf(group.id)).forEach { dao.setSemaphoreSlot(it.id, it.held, it.queuedAt) }
+    }
+
+    /**
+     * Brings the stored slot state back to the semaphore invariant for [only] groups
+     * (null = every group): a release hands the freed slot to the OLDEST waiter, a
+     * raised limit admits waiters at once, a lowered limit evicts nobody. An
+     * admitted waiter is placed like a new arrival (vruntime = sibling average).
+     *
+     * Writes only the slot columns, the admitted waiters' vruntime, and the
+     * scheduler cache — never a full row, so it can't clobber a running timer.
+     *
+     * @return the number of tasks whose slot changed (0 = nothing to do).
+     */
+    suspend fun reconcileSemaphores(only: Set<String>? = null): Int = withContext(Dispatchers.IO) {
+        val all     = dao.getActiveTasksSync()
+        val changes = SemaphoreRules.plan(all, only)
+        if (changes.isEmpty()) return@withContext 0
+        val byId = all.associateBy { it.id }
+        for (c in changes) {
+            val t = byId[c.id] ?: continue
+            t.semaphoreHeld     = c.held
+            t.semaphoreQueuedAt = c.queuedAt
+            if (c.held && c.fromQueue) {
+                val awake    = SleepRules.awake(all)   // t counts as awake now that it holds the slot
+                val siblings = awake.filter { it.parentId == t.parentId && it.id != t.id }
+                t.vruntime = EEVDFScheduler.wakeVruntime(t, 0.0, siblings)
+                dao.admitFromQueue(t.id, c.queuedAt, t.vruntime)
+            } else {
+                dao.setSemaphoreSlot(t.id, c.held, c.queuedAt)
+            }
+        }
+        recalculateScheduleCache()
+        changes.forEach { bus.publish(Topics.TASK_SAVED, it.id, "task-storage") }
+        changes.size
     }
 
     // ── Interrupt task ────────────────────────────────────────────────────────
@@ -1206,6 +1310,7 @@ class TaskRepository @Inject constructor(
         for (task in tasks) {
             dao.insert(task)
         }
+        reconcileSemaphores()
     }
 
     /**
@@ -1223,5 +1328,6 @@ class TaskRepository @Inject constructor(
         for (task in tasks) {
             dao.insert(task)
         }
+        reconcileSemaphores()
     }
 }

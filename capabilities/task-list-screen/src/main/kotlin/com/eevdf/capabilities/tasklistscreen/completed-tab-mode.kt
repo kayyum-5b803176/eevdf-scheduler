@@ -8,8 +8,12 @@ package com.eevdf.capabilities.tasklistscreen
  *   COMPLETED — finished tasks (Revert / Delete), the tab's original content.
  *   SLEEP     — tasks currently asleep, soonest wake first (view-only narrowing:
  *               picking it never changes any task's state).
+ *   WAIT      — tasks waiting for a group-semaphore slot, oldest arrival first
+ *               (also view-only; the same "hidden, behaves as if it did not exist"
+ *               state as sleep, but it ends when a slot frees up, not at a time).
  */
 enum class CompletedTabMode(val label: String) {
     COMPLETED("Completed"),
     SLEEP("Sleep"),
+    WAIT("Wait"),
 }

@@ -78,6 +78,20 @@ class TaskAdapter(
             notifyDataSetChanged()      // every row's actions change, not just its data
         }
 
+    // ── Wait view (third tab in WAIT mode) ────────────────────────────────────
+    /**
+     * Only meaningful on the third tab's adapter. When true the cards list tasks
+     * waiting for a group-semaphore slot: no run / revert / sleep, a "Waiting · #n"
+     * status instead of the stat line, and only Mark done (plus the usual long-press
+     * Edit / Delete, where a task can also be moved to another group).
+     */
+    var isWaitView: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            notifyDataSetChanged()      // every row's actions change, not just its data
+        }
+
     // ── Running / notice state ────────────────────────────────────────────────
     // Placement-aware, not a bare task id — see TaskInstanceRef's KDoc. A
     // real task and a hardlink/symlink of it can both be on screen at once;
@@ -360,7 +374,7 @@ class TaskAdapter(
         // ── Group vs leaf rendering ────────────────────────────────────────────
         if (task.isGroup) {
             // Group header row
-            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
+            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             // Groups show their Relative Lag rank here instead of VRT (the metrics row
             // below still shows the raw VRT). null = no other group at this level → "RL: —".
@@ -398,7 +412,7 @@ class TaskAdapter(
             }
         } else {
             // Leaf task row
-            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, task.category)
+            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.category)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
             setTimeInfoColor(holder, R.color.app_text_label)   // views are recycled: undo a group's RL colour
@@ -633,6 +647,7 @@ class TaskAdapter(
                 val item = getItem(position) ?: return
                 bindQuotaOnly(holder, item)
                 if (isCompletedTab && isSleepView) bindSleepCountdown(holder, item)
+                if (isCompletedTab && isWaitView)  bindWaitInfo(holder, item)
             }
             else -> super.onBindViewHolder(holder, position, payloads)
         }
@@ -674,6 +689,24 @@ class TaskAdapter(
                     holder.btnSleep.setOnClickListener(null)
                 }
             }
+            isCompletedTab && isWaitView -> {
+                // A waiting task is not in the scheduler's pool: nothing to run, revert or
+                // sleep. Mark done is the one action that makes sense for a leaf; Edit /
+                // Delete (move to another group) come from the long-press detail.
+                holder.btnRevert.visibility      = View.GONE
+                holder.btnRun.visibility         = View.GONE
+                holder.btnResetSlice.visibility  = View.GONE
+                holder.btnGroupToggle.visibility = View.GONE
+                holder.btnSleep.visibility       = View.GONE
+                holder.btnSleep.setOnClickListener(null)
+                if (task.isGroup) {
+                    holder.btnComplete.visibility = View.GONE
+                } else {
+                    holder.btnComplete.visibility = View.VISIBLE
+                    holder.btnComplete.setOnClickListener { onCompleteClick(task) }
+                }
+                bindWaitInfo(holder, item)
+            }
             isCompletedTab || item.symlinkId != null || item.membershipId != null -> {
                 holder.btnSleep.visibility = View.GONE
                 holder.btnSleep.setOnClickListener(null)
@@ -704,6 +737,13 @@ class TaskAdapter(
         }
     }
 
+    /** "Waiting · #2" on the stat line of a waiting row; what a waiting group holds says it waits with the group. */
+    private fun bindWaitInfo(holder: TaskViewHolder, item: TaskDisplayItem) {
+        setTimeInfoColor(holder, R.color.app_text_label)   // overrides the text a group row just set, so also its RL colour
+        holder.tvRemaining.text =
+            if (item.waitPosition > 0) "Waiting · #${item.waitPosition}" else "Waiting with group"
+    }
+
     // ── Category line builder ────────────────────────────────────────────────
 
     /**
@@ -713,12 +753,14 @@ class TaskAdapter(
      *
      * G=2, T=5, General  →  "G: 2 | T: 5 | General"
      * G=0, T=3, General  →  "T: 3 | General"
+     * G=2, T=5, W=4      →  "G: 2 | T: 5 | W: 4"   (W = children waiting for a semaphore slot)
      * G=0, T=0, None     →  ""
      */
-    private fun buildCategoryLine(groupCount: Int, taskCount: Int, category: String): String {
+    private fun buildCategoryLine(groupCount: Int, taskCount: Int, waitingCount: Int, category: String): String {
         val parts = mutableListOf<String>()
         if (groupCount > 0)     parts.add("G: $groupCount")
         if (taskCount  > 0)     parts.add("T: $taskCount")
+        if (waitingCount > 0)   parts.add("W: $waitingCount")
         if (category != "None") parts.add(category)
         return parts.joinToString(" | ")
     }

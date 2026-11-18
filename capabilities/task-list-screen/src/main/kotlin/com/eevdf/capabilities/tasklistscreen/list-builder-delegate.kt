@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.eevdf.capabilities.taskstorage.DoorAcl
 import com.eevdf.capabilities.taskstorage.MembershipAcl
+import com.eevdf.capabilities.taskstorage.SemaphoreRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.TaskLink
@@ -225,7 +226,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         queueDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                value = if (vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN) {
+                value = withWaitingCounts(if (vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN) {
                     val tasks       = vm.activeTasks.value       ?: emptyList()
                     val links       = vm.allTaskLinks.value       ?: emptyList()
                     val memberships = vm.allTaskMemberships.value ?: emptyList()
@@ -234,8 +235,11 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     buildQueueDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId, acl)
                 } else {
                     flatActiveTasks.value ?: emptyList()
-                }
+                })
             }
+            // `W: n` must refresh when a hidden (waiting) task appears or leaves,
+            // which changes nothing in the visible list itself.
+            addSource(vm.activeTasksIncludingSleeping) { rebuild() }
             addSource(flatActiveTasks)          { rebuild() }
             addSource(vm.settings.queueListStyle) { rebuild() }
             addSource(vm.queueDrillState)         { rebuild() }
@@ -246,7 +250,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         scheduleDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
                 val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.SCHEDULE
-                value = when {
+                value = withWaitingCounts(when {
                     vm.settings.scheduleListStyle.value == TaskListStyle.DRILL_DOWN -> {
                         val tasks       = vm.activeTasks.value       ?: emptyList()
                         val links       = vm.allTaskLinks.value       ?: emptyList()
@@ -258,8 +262,9 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     filter != ScheduleClassFilter.SCHEDULE ->
                         buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter, vm.allTaskLinks.value ?: emptyList(), vm.allTaskMemberships.value ?: emptyList(), vm.allMembershipAcl.value ?: emptyList())
                     else -> flatScheduleOrder.value ?: emptyList()
-                }
+                })
             }
+            addSource(vm.activeTasksIncludingSleeping) { rebuild() }   // `W: n` — see queueDisplayList
             addSource(flatScheduleOrder)             { rebuild() }
             addSource(vm.settings.scheduleListStyle) { rebuild() }
             addSource(vm.scheduleDrillState)         { rebuild() }
@@ -287,6 +292,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         (vm.completedTasks.value ?: emptyList()).map { TaskDisplayItem(it, 0) }
                     CompletedTabMode.SLEEP ->
                         vm.sleep.buildSleepList(vm.activeTasksIncludingSleeping.value ?: emptyList())
+                    CompletedTabMode.WAIT ->
+                        buildWaitList(vm.activeTasksIncludingSleeping.value ?: emptyList())
                 }
             }
             addSource(vm.completedTasks)               { rebuild() }
@@ -1176,6 +1183,22 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 .copy(childTotalRuntime = link.totalRunTime))
         }
         return result
+    }
+
+    /**
+     * Stamps the `W: n` count (children waiting for a semaphore slot) onto every
+     * group row. The rows are built from the VISIBLE task list, which by design
+     * no longer contains the waiting tasks, so the count is read from the full
+     * pool. A no-op (same list back) when no group has a semaphore or nobody waits.
+     * Symlink rows are pointers to a group elsewhere and show nothing.
+     */
+    private fun withWaitingCounts(items: List<TaskDisplayItem>): List<TaskDisplayItem> {
+        val counts = SemaphoreRules.waitingCounts(vm.activeTasksIncludingSleeping.value ?: return items)
+        if (counts.isEmpty()) return items
+        return items.map { item ->
+            val n = if (item.symlinkId != null) 0 else counts[item.task.id] ?: 0
+            if (n == 0) item else item.copy(waitingCount = n)
+        }
     }
 
     /**

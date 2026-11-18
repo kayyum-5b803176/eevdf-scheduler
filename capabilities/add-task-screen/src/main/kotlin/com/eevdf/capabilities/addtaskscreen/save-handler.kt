@@ -2,6 +2,7 @@ package com.eevdf.capabilities.addtaskscreen
 
 import android.view.View
 import android.widget.Toast
+import com.eevdf.capabilities.taskstorage.SemaphoreRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
@@ -64,6 +65,13 @@ internal fun AddTaskActivity.saveTask() {
 
     val isGroup  = if (groupsEnabled) switchIsGroup.isChecked else false
     val parentId: String? = if (groupsEnabled) selectedParentId else null
+
+    // A task saved into a FULL semaphore group is hidden at once (it waits for a
+    // slot), so say so instead of letting it silently vanish after the save.
+    val willQueue = parentId != null && parentId != existingTask?.parentId &&
+        !SemaphoreRules.admitsImmediately(
+            parentId, viewModel.activeTasksIncludingSleeping.value ?: emptyList(), excludeId = existingTask?.id,
+        )
 
     // ── Task type / notice ────────────────────────────────────────────────────
     val notifDelaySecs = if (selectedTaskType == "NOTIFICATION")
@@ -138,6 +146,10 @@ internal fun AddTaskActivity.saveTask() {
     // ── Sleep duration (moon button) ──────────────────────────────────────────
     // null = text present but not a valid duration → inline error already shown.
     val sleepSeconds = readSleepSeconds() ?: return
+
+    // ── Semaphore (group admission control) ───────────────────────────────────
+    // null = switch on with an invalid N; the inline error is already shown.
+    val semaphore = readSemaphore() ?: return
 
     // ── Scheduler class ───────────────────────────────────────────────────────
     val schedulerEnabled = switchSchedulerEnabled.isChecked
@@ -249,6 +261,8 @@ internal fun AddTaskActivity.saveTask() {
             quotaSeconds        = quotaSeconds,
             quotaPeriodSeconds  = quotaPeriodSeconds,
             sleepDurationSeconds = sleepSeconds,
+            semaphoreEnabled    = semaphore.enabled,
+            semaphoreLimit      = semaphore.limit,
             schedulerClass      = schedulerClass,
             dlRuntimeSeconds    = dlRuntimeSeconds,
             dlDeadlineSeconds   = dlDeadlineSeconds,
@@ -294,6 +308,8 @@ internal fun AddTaskActivity.saveTask() {
             quotaSeconds        = quotaSeconds,
             quotaPeriodSeconds  = quotaPeriodSeconds,
             sleepDurationSeconds = sleepSeconds,
+            semaphoreEnabled    = semaphore.enabled,
+            semaphoreLimit      = semaphore.limit,
             schedulerClass      = schedulerClass,
             dlRuntimeSeconds    = dlRuntimeSeconds,
             dlDeadlineSeconds   = dlDeadlineSeconds,
@@ -331,5 +347,6 @@ internal fun AddTaskActivity.saveTask() {
         )
     )
 
+    if (willQueue) Toast.makeText(this, "Queued: waiting for a slot", Toast.LENGTH_SHORT).show()
     finish()
 }

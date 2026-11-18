@@ -1,5 +1,6 @@
 package com.eevdf.capabilities.tasklistscreen
 
+import com.eevdf.capabilities.taskstorage.SemaphoreRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.capabilities.taskstorage.TaskTimerState
@@ -41,9 +42,27 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
     }
 
     fun updateTask(task: Task) = vm.viewModelScope.launch {
+        pauseIfSemaphoreWillHide(task)
         vm.repository.update(task)
         syncPinnedWeights()
         vm.refreshSchedule()
+    }
+
+    /**
+     * A saved edit can hide tasks without the person pressing sleep: switching a
+     * group's semaphore ON queues every child beyond the first N, and moving a task
+     * into a full semaphore group queues it. Stop and deselect the current task
+     * first if it is one of them — a hidden task must not stay the current one.
+     */
+    private suspend fun pauseIfSemaphoreWillHide(task: Task) {
+        val prev = vm.repository.getTaskById(task.id) ?: return
+        val pool = vm.activeTasksIncludingSleeping.value ?: emptyList()
+        val queuesChildren = task.semaphoreEnabled && !prev.semaphoreEnabled &&
+            pool.count { it.parentId == task.id && !it.isAsleep } > SemaphoreRules.clampLimit(task.semaphoreLimit)
+        val newParent = task.parentId
+        val queuesItself = newParent != null && newParent != prev.parentId &&
+            !SemaphoreRules.admitsImmediately(newParent, pool, excludeId = task.id)
+        if (queuesChildren || queuesItself) vm.sleep.pauseSubtreeIfCurrent(task.id)
     }
 
     fun deleteTask(task: Task) = vm.viewModelScope.launch {

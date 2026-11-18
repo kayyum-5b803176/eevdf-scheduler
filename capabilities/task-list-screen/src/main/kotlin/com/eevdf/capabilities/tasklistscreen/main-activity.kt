@@ -625,7 +625,7 @@ class MainActivity : AppCompatActivity() {
             onTaskLongClick  = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
             else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
             onDeleteClick    = { confirmDelete(it) },
-            onCompleteClick  = {},
+            onCompleteClick  = { viewModel.markCompleted(it) },   // Wait view: mark a waiting task done
             onRunClick       = {},
             onGroupToggle    = {},
             onRevertClick    = { viewModel.revertTask(it) },
@@ -670,10 +670,11 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Third tab: label + content follow the chosen mode (Completed / Sleep).
+        // Third tab: label + content follow the chosen mode (Completed / Sleep / Wait).
         viewModel.completedTabMode.observe(this) { mode ->
             tabLayout.getTabAt(2)?.text = mode.label
             completedAdapter.isSleepView = mode == CompletedTabMode.SLEEP
+            completedAdapter.isWaitView  = mode == CompletedTabMode.WAIT
             menuSyncDelegate.syncTabVisibility()
             updateEmptyView()
         }
@@ -748,8 +749,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Tapping the already-selected third tab opens a pop-up — same mechanism as the
-     * Schedule tab's class filter — to switch between finished tasks and sleeping
-     * ones. The tab's label renames itself to the choice (see the observer in
+     * Schedule tab's class filter — to switch between finished tasks, sleeping
+     * ones and ones waiting for a semaphore slot. The tab's label renames itself to the choice (see the observer in
      * [setupTabs]). View-only: it never changes any task.
      */
     private fun showCompletedTabModeMenu(tab: TabLayout.Tab) {

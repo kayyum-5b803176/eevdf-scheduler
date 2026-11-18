@@ -77,6 +77,15 @@ class TaskSchemaFreezeTest {
             // as-is (a side table would silently not sync), and sleepLag is
             // written in the same column-targeted update as sleepUntilEpoch.
             "sleepDurationSeconds", "sleepUntilEpoch", "sleepLag",
+            // group semaphore (v32) — the same narrow exception, decided deliberately:
+            // the hide check ("is this child waiting for a slot?") reads
+            // `semaphoreEnabled` of the parent and `semaphoreHeld` of the child on
+            // EVERY list refresh and every scheduler pass, exactly like sleep, so a
+            // side-table join would sit on the hottest path. `semaphoreLimit` and
+            // `semaphoreQueuedAt` travel with them: multi-user sync snapshots the
+            // Task row as-is (a side table would silently not sync), and the slot
+            // pair is written in one column-targeted update.
+            "semaphoreEnabled", "semaphoreLimit", "semaphoreHeld", "semaphoreQueuedAt",
         )
     }
 

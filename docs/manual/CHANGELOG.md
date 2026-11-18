@@ -5,6 +5,71 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.47.0 — Group semaphore: a container admits only N children at a time
+
+Includes everything in 6.46.1. **Database change: version 31 → 32** (four columns on `tasks`,
+migration `MIGRATION_31_32`). `versionCode` untouched.
+
+### Added
+- **Semaphore card** on the Edit screen, in the same style as Quota / Sleep: a toggle and a
+  slot count N (1–64, default 4). The card is visible only while "Assign as group
+  (container)" is on. Turning the container off only hides it — the switch, N and every
+  child's slot are kept, so turning it back on needs no reconfiguring. The queue is released
+  only by switching the semaphore itself off.
+- **Semantics follow a kernel counting semaphore.** Only N *direct* children (leaf or group;
+  a child group costs one slot however much it contains) are visible and scheduled. The rest
+  WAIT and are hidden exactly like sleeping tasks: no list row, no scheduling, no share of the
+  sibling average, no effect on load / quota / stats. A waiting group hides its subtree.
+  - A holder keeps its slot until its state changes: slept, marked done, deleted, or moved to
+    another group. Pause, a finished timer, class or interrupt changes release nothing.
+  - A freed slot goes to the oldest waiter (FIFO by arrival).
+  - A child *arrives* — back of the queue — when created in the group, moved into it, woken
+    from sleep, or un-done. A woken child does not get its old slot back.
+  - Lowering N never evicts; raising N admits waiters at once.
+  - Realtime / deadline children get no special treatment, as in a kernel semaphore.
+  - A waiting task cannot be put to sleep. There is no override or "move to front".
+  - Switching the semaphore on admits the oldest N existing children (by creation time);
+    switching it off shows everyone and forgets the slots (N is kept).
+- **`W: n` on the group card**, after `G` and `T` (`G: 1 | T: 2 | W: 4`). Shown only when the
+  semaphore is on and n > 0.
+- **Wait mode on the third tab** (tap the tab again, next to Completed / Sleep): waiting tasks
+  in queue order with `Waiting · #n`. Mark done, plus long-press Edit / Delete (moving a task
+  to another group sends it to the back of that group's queue). Clear Completed is hidden in
+  this mode.
+- **"Queued: waiting for a slot"** toast after saving a task into a full semaphore group.
+- If saving an Edit would hide the current task (semaphore switched on over it, or moving it
+  into a full group) its timer is paused and it is deselected first, as sleep does.
+
+### Storage
+- `tasks` gains `semaphoreEnabled`, `semaphoreLimit` (group) and `semaphoreHeld`,
+  `semaphoreQueuedAt` (child). Added to `FROZEN_FIELDS` as the same narrow exception sleep
+  used (read on every list refresh; sync carries the row as-is) — the justification is written
+  next to the entry. Backup JSON carries all four (older backups load as "no semaphore").
+- The holder is *stored*, not derived as "the first N by priority", so a newly arrived child
+  with a better deadline can never bump a running one.
+- Slot writes are column-targeted (`setSemaphoreSlot`, `admitFromQueue`,
+  `resetSemaphoreChildren`); `TaskRepository.update` keeps the child fields from the database
+  so a stale copy of a task cannot overwrite them. An admitted waiter is placed like a new
+  arrival (vruntime = sibling average).
+- `SleepRules.awake` / new `hiddenIds` now hide waiting tasks as well as sleeping ones, which
+  is what makes every list, scheduler pass and share computation treat them as absent.
+- Symlinks and hardlink placements hosted in a semaphore group are not governed; only real
+  children take slots.
+
+### Tests
+New `semaphore-rules-test.kt` (22 tests): hiding, waiting-group subtrees, class-blind
+queueing, first-enable admission by creation time, oldest-waiter-first, no eviction on a
+lowered limit, raising N, child group = one slot, arrival at the back / no queue-jumping /
+woken child gets no old slot, stale-state cleanup, wait-list order and positions, limit
+clamp. `task-schema-freeze-test.kt` updated.
+
+### Verified / not verified
+The pure rules (`semaphore-rules.kt`, `sleep-rules.kt`, `Task`) were compiled with a
+standalone Kotlin 2.0.21 compiler and all tests in `semaphore-rules-test.kt` and
+`sleep-rules-test.kt` (31) pass. **Not built and not run** (no Android SDK / Gradle here):
+Room schema generation (`schemas/…/32.json` will be written by the first build — commit it),
+the migration, `TaskRepository`, the layout and all UI code, and no on-device check.
+
 ## 6.46.1 — Relative Lag becomes a ranking: small centred integers, one per group
 
 Includes everything in 6.46.0. Display only; no database or sync change.

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Semaphore card — only visible while "Assign as group (container)" is ON.
+
+  A group with a semaphore lets only N of its DIRECT children (leaf or group) be
+  visible and scheduled at once; the others wait, hidden, until a slot frees up
+  (a holder is slept, marked done, deleted or moved to another group).
+
+  cardSemaphore         — the whole card; shown/hidden by SemaphoreSection.kt from switchIsGroup.
+                          Hiding it never changes the stored values: they persist.
+  switchSemaphoreEnabled— shows/hides layoutSemaphoreFields (OFF = every child is visible)
+  layoutSemaphoreFields — hidden by default
+  etSemaphoreLimit      — whole number 1–64 (default 4)
+  tvSemaphoreError      — inline validation message shown by saveTask()
+-->
+<com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/cardSemaphore"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="@dimen/app_card_gap"
+    android:layout_marginEnd="@dimen/app_card_gap"
+    android:layout_marginTop="@dimen/app_card_gap"
+    android:layout_marginBottom="@dimen/app_card_gap"
+    android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/app_card_padding_md">
+
+        <!-- Header row: title + subtitle + toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Semaphore"
+                    android:textSize="@dimen/app_text_size_md"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/app_text_label" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Only N children show at once; the rest wait, hidden, until one is slept, done, deleted or moved"
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:textColor="@color/app_text_hint"
+                    android:layout_marginTop="@dimen/app_spacing_cs" />
+            </LinearLayout>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchSemaphoreEnabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- Fields: shown when toggle is ON -->
+        <LinearLayout
+            android:id="@+id/layoutSemaphoreFields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="@dimen/app_spacing_lg"
+            android:visibility="gone">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/app_divider"
+                android:background="@color/app_divider_inner"
+                android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Slots N: 1–64. A child group takes one slot however much it holds. Lowering N never removes a child that already has a slot; raising it lets waiting children in at once."
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_text_hint" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:hint="Slots  N  (1–64)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etSemaphoreLimit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:maxLength="2" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                android:id="@+id/tvSemaphoreError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="@dimen/app_text_size_sm"
+                android:textColor="@color/app_color_error"
+                android:layout_marginTop="@dimen/app_spacing_md"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

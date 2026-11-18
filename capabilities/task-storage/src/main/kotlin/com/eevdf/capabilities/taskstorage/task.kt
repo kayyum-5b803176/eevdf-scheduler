@@ -260,7 +260,29 @@ data class Task(
     // the row (a join on that path costs frame time) — see the freeze test.
     val sleepDurationSeconds: Long = 0L,
     var sleepUntilEpoch: Long = 0L,
-    var sleepLag: Double = 0.0
+    var sleepLag: Double = 0.0,
+
+    // ── Semaphore (group admission control) ───────────────────────────────────
+    //
+    // A group with semaphoreEnabled admits at most semaphoreLimit of its DIRECT
+    // children at a time; the others WAIT, hidden like a sleeping task — see
+    // [SemaphoreRules] for the whole contract.
+    //
+    // semaphoreEnabled  — on the GROUP: the semaphore is active. Persists while
+    //              the group is not a container; only the user turns it off.
+    // semaphoreLimit    — on the GROUP: number of slots (1…64, default 4).
+    // semaphoreHeld     — on the CHILD: it holds one of its parent's slots.
+    // semaphoreQueuedAt — on the CHILD: arrival stamp, orders the FIFO queue;
+    //              0 = never stamped (it was already there when the semaphore
+    //              was switched on). Both child fields are owned by the
+    //              semaphore rules — callers' copies never overwrite them.
+    //
+    // Read by the list/scheduler on EVERY refresh (same reason as the sleep
+    // columns), so they live on the row — see the freeze test.
+    val semaphoreEnabled: Boolean = false,
+    val semaphoreLimit: Int = SemaphoreRules.DEFAULT_LIMIT,
+    var semaphoreHeld: Boolean = false,
+    var semaphoreQueuedAt: Long = 0L
 ) {
     /** True while this task's OWN sleep is active (a sleeping ancestor is checked by [SleepRules]). */
     val isAsleep: Boolean get() = sleepUntilEpoch > 0L

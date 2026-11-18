@@ -33,10 +33,37 @@ object SleepRules {
         return all.filter { asleep(it, mutableSetOf()) }.mapTo(HashSet()) { it.id }
     }
 
-    /** [all] without anything effectively asleep — what every list/scheduler consumer sees. */
+    /**
+     * Ids of every task that is HIDDEN from lists and scheduling: effectively
+     * asleep (see [asleepIds]) OR waiting for a group-semaphore slot (see
+     * [SemaphoreRules]) — itself or through any hidden ancestor. A waiting task
+     * behaves exactly like a sleeping one; only its way back differs.
+     */
+    fun hiddenIds(all: List<Task>): Set<String> {
+        if (all.none { it.isAsleep || it.semaphoreEnabled }) return emptySet()
+        val byId = all.associateBy { it.id }
+        val memo = HashMap<String, Boolean>(all.size)
+        fun hidden(task: Task, visiting: MutableSet<String>): Boolean {
+            memo[task.id]?.let { return it }
+            if (!visiting.add(task.id)) return false          // defensive: parent cycle
+            val parent = task.parentId?.let { byId[it] }
+            val result = task.isAsleep ||
+                SemaphoreRules.isWaiting(task, parent) ||
+                (parent?.let { hidden(it, visiting) } ?: false)
+            visiting.remove(task.id)
+            memo[task.id] = result
+            return result
+        }
+        return all.filter { hidden(it, mutableSetOf()) }.mapTo(HashSet()) { it.id }
+    }
+
+    /**
+     * [all] without anything hidden — asleep OR waiting for a semaphore slot
+     * ([hiddenIds]). What every list/scheduler consumer sees.
+     */
     fun awake(all: List<Task>): List<Task> {
-        val asleep = asleepIds(all)
-        return if (asleep.isEmpty()) all else all.filter { it.id !in asleep }
+        val hidden = hiddenIds(all)
+        return if (hidden.isEmpty()) all else all.filter { it.id !in hidden }
     }
 
     /**

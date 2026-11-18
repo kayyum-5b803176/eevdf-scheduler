@@ -46,14 +46,7 @@ internal class SleepDelegate(private val vm: TaskViewModel) {
 
         // Sleeping a task (or a group) stops its timer first. A selected-but-paused
         // task is deselected too — a hidden task must not stay the current one.
-        val awake   = vm.repository.getActiveTasksSync()
-        val subtree = subtreeIds(task.id, awake)
-        val current = vm.currentTask.value
-        val running = vm.repository.getRunningTask()
-        if ((current != null && current.id in subtree) || (running != null && running.id in subtree)) {
-            vm.pauseAndDeselect()
-            awaitPauseSettled(subtree)
-        }
+        pauseSubtreeIfCurrent(task.id)
 
         vm.repository.sleepTask(task.id, vm.clock.nowEpochMillis() + seconds * 1_000L)
         afterChange()
@@ -100,6 +93,24 @@ internal class SleepDelegate(private val vm: TaskViewModel) {
         }
         SleepRules.sleepRoots(all).forEach { emit(it, 0) }
         return out
+    }
+
+    /**
+     * If the current (or running) task is [rootId] or anything inside it, stops its
+     * timer and deselects it, and waits until the pause has been persisted. Call
+     * this BEFORE anything that is about to hide a task — sleep, or a group
+     * semaphore starting to queue its children — because a hidden task must not
+     * stay the current one. Does nothing when the current task is elsewhere.
+     */
+    suspend fun pauseSubtreeIfCurrent(rootId: String) {
+        val awake   = vm.repository.getActiveTasksSync()
+        val subtree = subtreeIds(rootId, awake)
+        val current = vm.currentTask.value
+        val running = vm.repository.getRunningTask()
+        if ((current != null && current.id in subtree) || (running != null && running.id in subtree)) {
+            vm.pauseAndDeselect()
+            awaitPauseSettled(subtree)
+        }
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

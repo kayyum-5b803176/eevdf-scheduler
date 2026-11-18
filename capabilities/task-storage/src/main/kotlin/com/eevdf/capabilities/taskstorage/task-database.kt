@@ -25,7 +25,7 @@ import com.eevdf.capabilities.taskstorage.Task
         TaskMembership::class,          // ← new: hardlink extra placements
         MembershipAcl::class,           // ← new: per-placement child visibility (hardlink ACL)
     ],
-    version  = 31,                      // ← bumped from 30 (hardlink ACL table + newChildrenHidden)
+    version  = 32,                      // ← bumped from 31 (group semaphore columns on tasks)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -592,6 +592,28 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 31 → 32 — group semaphore.
+         *
+         * Four columns on [tasks] (a deliberate, justified widening — see
+         * TaskSchemaFreezeTest: the hide check reads them on EVERY list refresh,
+         * exactly like the sleep columns, and multi-user sync carries the row as-is):
+         *   semaphoreEnabled  — on a group: the semaphore is active
+         *   semaphoreLimit    — on a group: number of slots (default 4)
+         *   semaphoreHeld     — on a child: it holds one of its parent's slots
+         *   semaphoreQueuedAt — on a child: arrival stamp that orders the FIFO queue
+         * Existing rows default to "no semaphore", so nothing changes for them
+         * until the user switches one on.
+         */
+        private val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN semaphoreEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN semaphoreLimit INTEGER NOT NULL DEFAULT 4")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN semaphoreHeld INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN semaphoreQueuedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -607,7 +629,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
-                        MIGRATION_29_30, MIGRATION_30_31,
+                        MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
                     )
                     .build()
                 INSTANCE = instance
