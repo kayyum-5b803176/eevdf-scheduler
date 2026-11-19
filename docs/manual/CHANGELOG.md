@@ -5,6 +5,31 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.48.1 — Auto Scroll jumps in one step again (no visible slide)
+
+Includes everything in 6.48.0. No database change, no sync change, `versionCode` untouched.
+
+### Fixed
+- **Selecting a task showed a fast slide:** the card first appeared right under the timer card, then
+  moved to the bottom of the screen (above the add buttons). Cause: the follow-up checks of the new
+  Auto Scroll ran in `View.post`, which can run *before* the layout that the jump requested. The
+  check then found no running row, wrongly decided the chain was taller than the screen, and pinned
+  the card to the bottom edge — after the first position had already been painted.
+- The same ordering problem could shift the list a second time when the timer card appeared or
+  disappeared (it resizes the list) while the walls were active.
+
+### Changed
+- Every follow-up step (the chain-fits check, the tall-chain pin, wall corrections after a layout
+  or a far jump) now runs in a **pre-draw hook**: after the layout, before the screen is painted. If
+  a step has to jump again it cancels the pending paint, so any number of steps shows only the final
+  position. The normal case — chain fits — is the single `scrollToPositionWithOffset` jump of the old
+  Auto Scroll, nothing after it.
+- Range locking, wall stops and the symlink exception are unchanged.
+
+### Verified / not verified
+Not built and not run (no Android SDK here): the pre-draw hooks and the absence of the slide have
+not been tried on a device. The pure range maths is unchanged (49 rule tests passed in 6.48.0).
+
 ## 6.48.0 — Auto Scroll frames the parent chain and boxes the list in while a task runs
 
 Includes everything in 6.47.1. No database change, no sync change, `versionCode` untouched.

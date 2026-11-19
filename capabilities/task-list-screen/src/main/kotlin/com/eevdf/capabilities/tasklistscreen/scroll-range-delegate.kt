@@ -1,5 +1,6 @@
 package com.eevdf.capabilities.tasklistscreen
 
+import android.view.ViewTreeObserver
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.taskstorage.ScrollRangeRules
@@ -14,14 +15,24 @@ import com.eevdf.capabilities.taskstorage.ScrollRangeRules
  *     the running row is not on screen, jump so the ROOT ancestor's row is at the
  *     top and the rows down to the running task are visible (task1 → task2 → task3
  *     shows task1 first). When that chain is taller than the screen the running
- *     task wins and is pinned to the bottom edge. Instant, never animated, never
- *     switches tab. If the running row is already visible nothing moves.
+ *     task wins and is pinned to the bottom edge. If the running row is already
+ *     visible nothing moves.
  *
  *  2. WALLS — while a timer is RUNNING the list cannot be scrolled above the root
  *     row or below the running row. Between them it scrolls freely; a fling that
  *     reaches a wall stops there. Pausing or stopping the timer, deselecting the
  *     task, collapsing the root group (the running row is no longer in the list)
  *     or turning Auto Scroll off all free the list again.
+ *
+ * INSTANT, never visibly in two steps. A jump is only known to be right once the
+ * list has been laid out (is the chain taller than the screen? how tall is the
+ * running row?), so any follow-up step runs in a PRE-DRAW hook ([beforeNextDraw]):
+ * after the layout that the jump caused, before the screen is painted. Returning
+ * false from that hook cancels the pending paint and a fresh layout + hook follows,
+ * so however many steps it takes, only the final position is ever drawn. Do NOT
+ * use `View.post` for these follow-ups: a posted runnable can run BEFORE the layout
+ * the jump requested, sees no running row, and wrongly pins the card to the bottom
+ * edge — the card then visibly lands at the top and slides down.
  *
  * Only the identity of the running row / timer state triggers part 1 — never the
  * once-a-second re-publishing of the same task — so a person is never pulled back
@@ -35,6 +46,9 @@ internal class ScrollRangeDelegate(private val activity: MainActivity) {
     /** True while a wall correction is being applied, so its own scroll events don't re-enter. */
     private var clamping = false
 
+    /** True while a wall check is already waiting for the next layout (one is enough). */
+    private var clampQueued = false
+
     /** Set by [release]; cleared by the next change of running row / timer state. */
     private var released = false
 
@@ -44,9 +58,13 @@ internal class ScrollRangeDelegate(private val activity: MainActivity) {
     val walls = object : RecyclerView.OnScrollListener() {
         override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
             if (clamping) return
-            // dy == 0 is the notification after a layout pass: scrolling from inside it is
-            // not allowed, so tighten against the walls just after it instead.
-            if (dy == 0) recyclerView.post { clamp() } else clamp()
+            if (dy != 0) { clamp(); return }
+            // dy == 0 is the notification right after a layout pass (list rebuilt, timer card
+            // shown / hidden, a jump landed): scrolling from inside it is not allowed, so tighten
+            // against the walls in the pre-draw hook of that same pass instead — before painting.
+            if (clampQueued || boxFor(requireRunning = true) == null) return
+            clampQueued = true
+            beforeNextDraw { clampQueued = false; clamp() }
         }
     }
 
@@ -92,46 +110,71 @@ internal class ScrollRangeDelegate(private val activity: MainActivity) {
         return ScrollRangeRules.rangeOf(list, index)
     }
 
+    /**
+     * Runs [action] once, after the next layout and before the next paint.
+     * [action] returns true when it issued another jump (which needs a new layout):
+     * the pending paint is then cancelled, so the intermediate position is never shown.
+     */
+    private fun beforeNextDraw(action: () -> Boolean) {
+        val rv = activity.recyclerView
+        val listener = object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                val observer = rv.viewTreeObserver
+                if (observer.isAlive) observer.removeOnPreDrawListener(this)
+                return !action()
+            }
+        }
+        rv.viewTreeObserver.addOnPreDrawListener(listener)
+    }
+
     /** Puts the root row at the top; if the chain does not fit, pins the running row to the bottom instead. */
     private fun frame() {
         val box = boxFor(requireRunning = false) ?: return
-        val rv  = activity.recyclerView
-        val llm = rv.layoutManager as? LinearLayoutManager ?: return
+        val llm = activity.recyclerView.layoutManager as? LinearLayoutManager ?: return
         llm.scrollToPositionWithOffset(box.first, 0)
-        rv.post { finishFrame() }
+        beforeNextDraw { finishFrame() }
     }
 
-    private fun finishFrame() {
-        val box = boxFor(requireRunning = false) ?: return
+    /** Runs after the root-at-top jump has been laid out. True = it issued one more jump. */
+    private fun finishFrame(): Boolean {
+        val box = boxFor(requireRunning = false) ?: return false
         val rv  = activity.recyclerView
-        val llm = rv.layoutManager as? LinearLayoutManager ?: return
+        val llm = rv.layoutManager as? LinearLayoutManager ?: return false
         val runView = llm.findViewByPosition(box.last)
-        if (runView != null && runView.bottom <= rv.height - rv.paddingBottom) { clamp(); return }
+        if (runView != null && runView.bottom <= rv.height - rv.paddingBottom) return clamp()   // the chain fits: done
+
         // Chain taller than the screen: the running task wins. Lay it out, measure it, pin it to the bottom.
         llm.scrollToPositionWithOffset(box.last, 0)
-        rv.post {
-            val v = llm.findViewByPosition(box.last) ?: return@post
-            val usable = rv.height - rv.paddingTop - rv.paddingBottom
-            llm.scrollToPositionWithOffset(box.last, ScrollRangeRules.bottomOffset(usable, v.height))
+        beforeNextDraw {
+            val v = llm.findViewByPosition(box.last)
+            if (v == null) false else {
+                val usable = rv.height - rv.paddingTop - rv.paddingBottom
+                llm.scrollToPositionWithOffset(box.last, ScrollRangeRules.bottomOffset(usable, v.height))
+                true
+            }
         }
+        return true
     }
 
-    /** Pushes the list back inside the walls. Safe to call at any time; does nothing when already inside. */
-    private fun clamp() {
-        val box = boxFor(requireRunning = true) ?: return
+    /**
+     * Pushes the list back inside the walls. Safe to call at any time; does nothing
+     * when already inside. Returns true when it had to jump (needs a new layout).
+     */
+    private fun clamp(): Boolean {
+        val box = boxFor(requireRunning = true) ?: return false
         val rv  = activity.recyclerView
-        val llm = rv.layoutManager as? LinearLayoutManager ?: return
+        val llm = rv.layoutManager as? LinearLayoutManager ?: return false
         repeat(3) {
             val first = llm.findFirstVisibleItemPosition()
             val last  = llm.findLastVisibleItemPosition()
-            if (first == RecyclerView.NO_POSITION) return
+            if (first == RecyclerView.NO_POSITION) return false
 
             // The whole viewport left the box: jump back to the nearest wall row, then tighten once laid out.
             ScrollRangeRules.farTarget(box, first, last)?.let { target ->
                 stopFling(rv)
                 llm.scrollToPositionWithOffset(target, 0)
-                rv.post { clamp() }
-                return
+                beforeNextDraw { clamp() }
+                return true
             }
 
             val rootView = llm.findViewByPosition(box.first)
@@ -142,11 +185,12 @@ internal class ScrollRangeDelegate(private val activity: MainActivity) {
                 viewTop    = rv.paddingTop,
                 viewBottom = rv.height - rv.paddingBottom,
             )
-            if (dy == 0) return
+            if (dy == 0) return false
             stopFling(rv)                      // a fling that reached a wall stops there
             clamping = true
             try { rv.scrollBy(0, dy) } finally { clamping = false }
         }
+        return false
     }
 
     private fun stopFling(rv: RecyclerView) {
