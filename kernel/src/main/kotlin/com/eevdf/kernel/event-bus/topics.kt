@@ -330,6 +330,46 @@ object Topics {
     // That distinction is enforced once, inside `CurrentTaskOwner`, so no
     // call site has to reason about it — see its KDoc.
     val CURRENT_TASK_CHANGED = Topic<CurrentTaskState>("scheduler.current-task-changed")
+
+    // ── Task selection (answered by task-list-screen, which owns the current task) ─
+    //
+    // "Make this task the current one." Selects only — it never starts a timer — and, when
+    // [TaskSelectRequest.pauseCurrent] is set, first pauses the running timer so its remaining
+    // time is saved (what INT-A does before it seats the interrupt task). Silently ignored
+    // when the task is gone, finished, asleep or queued behind a semaphore: a hidden task
+    // must not become current. Used by task-wake for preempt and return; anything else that
+    // wants "show me this task" can publish it too.
+    val TASK_SELECT_REQUESTED = Topic<TaskSelectRequest>("scheduler.task-select-requested")
+
+    // ── Scheduled wake (task-wake) ───────────────────────────────────────────
+    //
+    // The wake icon lives on the task card (task-list-screen), the wake itself lives in
+    // task-wake; these topics are the whole conversation between them. task-list-screen
+    // never reads the wake table and task-wake never touches a card.
+
+    /** task-list-screen → task-wake: the wake icon on this task's card was tapped (payload: task id). */
+    val WAKE_EDIT_REQUESTED = Topic<String>("wake.edit-requested")
+
+    /** task-list-screen → task-wake: the wake icon was held — show the wake's state (payload: task id). */
+    val WAKE_STATE_REQUESTED = Topic<String>("wake.state-requested")
+
+    /**
+     * task-wake → task-list-screen: ids of the tasks whose wake is armed or waiting for an answer.
+     * Their icon blinks. Retained so a screen that opens later still gets the current set.
+     */
+    val WAKE_ARMED_CHANGED = Topic<Set<String>>("wake.armed-changed", retained = true)
+
+    /** task-wake → sound, vibration: ring this wake PROFILE (DEFAULT / NOTIFICATION / ALARM / CUSTOM). */
+    val WAKE_ALERT_REQUESTED = Topic<String>("wake.alert-requested")
+
+    /** task-wake → sound, vibration: the preempt card was answered — stop ringing. */
+    val WAKE_ALERT_STOP_REQUESTED = Topic<Unit>("wake.alert-stop-requested")
+
+    /** task edit screen → task-wake: this task's wake profile was chosen (saved with the task). */
+    val WAKE_PROFILE_SET = Topic<WakeProfileSet>("wake.profile-set")
+
+    /** task edit screen → task-wake: which wake profile does this task have? (task id → profile) */
+    val WAKE_PROFILE_QUERY = RequestTopic<String, String>("wake.profile-query")
 }
 
 /**
@@ -342,7 +382,27 @@ data class CurrentTaskState(
     val taskId: String? = null,
     val taskName: String? = null,
     val isRunning: Boolean = false,
+    /**
+     * Which placement the task is current THROUGH: a symlink or a hardlink door, null for the
+     * task's own real position. Lets a subscriber that wants to come back to this task later
+     * (task-wake's return) ask for the same placement in [TaskSelectRequest].
+     */
+    val symlinkId: String? = null,
+    val membershipId: String? = null,
 )
+
+/** Payload for [Topics.TASK_SELECT_REQUESTED]. [symlinkId] / [membershipId] pick the placement; both null = the real one. */
+data class TaskSelectRequest(
+    val taskId: String,
+    val pauseCurrent: Boolean = false,
+    val symlinkId: String? = null,
+    val membershipId: String? = null,
+    /** Shown as a toast once the task is selected (e.g. "Returned to …"). Null = no toast. */
+    val message: String? = null,
+)
+
+/** Payload for [Topics.WAKE_PROFILE_SET]. [profile] is DEFAULT / NOTIFICATION / ALARM / CUSTOM. */
+data class WakeProfileSet(val taskId: String, val profile: String)
 
 /** Coarse state of the sync feature — see [Topics.SYNC_STATUS_CHANGED]. */
 enum class SyncPhase { DISABLED, IDLE, SYNCING, OK, ERROR }

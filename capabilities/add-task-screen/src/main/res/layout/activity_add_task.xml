@@ -69,6 +69,7 @@
             <include layout="@layout/section_add_task_quota" />
             <include layout="@layout/section_add_task_sleep" />
             <include layout="@layout/section_add_task_semaphore" />
+            <include layout="@layout/section_add_task_wake" />
             <include layout="@layout/section_add_task_scheduler" />
             <include layout="@layout/section_add_task_category" />
             <include layout="@layout/section_add_task_buttons" />

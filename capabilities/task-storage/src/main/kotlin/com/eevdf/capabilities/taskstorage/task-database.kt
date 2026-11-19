@@ -24,8 +24,10 @@ import com.eevdf.capabilities.taskstorage.Task
         TaskLink::class,                // ← new: symlinks
         TaskMembership::class,          // ← new: hardlink extra placements
         MembershipAcl::class,           // ← new: per-placement child visibility (hardlink ACL)
+        TaskWake::class,                // ← new: scheduled wake per task (task-wake)
+        WakeReturn::class,              // ← new: the wake preempt return stack
     ],
-    version  = 32,                      // ← bumped from 31 (group semaphore columns on tasks)
+    version  = 33,                      // ← bumped from 32 (task_wake + wake_return tables)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -37,6 +39,7 @@ abstract class TaskDatabase : RoomDatabase() {
     abstract fun taskLinkDao(): TaskLinkDao             // ← new
     abstract fun taskMembershipDao(): TaskMembershipDao // ← new
     abstract fun membershipAclDao(): MembershipAclDao   // ← new: hardlink ACL
+    abstract fun taskWakeDao(): TaskWakeDao             // ← new: scheduled wakes
 
     companion object {
         @Volatile
@@ -614,6 +617,29 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 32 → 33 — scheduled wake (`task-wake` capability).
+         *
+         * Two NEW tables, nothing added to `tasks`:
+         *   task_wake   — one row per task: wake profile + armed time + phase
+         *   wake_return — the preempt return stack (wake task → task to go back to)
+         * Both are device-local (excluded from multi-device sync). No data to carry over.
+         */
+        private val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `task_wake` (" +
+                        "`taskId` TEXT NOT NULL, `profile` TEXT NOT NULL, `mode` TEXT NOT NULL, " +
+                        "`targetEpochMs` INTEGER NOT NULL, `phase` TEXT NOT NULL, PRIMARY KEY(`taskId`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `wake_return` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `wakeTaskId` TEXT NOT NULL, " +
+                        "`returnTaskId` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -629,7 +655,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
-                        MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
+                        MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
                     )
                     .build()
                 INSTANCE = instance

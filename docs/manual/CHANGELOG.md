@@ -5,6 +5,86 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.49.0 — Scheduled wake: a task can preempt the current one at a set time
+
+Includes everything in 6.48.1. **Database change: version 32 → 33** (two NEW tables, nothing added to
+`tasks`; migration `MIGRATION_32_33`). `versionCode` untouched. New capability `:capabilities:task-wake`.
+
+### Added
+- **Wake icon** (alarm clock) on every leaf task card, right of the moon. **Tap** opens the prompt,
+  **hold** shows the wake's state (mode, due time, time left, profile, and whether it is waiting on the
+  running task). It **blinks** orange while a wake is armed or waiting for an answer. Not shown on groups,
+  links, hardlink placements or the third tab.
+- **Prompt** (mode row on top, 2 × 3 number-only boxes below). *Alarm*: `Day Month Year` / `Hour Min Sec`
+  (24 h), prefilled a minute ahead; past or non-existent dates are refused. *Timer*: the same boxes as a
+  duration from now ("2 day 11 s" = Day 2, Sec 11); months and years are calendar months and years.
+  Set / Cancel, plus Clear when a wake is armed.
+- **Preempt card** (alarm-coloured card, Dismiss + Preempt) when a wake comes due:
+  - Compared by scheduler class, stop > deadline > realtime > fair > idle; inside realtime the higher
+    `rtPriority` wins; equal fair / idle / deadline never preempt each other.
+  - The current task is the one in the timer card, running OR paused. If it is of equal or higher class the
+    wake keeps waiting and is looked at again whenever the current task changes or the timer card closes.
+  - If nothing is current the same card offers **Select**. A wake whose task is already current is cleared
+    silently.
+  - **Preempt** remembers the current task, pauses it and *selects* the wake task. **Nothing is started
+    automatically** — the person presses Start.
+  - The card rings the wake's profile (sound + vibration) until answered. Back leaves it pending; it comes
+    back the next time the app opens. It survives an app restart.
+- **Return**, like INT-A's "back": when the wake task ends (stops being current with nothing replacing it)
+  the remembered task is selected again, paused, through the same placement (symlink / hardlink), with a
+  "Returned to …" toast. If the person picks another task meanwhile, the pending return is dropped. A wake
+  preempting a wake stacks. If the old task was deleted, finished, asleep or queued, nothing returns.
+- **Unavailable wake task:** asleep → woken first, then the normal rule; queued behind a semaphore or hidden
+  by its group → skipped with a notification; completed or deleted → cleared.
+- **One-shot.** A wake is cleared once answered. Repeating wakes are for later.
+- **Edit screen → Wake card** (leaf tasks): the wake's sound / vibration **profile** (Default / Notice /
+  Alert / Custom, default Alert), the same dropdown as Task Config.
+- **Settings → platform → alarm** (new page): *Re-arm wakes after reboot* (default on). Off: nothing is
+  re-armed at boot, wakes are re-armed when the app is opened. **Missed wakes** (due while the phone was
+  off) are always reported, whatever this says: a notification at boot and the card at the next open.
+- Doze-immune: each wake is an `AlarmManager.setAlarmClock` entry, like the task timer.
+
+### How it talks to the rest of the app — the event bus
+New topics in `kernel/event-bus/topics.kt`, used instead of imports:
+`wake.edit-requested`, `wake.state-requested`, `wake.armed-changed` (retained), `wake.alert-requested`,
+`wake.alert-stop-requested`, `wake.profile-set`, request topic `wake.profile-query`, and the general
+`scheduler.task-select-requested`. `CurrentTaskState` now also carries `symlinkId` / `membershipId`.
+- **task-wake** (the whole feature: `WakeCoordinator`, receivers, host activity, scheduler, rules) imports
+  no other capability but task-storage, and no capability imports it. Wired by one `@Provides` in
+  `composition` and one `@Inject` in `ApplicationEntry`, as the project's guide prescribes.
+- **Where other modules had to change, and why it could not be done over the bus:**
+  - `task-list-screen`: the icon itself (`item_task.xml`, adapter) and a `TaskSelectDelegate` that answers
+    `task-select-requested` (the list owns the current task, so only it can change it); the icon publishes
+    topics, nothing more. `CurrentTaskOwner` also publishes the placement.
+  - `add-task-screen`: the Wake card (it only asks / tells the profile over the bus).
+  - `settings-screens`: the new alarm page + nav card. `settings-storage`: `WakePrefs`.
+  - `sound`, `vibration`: two small subscribers each (`wake.alert-*`) + their manifests. The existing
+    `alarm.ringing` could not be reused: it means "a timer expired" and multi-device sync acts on it.
+  - `multi-device-sync`: `SyncSchema` excludes `task_wake` / `wake_return` — wakes are device-local.
+  - `task-storage`: `TaskWake`, `WakeReturn`, `TaskWakeDao`, database v33.
+
+### Not included
+Wakes are not backed up and not synced (device-local, like the OS alarm they mirror). No snooze.
+
+### Tests
+`wake-rules-test.kt` (21): class ranking, preempt / wait / clear decisions, alarm and timer arithmetic
+(leap years, month ends, invalid dates), text. The pure rules compile with a standalone Kotlin compiler and
+pass.
+
+### Verified / not verified
+- **Run:** the real `WakeCoordinator` against the real kernel `EventBus` with in-memory fakes — 37 scenarios
+  (nothing current, equal class waits then fires when the timer card closes, lower-class switch, preempt,
+  return through the same placement, user takes control, stacked preempts, sleeping / queued / deleted /
+  already-current wake tasks, background notification then card on open, profile over the bus, armed set).
+  That harness is throwaway and is not part of the project.
+- **Not built, not run** (no Android SDK here): Room (DAO, migration), Hilt wiring, the host activity and
+  its theme, the layouts, receivers, AlarmManager, the notification, the adapter blink, the Edit and
+  Settings screens. Nothing was tried on a device. `schemas/…/33.json` is written by the first build —
+  commit it (`check_architecture.sh` rule 7 asks for it).
+- `scripts/check_architecture.sh` already failed before this change (kernel file count 11 vs ceiling 9; 33
+  cross-capability `*Prefs` imports). This change adds the same kind of finding twice (`WakePrefs`, shared
+  with settings-screens like every other prefs object) and no new kernel file.
+
 ## 6.48.1 — Auto Scroll jumps in one step again (no visible slide)
 
 Includes everything in 6.48.0. No database change, no sync change, `versionCode` untouched.

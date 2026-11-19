@@ -46,6 +46,10 @@
             android:parentActivityName="com.eevdf.capabilities.settingsscreens.SettingsActivity" />
 
         <activity
+            android:name="com.eevdf.capabilities.settingsscreens.AlarmSettingsActivity"
+            android:exported="false"
+            android:parentActivityName="com.eevdf.capabilities.settingsscreens.SettingsActivity" />
+        <activity
             android:name="com.eevdf.capabilities.settingsscreens.NotificationSettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"

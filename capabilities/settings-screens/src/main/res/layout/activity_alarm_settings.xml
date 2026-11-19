@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Alarm settings — scheduled wake. Same page skeleton as every other settings screen
+    (Toolbar + blank TabLayout + ScrollView/PageContent), with one toggle card that
+    AlarmSettingsActivity.kt fills via renderToggleCard(ToggleCardEntity).
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/screenBackground">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/alarmToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/screenBackground"
+        android:elevation="4dp"
+        app:titleTextColor="@color/app_text_title" />
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabSelectedTextColor="@color/app_text_label"
+        app:tabIndicatorColor="@color/app_text_label"
+        app:tabTextColor="@color/app_text_body" />
+
+    <ScrollView style="@style/App.PageScroll">
+
+        <LinearLayout style="@style/App.PageContent">
+
+            <FrameLayout
+                android:id="@+id/rearmOnBootContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -55,4 +55,5 @@ include(
     ":capabilities:stats-screens",
     ":capabilities:multi-device-sync",
     ":capabilities:event-log",
+    ":capabilities:task-wake",
 )

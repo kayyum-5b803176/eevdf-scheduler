@@ -305,6 +305,8 @@ class TaskViewModel @Inject constructor(
     internal val listBuilder = ListBuilderDelegate(this)
     internal val crud        = TaskCrudDelegate(this)
     internal val sleep       = SleepDelegate(this)
+    /** Answers "select this task" requests from other capabilities (task-wake's preempt / return). */
+    internal val taskSelect  = TaskSelectDelegate(this, CAPABILITY_ID)
     internal val alarmOverrun = AlarmOverrunDelegate(this)
     internal val bubbleTap   = BubbleTapDelegate(this)
     internal val startupRecovery = StartupRecoveryDelegate(this)
@@ -393,6 +395,11 @@ class TaskViewModel @Inject constructor(
 
     // ── init ──────────────────────────────────────────────────────────────────
 
+    // Declared BEFORE the init block below: subscribeToWake() writes it during construction.
+    private val _wakeArmedIds = MutableLiveData<Set<String>>(emptySet())
+    /** Tasks whose wake is armed or waiting for an answer: their wake icon blinks. */
+    val wakeArmedIds: LiveData<Set<String>> = _wakeArmedIds
+
     private companion object {
         const val CAPABILITY_ID = "task-list-screen"
         const val SYNC_SUBSCRIBER_ID = "task-list-screen.sync"
@@ -410,6 +417,7 @@ class TaskViewModel @Inject constructor(
         subscribeToTaskSaved()
         subscribeToOverlayShown()
         subscribeToSync()
+        subscribeToWake()
 
         // ── Wire TimerEngine outputs via named observers ───────────────────────
         tickObserver = Observer { remainingSecs: Long ->
@@ -468,6 +476,19 @@ class TaskViewModel @Inject constructor(
     fun markCompleted(task: Task)                 = crud.markCompleted(task)
     /** Moon button: sleep for the task's saved sleep time, or wake it now if it is already asleep. */
     fun toggleSleep(task: Task)                   = sleep.toggleSleep(task)
+
+    // ── Scheduled wake (task-wake) — the icon on a card; the rest happens over the bus ──
+
+    /** The wake icon was tapped. task-wake opens its prompt. */
+    fun requestWakeEdit(taskId: String)  { viewModelScope.launch { bus.publish(Topics.WAKE_EDIT_REQUESTED, taskId, CAPABILITY_ID) } }
+
+    /** The wake icon was held. task-wake shows the wake's state. */
+    fun requestWakeState(taskId: String) { viewModelScope.launch { bus.publish(Topics.WAKE_STATE_REQUESTED, taskId, CAPABILITY_ID) } }
+
+    private fun subscribeToWake() {
+        bus.getLast(Topics.WAKE_ARMED_CHANGED)?.let { _wakeArmedIds.value = it }
+        bus.subscribe(Topics.WAKE_ARMED_CHANGED, CAPABILITY_ID) { ids -> _wakeArmedIds.postValue(ids) }
+    }
     /** Foreground tick / resume: wake anything whose sleep time has passed. */
     fun wakeExpiredSleepers()                     = sleep.tick()
     fun clearCompleted()                          = crud.clearCompleted()

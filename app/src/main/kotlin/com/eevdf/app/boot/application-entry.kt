@@ -13,6 +13,7 @@ import com.eevdf.capabilities.appforeground.AppForegroundTracker
 import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
+import com.eevdf.capabilities.taskwake.WakeCoordinator
 import com.eevdf.kernel.crashguard.CrashIsolation
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -62,6 +63,7 @@ class ApplicationEntry : Application() {
     @Inject lateinit var notificationCancelHandler: NotificationCancelHandler
     @Inject lateinit var timerExpiryHandler: TimerExpiryHandler
     @Inject lateinit var appForegroundTracker: AppForegroundTracker
+    @Inject lateinit var wakeCoordinator: WakeCoordinator   // subscribes to current-task / foreground / wake-icon topics
 
     override fun onCreate() {
         super.onCreate()

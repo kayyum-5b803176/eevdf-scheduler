@@ -93,6 +93,11 @@ class SettingsActivity : AppCompatActivity() {
             onNavigate = { startActivity(Intent(this@SettingsActivity, NotificationSettingsActivity::class.java)) },
         )))
         tabContentPlatform.addView(renderNavCard(this, NavCardEntity(
+            title = "alarm",
+            subtitle = "scheduled wake, re-arm after reboot",
+            onNavigate = { startActivity(Intent(this@SettingsActivity, AlarmSettingsActivity::class.java)) },
+        )))
+        tabContentPlatform.addView(renderNavCard(this, NavCardEntity(
             title = "permission",
             subtitle = "notifications, full-screen, battery, alarms",
             onNavigate = { startActivity(Intent(this@SettingsActivity, PermissionsActivity::class.java)) },

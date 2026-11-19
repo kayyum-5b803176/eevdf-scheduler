@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wake card — the sound / vibration PROFILE of this task's scheduled wake (the same four
+  profiles as Task Config → Task Profile: Default / Notice / Alert / Custom).
+
+  The wake itself (alarm or timer) is set with the clock icon on the task's card, not here.
+  Shown for leaf tasks only (hidden while "Assign as group" is on) — see WakeSection.kt.
+
+  actvWakeProfile — profile dropdown. Floating hint label; no separate TextView above it.
+-->
+<com.google.android.material.card.MaterialCardView
+    style="@style/App.Card"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cardWake"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="@dimen/app_card_gap"
+    android:layout_marginEnd="@dimen/app_card_gap"
+    android:layout_marginTop="@dimen/app_card_gap"
+    android:layout_marginBottom="@dimen/app_card_gap">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/app_card_padding_md">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Wake"
+            android:textSize="@dimen/app_text_size_md"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/app_text_label" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Sound and vibration used when this task's scheduled wake asks to preempt. Set the wake itself with the clock icon on the task's card."
+            android:textSize="@dimen/app_text_size_sm"
+            android:textColor="@color/app_text_hint"
+            android:layout_marginTop="@dimen/app_spacing_cs"
+            android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/App.TextInput.Dropdown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Wake profile">
+
+            <AutoCompleteTextView
+                android:id="@+id/actvWakeProfile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:cursorVisible="false" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

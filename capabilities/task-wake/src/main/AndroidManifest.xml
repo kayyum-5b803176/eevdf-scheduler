@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-capability manifest fragment; AGP merges these at build time. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- The see-through host of the wake prompt, state popup and preempt card. -->
+        <activity
+            android:name="com.eevdf.capabilities.taskwake.WakeHostActivity"
+            android:exported="false"
+            android:theme="@style/WakeHostTheme"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true" />
+
+        <!-- AlarmManager callback when a wake comes due (setAlarmClock: Doze-immune, like the timer). -->
+        <receiver
+            android:name="com.eevdf.capabilities.taskwake.WakeAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Boot: re-arms still-future wakes (if the setting is on) and ALWAYS reports missed ones. -->
+        <receiver
+            android:name="com.eevdf.capabilities.taskwake.WakeBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

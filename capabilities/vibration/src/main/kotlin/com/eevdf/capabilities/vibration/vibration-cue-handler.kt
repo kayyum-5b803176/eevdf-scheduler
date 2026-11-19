@@ -26,6 +26,15 @@ class VibrationCueHandler(
             VibrationManager.stop(appContext)
             bus.publish(Topics.VIBRATION_STOPPED, Unit, CAPABILITY_ID)
         }
+        // task-wake's preempt card — see SoundCueHandler for why this is not ALARM_RINGING.
+        bus.subscribe(Topics.WAKE_ALERT_REQUESTED, CAPABILITY_ID) { profile ->
+            VibrationManager.startAlarmForType(appContext, prefs(), profile)
+            bus.publish(Topics.VIBRATION_STARTED, "wake:$profile", CAPABILITY_ID)
+        }
+        bus.subscribe(Topics.WAKE_ALERT_STOP_REQUESTED, CAPABILITY_ID) {
+            VibrationManager.stop(appContext)
+            bus.publish(Topics.VIBRATION_STOPPED, Unit, CAPABILITY_ID)
+        }
         bus.subscribe(Topics.VIBRATION_PREVIEW_REQUESTED, CAPABILITY_ID) { patternId ->
             VibrationManager.preview(appContext, patternId)
             bus.publish(Topics.VIBRATION_STARTED, "preview:$patternId", CAPABILITY_ID)

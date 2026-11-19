@@ -21,6 +21,8 @@ object SoundManifest : CapabilityManifest {
         Topics.ALARM_RINGING,
         Topics.ALARM_STOPPED,
         Topics.SOUND_CUE_REQUESTED,
+        Topics.WAKE_ALERT_REQUESTED,
+        Topics.WAKE_ALERT_STOP_REQUESTED,
     )
 
     override fun fallbackWhenUnavailable(topic: Topic<*>) {

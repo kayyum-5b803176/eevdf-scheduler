@@ -41,6 +41,7 @@ import javax.inject.Inject
  *   • QuotaSection.kt             — quota limit switch + duration fields
  *   • SleepSection.kt             — sleep switch + duration field (moon button length)
  *   • SemaphoreSection.kt         — group semaphore switch + N slots (card shown for containers)
+ *   • WakeSection.kt              — wake profile dropdown (card shown for leaf tasks; talks over the bus)
  *   • SchedulerSection.kt         — scheduler class, DL, and RT sub-sections
  *   • SaveHandler.kt              — full saveTask() validation + persistence
  *   • AclSection.kt               — Config/ACL tabs for hardlink placements (intent extra membership_id)
@@ -52,6 +53,8 @@ class AddTaskActivity : AppCompatActivity() {
 
     /** Kernel's single source of "now" — injected the same way [bus] is elsewhere in the app (kernel rule 1). */
     @Inject lateinit var clock: Clock
+    /** Kernel event bus — the wake profile is asked for and set through it, never through task-wake directly. */
+    @Inject lateinit var bus: com.eevdf.kernel.eventbus.EventBus
 
     /** Direct repository access for the ACL tab (same approach as LinksActivity). */
     @Inject lateinit var repository: TaskRepository
@@ -144,6 +147,13 @@ class AddTaskActivity : AppCompatActivity() {
     internal lateinit var etSemaphoreLimit:        TextInputEditText
     internal lateinit var tvSemaphoreError:        TextView
 
+    // ── Wake section ──────────────────────────────────────────────────────────
+    internal lateinit var cardWake:        View
+    internal lateinit var actvWakeProfile: AutoCompleteTextView
+    /** The profile in the dropdown, and the one the task had when the screen opened (only a change is saved). */
+    internal var selectedWakeProfile = WAKE_PROFILE_DEFAULT
+    internal var loadedWakeProfile   = WAKE_PROFILE_DEFAULT
+
     // ── Scheduler class section ───────────────────────────────────────────────
     internal lateinit var switchSchedulerEnabled: SwitchMaterial
     internal lateinit var layoutSchedulerFields:  LinearLayout
@@ -227,6 +237,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupQuotaSection()
         setupSleepSection()
         setupSemaphoreSection()
+        setupWakeSection()
         setupSchedulerClassSection()
         setupAclSection()   // no-op without the membership_id extra
 
@@ -314,6 +325,9 @@ class AddTaskActivity : AppCompatActivity() {
         etSemaphoreLimit       = findViewById(R.id.etSemaphoreLimit)
         tvSemaphoreError       = findViewById(R.id.tvSemaphoreError)
 
+        cardWake               = findViewById(R.id.cardWake)
+        actvWakeProfile        = findViewById(R.id.actvWakeProfile)
+
         switchSchedulerEnabled = findViewById(R.id.switchSchedulerEnabled)
         layoutSchedulerFields  = findViewById(R.id.layoutSchedulerFields)
         actvSchedulerClass  = findViewById(R.id.actvSchedulerClass)
@@ -381,6 +395,7 @@ class AddTaskActivity : AppCompatActivity() {
         populateQuotaSection(task)
         populateSleepSection(task)
         populateSemaphoreSection(task)
+        populateWakeSection(task)
         populateSchedulerSection(task)
     }
 

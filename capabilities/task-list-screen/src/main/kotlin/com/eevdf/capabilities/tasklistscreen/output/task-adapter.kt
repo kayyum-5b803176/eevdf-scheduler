@@ -59,11 +59,28 @@ class TaskAdapter(
     private val onMembershipDelete:   (TaskDisplayItem) -> Unit = {},
     /** Moon button: sleep the task (normal tabs) or wake it now (Sleep view). */
     private val onSleepClick:       (Task) -> Unit = {},
+    /** Wake icon tapped: set / change the task's scheduled wake. */
+    private val onWakeClick:        (Task) -> Unit = {},
+    /** Wake icon held: show the wake's state. */
+    private val onWakeLongClick:    (Task) -> Unit = {},
     private val showScheduleRank:   Boolean = false,
     private val isCompletedTab:     Boolean = false,
     /** Returns the expanded state for a group task id — used for rotation icon. */
     private val expandStateProvider: (String) -> Boolean = { true }
 ) : ListAdapter<TaskDisplayItem, TaskViewHolder>(DiffCallback()) {
+
+    // ── Wake icon ─────────────────────────────────────────────────────────────
+    /**
+     * Ids of the tasks with an armed scheduled wake (or a preempt card waiting for an
+     * answer). Their wake icon blinks and is tinted orange. Set by the WakeDelegate from
+     * the wake table; rows are re-bound only when the set really changes.
+     */
+    var wakeArmedIds: Set<String> = emptySet()
+        set(value) {
+            if (field == value) return
+            field = value
+            notifyDataSetChanged()
+        }
 
     // ── Sleep view (third tab in SLEEP mode) ──────────────────────────────────
     /**
@@ -668,8 +685,75 @@ class TaskAdapter(
      *    are pointers to a task that lives elsewhere, so sleeping from one would be
      *    ambiguous; they offer no moon.
      */
+    /**
+     * The wake icon: leaf tasks on the Queue / Schedule tabs only (not groups, links,
+     * hardlink placements or the third tab). Orange and blinking while a wake is armed.
+     * Set on EVERY bind, never assumed — a recycled holder may have been blinking.
+     */
+    private fun bindWakeButton(holder: TaskViewHolder, item: TaskDisplayItem) {
+        val task = item.task
+        val btn  = holder.btnWake
+        (btn.getTag(R.id.btnWake) as? android.animation.ObjectAnimator)?.cancel()
+        btn.setTag(R.id.btnWake, null)
+        btn.alpha = 1f
+
+        val eligible = !isCompletedTab && item.symlinkId == null && item.membershipId == null && !task.isGroup
+        if (!eligible) {
+            btn.visibility = View.GONE
+            btn.setOnClickListener(null)
+            btn.setOnLongClickListener(null)
+            return
+        }
+        val armed = task.id in wakeArmedIds
+        btn.visibility = View.VISIBLE
+        btn.imageTintList = android.content.res.ColorStateList.valueOf(
+            androidx.core.content.ContextCompat.getColor(
+                holder.itemView.context, if (armed) R.color.app_orange_nd else R.color.app_blue_nd))
+        btn.contentDescription = if (armed) "Wake armed — hold for its state" else "Set wake"
+        btn.setOnClickListener { onWakeClick(task) }
+        btn.setOnLongClickListener { onWakeLongClick(task); true }
+        if (armed) startWakeBlink(btn)
+    }
+
+    private fun startWakeBlink(btn: android.view.View) {
+        if (btn.getTag(R.id.btnWake) != null) return          // already blinking
+        val blink = android.animation.ObjectAnimator.ofFloat(btn, View.ALPHA, 1f, 0.25f).apply {
+            duration    = 700L
+            repeatMode  = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            start()
+        }
+        btn.setTag(R.id.btnWake, blink)
+    }
+
+    private fun stopWakeBlink(holder: TaskViewHolder) {
+        (holder.btnWake.getTag(R.id.btnWake) as? android.animation.ObjectAnimator)?.cancel()
+        holder.btnWake.setTag(R.id.btnWake, null)
+        holder.btnWake.alpha = 1f
+    }
+
+    override fun onViewRecycled(holder: TaskViewHolder) {
+        stopWakeBlink(holder)
+        super.onViewRecycled(holder)
+    }
+
+    override fun onViewAttachedToWindow(holder: TaskViewHolder) {
+        super.onViewAttachedToWindow(holder)
+        // A row scrolled back into view is re-attached WITHOUT a re-bind, so the blink that
+        // onViewDetachedFromWindow stopped has to be restarted here.
+        val pos = holder.bindingAdapterPosition
+        if (pos != RecyclerView.NO_POSITION && holder.btnWake.visibility == View.VISIBLE &&
+            getItem(pos).task.id in wakeArmedIds) startWakeBlink(holder.btnWake)
+    }
+
+    override fun onViewDetachedFromWindow(holder: TaskViewHolder) {
+        stopWakeBlink(holder)      // an endless animator must not outlive its view's time on screen
+        super.onViewDetachedFromWindow(holder)
+    }
+
     private fun bindSleepButton(holder: TaskViewHolder, item: TaskDisplayItem) {
         val task = item.task
+        bindWakeButton(holder, item)
         when {
             isCompletedTab && isSleepView -> {
                 holder.btnRevert.visibility      = View.GONE

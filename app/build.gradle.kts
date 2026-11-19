@@ -34,7 +34,7 @@ android {
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "6.48.1"
+        versionName = "6.49.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -132,6 +132,7 @@ dependencies {
     implementation(project(":capabilities:stats-screens"))
     implementation(project(":capabilities:multi-device-sync"))
     implementation(project(":capabilities:event-log"))
+    implementation(project(":capabilities:task-wake"))   // wake receivers (manifest fragment) + preempt card
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

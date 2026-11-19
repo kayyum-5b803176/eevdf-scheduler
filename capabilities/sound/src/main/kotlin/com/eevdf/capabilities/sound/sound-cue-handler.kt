@@ -37,6 +37,17 @@ class SoundCueHandler(
             SoundManager.stop(appContext)
             bus.publish(Topics.SOUND_STOPPED, Unit, CAPABILITY_ID)
         }
+        // task-wake's preempt card is waiting for an answer: ring the wake's profile like an
+        // alarm of that task type, and stop as soon as it is answered. Not ALARM_RINGING: that
+        // topic means "a timer expired" and other capabilities (multi-device sync) act on it.
+        bus.subscribe(Topics.WAKE_ALERT_REQUESTED, CAPABILITY_ID) { profile ->
+            SoundManager.startAlarmForType(appContext, prefs(), profile)
+            bus.publish(Topics.SOUND_STARTED, "wake:$profile", CAPABILITY_ID)
+        }
+        bus.subscribe(Topics.WAKE_ALERT_STOP_REQUESTED, CAPABILITY_ID) {
+            SoundManager.stop(appContext)
+            bus.publish(Topics.SOUND_STOPPED, Unit, CAPABILITY_ID)
+        }
         bus.subscribe(Topics.SOUND_CUE_REQUESTED, CAPABILITY_ID) { cue ->
             when (cue) {
                 SoundCue.EXECUTE -> SoundManager.playExecuteSound(appContext, prefs())

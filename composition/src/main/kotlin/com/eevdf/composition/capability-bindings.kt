@@ -27,6 +27,9 @@ import com.eevdf.capabilities.taskstorage.TaskDao
 import com.eevdf.capabilities.taskstorage.TaskDatabase
 import com.eevdf.capabilities.taskstorage.TaskLinkDao
 import com.eevdf.capabilities.taskstorage.TaskLoadFactorDao
+import com.eevdf.capabilities.taskstorage.TaskRepository
+import com.eevdf.capabilities.taskstorage.TaskWakeDao
+import com.eevdf.capabilities.taskwake.WakeCoordinator
 import com.eevdf.capabilities.taskstorage.TaskMembershipDao
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
 import com.eevdf.kernel.clock.Clock
@@ -179,6 +182,20 @@ object CapabilityBindings {
         clock: Clock,
     ): TimerExpiryHandler = TimerExpiryHandler(context, bus, clock)
 
+    /**
+     * task-wake: the scheduled-wake coordinator — arms wakes, decides preempt / wait / return,
+     * and talks to everyone else only through the bus. Injected into its own receivers and
+     * host activity; no other capability holds a reference to it.
+     */
+    @Provides
+    @Singleton
+    fun provideWakeCoordinator(
+        @ApplicationContext context: Context,
+        bus: EventBus,
+        repository: TaskRepository,
+        dao: TaskWakeDao,
+    ): WakeCoordinator = WakeCoordinator(context, bus, repository, dao)
+
     // ── task-storage: database + DAOs ────────────────────────────────────────
 
     @Provides
@@ -207,6 +224,9 @@ object CapabilityBindings {
 
     @Provides
     fun provideMembershipAclDao(db: TaskDatabase): MembershipAclDao = db.membershipAclDao()
+
+    @Provides
+    fun provideTaskWakeDao(db: TaskDatabase): TaskWakeDao = db.taskWakeDao()
 
     // ── feature-toggles ──────────────────────────────────────────────────────
 

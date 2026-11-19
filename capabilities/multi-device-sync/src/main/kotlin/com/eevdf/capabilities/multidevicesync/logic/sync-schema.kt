@@ -95,10 +95,15 @@ internal data class ColumnInfo(
  */
 internal object SyncSchema {
 
-    /** Tables that are never synced: SQLite's, Android's, Room's, and our own. */
+    /**
+     * Tables that are never synced: SQLite's, Android's, Room's, our own — and the
+     * scheduled-wake tables, which hold absolute times and AlarmManager state that
+     * mean nothing on another phone (a synced wake would ring on every device).
+     */
     private fun isInternal(name: String): Boolean =
         name.startsWith("sqlite_") || name.startsWith("_sync_") ||
-            name == "android_metadata" || name == "room_master_table"
+            name == "android_metadata" || name == "room_master_table" ||
+            name == "task_wake" || name == "wake_return"
 
     /**
      * Tables merged column by column. A task is edited in one place while its

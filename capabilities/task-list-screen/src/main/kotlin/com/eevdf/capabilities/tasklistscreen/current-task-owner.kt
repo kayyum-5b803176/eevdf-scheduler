@@ -81,24 +81,29 @@ internal class CurrentTaskOwner(
      */
     fun set(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
         val changed = task?.id != _current.value?.id
-        _instanceRef.value = refGuard?.invoke(ref) ?: ref
+        val effective = refGuard?.invoke(ref) ?: ref
+        _instanceRef.value = effective
         _current.value = task
-        if (changed) publish(task)
+        if (changed) publish(task, effective)
     }
 
     /** Same as [set], but safe to call off the main thread (was `.postValue(...)`). */
     fun setAsync(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
         val changed = task?.id != _current.value?.id
-        _instanceRef.postValue(refGuard?.invoke(ref) ?: ref)
+        val effective = refGuard?.invoke(ref) ?: ref
+        _instanceRef.postValue(effective)
         _current.postValue(task)
-        if (changed) publish(task)
+        if (changed) publish(task, effective)
     }
 
-    private fun publish(task: Task?) {
+    private fun publish(task: Task?, ref: TaskInstanceRef?) {
         scope.launch {
             bus.publish(
                 Topics.CURRENT_TASK_CHANGED,
-                CurrentTaskState(taskId = task?.id, taskName = task?.name, isRunning = task?.isRunning == true),
+                CurrentTaskState(
+                    taskId = task?.id, taskName = task?.name, isRunning = task?.isRunning == true,
+                    symlinkId = task?.let { ref?.symlinkId }, membershipId = task?.let { ref?.membershipId },
+                ),
                 publisherId,
             )
         }

@@ -305,6 +305,18 @@
                     android:contentDescription="Sleep"
                     android:visibility="gone" />
 
+                <!-- Wake (alarm clock) — right of the moon. Tap: set / change this task's scheduled
+                     wake. Hold: see its state. Blinks while a wake is armed. Leaf tasks only. -->
+                <ImageButton
+                    android:id="@+id/btnWake"
+                    android:layout_width="@dimen/app_btn_icon"
+                    android:layout_height="@dimen/app_btn_icon"
+                    android:src="@drawable/ic_wake_24"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/app_blue_nd"
+                    android:contentDescription="Set wake"
+                    android:visibility="gone" />
+
                 <!-- Blank space between the moon and the right-aligned buttons. -->
                 <View
                     android:layout_width="0dp"

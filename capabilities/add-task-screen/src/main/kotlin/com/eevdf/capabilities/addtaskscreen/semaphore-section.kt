@@ -47,6 +47,7 @@ internal fun AddTaskActivity.setupSemaphoreSection() {
 /** Shows the card only for a container, and only when groups are enabled in settings. */
 internal fun AddTaskActivity.updateSemaphoreCardVisibility() {
     cardSemaphore.visibility = if (groupsEnabled && switchIsGroup.isChecked) View.VISIBLE else View.GONE
+    updateWakeCardVisibility()      // the Wake card is the opposite: leaf tasks only (one listener serves the container switch)
 }
 
 /** Restores the switch and N from [task] — even when the card is hidden, so the values survive a save. */

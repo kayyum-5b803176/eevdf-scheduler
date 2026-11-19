@@ -3,6 +3,11 @@ package com.eevdf.capabilities.addtaskscreen
 import android.view.View
 import android.widget.Toast
 import com.eevdf.capabilities.taskstorage.SemaphoreRules
+import com.eevdf.kernel.eventbus.Topics
+import com.eevdf.kernel.eventbus.WakeProfileSet
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
@@ -346,6 +351,13 @@ internal fun AddTaskActivity.saveTask() {
             enabled   = isLoadFactorEnabled,
         )
     )
+
+    // The wake profile goes to task-wake over the bus, and only when the person changed it. A scope
+    // of its own: finish() below cancels lifecycleScope before the publish could complete.
+    if (cardWake.visibility == View.VISIBLE && selectedWakeProfile != loadedWakeProfile) {
+        val change = WakeProfileSet(taskId, selectedWakeProfile)
+        CoroutineScope(Dispatchers.Default).launch { bus.publish(Topics.WAKE_PROFILE_SET, change, "add-task-screen") }
+    }
 
     if (willQueue) Toast.makeText(this, "Queued: waiting for a slot", Toast.LENGTH_SHORT).show()
     finish()

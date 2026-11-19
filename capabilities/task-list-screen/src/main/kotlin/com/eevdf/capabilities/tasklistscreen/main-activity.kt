@@ -191,6 +191,11 @@ class MainActivity : AppCompatActivity() {
         setupAdapters()
         setupRecyclerView()
         setupTabs()
+        // Which tasks have an armed wake (their icon blinks) — published by task-wake.
+        viewModel.wakeArmedIds.observe(this) { ids ->
+            activeAdapter.wakeArmedIds   = ids
+            scheduleAdapter.wakeArmedIds = ids
+        }
 
         // Drill-down back: pop one frame on system/gesture back before falling
         // through to leaving the Activity. Enabled state is kept in sync by
@@ -573,6 +578,9 @@ class MainActivity : AppCompatActivity() {
                                  else viewModel.deepToggleQueueGroupExpanded(it) },
         onResetSliceClick    = { viewModel.resetSlice(it) },
         onSleepClick         = { viewModel.toggleSleep(it) },
+        // The wake icon only publishes a request; task-wake owns everything that follows.
+        onWakeClick          = { viewModel.requestWakeEdit(it.id) },
+        onWakeLongClick      = { viewModel.requestWakeState(it.id) },
         showScheduleRank     = showRank,
         expandStateProvider  = { id -> if (scheduleTab) viewModel.getScheduleExpanded(id)
                                         else viewModel.getQueueExpanded(id) },

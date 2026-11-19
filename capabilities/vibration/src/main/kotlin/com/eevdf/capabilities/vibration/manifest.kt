@@ -22,6 +22,8 @@ object VibrationManifest : CapabilityManifest {
         Topics.ALARM_RINGING,
         Topics.ALARM_STOPPED,
         Topics.VIBRATION_PREVIEW_REQUESTED,
+        Topics.WAKE_ALERT_REQUESTED,
+        Topics.WAKE_ALERT_STOP_REQUESTED,
     )
 
     override fun fallbackWhenUnavailable(topic: Topic<*>) {
