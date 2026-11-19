@@ -5,6 +5,51 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.48.0 — Auto Scroll frames the parent chain and boxes the list in while a task runs
+
+Includes everything in 6.47.1. No database change, no sync change, `versionCode` untouched.
+
+### Changed
+- **Frame the chain.** When the running task changes and its row is not on screen, Auto Scroll
+  now jumps so the ROOT ancestor's row is at the top and the rows down to the running task are
+  visible (`task1 > task2 > task3` running shows `task1` first). Before, the running row itself
+  went to the top and its parents were left above the screen. If the chain is taller than the
+  screen the running task wins and is pinned to the bottom edge. Instant jump, no animation, never
+  switches tab; if the running row is already visible nothing moves.
+- **Walls while a timer runs.** The list can no longer be scrolled above the root row or below the
+  running row. Between them it scrolls freely; a fling that reaches a wall stops there. With the
+  root at row 172 and the running task at row 221, rows 172–221 are the whole scrollable range.
+  Pause / stop, deselecting, collapsing the root group (the running row leaves the list) and turning
+  the Auto Scroll switch off free the list again.
+- **No more pull-back.** Auto Scroll used to react to every re-publish of the current task (it
+  re-publishes during the countdown), so scrolling the running row out of view was undone. It now
+  acts only when the running row or the timer-running state really changes.
+
+### Behaviour to know about
+- A running task with no parent (every task, when groups are off) is boxed to its own row: while
+  its timer runs the list cannot be scrolled. Switch Auto Scroll off in the menu to scroll freely.
+- When the box is shorter than the screen, the root row stays at the top and the rows that follow
+  the running task are still drawn below it (hiding them would mean filtering the list).
+- A symlink's "go to the real location" frees the walls until the running task or timer state next
+  changes, so the explicit jump is not pushed back.
+- Drill-down list style and the Completed tab are unchanged.
+
+### Code
+- `ScrollRangeRules` (task-storage, pure): box rows of a running row, far-jump target, pixel
+  correction for the walls, bottom-pin offset. `ScrollRangeDelegate` (task-list-screen) reads row
+  positions off the RecyclerView and applies them; it replaces `MainActivity.scrollToTask`.
+
+### Tests
+New `scroll-range-rules-test.kt` (18 tests): box of a grandchild / child / root task, siblings inside
+the box, nearest root, unknown row, far jumps (172–221 example), any-row-visible, wall corrections,
+box shorter than the screen, top wall wins, padding, convergence, bottom pin.
+
+### Verified / not verified
+The pure rules compile with a standalone Kotlin 2.0.21 compiler and all 49 tests of the three rule test
+files (scroll 18, semaphore 22, sleep 9) pass. **Not built and not run** (no Android SDK here):
+`ScrollRangeDelegate` and its wiring, and the on-screen feel — wall stops, fling handling, the
+chain-taller-than-screen case — have not been tried on a device.
+
 ## 6.47.1 — App renamed "Scheduler" in every title
 
 Includes everything in 6.47.0. No database change, no sync-protocol change, `versionCode` untouched.

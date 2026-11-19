@@ -128,18 +128,24 @@ internal class ObserverDelegate(private val activity: MainActivity) {
                 activity.tvTimerDisplay.text = task.remainingDisplay
                 activity.activeAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
                 activity.scheduleAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
-                if (activity.viewModel.autoScrollEnabled.value == true) activity.scrollToTask(task.id)
             } else {
                 activity.activeAdapter.setRunningTask(null)
                 activity.scheduleAdapter.setRunningTask(null)
                 activity.tvTimerDisplay.text = "00:00"
             }
+            // Auto Scroll: frames the parent chain when the running task really changed
+            // (the same task re-published every second does nothing). Also runs for null,
+            // so selecting the same task again after a deselect counts as a change.
+            activity.scrollRange.onSelectionOrTimerChanged()
             activity.updateScheduleRankBadge()
             // Quota-exhaustion state depends on which task is current — refresh
             // immediately on a switch rather than waiting up to 1s for the
             // next quota tick.
             activity.refreshPhaseStatusBar()
         }
+
+        // The walls exist only while a timer runs: pause / stop frees the list, start boxes it.
+        activity.viewModel.timerRunning.observe(activity) { activity.scrollRange.onSelectionOrTimerChanged() }
 
         activity.viewModel.timerSeconds.observe(activity) { seconds ->
             val h = seconds / 3600

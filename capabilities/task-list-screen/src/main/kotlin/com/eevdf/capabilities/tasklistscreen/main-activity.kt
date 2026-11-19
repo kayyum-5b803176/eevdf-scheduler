@@ -63,6 +63,8 @@ class MainActivity : AppCompatActivity() {
     internal lateinit var activeAdapter:       TaskAdapter
     internal lateinit var scheduleAdapter:     TaskAdapter
     internal lateinit var completedAdapter:    TaskAdapter
+    /** Auto Scroll: frames the running task's parent chain and boxes the list in while it runs. */
+    internal val scrollRange = ScrollRangeDelegate(this)
     private lateinit var tabLayout:           TabLayout
     internal lateinit var fabAdd:              FloatingActionButton
     internal lateinit var fabQuickAction:      FloatingActionButton
@@ -611,6 +613,7 @@ class MainActivity : AppCompatActivity() {
         val list = if (scheduleTab) viewModel.flatScheduleOrder.value else viewModel.flatActiveTasks.value
         val index = list?.indexOfFirst { it.task.id == task.id && it.symlinkId == null && it.membershipId == null } ?: -1
         if (index >= 0) {
+            scrollRange.release()   // an explicit "go there" must not be pushed back into the Auto Scroll box
             recyclerView.post { (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(index, 0) }
         } else {
             showTaskDetail(task)
@@ -637,6 +640,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = activeAdapter
+        recyclerView.addOnScrollListener(scrollRange.walls)   // the Auto Scroll walls — see ScrollRangeDelegate
     }
 
     private fun setupTabs() {
@@ -805,38 +809,6 @@ class MainActivity : AppCompatActivity() {
                 isVisible = true
             }
         }
-    }
-
-    /**
-     * Scrolls the RecyclerView to the card of [taskId].
-     *
-     * Always uses an instant positional jump (scrollToPositionWithOffset) so the
-     * target row appears on the very next frame regardless of how many rows are
-     * between the current viewport and the destination.  The previous
-     * smoothScrollToPosition call was removed because it animated through every
-     * intermediate row — unacceptable with 100+ tasks in the list.
-     */
-    internal fun scrollToTask(taskId: String) {
-        // Only scroll within the currently visible tab — never switch tabs
-        val currentAdapter = when (currentTab) {
-            0    -> activeAdapter
-            1    -> scheduleAdapter
-            else -> return
-        }
-        val position = currentAdapter.currentList.indexOfFirst { it.task.id == taskId }
-        if (position < 0) return
-
-        val llm = recyclerView.layoutManager as? LinearLayoutManager ?: return
-
-        // Guard: already at least partially on screen — nothing to do.
-        // Prevents the card bouncing back on every timer tick.
-        val firstVisible = llm.findFirstVisibleItemPosition()
-        val lastVisible  = llm.findLastVisibleItemPosition()
-        if (position in firstVisible..lastVisible) return
-
-        // Instant jump — target row snaps to the top of the viewport in one
-        // layout pass, no animation, no intermediate rows rendered.
-        llm.scrollToPositionWithOffset(position, 0)
     }
 
     internal fun updateScheduleRankBadge() {
