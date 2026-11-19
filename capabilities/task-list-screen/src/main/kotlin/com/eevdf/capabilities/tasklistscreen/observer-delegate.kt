@@ -44,7 +44,6 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         observeStatsAndToasts()
         observeDisplayToggles()
         observeSync()
-        observeActionButtons()
         observeDrillNavigation()
     }
 
@@ -120,18 +119,13 @@ internal class ObserverDelegate(private val activity: MainActivity) {
     private fun observeCurrentTask() {
         activity.viewModel.currentTask.observe(activity) { task ->
             if (task != null) {
-                // Content only — card VISIBILITY is owned solely by the
-                // timerCardAction observer below (single source of truth).
-                activity.tvCurrentTaskName.text = task.name
-                activity.tvTimerPriority.text = if (task.category == "None") "Priority ${task.priority}"
-                                       else "Priority ${task.priority} · ${task.category}"
-                activity.tvTimerDisplay.text = task.remainingDisplay
+                // The card itself (name, priority, countdown, visibility) is described by the
+                // TimerCardPublisher and drawn by the timer-card capability.
                 activity.activeAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
                 activity.scheduleAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
             } else {
                 activity.activeAdapter.setRunningTask(null)
                 activity.scheduleAdapter.setRunningTask(null)
-                activity.tvTimerDisplay.text = "00:00"
             }
             // Auto Scroll: frames the parent chain when the running task really changed
             // (the same task re-published every second does nothing). Also runs for null,
@@ -147,15 +141,8 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         // The walls exist only while a timer runs: pause / stop frees the list, start boxes it.
         activity.viewModel.timerRunning.observe(activity) { activity.scrollRange.onSelectionOrTimerChanged() }
 
-        activity.viewModel.timerSeconds.observe(activity) { seconds ->
-            val h = seconds / 3600
-            val m = (seconds % 3600) / 60
-            val s = seconds % 60
-            activity.tvTimerDisplay.text = if (h > 0)
-                String.format("%d:%02d:%02d", h, m, s)
-            else
-                String.format("%02d:%02d", m, s)
-        }
+        // The countdown text is ticked by the card itself from an end instant; the publisher only
+        // re-describes it (see TimerCardPublisher) when the timer's remaining time really moves.
     }
 
     /** The merged timer card: visibility, which child layout shows, tint, button
@@ -177,7 +164,8 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         // alarm observer. There is one card and one observer; impossible to show
         // both the countdown and the alarm at once.
         activity.viewModel.timerCardAction.observe(activity) { action ->
-            activity.timerCardDelegate.renderTimerCard(action)
+            // The card is drawn by the timer-card capability from specs the TimerCardPublisher publishes
+            // (it observes timerCardAction itself); what stays here is the side effects of the state.
 
             // Dot reflects timer state only when the card is manually hidden.
             // When card is visible the card itself shows the state — dot stays grey.
@@ -212,17 +200,7 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         // Phase-status bar — depends on NoticePhase subtype detail (remainingSecs)
         // that TimerCardAction intentionally omits, so driven separately here.
         activity.viewModel.noticePhase.observe(activity) { phase ->
-            when (phase) {
-                is NoticePhase.Delay -> {
-                    val m = phase.remainingSecs / 60; val s = phase.remainingSecs % 60
-                    activity.tvTimerDisplay.text = "%02d:%02d".format(m, s)
-                }
-                is NoticePhase.Wait -> {
-                    val m = phase.remainingSecs / 60; val s = phase.remainingSecs % 60
-                    activity.tvTimerDisplay.text = "%02d:%02d".format(m, s)
-                }
-                else -> {}
-            }
+            // (The delay / wait countdown is shown by the card from the phase's remaining time.)
             // Phase-status bar is now a shared strip (quota exhaustion + notice
             // delay/wait) — always recomputed here rather than set directly,
             // so this phase change can't clobber a quota-exhausted state the
@@ -252,12 +230,7 @@ internal class ObserverDelegate(private val activity: MainActivity) {
             }
         }
 
-        // The elapsed overrun counter ticks once per second via its own LiveData.
-        // It writes the alarm block's own tvAlarmElapsed view directly so the
-        // counter animates smoothly without re-running renderTimerCard.
-        activity.viewModel.alarmElapsedSeconds.observe(activity) { elapsed ->
-            activity.tvAlarmElapsed.text = NotificationHelper.formatElapsed(elapsed)
-        }
+        // (The overrun counter of an expired alarm is counted up by the card itself.)
     }
 
     /** Menu checkmarks and FAB visibility for the display preference toggles. */
@@ -296,36 +269,5 @@ internal class ObserverDelegate(private val activity: MainActivity) {
      */
     private fun observeSync() {
         activity.viewModel.syncState.observe(activity) { state -> activity.menuSyncDelegate.updateSyncIcon(state) }
-    }
-
-    /** The Next/Auto and INT buttons.
-     *
-     * INT is a single observer on intButtonState rather than three on slot,
-     * taskA and taskB: interleaved dispatches used to render colour and label
-     * from mismatched values for one frame. */
-    private fun observeActionButtons() {
-        // ── Next / Auto button ────────────────────────────────────────────────
-        activity.viewModel.nextButtonState.observe(activity) { state ->
-            activity.btnScheduleNext.text = state.label
-        }
-        // Global Rotate is a fully independent preference — no longer locked
-        // by anything Auto-related, since Auto is now a one-shot manual
-        // action, not a persistent mode it used to conflict with.
-
-        // ── INT button ────────────────────────────────────────────────────────
-        //
-        // Previously three separate observers (slot, taskA, taskB) each read
-        // the other two LiveData via .value at dispatch time — if dispatches
-        // interleaved, the color and label could be set from mismatched values
-        // for one frame.  Single observer on intButtonState fixes that.
-        activity.viewModel.intButtonState.observe(activity) { state ->
-            activity.btnInt.text = state.label
-            val color = if (state.textColorHex.isNotEmpty())
-                android.graphics.Color.parseColor(state.textColorHex)
-            else
-                ContextCompat.getColor(activity, R.color.colorPrimary)
-            activity.btnInt.setTextColor(color)
-            activity.btnInt.jumpDrawablesToCurrentState()
-        }
     }
 }

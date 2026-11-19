@@ -15,6 +15,9 @@ dependencies {
     implementation(project(":capabilities:navigation-routes"))
     implementation(project(":capabilities:task-scheduling"))
     implementation(project(":capabilities:run-history"))
+    // The ONE view class it places in activity_main.xml (TimerCardView), plus the controller it hands it
+    // and CardClock for the paused-time text. Everything else about the card crosses the event bus.
+    implementation(project(":capabilities:timer-card"))
     implementation(project(":capabilities:countdown-timer"))
     implementation(project(":capabilities:notification"))
     // v6.38.0: the multi-device-sync dependency that used to be declared here

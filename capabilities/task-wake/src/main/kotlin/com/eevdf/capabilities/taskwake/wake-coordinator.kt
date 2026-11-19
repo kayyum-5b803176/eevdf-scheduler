@@ -7,6 +7,11 @@ import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.taskstorage.TaskWake
 import com.eevdf.capabilities.taskstorage.TaskWakeDao
 import com.eevdf.capabilities.taskstorage.WakeReturn
+import com.eevdf.kernel.eventbus.CardAction
+import com.eevdf.kernel.eventbus.CardButton
+import com.eevdf.kernel.eventbus.CardKind
+import com.eevdf.kernel.eventbus.CardPriority
+import com.eevdf.kernel.eventbus.CardSpec
 import com.eevdf.kernel.eventbus.CurrentTaskState
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.TaskSelectRequest
@@ -23,23 +28,25 @@ import kotlinx.coroutines.sync.withLock
  *
  * It talks to the rest of the app exclusively through topics (see the KDoc of each in
  * `Topics`): it LISTENS to which task is current and whether the app is on screen, to the
- * wake icon being tapped or held, and to the edit screen's profile choice; it ANSWERS the
- * profile query; and it ASKS for things by publishing — "select this task", "ring this
- * profile", "these tasks have an armed wake". Nothing in task-list-screen, the edit screen,
- * sound or vibration calls it, and it calls none of them.
+ * wake icon being tapped or held, to the preempt card's buttons, and to the edit screen's
+ * profile choice; it ANSWERS the profile query; and it ASKS for things by publishing —
+ * "show this card", "select this task", "ring this profile", "these tasks have an armed wake".
+ * Nothing in task-list-screen, the edit screen, sound or vibration calls it, and it calls
+ * none of them.
  *
  * What a wake does, end to end:
  *
  *   arm      — a row in `task_wake` (+ an AlarmManager entry, [WakeScheduler]).
  *   due      — the alarm fires (or the app is opened / the running task changes): the wake
- *              compares its task's scheduler class with the CURRENT task's.
- *                 nothing current, or the wake outranks it → the preempt card is shown
- *                 the current task is of equal or higher class → keep waiting, look again
+ *              compares its task with the CURRENT task's class and priority.
+ *                 nothing current, or the wake may preempt it → the preempt card is shown, in the
+ *                       timer card's place (published as `card.show`, like an expired alarm)
+ *                 the current task has a higher class or priority → keep waiting, look again
  *                                                                when the current task changes
  *                 the wake task is already current          → cleared, nothing to ask
- *   answer   — Preempt: the current task is remembered (return stack), paused, and the wake
- *              task is SELECTED — never started; the person starts it. Select (nothing was
- *              current): just selects. Dismiss: the wake is cleared.
+ *   answer   — the card's buttons arrive as `card.action`. Preempt: the current task is
+ *              remembered (return stack) and the wake task is SELECTED — never started; the
+ *              person starts it. Select (nothing was current): just selects. Dismiss: cleared.
  *   return   — when the wake task ends (it stops being current and nothing replaced it) the
  *              remembered task is selected again, paused, through the same placement — what
  *              INT-A's "back" does. If the person picks another task meanwhile, the pending
@@ -65,8 +72,9 @@ class WakeCoordinator(
     /** The task we asked task-list-screen to select; its CURRENT_TASK_CHANGED is ours, not the person's. */
     private var expectSelect: String? = null
 
-    /** The wake whose card is up (or whose notification was posted), so it is not presented twice. */
-    @Volatile private var presenting: String? = null
+    /** The wake whose card is currently published, and the one whose profile is currently ringing. */
+    private var shownCard: String? = null
+    private var alerting: String? = null
 
     /** returnTaskId → the placement it was current through, like INT-A keeps in memory (a reboot falls back to the real one). */
     private val returnPlacement = HashMap<String, Pair<String?, String?>>()
@@ -82,6 +90,7 @@ class WakeCoordinator(
         bus.subscribe(Topics.WAKE_EDIT_REQUESTED, CAPABILITY_ID)  { startHost(WakeHostActivity.MODE_PROMPT, it) }
         bus.subscribe(Topics.WAKE_STATE_REQUESTED, CAPABILITY_ID) { startHost(WakeHostActivity.MODE_STATE, it) }
         bus.subscribe(Topics.WAKE_PROFILE_SET, CAPABILITY_ID) { setProfile(it.taskId, it.profile) }
+        bus.subscribe(Topics.CARD_ACTION, CAPABILITY_ID) { action -> onCardAction(action) }
         bus.respondTo(Topics.WAKE_PROFILE_QUERY, CAPABILITY_ID) { taskId ->
             dao.get(taskId)?.profile ?: TaskWake.PROFILE_ALARM
         }
@@ -162,35 +171,9 @@ class WakeCoordinator(
         return StateData(task.name, lines, true)
     }
 
-    /** What the preempt card shows. [profile] is the sound / vibration profile to ring. */
-    data class CardData(val title: String, val subtitle: String, val primaryLabel: String, val profile: String)
-
-    suspend fun cardData(taskId: String): CardData? {
-        val w = dao.get(taskId) ?: return null
-        if (w.phase != TaskWake.PHASE_CARD) return null
-        val task = repository.getTaskById(taskId) ?: return null
-        val cur = current.taskId?.takeIf { it != taskId }?.let { repository.getTaskById(it) }
-        val missed = WakeRules.isMissed(w.targetEpochMs, System.currentTimeMillis())
-        val title = if (missed) "Missed wake: ${task.name}" else "Wake: ${task.name}"
-        val subtitle = if (cur != null)
-            "wants to preempt \"${cur.name}\" · ${classLabel(task.schedulerClass, task.rtPriority)} over ${classLabel(cur.schedulerClass, cur.rtPriority)}"
-        else
-            "is due · nothing is current"
-        return CardData(title, subtitle, if (cur != null) "Preempt" else "Select", w.profile)
-    }
-
-    suspend fun startAlert(profile: String) = bus.publish(Topics.WAKE_ALERT_REQUESTED, profile, CAPABILITY_ID)
-    suspend fun stopAlert() = bus.publish(Topics.WAKE_ALERT_STOP_REQUESTED, Unit, CAPABILITY_ID)
-
-    /** The host activity closed. A card left unanswered stays pending and is shown again on the next open. */
-    fun onHostClosed(taskId: String?) {
-        if (taskId != null && presenting == taskId) presenting = null
-    }
-
-    /** Preempt / Select: remember the current task, pause it, select the wake task — never start it. */
+    /** Preempt / Select: remember the current task, select the wake task — never start it. */
     suspend fun accept(taskId: String) = lock.withLock {
-        stopAlert()
-        presenting = null
+        stopAlertLocked()
         val task = repository.getTaskById(taskId)
         if (task == null || task.isCompleted) { clearLocked(taskId); return@withLock }
         val cur = current
@@ -198,20 +181,26 @@ class WakeCoordinator(
             dao.pushReturn(WakeReturn(wakeTaskId = taskId, returnTaskId = cur.taskId!!, createdAt = System.currentTimeMillis()))
             returnPlacement[cur.taskId!!] = cur.symlinkId to cur.membershipId
         }
-        clearLocked(taskId)                       // one shot: disarmed, the row (and its profile) stays
         expectSelect = taskId
         bus.publish(
             Topics.TASK_SELECT_REQUESTED,
-            TaskSelectRequest(taskId, pauseCurrent = true,
+            TaskSelectRequest(taskId,
                 message = if (cur.taskId != null && cur.taskId != taskId) "Preempted \"${cur.taskName}\" — start \"${task.name}\" when ready" else null),
             CAPABILITY_ID,
         )
+        clearLocked(taskId)                       // one shot: disarmed (the row and its profile stay) and the card goes away
     }
 
     suspend fun dismiss(taskId: String) = lock.withLock {
-        stopAlert()
-        presenting = null
+        stopAlertLocked()
         clearLocked(taskId)
+    }
+
+    /** A button of the card was pressed. Only the wake card's own presses matter here. */
+    private suspend fun onCardAction(action: CardAction) {
+        if (action.cardId != WAKE_CARD_ID) return
+        val taskId = shownCard ?: return
+        if (action.buttonId == BUTTON_PRIMARY) accept(taskId) else dismiss(taskId)
     }
 
     // ── Entered by the bus ────────────────────────────────────────────────────
@@ -244,7 +233,11 @@ class WakeCoordinator(
     private suspend fun evaluateLocked() {
         val all = dao.getAll()
         // A card waiting for an answer (app restarted, or it was left unanswered) comes back first.
-        all.firstOrNull { it.phase == TaskWake.PHASE_CARD }?.let { present(it); return }
+        all.firstOrNull { it.phase == TaskWake.PHASE_CARD }?.let { w ->
+            val t = repository.getTaskById(w.taskId)
+            if (t == null || t.isCompleted) clearLocked(w.taskId)         // its task is gone: no card to wait for
+            else { present(w); return }
+        }
 
         val now = System.currentTimeMillis()
         for (w in all.filter { it.phase == TaskWake.PHASE_ARMED && it.targetEpochMs in 1..now }.sortedBy { it.targetEpochMs }) {
@@ -260,7 +253,10 @@ class WakeCoordinator(
             val decision = WakeRules.decide(
                 hasCurrent        = cur != null,
                 currentIsWakeTask = cur?.id == task.id,
-                outranksCurrent   = cur != null && WakeRules.outranks(task.schedulerClass, task.rtPriority, cur.schedulerClass, cur.rtPriority),
+                canPreemptCurrent = cur != null && WakeRules.canPreempt(
+                    task.schedulerClass, WakeRules.effectivePriority(task.schedulerClass, task.priority, task.rtPriority),
+                    cur.schedulerClass,  WakeRules.effectivePriority(cur.schedulerClass,  cur.priority,  cur.rtPriority),
+                ),
             )
             when (decision) {
                 WakeRules.Decision.CLEAR_SELF -> clearLocked(w.taskId)
@@ -275,18 +271,57 @@ class WakeCoordinator(
         }
     }
 
-    /** In the foreground: the card (host activity). Otherwise: a notification that opens it. */
+    /**
+     * Puts the preempt card up (published for task-list-screen to show in the timer card's place) and,
+     * while the app is on screen, rings the wake's profile once. In the background it also posts a
+     * notification that opens the app; the retained card is there waiting when it does. Safe to call
+     * again: it refreshes the card's text (the current task may have changed) and never re-rings.
+     */
     private suspend fun present(w: TaskWake) {
-        if (presenting == w.taskId) return
-        presenting = w.taskId
+        val card = buildCard(w) ?: return
+        shownCard = w.taskId
+        bus.publish(Topics.CARD_SHOW, card, CAPABILITY_ID)
         if (foreground) {
-            startHost(WakeHostActivity.MODE_PREEMPT, w.taskId)
+            if (alerting != w.taskId) { alerting = w.taskId; bus.publish(Topics.WAKE_ALERT_REQUESTED, w.profile, CAPABILITY_ID) }
         } else {
             val name = repository.getTaskById(w.taskId)?.name ?: return
             if (WakeRules.isMissed(w.targetEpochMs, System.currentTimeMillis())) WakeNotifier.postMissed(appContext, w.taskId, name, w.targetEpochMs)
             else WakeNotifier.postDue(appContext, w.taskId, name)
-            presenting = null                                                                 // the notification is not a card: let the next open show it
         }
+    }
+
+    /** The text of the card for [w]: who wants to preempt whom, and whether the button says Preempt or Select. */
+    private suspend fun buildCard(w: TaskWake): CardSpec? {
+        val task = repository.getTaskById(w.taskId) ?: return null
+        val cur = current.taskId?.takeIf { it != w.taskId }?.let { repository.getTaskById(it) }
+        val missed = WakeRules.isMissed(w.targetEpochMs, System.currentTimeMillis())
+        val subtitle = if (cur != null)
+            "wants to preempt \"${cur.name}\" · ${classLabel(task.schedulerClass, task.rtPriority)} over ${classLabel(cur.schedulerClass, cur.rtPriority)}"
+        else
+            "is due · nothing is current"
+        // Both buttons close the card the instant they are pressed (timer-card does that itself), so it
+        // can never stay up because an answer was slow; the press still arrives as card.action.
+        return CardSpec(
+            id = WAKE_CARD_ID, kind = CardKind.WAKE, priority = CardPriority.WAKE,
+            title = if (missed) "Missed wake: ${task.name}" else "Wake: ${task.name}",
+            subtitle = subtitle,
+            buttons = listOf(
+                CardButton(BUTTON_DISMISS, "Dismiss", closeOnPress = true),
+                CardButton(BUTTON_PRIMARY, if (cur != null) "Preempt" else "Select", closeOnPress = true),
+            ),
+            ignoresUserHide = true,
+        )
+    }
+
+    private suspend fun hideCardLocked() {
+        shownCard = null
+        bus.publish(Topics.CARD_HIDE, WAKE_CARD_ID, CAPABILITY_ID)
+    }
+
+    private suspend fun stopAlertLocked() {
+        if (alerting == null) return
+        alerting = null
+        bus.publish(Topics.WAKE_ALERT_STOP_REQUESTED, Unit, CAPABILITY_ID)
     }
 
     private suspend fun performReturnLocked(wakeTaskId: String, entry: WakeReturn) {
@@ -298,7 +333,7 @@ class WakeCoordinator(
         expectSelect = back.id
         bus.publish(
             Topics.TASK_SELECT_REQUESTED,
-            TaskSelectRequest(back.id, pauseCurrent = false, symlinkId = symlinkId, membershipId = membershipId,
+            TaskSelectRequest(back.id, symlinkId = symlinkId, membershipId = membershipId,
                 message = "Returned to \"${back.name}\""),
             CAPABILITY_ID,
         )
@@ -309,7 +344,7 @@ class WakeCoordinator(
         dao.clearWake(taskId)
         WakeScheduler.cancel(appContext, taskId)
         WakeNotifier.cancel(appContext, taskId)
-        if (presenting == taskId) presenting = null
+        if (shownCard == taskId) { stopAlertLocked(); hideCardLocked() }
         publishArmed()
     }
 
@@ -352,5 +387,8 @@ class WakeCoordinator(
 
     private companion object {
         const val CAPABILITY_ID = "task-wake"
+        const val WAKE_CARD_ID = "wake"
+        const val BUTTON_DISMISS = "dismiss"
+        const val BUTTON_PRIMARY = "primary"
     }
 }

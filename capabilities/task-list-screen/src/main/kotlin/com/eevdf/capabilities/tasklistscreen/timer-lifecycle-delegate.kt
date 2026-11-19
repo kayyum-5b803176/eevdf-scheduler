@@ -257,7 +257,11 @@ internal class TimerLifecycleDelegate(private val vm: TaskViewModel) {
      * across app reopen / reboot. Called by MainActivity's key1-hold handler and
      * by [setCurrentTask] (which always reopens the card).
      */
-    fun setCardManuallyHidden(hidden: Boolean) = vm.settings.saveCardManuallyHidden(hidden)
+    fun setCardManuallyHidden(hidden: Boolean) {
+        vm.settings.saveCardManuallyHidden(hidden)
+        // The card is drawn by timer-card: tell it (retained, so it is right the moment it draws).
+        vm.viewModelScope.launch { vm.bus.publish(Topics.CARD_USER_HIDE, hidden, "task-list-screen") }
+    }
 
     /** Restored on startup by MainActivity to decide whether to show the card. */
     fun getCardManuallyHidden(): Boolean = vm.settings.getSavedCardManuallyHidden()

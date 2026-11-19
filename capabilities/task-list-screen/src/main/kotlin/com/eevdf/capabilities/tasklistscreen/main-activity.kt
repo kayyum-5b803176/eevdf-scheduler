@@ -31,7 +31,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.tasklistscreen.R
 import com.eevdf.capabilities.tasklistscreen.output.TaskAdapter
 import com.eevdf.capabilities.taskstorage.Task
-import com.google.android.material.button.MaterialButton
+import com.eevdf.capabilities.timercard.TimerCardController
+import com.eevdf.capabilities.timercard.TimerCardView
+import com.eevdf.kernel.eventbus.CardStrip
+import com.eevdf.kernel.eventbus.StripState
+import javax.inject.Inject
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
 import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
@@ -43,7 +47,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  *
  * Phase 10: this used to be a 1362-line, 54-function file — the single
  * heaviest shared-edit surface in the app. Four concerns were extracted into
- * their own delegates ([DisplayScaleDelegate], [TimerCardDelegate],
+ * their own delegates ([DisplayScaleDelegate], [TimerCardPublisher],
  * [MenuSyncDelegate], [ObserverDelegate]), following the exact composition
  * pattern [TaskViewModel] already used for its own 7. What's left here is
  * lifecycle glue, view lookup, and wiring — no behavior changed, every line
@@ -68,31 +72,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabLayout:           TabLayout
     internal lateinit var fabAdd:              FloatingActionButton
     internal lateinit var fabQuickAction:      FloatingActionButton
-    internal lateinit var cardTimer:           CardView
-    internal lateinit var tvCurrentTaskName:   TextView
-    internal lateinit var tvTimerDisplay:      TextView
-    internal lateinit var tvTimerPriority:     TextView
-    internal lateinit var btnStartPause:       MaterialButton
-    internal lateinit var btnInt:              MaterialButton
-    internal lateinit var btnScheduleNext:     MaterialButton
+    /** The card above the list — drawn by the timer-card capability from specs published on the bus. */
+    internal lateinit var cardTimer:           TimerCardView
+    @Inject lateinit var timerCardController:  TimerCardController
     internal lateinit var tvStats:             TextView
     internal lateinit var tvFairness:          TextView
     private lateinit var tvScheduleRank:      TextView
     private lateinit var emptyView:           LinearLayout
-    internal lateinit var viewPhaseStatus:     LinearLayout
     private lateinit var breadcrumbBar:       LinearLayout
     private lateinit var tvBreadcrumbPath:    TextView
     private lateinit var drillBackCallback:   androidx.activity.OnBackPressedCallback
 
-    // ── Expired/alarm block — dedicated views, fully styled in XML ─────────────
-    internal lateinit var tvAlarmTaskName:     TextView
-    private lateinit var tvAlarmSubtitle:     TextView
-    internal lateinit var tvAlarmElapsed:      TextView
-    private lateinit var btnStopAlarm:        MaterialButton
-
     // ── UI Customization: card content containers for height scaling ───────────
-    internal lateinit var layoutTimerContent:  LinearLayout
-    internal lateinit var layoutAlarmContent:  LinearLayout
 
     // ── Float-mode banner hiding ───────────────────────────────────────────────
     internal lateinit var mainToolbar:  Toolbar
@@ -109,10 +100,9 @@ class MainActivity : AppCompatActivity() {
     // ── Key1 (Schedule Next) status dot — set in onCreateOptionsMenu ──────────
     internal var schedNextDotView: View? = null
 
-    /** True when the user manually hid the timer card via hold on key1.
-     *  Prevents currentTask observer from re-showing the card until the user
-     *  explicitly reopens it (hold key1 again). Cleared when task becomes null. */
-    internal var isCardManuallyHidden: Boolean = false
+    /** True when the user manually hid the timer card via hold on key1 (persisted by the ViewModel,
+     *  which also tells the timer-card capability). Selecting a task clears it. */
+    internal val isCardManuallyHidden: Boolean get() = viewModel.getCardManuallyHidden()
 
     internal var currentTab = 0
     private val prefs by lazy { getSharedPreferences("eevdf_prefs", MODE_PRIVATE) }
@@ -120,7 +110,8 @@ class MainActivity : AppCompatActivity() {
     // ── Delegates (Phase 10) — constructed in onCreate right after setupViews(),
     // since all four need views that only exist once that call has run. ────────
     internal lateinit var displayScaleDelegate: DisplayScaleDelegate
-    internal lateinit var timerCardDelegate:    TimerCardDelegate
+    /** Describes the card above the list to the timer-card capability and carries out its buttons. */
+    internal lateinit var timerCardPublisher:   TimerCardPublisher
     internal lateinit var menuSyncDelegate:     MenuSyncDelegate
     internal lateinit var observerDelegate:     ObserverDelegate
 
@@ -179,15 +170,13 @@ class MainActivity : AppCompatActivity() {
         // Delegates need views — construct them here, after setupViews(), before
         // anything below (setupObservers etc.) that calls into them.
         displayScaleDelegate = DisplayScaleDelegate(this)
-        timerCardDelegate    = TimerCardDelegate(this)
+        timerCardPublisher   = TimerCardPublisher(this)
         menuSyncDelegate     = MenuSyncDelegate(this)
         observerDelegate     = ObserverDelegate(this)
 
-        // Restore the persisted manual-hide flag BEFORE observers fire, so the
-        // first renderTimerCard() honours a card the user had closed by hand.
-        // The persisted last-selected task is re-seated by the ViewModel's startup
-        // recovery; whether its card actually shows is gated by this flag.
-        isCardManuallyHidden = viewModel.getCardManuallyHidden()
+        // The persisted last-selected task is re-seated by the ViewModel's startup recovery; whether
+        // its card actually shows is gated by the manual-hide flag, which the publisher hands to the
+        // timer-card capability as soon as it starts (see TimerCardPublisher.start).
         setupAdapters()
         setupRecyclerView()
         setupTabs()
@@ -235,8 +224,9 @@ class MainActivity : AppCompatActivity() {
                 }
             )
         }
-        timerCardDelegate.setupTimerCard()
-        setupAlarmBanner()
+        // The card draws itself from the bus; this hooks it to the controller and starts describing it.
+        cardTimer.bind(timerCardController, this)
+        timerCardPublisher.start()
 
         viewModel.refreshSchedule()
 
@@ -450,7 +440,12 @@ class MainActivity : AppCompatActivity() {
         // Blink gate needs the FINAL states list (must be exactly [QUOTA],
         // nothing else mixed in) — computed only now that it's complete.
         val blink = if (chain.isNotEmpty()) quotaBlinkSegment(states, chain, nowMs) else null
-        buildPhaseStatusSegments(viewPhaseStatus, states, blink)
+        // The strip is DRAWN by the timer-card capability; what it shows is decided here.
+        timerCardPublisher.setStrip(CardStrip(
+            states       = states.map { StripState.valueOf(it.name) },
+            blinkSegment = blink?.segmentIndex ?: -1,
+            blinkFast    = blink?.fast ?: false,
+        ))
     }
 
     private fun tickQuotaOnVisibleItems() {
@@ -487,17 +482,10 @@ class MainActivity : AppCompatActivity() {
         fabAdd            = findViewById(R.id.fabAdd)
         fabQuickAction    = findViewById(R.id.fabQuickAction)
         cardTimer         = findViewById(R.id.cardTimer)
-        tvCurrentTaskName = findViewById(R.id.tvCurrentTaskName)
-        tvTimerDisplay    = findViewById(R.id.tvTimerDisplay)
-        tvTimerPriority   = findViewById(R.id.tvTimerPriority)
-        btnStartPause     = findViewById(R.id.btnStartPause)
-        btnInt            = findViewById(R.id.btnInt)
-        btnScheduleNext   = findViewById(R.id.btnScheduleNext)
         tvStats           = findViewById(R.id.tvStats)
         tvFairness        = findViewById(R.id.tvFairness)
         tvScheduleRank    = findViewById(R.id.tvScheduleRank)
         emptyView         = findViewById(R.id.emptyView)
-        viewPhaseStatus   = findViewById(R.id.viewPhaseStatus)
         breadcrumbBar     = findViewById(R.id.breadcrumbBar)
         tvBreadcrumbPath  = findViewById(R.id.tvBreadcrumbPath)
         breadcrumbBar.setOnClickListener {
@@ -505,12 +493,6 @@ class MainActivity : AppCompatActivity() {
             val onQueueTab = currentTab == 0
             if (viewModel.drillBack(onQueueTab)) updateBreadcrumb()
         }
-        layoutTimerContent = findViewById(R.id.layoutTimerContent)
-        layoutAlarmContent = findViewById(R.id.layoutAlarmContent)
-        tvAlarmTaskName   = findViewById(R.id.tvAlarmTaskName)
-        tvAlarmSubtitle   = findViewById(R.id.tvAlarmSubtitle)
-        tvAlarmElapsed    = findViewById(R.id.tvAlarmElapsed)
-        btnStopAlarm      = findViewById(R.id.btnStopAlarm)
 
         fabAdd.setOnClickListener {
             haptic(it)
@@ -534,10 +516,6 @@ class MainActivity : AppCompatActivity() {
             viewModel.jumpToInterrupt()
             fabQuickAction.postDelayed({ viewModel.startTimer() }, 80L)
         }
-    }
-
-    private fun setupAlarmBanner() {
-        btnStopAlarm.setOnClickListener { haptic(it); viewModel.stopAlarmSound() }
     }
 
     private fun makeAdapter(showRank: Boolean = false, scheduleTab: Boolean = false) = TaskAdapter(

@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":capabilities:links-screen"))
     implementation(project(":capabilities:backup-restore"))
     implementation(project(":capabilities:task-wake"))
+    implementation(project(":capabilities:timer-card"))
     implementation(project(":capabilities:app-foreground"))
     implementation(project(":capabilities:alarm-ringer"))
     implementation(project(":capabilities:call-autoswitch"))

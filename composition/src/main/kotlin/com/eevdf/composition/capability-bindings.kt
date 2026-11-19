@@ -30,6 +30,7 @@ import com.eevdf.capabilities.taskstorage.TaskLoadFactorDao
 import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.taskstorage.TaskWakeDao
 import com.eevdf.capabilities.taskwake.WakeCoordinator
+import com.eevdf.capabilities.timercard.TimerCardController
 import com.eevdf.capabilities.taskstorage.TaskMembershipDao
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
 import com.eevdf.kernel.clock.Clock
@@ -195,6 +196,15 @@ object CapabilityBindings {
         repository: TaskRepository,
         dao: TaskWakeDao,
     ): WakeCoordinator = WakeCoordinator(context, bus, repository, dao)
+
+    /**
+     * timer-card: the card above the task list. Holds the stack of cards published on card.show and
+     * which one is on screen; the activity's TimerCardView only observes it. Process-wide, so a card
+     * published while no screen is open is waiting when one opens.
+     */
+    @Provides
+    @Singleton
+    fun provideTimerCardController(bus: EventBus): TimerCardController = TimerCardController(bus)
 
     // ── task-storage: database + DAOs ────────────────────────────────────────
 

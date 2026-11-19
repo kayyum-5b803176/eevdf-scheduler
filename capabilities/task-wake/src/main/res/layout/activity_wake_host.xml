@@ -1,26 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  See-through host of the wake dialogs and the preempt card. The prompt and state popup are
-  AlertDialogs (they bring their own window); only the preempt card sits in this layout,
-  at the top, like a banner over whatever is open behind it.
+  See-through host of the wake prompt and state popup. Both are AlertDialogs with their own
+  window, so there is nothing to lay out here. (The preempt card is not in this activity: it
+  is shown by the task list, in the timer card's place.)
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fitsSystemWindows="true">
-
-    <com.eevdf.capabilities.taskwake.PreemptCardView
-        style="@style/App.Card"
-        android:id="@+id/cardWakePreempt"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top"
-        android:visibility="gone"
-        android:layout_marginStart="@dimen/app_card_gap"
-        android:layout_marginEnd="@dimen/app_card_gap"
-        android:layout_marginTop="@dimen/app_card_gap"
-        android:layout_marginBottom="@dimen/app_card_gap"
-        app:cardBackgroundColor="@color/expiredCardBackground" />
-</FrameLayout>
+    android:layout_height="match_parent" />

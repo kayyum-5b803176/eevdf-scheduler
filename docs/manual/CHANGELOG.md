@@ -5,6 +5,118 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.50.0 — timer-card: one capability draws the card above the list (timer, expired alarm, wake)
+
+Includes everything in 6.49.1. No database change, `versionCode` untouched. New capability
+`:capabilities:timer-card`.
+
+### Why
+The card above the list was drawn by several independent code paths that did not know about each
+other — `renderTimerCard`, the menu's hide toggle setting `cardTimer.visibility` directly, display
+scaling that padded only two of its blocks, and (from 6.49.0) a wake override. A wake card could lose to
+any of them, and a card could stay up because the answer that was meant to take it down never arrived
+("preempt card not visible, only sound and vibration"; "Dismiss stops the sound but the card stays").
+Now exactly one thing draws the card, and what it draws arrives as a card spec on the event bus.
+
+### Changed
+- **One view, three faces, unchanged look.** The card's layout moved byte for byte from
+  `activity_main.xml` into `timer-card/view_timer_card.xml`; `TimerCardView` only toggles which face
+  shows, sets the card colour and writes text, as before. Timer · alarm · wake faces, the 7-segment
+  strip, the fonts, colours, paddings and the display-scale padding are all as they were.
+- **Card specs over the bus.** `card.show` (a card), `card.hide` (by id), `card.action` (a button
+  press, back to the publisher), `card.user-hide` (the hand-hide, retained). Several cards can wait at
+  once; the highest priority is on screen — **expired alarm over wake over timer** — and a lower card
+  comes back when the higher one is hidden. Publishing the same id replaces the card in place.
+- **`closeOnPress`.** A button marked so removes its card from the screen the instant it is pressed,
+  before the press is announced, so a card can never stay up because an answer was slow or lost. The
+  wake card's Dismiss and Preempt/Select use it.
+- **The card counts for itself.** A spec carries the instant the countdown ends (or the alarm began),
+  and the card ticks it once a second on its own, aligned to the second. Nothing is published per
+  second; the task list republishes only when a spec really changed (a clock instant must move by more
+  than 0.7 s).
+- **7-segment status strip.** Which states are active (quota exhausted, notice delay, notice wait) and
+  how badly quota is exceeded are still decided in the task list; the strip's 7 segments, ping-pong
+  colours and blinking (normal / fast) are now drawn by timer-card from a `CardStrip` in the spec.
+- **The controller is process-wide** (built at app start like every bus subscriber), so a card
+  published while no screen is open is waiting when one opens, and a rotation loses nothing.
+- **Hand-hide.** Holding key1 still hides / reopens the timer card; the flag is persisted as before and
+  now also published, so selecting a task (which clears it) reopens the card immediately. Alarm and wake
+  cards ignore it.
+- **task-wake** publishes its card as `card.show` and receives `card.action`; its `wake.card-*` topics,
+  the host activity's preempt mode and `PreemptCardView` are gone (6.49.1's floating-card leftovers).
+
+### What stayed in task-list-screen, and why
+The timer / notice-phase / expired-alarm state machine, the overrun counter and what every button does
+(`TimerCardPublisher` calls the same ViewModel functions the old listeners did). Specifically the
+**expired-alarm card is published by the task list**, not derived by timer-card from `alarm.ringing`:
+that topic is retained but there is no retained "stopped" state, so after an app restart the card could
+not know whether an alarm was still ringing, while the task list already owns that state (and
+`stopAlarmSound()`'s re-seat-the-task logic). The card still counts the overrun by itself.
+
+### Removed
+`TimerCardDelegate`, the card views and their `findViewById`s in `MainActivity`, the card-writing
+observers in `ObserverDelegate`, and the strip's drawing code in `phase-status-bar.kt`.
+Run `scripts/apply-6.50.0-deletions.sh` after extracting the zip (`timer-card-delegate.kt`, and
+`res/values/ids.xml`, which held only the strip's blink tag).
+
+### Tests
+`timer-card-test.kt` (20): card stack order and replacement, hand-hide rules, clock formatting and
+rounding, strip ping-pong. `wake-rules-test.kt` unchanged (23).
+
+### Verified / not verified
+- **Run:** the new capability's pure code and `TimerCardController` compile against the real kernel;
+  the real `WakeCoordinator` and real `TimerCardController` run together on the real `EventBus` — 73
+  scenarios, including card shown, Dismiss and Preempt/Select pressed on the real controller and
+  delivered back to the wake, the card removed synchronously on press even with no owner listening,
+  stacking (alarm over wake over timer, and back), hand-hide for each kind (also for a controller built
+  after the flag), long-press and ignored presses. The UI geometry guard passes (6/6); the architecture
+  guard shows nothing new from timer-card (the two `WakePrefs` findings are from 6.49.0).
+- **Not built, not run** (no Android SDK here): `TimerCardView`, the strip drawing and blinking, the
+  moved layout's resource references (every one was checked to exist in design-system), `TimerCardPublisher`
+  and its LiveData wiring, Hilt for the controller, the activity changes. Nothing was tried on a
+  device. This release replaces all three cards at once — the timer card especially needs a careful look
+  on the phone: Start / Pause / Cancel, the countdown, Next / Auto and INT (tap and hold), hold-Start
+  to pause and close, the status strip (quota, delay, wait, blink), an expired alarm and Stop, hold
+  key1 to hide, and a wake card.
+
+## 6.49.1 — Wake: card in the timer card, Select / Preempt really select, equal tasks may preempt
+
+Includes everything in 6.49.0. No database change, `versionCode` untouched.
+
+### Fixed
+- **The preempt card floated on top of the screen** (a see-through activity). It now takes the **timer
+  card's own place**, exactly like an expired alarm: same card, alarm colour, same structure, same
+  height, Dismiss + Preempt / Select. An expired alarm still wins the card; the wake card waits behind
+  it. It is shown even if the timer card was hand-closed. Over the bus: task-wake publishes
+  `wake.card-changed` (retained), the task list renders it and answers with `wake.card-answered`.
+  The old `PreemptCardView`, its layout and the host activity's preempt mode are gone — run
+  `scripts/apply-6.49.1-deletions.sh` after extracting the zip to remove the two retired files.
+- **Tapping Select or Preempt selected nothing visible.** The select handler set the current task
+  directly and skipped what a selection has to do. It now calls `TaskViewModel.setCurrentTask` — the very
+  function a tap on a task's row uses — so the running timer is paused with its time saved, the notice
+  state is reset, a hand-closed timer card is reopened and the selection is remembered. `TaskSelectRequest`
+  lost its `pauseCurrent` flag (selecting always pauses first).
+- **Preempt rule.** A wake may now preempt when its class is higher, OR the class is the same and its
+  priority is the same or higher (a wake may take over from an equal). The current task is protected
+  only by a higher class or, inside the same class, a higher priority. "Priority" is `rtPriority` for
+  realtime and the task's own `priority` (its EEVDF weight, higher = more important) otherwise.
+  `WakeRules.outranks` became `canPreempt` / `effectivePriority`.
+- A pending card whose task was deleted is dropped instead of waiting forever.
+
+### Changed
+- The wake alert (sound + vibration) is started by task-wake when the card goes up and the app is on
+  screen, refreshed text never re-rings it, and answering or clearing the wake stops it. In the
+  background the notification stands in and the alert starts when the app opens.
+
+### Verified / not verified
+- **Run:** 23 unit tests of the rules (new `canPreempt` cases: equal, higher and lower priority per class)
+  and the real `WakeCoordinator` on the real kernel `EventBus` with in-memory fakes — 53 scenarios,
+  including the card being published and hidden, answered through `wake.card-answered`, refreshed (not
+  re-rung) when the current task changes, background then open, and the new rule for fair and realtime.
+- **Not built, not run** (no Android SDK here): the new card block in `activity_main.xml`, its rendering in
+  `TimerCardDelegate`, and the call into `setCurrentTask` (which is what the row tap already runs). Nothing
+  was tried on a device.
+
 ## 6.49.0 — Scheduled wake: a task can preempt the current one at a set time
 
 Includes everything in 6.48.1. **Database change: version 32 → 33** (two NEW tables, nothing added to

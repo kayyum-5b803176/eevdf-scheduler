@@ -400,6 +400,7 @@ class TaskViewModel @Inject constructor(
     /** Tasks whose wake is armed or waiting for an answer: their wake icon blinks. */
     val wakeArmedIds: LiveData<Set<String>> = _wakeArmedIds
 
+
     private companion object {
         const val CAPABILITY_ID = "task-list-screen"
         const val SYNC_SUBSCRIBER_ID = "task-list-screen.sync"

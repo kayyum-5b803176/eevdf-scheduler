@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The three faces of the card above the task list, moved here unchanged from task-list-screen's
+  activity_main.xml (v6.50.0) so the look is exactly what it always was:
+
+    layoutTimerContent  — the running / paused timer: name, priority, countdown, 7-segment status
+                          strip (viewPhaseStatus), Next · Start/Pause · INT
+    layoutAlarmContent  — an expired timer: red, overrun counter, Stop
+    layoutWakeContent   — a scheduled wake asking to preempt: red, Dismiss + Preempt/Select
+
+  Every face has ALL its styling declared here and none of it is ever changed from Kotlin;
+  TimerCardView only toggles which face shows, sets the card colour and writes text. The faces
+  have matching structure and height, so swapping them does not resize the card or move the list.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <!-- ░░░░░░░░░░░░░░░░ COUNTDOWN BLOCK ░░░░░░░░░░░░░░░░ -->
+    <LinearLayout
+        android:id="@+id/layoutTimerContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/app_card_padding_md"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <!-- Header: name + priority left, countdown right -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvCurrentTaskName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Task Name"
+                    android:textColor="@android:color/white"
+                    android:textSize="@dimen/app_text_size_lg"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tvTimerPriority"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Priority 5 · General"
+                    android:textColor="@color/app_white_67"
+                    android:textSize="@dimen/app_text_size_sm" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvTimerDisplay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="25:00"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/app_text_size_cl"
+                android:fontFamily="monospace"
+                android:layout_marginStart="@dimen/app_spacing_xl" />
+        </LinearLayout>
+
+        <!-- Phase-status bar — a GENERAL indicator strip, not owned by any
+             one feature. Built as 7 small segments in phase-status-bar.kt;
+             each currently-active state (quota exhaustion, notification
+             delay/wait) contributes a color, ping-ponged across the 7
+             segments when more than one is active at once. Empty → GONE. -->
+        <LinearLayout
+            android:id="@+id/viewPhaseStatus"
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_marginTop="@dimen/app_spacing_md"
+            android:orientation="horizontal"
+            android:visibility="visible" />
+
+        <!-- Button row -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/app_spacing_lg"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnScheduleNext"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Next"
+                    android:textColor="@android:color/white"
+                    app:backgroundTint="@android:color/transparent"
+                    android:layout_marginEnd="@dimen/app_spacing_md"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    app:strokeColor="@android:color/white" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnStartPause"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Start"
+                    app:backgroundTint="@color/timerGreen"
+                    android:textColor="@android:color/white"
+                    android:layout_marginHorizontal="@dimen/app_spacing_sm" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnInt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="INT-A"
+                    android:textColor="@color/app_text_label"
+                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginStart="@dimen/app_spacing_md"
+                    app:backgroundTint="@color/intButtonBackground" />
+            </LinearLayout>
+
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- ░░░░░░░░░░░░░░░░ EXPIRED / ALARM BLOCK ░░░░░░░░░░░░░░░░ -->
+    <LinearLayout
+        android:id="@+id/layoutAlarmContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/app_card_padding_md"
+        android:visibility="gone">
+
+        <!-- Header: name + subtitle left, elapsed right -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvAlarmTaskName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Task Name"
+                    android:textColor="@android:color/white"
+                    android:textSize="@dimen/app_text_size_lg"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tvAlarmSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Time slice complete · tap Stop to dismiss"
+                    android:textColor="@color/app_red_lt"
+                    android:textSize="@dimen/app_text_size_sm"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvAlarmElapsed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0:00"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/app_text_size_cl"
+                android:fontFamily="monospace"
+                android:layout_marginStart="@dimen/app_spacing_xl" />
+        </LinearLayout>
+
+        <!-- Reserved space matching viewPhaseStatus's footprint in the
+             countdown block above — kept invisible/inert here (this
+             block doesn't run notice/quota state), purely so the card's
+             overall height doesn't jump when swapping between the
+             countdown and expired/alarm blocks. -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_marginTop="@dimen/app_spacing_md"
+            android:visibility="invisible" />
+
+        <!-- Stop button row: full width, matches countdown button-row height -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="@dimen/app_spacing_lg">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnStopAlarm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Stop"
+                android:textColor="@color/stopButtonText"
+                android:textSize="@dimen/app_text_size_lg"
+                android:fontFamily="sans-serif-medium"
+                app:backgroundTint="@color/stopButtonBackground"
+                app:cornerRadius="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ░░░░░░░░░░░░░░░░ WAKE (PREEMPT) BLOCK ░░░░░░░░░░░░░░░░
+         A scheduled wake asks to preempt. Takes the card over exactly like the
+         expired/alarm block does (same card, alarm colour, same structure and
+         height), published by task-wake as wake.card-changed; the buttons answer
+         it as wake.card-answered. TimerCardDelegate toggles it. -->
+    <LinearLayout
+        android:id="@+id/layoutWakeContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/app_card_padding_md"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvWakeTaskName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Wake"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/app_text_size_lg"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/tvWakeSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/app_red_lt"
+                android:textSize="@dimen/app_text_size_sm"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_marginTop="@dimen/app_spacing_md"
+            android:visibility="invisible" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="@dimen/app_spacing_lg">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnWakeDismiss"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dismiss"
+                android:textColor="@android:color/white"
+                app:backgroundTint="@android:color/transparent"
+                android:layout_marginEnd="@dimen/app_spacing_md"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="@android:color/white" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnWakePrimary"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Preempt"
+                android:textColor="@android:color/white"
+                app:backgroundTint="@color/timerGreen" />
+        </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>
+

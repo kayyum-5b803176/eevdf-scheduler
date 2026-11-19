@@ -77,26 +77,20 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
                     activity.viewModel.jumpToInterrupt()
                 }
             }
-            // Hold → toggle timer card open/closed (UI only — timer state unchanged).
+            // Hold → toggle timer card open/closed (UI only — timer state unchanged). The flag is
+            // persisted by the ViewModel, which also tells the timer-card capability (an expired alarm
+            // and a wake card are drawn regardless).
             //   • Alarm ringing → no-op (the expired card must stay visible)
-            //   • Card visible  → hide it; persist; dot switches to colored state
-            //   • Card hidden + active task → show it; persist; dot reverts to grey
-            //   • Card hidden + no task     → no-op
+            //   • Card shown + active task  → hide it; dot switches to colored state
+            //   • Card hidden + active task → show it; dot reverts to grey
+            //   • No active task            → no-op
             view.setOnLongClickListener {
                 activity.haptic(view)
                 val action = activity.viewModel.timerCardAction.value
                 when {
                     action is TimerCardAction.Expired -> Unit   // can't hide a ringing alarm
-                    activity.cardTimer.visibility == View.VISIBLE -> {
-                        activity.isCardManuallyHidden = true
-                        activity.cardTimer.visibility = View.GONE
-                        activity.viewModel.setCardManuallyHidden(true)
-                    }
-                    activity.viewModel.currentTask.value != null -> {
-                        activity.isCardManuallyHidden = false
-                        activity.cardTimer.visibility = View.VISIBLE
-                        activity.viewModel.setCardManuallyHidden(false)
-                    }
+                    activity.viewModel.currentTask.value == null -> Unit
+                    else -> activity.viewModel.setCardManuallyHidden(!activity.isCardManuallyHidden)
                 }
                 updateScheduleNextDot()
                 true

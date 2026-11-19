@@ -118,9 +118,10 @@ internal class DisplayScaleDelegate(private val activity: MainActivity) {
             DisplayPrefs.isCompactProfile(matched)
         applyFabVisibility(isCompactProfile)
 
-        // Scale the fixed cards (timer + alarm) to match task cards
-        applyCardScaleToView(activity.layoutTimerContent, scale, density)
-        applyCardScaleToView(activity.layoutAlarmContent, scale, density)
+        // Scale the fixed card (timer, alarm and wake faces) to match task cards
+        applyCardScaleToView(activity.cardTimer.timerContent, scale, density)
+        applyCardScaleToView(activity.cardTimer.alarmContent, scale, density)
+        applyCardScaleToView(activity.cardTimer.wakeContent, scale, density)
     }
 
     /**

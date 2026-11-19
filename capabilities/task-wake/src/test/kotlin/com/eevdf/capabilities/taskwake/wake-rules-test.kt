@@ -8,7 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure rules of the scheduled wake: class ranking, what a due wake does, prompt numbers → time, text. */
+/** Pure rules of the scheduled wake: who may preempt whom, what a due wake does, prompt numbers → time, text. */
 class WakeRulesTest {
 
     private val utc = TimeZone.getTimeZone("UTC")
@@ -33,43 +33,56 @@ class WakeRulesTest {
         assertEquals(WakeRules.classRank(fair), WakeRules.classRank("something_else"))
     }
 
-    @Test fun `a higher class outranks a lower one`() {
-        assertTrue(WakeRules.outranks(dl, 50, rt, 99))
-        assertTrue(WakeRules.outranks(rt, 1, fair, 50))
-        assertTrue(WakeRules.outranks(fair, 50, idle, 50))
-        assertFalse(WakeRules.outranks(fair, 50, rt, 1))
-        assertFalse(WakeRules.outranks(idle, 50, fair, 50))
+    @Test fun `a higher class may preempt a lower one, never the other way round`() {
+        assertTrue(WakeRules.canPreempt(dl, 1, rt, 99))
+        assertTrue(WakeRules.canPreempt(rt, 1, fair, 50))
+        assertTrue(WakeRules.canPreempt(fair, 1, idle, 50))
+        assertFalse(WakeRules.canPreempt(fair, 99, rt, 1))      // a lower class never preempts, whatever its priority
+        assertFalse(WakeRules.canPreempt(idle, 99, fair, 1))
     }
 
-    @Test fun `inside realtime the higher priority outranks, equal does not`() {
-        assertTrue(WakeRules.outranks(rt, 80, rt, 50))
-        assertFalse(WakeRules.outranks(rt, 50, rt, 80))
-        assertFalse(WakeRules.outranks(rt, 50, rt, 50))
+    @Test fun `the same class and the same priority may preempt`() {
+        assertTrue(WakeRules.canPreempt(fair, 4, fair, 4))
+        assertTrue(WakeRules.canPreempt(rt, 50, rt, 50))
+        assertTrue(WakeRules.canPreempt(dl, 4, dl, 4))
+        assertTrue(WakeRules.canPreempt(idle, 4, idle, 4))
     }
 
-    @Test fun `equal fair idle or deadline tasks never preempt each other`() {
-        assertFalse(WakeRules.outranks(fair, 99, fair, 1))
-        assertFalse(WakeRules.outranks(idle, 99, idle, 1))
-        assertFalse(WakeRules.outranks(dl, 99, dl, 1))
+    @Test fun `the same class and a higher priority may preempt`() {
+        assertTrue(WakeRules.canPreempt(fair, 6, fair, 4))
+        assertTrue(WakeRules.canPreempt(rt, 80, rt, 50))
+    }
+
+    @Test fun `the same class and a lower priority may not - the current task is protected`() {
+        assertFalse(WakeRules.canPreempt(fair, 3, fair, 4))
+        assertFalse(WakeRules.canPreempt(rt, 50, rt, 80))
+        assertFalse(WakeRules.canPreempt(dl, 1, dl, 9))
+    }
+
+    @Test fun `priority is rtPriority for realtime and the task priority otherwise`() {
+        assertEquals(80, WakeRules.effectivePriority(rt, priority = 4, rtPriority = 80))
+        assertEquals(4, WakeRules.effectivePriority(fair, priority = 4, rtPriority = 80))
+        assertEquals(4, WakeRules.effectivePriority(dl, priority = 4, rtPriority = 80))
+        assertEquals(4, WakeRules.effectivePriority(idle, priority = 4, rtPriority = 80))
     }
 
     // ── What a due wake does ──────────────────────────────────────────────────
 
     @Test fun `a wake whose task is already current is simply cleared`() {
-        assertEquals(WakeRules.Decision.CLEAR_SELF, WakeRules.decide(hasCurrent = true, currentIsWakeTask = true, outranksCurrent = false))
-        assertEquals(WakeRules.Decision.CLEAR_SELF, WakeRules.decide(hasCurrent = true, currentIsWakeTask = true, outranksCurrent = true))
+        assertEquals(WakeRules.Decision.CLEAR_SELF, WakeRules.decide(hasCurrent = true, currentIsWakeTask = true, canPreemptCurrent = false))
+        assertEquals(WakeRules.Decision.CLEAR_SELF, WakeRules.decide(hasCurrent = true, currentIsWakeTask = true, canPreemptCurrent = true))
     }
 
     @Test fun `with nothing current the card is shown`() {
-        assertEquals(WakeRules.Decision.SHOW_CARD, WakeRules.decide(hasCurrent = false, currentIsWakeTask = false, outranksCurrent = false))
+        assertEquals(WakeRules.Decision.SHOW_CARD, WakeRules.decide(hasCurrent = false, currentIsWakeTask = false, canPreemptCurrent = false))
     }
 
-    @Test fun `a wake that outranks the current task shows the card`() {
-        assertEquals(WakeRules.Decision.SHOW_CARD, WakeRules.decide(hasCurrent = true, currentIsWakeTask = false, outranksCurrent = true))
+    @Test fun `a wake that may preempt the current task shows the card`() {
+        assertEquals(WakeRules.Decision.SHOW_CARD, WakeRules.decide(hasCurrent = true, currentIsWakeTask = false, canPreemptCurrent = true))
     }
 
-    @Test fun `a wake that does not outrank the current task keeps waiting`() {
-        assertEquals(WakeRules.Decision.BLOCKED, WakeRules.decide(hasCurrent = true, currentIsWakeTask = false, outranksCurrent = false))
+    @Test fun `a wake that may not preempt the current task keeps waiting`() {
+        assertEquals(WakeRules.Decision.BLOCKED, WakeRules.decide(hasCurrent = true, currentIsWakeTask = false, canPreemptCurrent = false))
     }
 
     @Test fun `a wake is missed once it is overdue by more than two minutes`() {

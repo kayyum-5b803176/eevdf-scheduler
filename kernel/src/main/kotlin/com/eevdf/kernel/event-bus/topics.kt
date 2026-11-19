@@ -333,13 +333,45 @@ object Topics {
 
     // ── Task selection (answered by task-list-screen, which owns the current task) ─
     //
-    // "Make this task the current one." Selects only — it never starts a timer — and, when
-    // [TaskSelectRequest.pauseCurrent] is set, first pauses the running timer so its remaining
-    // time is saved (what INT-A does before it seats the interrupt task). Silently ignored
-    // when the task is gone, finished, asleep or queued behind a semaphore: a hidden task
-    // must not become current. Used by task-wake for preempt and return; anything else that
-    // wants "show me this task" can publish it too.
+    // "Make this task the current one." Does exactly what tapping the task's row does
+    // (`TaskViewModel.setCurrentTask`): pauses whatever is running so its remaining time is
+    // saved, seats the task on the timer card, reopens a hand-closed card and remembers the
+    // selection. It never STARTS a timer. Silently ignored when the task is gone, finished,
+    // asleep or queued behind a semaphore: a hidden task must not become current. Used by
+    // task-wake for preempt and return; anything else that wants "show me this task" can
+    // publish it too.
     val TASK_SELECT_REQUESTED = Topic<TaskSelectRequest>("scheduler.task-select-requested")
+
+    // ── The card above the list (timer-card) ─────────────────────────────────
+    //
+    // ONE card sits above the task list and is, in turn, the running timer, an expired alarm,
+    // or a scheduled wake asking to preempt. Whoever owns that state describes the card; the
+    // `timer-card` capability is the only thing that draws it. Nothing else touches its views.
+    //
+    //   publisher ──card.show──▶ timer-card ──(draws it)──▶ screen
+    //   publisher ◀─card.action── timer-card ◀──(a button was pressed)
+    //
+    // Several cards can be waiting at once; the highest [CardSpec.priority] is on screen, the
+    // others wait behind it (an expired alarm over a wake over the timer). A card is replaced by
+    // publishing the same id again and removed with [CARD_HIDE]. A button marked
+    // [CardButton.closeOnPress] removes its card from the screen the instant it is pressed, so a
+    // card can never stay up because an answer was slow or lost; the press is still delivered.
+
+    /** publisher → timer-card: put this card up, or replace the card with the same id. */
+    val CARD_SHOW = Topic<CardSpec>("card.show")
+
+    /** publisher → timer-card: take the card with this id away (payload: the card id). */
+    val CARD_HIDE = Topic<String>("card.hide")
+
+    /** timer-card → publisher: a button of this card was pressed (or held — see [CardAction.long]). */
+    val CARD_ACTION = Topic<CardAction>("card.action")
+
+    /**
+     * task-list-screen → timer-card: the person hid (true) or reopened (false) the TIMER card by
+     * hand. Only a card of kind [CardKind.TIMER] obeys it — an expired alarm and a wake card are
+     * always shown. Retained, so the card is right the moment it first draws.
+     */
+    val CARD_USER_HIDE = Topic<Boolean>("card.user-hide", retained = true)
 
     // ── Scheduled wake (task-wake) ───────────────────────────────────────────
     //
@@ -391,10 +423,84 @@ data class CurrentTaskState(
     val membershipId: String? = null,
 )
 
+/** What a card looks like: picks the template. All three keep the look the app has always had. */
+enum class CardKind {
+    /** The running / paused timer: name, countdown, status strip, Next · Start/Pause · INT. */
+    TIMER,
+    /** An expired timer: red, elapsed count-up, one Stop button. */
+    ALARM,
+    /** A scheduled wake asking to preempt: red, two buttons. */
+    WAKE,
+}
+
+/** Stacking order of cards: the highest [CardSpec.priority] is the one on screen. */
+object CardPriority {
+    const val TIMER = 100
+    const val WAKE  = 200
+    const val ALARM = 300
+}
+
+/** The few button colours the cards use, by meaning — the card maps them to its own palette. */
+enum class CardTint { GREEN, YELLOW, RED }
+
+/** What a segment of the card's 7-segment status strip can report. Fixed priority order (QUOTA outermost). */
+enum class StripState { QUOTA, DELAY, WAIT }
+
+/**
+ * The status strip: [states] are the active ones (empty = neutral track); with two or more the
+ * colours ping-pong across the 7 segments. [blinkSegment] (0–6, or -1 for none) is the one
+ * segment that blinks for quota overage, [blinkFast] switching it to the fast rate.
+ */
+data class CardStrip(
+    val states: List<StripState> = emptyList(),
+    val blinkSegment: Int = -1,
+    val blinkFast: Boolean = false,
+)
+
+/**
+ * One button of a card. [id] comes back in [CardAction]. [tint] colours a filled button,
+ * [textColorHex] the label of the INT button. [longPressId], when set, is sent as the button id
+ * (with [CardAction.long]) when the button is held. [closeOnPress] removes the card at once.
+ */
+data class CardButton(
+    val id: String,
+    val label: String,
+    val enabled: Boolean = true,
+    val tint: CardTint? = null,
+    val textColorHex: String? = null,
+    val longPressId: String? = null,
+    val closeOnPress: Boolean = false,
+)
+
+/**
+ * A card, as its owner describes it.
+ *
+ *  • [clockEpochMs] — TIMER: the instant the countdown reaches zero (the card counts down by
+ *    itself, once a second, with no further traffic); 0 = no running countdown, show [clockText].
+ *    ALARM: the instant the alarm expired (the card counts up from it). WAKE: unused.
+ *  • [buttons] — TIMER: exactly Next, Start/Pause, INT (in that order). ALARM: Stop.
+ *    WAKE: Dismiss, then Preempt / Select.
+ *  • [ignoresUserHide] — shown even when the person hid the timer card by hand.
+ */
+data class CardSpec(
+    val id: String,
+    val kind: CardKind,
+    val priority: Int,
+    val title: String,
+    val subtitle: String = "",
+    val clockEpochMs: Long = 0L,
+    val clockText: String = "",
+    val strip: CardStrip = CardStrip(),
+    val buttons: List<CardButton> = emptyList(),
+    val ignoresUserHide: Boolean = false,
+)
+
+/** Payload for [Topics.CARD_ACTION]: [buttonId] of card [cardId]; [long] when it was held. */
+data class CardAction(val cardId: String, val buttonId: String, val long: Boolean = false)
+
 /** Payload for [Topics.TASK_SELECT_REQUESTED]. [symlinkId] / [membershipId] pick the placement; both null = the real one. */
 data class TaskSelectRequest(
     val taskId: String,
-    val pauseCurrent: Boolean = false,
     val symlinkId: String? = null,
     val membershipId: String? = null,
     /** Shown as a toast once the task is selected (e.g. "Returned to …"). Null = no toast. */

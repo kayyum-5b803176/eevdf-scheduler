@@ -11,14 +11,17 @@ import com.eevdf.kernel.eventbus.Topics
  * Everything this capability says to the rest of the app goes through the bus — see
  * [WakeCoordinator]. No other capability imports anything from here, and this one imports
  * none of theirs: it listens to which task is current, ASKS task-list-screen to select a task
- * (`scheduler.task-select-requested`), and asks sound and vibration to ring a profile
- * (`wake.alert-requested`). Its views (prompt, state popup, preempt card) live in its own
- * [WakeHostActivity], so no screen needs wake UI of its own.
+ * (`scheduler.task-select-requested`), publishes the preempt card for timer-card to show in
+ * the timer card's place (`card.show`, answered by `card.action`), and asks sound and vibration to ring a profile
+ * (`wake.alert-requested`). Its two dialogs (prompt, state popup) live in its own
+ * [WakeHostActivity], so no screen needs them.
  */
 object TaskWakeManifest : CapabilityManifest {
     override val capabilityId = "task-wake"
     override val publishes: Set<Topic<*>> = setOf(
         Topics.WAKE_ARMED_CHANGED,
+        Topics.CARD_SHOW,
+        Topics.CARD_HIDE,
         Topics.TASK_SELECT_REQUESTED,
         Topics.WAKE_ALERT_REQUESTED,
         Topics.WAKE_ALERT_STOP_REQUESTED,
@@ -28,6 +31,7 @@ object TaskWakeManifest : CapabilityManifest {
         Topics.APP_FOREGROUND_CHANGED,
         Topics.WAKE_EDIT_REQUESTED,
         Topics.WAKE_STATE_REQUESTED,
+        Topics.CARD_ACTION,
         Topics.WAKE_PROFILE_SET,
     )
 

@@ -56,4 +56,5 @@ include(
     ":capabilities:multi-device-sync",
     ":capabilities:event-log",
     ":capabilities:task-wake",
+    ":capabilities:timer-card",
 )

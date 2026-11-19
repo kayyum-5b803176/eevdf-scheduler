@@ -9,7 +9,7 @@ import java.util.TimeZone
 /**
  * Pure rules of the scheduled wake — no Android, no clock of its own, no database.
  *
- *  • which class outranks which ([outranks]),
+ *  • which task may preempt which ([canPreempt]),
  *  • what to do with a wake that is due ([decide]),
  *  • turning the prompt's six numbers into a time ([alarmTarget], [timerTarget]),
  *  • the text of the state popup ([formatRemaining], [formatTarget]).
@@ -29,18 +29,29 @@ object WakeRules {
     }
 
     /**
-     * Does the waking task outrank the current one? A strictly higher class does.
-     * Inside the realtime class the higher `rtPriority` does (Linux sched_priority).
-     * Equal fair / idle / deadline tasks never preempt each other.
+     * The number that orders two tasks of the SAME class: `rtPriority` for realtime (Linux
+     * sched_priority, 1–99), otherwise the task's own `priority` — which is its EEVDF weight, so
+     * a higher number is a higher priority.
      */
-    fun outranks(wakeClass: String, wakeRtPriority: Int, currentClass: String, currentRtPriority: Int): Boolean {
+    fun effectivePriority(schedulerClass: String, priority: Int, rtPriority: Int): Int =
+        if (schedulerClass == "rt_sched_class") rtPriority else priority
+
+    /**
+     * May the waking task preempt the current one?
+     *
+     *   • a higher class — yes;
+     *   • the same class and the same priority — yes (a wake is allowed to take over from an
+     *     equal);
+     *   • the same class and a higher priority — yes;
+     *   • the same class and a LOWER priority, or a lower class — no: the current task's higher
+     *     class or priority protects it.
+     *
+     * Priorities are [effectivePriority] values.
+     */
+    fun canPreempt(wakeClass: String, wakePriority: Int, currentClass: String, currentPriority: Int): Boolean {
         val w = classRank(wakeClass)
         val c = classRank(currentClass)
-        return when {
-            w != c                       -> w > c
-            wakeClass == "rt_sched_class" -> wakeRtPriority > currentRtPriority
-            else                         -> false
-        }
+        return if (w != c) w > c else wakePriority >= currentPriority
     }
 
     // ── What a due wake does ──────────────────────────────────────────────────
@@ -50,19 +61,19 @@ object WakeRules {
         CLEAR_SELF,
         /** Show the preempt card (Preempt when something is current, Select when nothing is). */
         SHOW_CARD,
-        /** The current task is of equal or higher class: keep waiting, look again when it changes. */
+        /** The current task has a higher class or priority: keep waiting, look again when it changes. */
         BLOCKED,
     }
 
     /**
      * [hasCurrent] — a task is in the timer card, running OR paused (it still blocks).
      * [currentIsWakeTask] — that task is the one waking.
-     * [outranksCurrent] — see [outranks]; ignored when nothing is current.
+     * [canPreemptCurrent] — see [canPreempt]; ignored when nothing is current.
      */
-    fun decide(hasCurrent: Boolean, currentIsWakeTask: Boolean, outranksCurrent: Boolean): Decision = when {
+    fun decide(hasCurrent: Boolean, currentIsWakeTask: Boolean, canPreemptCurrent: Boolean): Decision = when {
         hasCurrent && currentIsWakeTask -> Decision.CLEAR_SELF
         !hasCurrent                     -> Decision.SHOW_CARD
-        outranksCurrent                 -> Decision.SHOW_CARD
+        canPreemptCurrent               -> Decision.SHOW_CARD
         else                            -> Decision.BLOCKED
     }
 
