@@ -5,6 +5,42 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.51.0 — Wake popup: remembers each task's mode, explanations move behind an info icon
+
+Includes everything in 6.50.0. No database change, `versionCode` untouched.
+
+### Added
+- **The popup opens in the mode the task was last set with.** Alarm or Timer is remembered **per task**,
+  not for the whole app: setting task A with a Timer and task B with an Alarm, each opens in its own mode
+  next time. "Last set" means the mode you pressed **Set** with — toggling without setting does not
+  count, and neither do the numbers you typed. It is also what an armed wake opens in, and it survives the
+  wake firing, being answered or being cleared. A task that never had a wake opens in Alarm. It is stored
+  in the `mode` column the task's `task_wake` row already had, so there is nothing new to migrate.
+- **Universal info icon** (`InfoIconView`, in design-system): a small circled "i" that explains something
+  when tapped. Give it text (`infoText`) and it shows it in an `InfoBubble` anchored under the icon, in the
+  card look, closing on a tap anywhere. The text can be reassigned at any time; empty text makes the icon do
+  nothing. It follows light / dark mode through the design tokens. The bubble is its own window, so it works
+  over a dialog.
+
+### Changed
+- **The wake popup**: the two explanation lines ("Fires on this date and time (24 h)" and "Fires this long
+  from now — Day, Month, Year are how many, not a date") are gone from the body. An ⓘ sits at the top right
+  of the popup, in the title row (new `dialog_wake_title.xml`), and explains the mode currently selected —
+  its text changes when you switch Alarm and Timer. Same wording as before.
+
+### Tests
+`wake-rules-test.kt` 27 (+4: initial mode, unknown stored mode, per-mode explanation). 81 end-to-end
+scenarios on the real coordinator and controller (+8: the mode is per task, survives clearing and a fired
+and answered wake, is independent between tasks, and a profile change does not reset it).
+
+### Verified / not verified
+- **Run:** the rules and the per-task persistence through the real `WakeCoordinator` on the real bus. The UI
+  geometry guard passes; the architecture guard is unchanged from 6.50.0.
+- **Not built, not run** (no Android SDK here): `InfoIconView`, `InfoBubble`, the custom dialog title and
+  the popup layout. Nothing was tried on a device — check that the ⓘ sits top right, the bubble opens under
+  it over the dialog and closes on a tap, its text follows the Alarm / Timer toggle, and the popup opens in
+  each task's own last mode.
+
 ## 6.50.0 — timer-card: one capability draws the card above the list (timer, expired alarm, wake)
 
 Includes everything in 6.49.1. No database change, `versionCode` untouched. New capability

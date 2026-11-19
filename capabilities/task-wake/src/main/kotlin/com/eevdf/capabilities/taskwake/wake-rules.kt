@@ -82,6 +82,20 @@ object WakeRules {
 
     fun isMissed(targetEpochMs: Long, nowMs: Long): Boolean = nowMs - targetEpochMs > MISSED_AFTER_MS
 
+    // ── The input popup ───────────────────────────────────────────────────────
+
+    /**
+     * The mode the prompt opens in: the one this TASK's wake was last set with ([stored] is the `mode`
+     * of its `task_wake` row, which survives the wake being cleared), or Alarm when it never had one
+     * (or the value is unrecognised). The values are `TaskWake.MODE_ALARM` / `MODE_TIMER`.
+     */
+    fun initialMode(stored: String?): String = if (stored == "TIMER") "TIMER" else "ALARM"
+
+    /** What the popup's ⓘ explains for [mode] (the same wording the popup used to print under the mode row). */
+    fun modeInfo(mode: String): String =
+        if (mode == "TIMER") "Fires this long from now — Day, Month, Year are how many, not a date"
+        else "Fires on this date and time (24 h)"
+
     // ── Prompt numbers → time ─────────────────────────────────────────────────
 
     /** The prompt's boxes. ALARM: a calendar date and time. TIMER: the same boxes as a duration. */

@@ -3,6 +3,7 @@
   Wake prompt — set a task's scheduled wake.
 
   Row 0   mode:  Alarm (a calendar date + time)  |  Timer (a duration from now)
+          — what each mode means is behind the info icon in the title (dialog_wake_title.xml).
   Row 1   Day | Month | Year          (alarm: the date;  timer: how long, in days / months / years)
   Row 2   Hour | Min | Sec            (alarm: the time, 24 h;  timer: how long, in hours / minutes / seconds)
 
@@ -41,15 +42,6 @@
             android:layout_weight="1"
             android:text="Timer" />
     </com.google.android.material.button.MaterialButtonToggleGroup>
-
-    <TextView
-        android:id="@+id/tvWakeModeHint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/app_spacing_md"
-        android:text=""
-        android:textSize="@dimen/app_text_size_sm"
-        android:textColor="@color/app_text_hint" />
 
     <!-- Row 1: Day | Month | Year -->
     <LinearLayout

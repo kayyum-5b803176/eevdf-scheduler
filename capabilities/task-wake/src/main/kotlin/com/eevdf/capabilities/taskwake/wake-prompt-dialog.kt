@@ -5,12 +5,15 @@ import android.view.LayoutInflater
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import com.eevdf.capabilities.designsystem.output.InfoIconView
 import com.eevdf.capabilities.taskstorage.TaskWake
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.textfield.TextInputEditText
 
 /**
- * The wake prompt: a mode row (Alarm | Timer) over a 2 × 3 grid of number-only boxes.
+ * The wake prompt: a mode row (Alarm | Timer) over a 2 × 3 grid of number-only boxes. What each
+ * mode means is behind the ⓘ in the title, not printed in the popup. It opens in the mode this
+ * task's wake was last set with.
  *
  *   Alarm  — Day Month Year / Hour Min Sec: the date and time it fires. Prefilled with a
  *            minute from now, or with the current alarm when one is armed.
@@ -32,7 +35,6 @@ object WakePromptDialog {
     ) {
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_wake_prompt, null)
         val group = view.findViewById<MaterialButtonToggleGroup>(R.id.wakeModeGroup)
-        val hint  = view.findViewById<TextView>(R.id.tvWakeModeHint)
         val day    = view.findViewById<TextInputEditText>(R.id.etWakeDay)
         val month  = view.findViewById<TextInputEditText>(R.id.etWakeMonth)
         val year   = view.findViewById<TextInputEditText>(R.id.etWakeYear)
@@ -40,8 +42,15 @@ object WakePromptDialog {
         val minute = view.findViewById<TextInputEditText>(R.id.etWakeMinute)
         val second = view.findViewById<TextInputEditText>(R.id.etWakeSecond)
 
+        // Title row with the universal info icon; its text follows the selected mode.
+        val titleRow = LayoutInflater.from(context).inflate(R.layout.dialog_wake_title, null)
+        titleRow.findViewById<TextView>(R.id.tvWakeTitle).text = "Wake · $taskName"
+        val info = titleRow.findViewById<InfoIconView>(R.id.wakeInfoIcon)
+
         val armed = existing?.takeIf { it.isArmed }
-        var mode = armed?.mode ?: TaskWake.MODE_ALARM
+        // Always the mode THIS task's wake was last set with (remembered per task, even after the wake
+        // has fired or been cleared); Alarm for a task that never had one.
+        var mode = WakeRules.initialMode(existing?.mode)
 
         fun setFields(f: WakeRules.Fields) {
             day.setText(f.day.toString());   month.setText(f.month.toString()); year.setText(f.year.toString())
@@ -50,12 +59,12 @@ object WakePromptDialog {
 
         fun fillFor(m: String) {
             if (m == TaskWake.MODE_ALARM) {
-                hint.text = "Fires on this date and time (24 h)"
+                info.infoText = WakeRules.modeInfo(m)
                 // An armed alarm shows its own time; otherwise a minute from now, on the dot.
                 val base = armed?.takeIf { it.mode == TaskWake.MODE_ALARM }?.targetEpochMs ?: (nowMs + 60_000L)
                 setFields(WakeRules.fieldsOf(base).let { if (armed == null) it.copy(second = 0) else it })
             } else {
-                hint.text = "Fires this long from now — Day, Month, Year are how many, not a date"
+                info.infoText = WakeRules.modeInfo(m)
                 setFields(WakeRules.Fields(0, 0, 0, 0, 0, 0))
             }
         }
@@ -71,7 +80,7 @@ object WakePromptDialog {
         }
 
         val builder = AlertDialog.Builder(context)
-            .setTitle("Wake · $taskName")
+            .setCustomTitle(titleRow)
             .setView(view)
             .setPositiveButton("Set", null)          // wired below, so an invalid entry does not close it
             .setNegativeButton("Cancel", null)

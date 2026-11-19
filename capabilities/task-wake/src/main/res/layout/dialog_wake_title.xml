@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Title row of the wake prompt: the task's name on the left, the universal info icon on the right.
+  Tapping the icon explains the selected mode (WakePromptDialog sets its text, and updates it when
+  the mode changes).
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="@dimen/app_card_padding_md"
+    android:paddingEnd="@dimen/app_spacing_md"
+    android:paddingTop="@dimen/app_spacing_xl">
+
+    <TextView
+        android:id="@+id/tvWakeTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Wake"
+        android:textColor="@color/app_text_title"
+        android:textSize="@dimen/app_text_size_xl"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <com.eevdf.capabilities.designsystem.output.InfoIconView
+        android:id="@+id/wakeInfoIcon"
+        android:layout_width="@dimen/app_btn_icon"
+        android:layout_height="@dimen/app_btn_icon"
+        android:layout_marginStart="@dimen/app_spacing_md" />
+</LinearLayout>

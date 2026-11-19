@@ -91,6 +91,30 @@ class WakeRulesTest {
         assertTrue(WakeRules.isMissed(now, now + WakeRules.MISSED_AFTER_MS + 1L))
     }
 
+    // ── The input popup ───────────────────────────────────────────────────────
+
+    @Test fun `the prompt opens in the mode the task was last set with`() {
+        assertEquals("TIMER", WakeRules.initialMode("TIMER"))
+        assertEquals("ALARM", WakeRules.initialMode("ALARM"))
+    }
+
+    @Test fun `a task that never had a wake opens in Alarm`() {
+        assertEquals("ALARM", WakeRules.initialMode(null))
+    }
+
+    @Test fun `an unrecognised stored mode falls back to Alarm`() {
+        assertEquals("ALARM", WakeRules.initialMode(""))
+        assertEquals("ALARM", WakeRules.initialMode("timer"))
+        assertEquals("ALARM", WakeRules.initialMode("whatever"))
+    }
+
+    @Test fun `each mode has its own explanation for the info icon`() {
+        assertEquals("Fires on this date and time (24 h)", WakeRules.modeInfo("ALARM"))
+        assertEquals("Fires this long from now — Day, Month, Year are how many, not a date", WakeRules.modeInfo("TIMER"))
+        assertTrue(WakeRules.modeInfo("ALARM") != WakeRules.modeInfo("TIMER"))
+        assertEquals(WakeRules.modeInfo("ALARM"), WakeRules.modeInfo("unknown"))     // same fallback as initialMode
+    }
+
     // ── Alarm mode ────────────────────────────────────────────────────────────
 
     @Test fun `an alarm is the instant of that date and time`() {
