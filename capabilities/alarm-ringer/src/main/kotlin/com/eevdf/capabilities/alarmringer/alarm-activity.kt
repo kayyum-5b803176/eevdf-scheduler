@@ -102,7 +102,7 @@ class AlarmActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         isShowing = true
-        Log.d("EEVDFAlarm", "AlarmActivity.onCreate — full-screen intent launched us")
+        Log.d("SchedulerAlarm", "AlarmActivity.onCreate — full-screen intent launched us")
 
         // Wake screen + show over lock screen — same flags Google Clock uses
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {

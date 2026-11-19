@@ -461,7 +461,7 @@ class SyncCoordinator(
                 safetyCopy("before-restore")?.let { notes.add("Safety copy taken before restore: ${it.name}") }
                 FileSyncDb(request.databasePath).use { source ->
                     require(SyncSchema.describe(source, "tasks") != null) {
-                        "This file does not contain EEVDF data"
+                        "This file does not contain Scheduler data"
                     }
                     val mode = if (request.mode == RestoreMode.REPLACE) SyncEngine.RestoreMode.REPLACE
                     else SyncEngine.RestoreMode.MERGE

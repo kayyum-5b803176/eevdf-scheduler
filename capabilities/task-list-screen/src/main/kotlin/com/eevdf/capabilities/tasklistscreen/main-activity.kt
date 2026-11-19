@@ -471,7 +471,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(com.eevdf.capabilities.navigationroutes.AppRoutes.stats(this))
             true
         }
-        supportActionBar?.title = "EEVDF Task Scheduler"
+        supportActionBar?.title = applicationInfo.loadLabel(packageManager).toString()   // = app_name, resolved at runtime (the library cannot see :app resources)
     }
 
     private fun setupViews() {

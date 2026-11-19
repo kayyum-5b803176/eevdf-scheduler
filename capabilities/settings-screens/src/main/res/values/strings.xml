@@ -4,5 +4,5 @@
          no About screen currently exists anywhere in feature/settings. Placed here on
          the convention that "about" strings belong with settings, but this is the
          lowest-confidence placement in the whole move; verify before relying on it. -->
-    <string name="about_eevdf">About EEVDF</string>
+    <string name="about_eevdf">About Scheduler</string>
 </resources>

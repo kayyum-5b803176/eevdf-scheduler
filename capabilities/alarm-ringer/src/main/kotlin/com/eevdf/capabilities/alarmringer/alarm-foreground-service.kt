@@ -81,7 +81,7 @@ class AlarmForegroundService : Service() {
     private lateinit var scope: CoroutineScope
 
     companion object {
-        private const val TAG = "EEVDFAlarm"
+        private const val TAG = "SchedulerAlarm"
 
         /** How long to wait for the multi-device ring decision before ringing anyway. */
         private const val SHOULD_RING_TIMEOUT_MS = 1_000L

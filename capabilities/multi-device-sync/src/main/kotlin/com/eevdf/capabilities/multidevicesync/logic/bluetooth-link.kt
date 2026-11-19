@@ -79,7 +79,7 @@ internal class BluetoothLink(private val context: Context) {
     fun remoteAddress(socket: BluetoothSocket): String? = try { socket.remoteDevice?.address } catch (_: SecurityException) { null }
 
     companion object {
-        private const val SERVICE_NAME = "EEVDF Scheduler sync"
+        private const val SERVICE_NAME = "Scheduler sync"
         /** Fixed for this app; both phones must use the same one. */
         val SERVICE_UUID: UUID = UUID.fromString("6f3c2a1e-9b84-4c55-8a0e-5e1b2d7e0e5d")
     }

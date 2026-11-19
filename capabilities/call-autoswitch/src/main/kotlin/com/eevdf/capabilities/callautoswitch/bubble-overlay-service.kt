@@ -489,7 +489,7 @@ class BubbleOverlayService : Service() {
 
     private fun buildNotification(): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("EEVDF – call bubble active")
+            .setContentTitle("Scheduler – call bubble active")
             .setContentText("Tap the bubble to switch between call task and current task")
             .setSmallIcon(R.drawable.outline_skip_next_24)
             .setPriority(NotificationCompat.PRIORITY_MIN)

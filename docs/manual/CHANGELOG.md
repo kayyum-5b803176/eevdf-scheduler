@@ -5,6 +5,34 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.47.1 — App renamed "Scheduler" in every title
+
+Includes everything in 6.47.0. No database change, no sync-protocol change, `versionCode` untouched.
+
+### Changed
+- **App name** (launcher, system app list): `app_name` "EEVDF Scheduler" → "Scheduler".
+- **Toolbar title** on the main screen: was hardcoded "EEVDF Task Scheduler"; now the app's own
+  label, so the toolbar and the app name can no longer drift apart.
+- **Notification titles**: "Scheduler – call task switch", "Scheduler – call bubble active".
+- **Settings** `about_eevdf` string: "About Scheduler" (the string is currently not referenced by
+  any layout or code).
+- **Bluetooth service name**: "Scheduler sync". It is only a label; phones find each other by
+  `SERVICE_UUID`, which is unchanged, so older phones still connect.
+- **Messages**: "not a Scheduler phone" (the protocol check itself is the `MAGIC` number, unchanged)
+  and "This file does not contain Scheduler data". Nothing matches either string.
+- **Log tag** `EEVDFAlarm` → `SchedulerAlarm` (alarm activity and foreground service). Anyone
+  filtering logcat on the old tag needs the new one.
+
+### Not changed
+Package id `com.eevdf.scheduler`, Kotlin packages, database name, APK file name
+(`eevdf-scheduler-v…apk`), the sync `MAGIC` and `SERVICE_UUID`, and text that names the
+algorithm (the scheduler-class labels on the Edit screen).
+
+### Verified / not verified
+Not built and not run. The edits are string literals, plus the toolbar line, which now reads the
+label with `applicationInfo.loadLabel(packageManager)` instead of a resource id because the
+list-screen library cannot see the app module's resources.
+
 ## 6.47.0 — Group semaphore: a container admits only N children at a time
 
 Includes everything in 6.46.1. **Database change: version 31 → 32** (four columns on `tasks`,

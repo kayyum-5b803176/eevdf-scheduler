@@ -389,7 +389,7 @@ class CallSwitchService : Service() {
 
     private fun buildNotification(text: String): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("EEVDF – call task switch")
+            .setContentTitle("Scheduler – call task switch")
             .setContentText(text)
             .setSmallIcon(R.drawable.outline_skip_next_24)
             .setPriority(NotificationCompat.PRIORITY_MIN)

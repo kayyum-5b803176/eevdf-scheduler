@@ -227,7 +227,7 @@ internal class DeviceExchange(
     }
 
     private fun readHello(inp: DataInputStream): Hello {
-        if (inp.readInt() != MAGIC) throw ProtocolException("not an EEVDF phone")
+        if (inp.readInt() != MAGIC) throw ProtocolException("not a Scheduler phone")
         val version = inp.readInt()
         if (version != VERSION) throw ProtocolException("the other phone runs a different sync version ($version)")
         return Hello(inp.readUTF(), inp.readUTF(), inp.readLong())
