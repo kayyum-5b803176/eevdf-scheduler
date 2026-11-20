@@ -227,6 +227,8 @@ class MainActivity : AppCompatActivity() {
         // The card draws itself from the bus; this hooks it to the controller and starts describing it.
         cardTimer.bind(timerCardController, this)
         timerCardPublisher.start()
+        // The wake's two ways in (armed icon, select request) — own id, removed only on destroy.
+        WakeLinks(this).start()
 
         viewModel.refreshSchedule()
 
@@ -313,6 +315,10 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         // Drop this capability's subscriptions — Activity is no longer visible.
         // call-autoswitch falls back to its direct DB path (see its manifest).
+        //
+        // This removes EVERY subscription under CAPABILITY_ID, so nothing that must outlive a stop may be
+        // registered under it: the ViewModel uses its own per-instance id ([TaskViewModel.subscriberId]) and
+        // the wake links their own ([WakeLinks]). Only what onStart() registers again belongs here.
         viewModel.bus.unsubscribeAll(CAPABILITY_ID)
     }
 

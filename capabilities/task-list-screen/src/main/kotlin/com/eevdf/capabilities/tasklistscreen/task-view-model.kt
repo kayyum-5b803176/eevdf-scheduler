@@ -86,13 +86,24 @@ class TaskViewModel @Inject constructor(
     // built inline via application.getSharedPreferences(...).
 
     /**
+     * The id every subscription THIS ViewModel makes is registered under — unique per instance, and NOT
+     * [CAPABILITY_ID]. Two reasons, both bugs this used to have:
+     *  • MainActivity.onStop() calls `bus.unsubscribeAll(CAPABILITY_ID)`; a ViewModel subscription under
+     *    that id vanished the first time the screen stopped and was never put back.
+     *  • The app runs TWO TaskViewModel instances (the main screen's and the Add screen's). With one
+     *    shared id, clearing the Add screen's removed the main screen's subscriptions as well.
+     * Removed in [onCleared], and only this instance's.
+     */
+    private val subscriberId = "$CAPABILITY_ID.vm.${java.util.UUID.randomUUID()}"
+
+    /**
      * task-list-screen's own copy of the timer-running snapshot. Replaces the
      * former global BubbleEventBus flags: this capability publishes changes
      * and also tracks the ones call-autoswitch publishes, so both stay in
      * sync without either reaching into the other's state.
      */
     internal val timerState = LatestValue(TimerRunningState())
-        .trackedOn(bus, Topics.TIMER_RUNNING_CHANGED, CAPABILITY_ID)
+        .trackedOn(bus, Topics.TIMER_RUNNING_CHANGED, subscriberId)
 
     /** Convenience accessor for delegates that need an Application context. */
     internal val app: Application = application
@@ -305,8 +316,6 @@ class TaskViewModel @Inject constructor(
     internal val listBuilder = ListBuilderDelegate(this)
     internal val crud        = TaskCrudDelegate(this)
     internal val sleep       = SleepDelegate(this)
-    /** Answers "select this task" requests from other capabilities (task-wake's preempt / return). */
-    internal val taskSelect  = TaskSelectDelegate(this, CAPABILITY_ID)
     internal val alarmOverrun = AlarmOverrunDelegate(this)
     internal val bubbleTap   = BubbleTapDelegate(this)
     internal val startupRecovery = StartupRecoveryDelegate(this)
@@ -395,7 +404,6 @@ class TaskViewModel @Inject constructor(
 
     // ── init ──────────────────────────────────────────────────────────────────
 
-    // Declared BEFORE the init block below: subscribeToWake() writes it during construction.
     private val _wakeArmedIds = MutableLiveData<Set<String>>(emptySet())
     /** Tasks whose wake is armed or waiting for an answer: their wake icon blinks. */
     val wakeArmedIds: LiveData<Set<String>> = _wakeArmedIds
@@ -403,7 +411,6 @@ class TaskViewModel @Inject constructor(
 
     private companion object {
         const val CAPABILITY_ID = "task-list-screen"
-        const val SYNC_SUBSCRIBER_ID = "task-list-screen.sync"
     }
 
     init {
@@ -418,7 +425,6 @@ class TaskViewModel @Inject constructor(
         subscribeToTaskSaved()
         subscribeToOverlayShown()
         subscribeToSync()
-        subscribeToWake()
 
         // ── Wire TimerEngine outputs via named observers ───────────────────────
         tickObserver = Observer { remainingSecs: Long ->
@@ -486,10 +492,12 @@ class TaskViewModel @Inject constructor(
     /** The wake icon was held. task-wake shows the wake's state. */
     fun requestWakeState(taskId: String) { viewModelScope.launch { bus.publish(Topics.WAKE_STATE_REQUESTED, taskId, CAPABILITY_ID) } }
 
-    private fun subscribeToWake() {
-        bus.getLast(Topics.WAKE_ARMED_CHANGED)?.let { _wakeArmedIds.value = it }
-        bus.subscribe(Topics.WAKE_ARMED_CHANGED, CAPABILITY_ID) { ids -> _wakeArmedIds.postValue(ids) }
-    }
+    /**
+     * Fed by [WakeLinks], which owns the subscription (see its KDoc for why that is NOT done here: a
+     * subscription made by the ViewModel under the screen's id is removed the first time the screen
+     * stops). The LiveData lives here so it survives a rotation.
+     */
+    internal fun setWakeArmedIds(ids: Set<String>) { _wakeArmedIds.postValue(ids) }
     /** Foreground tick / resume: wake anything whose sleep time has passed. */
     fun wakeExpiredSleepers()                     = sleep.tick()
     fun clearCompleted()                          = crud.clearCompleted()
@@ -816,7 +824,7 @@ class TaskViewModel @Inject constructor(
         overrunTimer?.cancel()
         notice.cancelTimers()
         listBuilder.stop()
-        bus.unsubscribeAll(SYNC_SUBSCRIBER_ID)
+        bus.unsubscribeAll(subscriberId)
     }
 
     // =========================================================================
@@ -857,7 +865,7 @@ class TaskViewModel @Inject constructor(
             pauseTimer()
             currentTaskOwner.setAsync(null)
         }
-        bus.subscribe(Topics.BACKUP_EXPORT_REQUESTED, CAPABILITY_ID) { clearForBackup(it) }
+        bus.subscribe(Topics.BACKUP_EXPORT_REQUESTED, subscriberId) { clearForBackup(it) }
         // v6.38.0: no import-side subscription. A restore no longer needs the
         // timer stopped and the selection cleared before it runs — it merges
         // rows into the live database and this screen reconciles afterwards
@@ -876,7 +884,7 @@ class TaskViewModel @Inject constructor(
      * that gap for every save, regardless of which capability made it.
      */
     private fun subscribeToTaskSaved() {
-        bus.subscribe(Topics.TASK_SAVED, CAPABILITY_ID) {
+        bus.subscribe(Topics.TASK_SAVED, subscriberId) {
             refreshSchedule()
         }
     }
@@ -896,10 +904,10 @@ class TaskViewModel @Inject constructor(
      * capability id are already normal here (see [subscribeToBackupRequests]).
      */
     private fun subscribeToOverlayShown() {
-        bus.subscribe(Topics.OVERLAY_SHOWN, CAPABILITY_ID) { taskId ->
+        bus.subscribe(Topics.OVERLAY_SHOWN, subscriberId) { taskId ->
             _overlayShownTaskId.postValue(taskId)
         }
-        bus.subscribe(Topics.PHONE_CALL_STATE_CHANGED, CAPABILITY_ID) { type ->
+        bus.subscribe(Topics.PHONE_CALL_STATE_CHANGED, subscriberId) { type ->
             if (type == CallState.ENDED) {
                 _overlayShownTaskId.postValue(null)
             }
@@ -928,18 +936,18 @@ class TaskViewModel @Inject constructor(
     // and init{} is where the subscriptions that use them are registered.)
 
     /**
-     * Subscribed under its own id, NOT [CAPABILITY_ID]: MainActivity calls
-     * `bus.unsubscribeAll(CAPABILITY_ID)` in onDestroy, which also removes
+     * Subscribed under [subscriberId], NOT [CAPABILITY_ID]: MainActivity calls
+     * `bus.unsubscribeAll(CAPABILITY_ID)` in onStop, which also removes
      * every ViewModel subscription made under that id — and this ViewModel
-     * outlives the Activity across a rotation. Losing this subscription
+     * outlives the Activity across a stop and a rotation. Losing this subscription
      * would mean a timer stopped by another user keeps counting here.
      * Removed in [onCleared].
      */
     private fun subscribeToSync() {
-        bus.subscribe(Topics.SYNC_STATUS_CHANGED, SYNC_SUBSCRIBER_ID) { status ->
+        bus.subscribe(Topics.SYNC_STATUS_CHANGED, subscriberId) { status ->
             _syncState.postValue(status)
         }
-        bus.subscribe(Topics.SYNC_REMOTE_APPLIED, SYNC_SUBSCRIBER_ID) { event ->
+        bus.subscribe(Topics.SYNC_REMOTE_APPLIED, subscriberId) { event ->
             // Returns at once: the bus allows a handler 5 seconds, and the
             // reconcile waits briefly and reads the database.
             viewModelScope.launch { syncReconcile.onRemoteApplied(event) }

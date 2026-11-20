@@ -5,6 +5,63 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.51.1 — Wake: the icon and Select / Preempt no longer die after the screen stops
+
+Includes everything in 6.51.0. No database change, `versionCode` untouched.
+
+### Fixed
+- **After switching apps or locking the screen and coming back, a newly set wake showed as "not armed"
+  and the card's Select / Preempt selected nothing** — until the app was closed and reopened. The card
+  itself still appeared and its buttons still reached the wake, which is why it looked inconsistent.
+  Cause: `MainActivity.onStop()` calls `bus.unsubscribeAll("task-list-screen")`, which removes EVERY
+  subscription under that id — including the two the ViewModel had registered once, when it was created,
+  for the wake (`wake.armed-changed` → the icon, `scheduler.task-select-requested` → the selection). The
+  ViewModel never registers again, so from the first stop on both links were dead for the rest of the
+  process. It only shows after a stop, hence "works on a fresh start, then sometimes not".
+  Fresh start → set a wake → fine; switch app / lock → come back → set a wake → icon not armed, Select
+  does nothing: exactly the reproduction.
+- **The same flaw hit older ViewModel subscriptions**, which also stopped working after the first stop:
+  refreshing the schedule stats when a task is saved elsewhere, pausing the timer and clearing the
+  selection before a backup export, the call-bubble state, and the timer-running snapshot that mirrors
+  what call-auto-switch publishes. Multi-device sync's two subscriptions had a related bug: they shared one
+  fixed id, and the app runs TWO `TaskViewModel` instances (main screen and Add screen), so clearing the
+  Add screen's ViewModel removed the main screen's sync subscriptions too.
+
+### Changed
+- **`WakeLinks`** (new, task-list-screen): the two wake links now belong to the main SCREEN, under an id
+  of their own (`task-list-screen.wake`). Registered when the screen is created — reading the retained
+  armed set so the icon is right at once — and removed only when it is DESTROYED, never on a stop. One
+  instance listens at a time, so a recreated screen does not leave two, and the Add screen's ViewModel no
+  longer answers selection requests as well. `TaskSelectDelegate` is gone; `setWakeArmedIds` feeds the
+  ViewModel's LiveData (which still survives a rotation).
+- **Every ViewModel subscription uses a per-instance id** (`task-list-screen.vm.<uuid>`), removed in
+  `onCleared` — only that instance's. An id is a unit of fate (removal and quarantine), so this also keeps
+  one instance's failure from silencing another's.
+- `EventBus.unsubscribeAll` documents the rule: never register something that must outlive a screen under an
+  id the screen tears down.
+- Run `scripts/apply-6.51.1-deletions.sh` after extracting the zip (removes `task-select-delegate.kt`).
+
+### Tests
+New `bus-subscription-ownership-test.kt` (kernel, 7): `unsubscribeAll` removes only its id; an own-id
+subscription survives the screen tearing down its capability id; sharing an id shares fate; two instances
+with their own ids do not remove each other's; re-registering leaves exactly one; a retained topic lets a
+late subscriber read what it missed; a failing subscriber is quarantined under its own id without silencing a
+neighbour. The end-to-end harness (89 scenarios, +8) replays the reported sequence on the real wake
+coordinator: with the old registration the icon update is lost and Preempt selects nothing after the stop;
+with the new one both still work, and a screen created afterwards reads the current armed set.
+
+### Verified / not verified
+- **Run:** the 7 new and the 17 existing kernel bus tests (24); the end-to-end harness (89), including the
+  exact stop-and-return reproduction, old vs new. UI geometry guard passes; architecture guard unchanged.
+- **Not built, not run** (no Android SDK here): `WakeLinks`, the ViewModel changes, the real stop / start
+  of the activity. Check on the phone: set a wake; switch apps or lock and come back; set another — the
+  icon must blink and the card's Select / Preempt must select; also open the Add screen and return.
+- **Left as it was, flagged:** `ObserverDelegate.observeCallEvents` subscribes to the phone-call state under
+  the screen's id when the screen is created, so after the first stop it is not registered again (it keeps
+  the ViewModel's in-memory call state in step while the screen is visible; call-auto-switch's own service
+  does the actual switching). It looks like the same flaw, but it is call-switching logic I cannot test
+  here, so I did not change it.
+
 ## 6.51.0 — Wake popup: remembers each task's mode, explanations move behind an info icon
 
 Includes everything in 6.50.0. No database change, `versionCode` untouched.

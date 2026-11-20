@@ -133,7 +133,18 @@ class EventBus(private val supervisor: Supervisor, private val eventLog: BusEven
         return lastValue[topic.name] as T?
     }
 
-    /** Removes every subscription owned by [capabilityId] (e.g. on detach). */
+    /**
+     * Removes every subscription owned by [capabilityId] (e.g. on detach).
+     *
+     * An id is a unit of FATE: everything registered under it is removed together here, and — through
+     * [Supervisor] — quarantined together when a handler under it fails or hangs. So never register
+     * something that must outlive a screen under an id the screen tears down. A subscriber whose life
+     * differs from its capability's (a ViewModel that outlives an Activity's stop, a second ViewModel
+     * instance, a per-screen listener) takes an id of its own, unique to it, and removes only that.
+     * (task-list-screen learned this the hard way: its ViewModel's wake subscriptions shared the
+     * Activity's id, so the first time the screen stopped, switching apps or locking the phone, they
+     * silently disappeared until the process restarted.)
+     */
     fun unsubscribeAll(capabilityId: String) {
         subscriptions.values.forEach { list -> list.removeAll { it.capabilityId == capabilityId } }
     }
