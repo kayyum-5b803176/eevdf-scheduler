@@ -2,6 +2,7 @@ package com.eevdf.capabilities.taskwake
 
 import android.content.Context
 import android.view.LayoutInflater
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -19,10 +20,26 @@ import com.google.android.material.textfield.TextInputEditText
  *            minute from now, or with the current alarm when one is armed.
  *   Timer  — the same boxes as a duration from now: "2 day 11 s" is Day 2, Sec 11.
  *
+ * Fast entry: whenever one of the six boxes receives focus — a tap, the keyboard's Next / Enter moving
+ * in, an arrow or D-pad move — its whole value is selected, so typing replaces it with no clearing
+ * first. Hour, "3", Enter, "4", Enter, "0", Enter sets 3 h 4 m 0 s. Only the box that gained focus is
+ * selected; tapping a box that already has focus just places the cursor (to fix one digit). The last
+ * Enter, on Sec, closes the keyboard as it always has.
+ *
  * Set validates (a real date in the future; a non-zero duration) and keeps the dialog open
  * with a message when it is not valid. Clear appears only when a wake is already armed.
  */
 object WakePromptDialog {
+
+    /**
+     * Selects the whole text — but on the next loop turn, not now. Selecting right inside the focus
+     * callback loses to the cursor placement a tap performs just after taking focus (the tap's touch-up
+     * lands after the focus change and collapses the selection); posting lets the tap finish first, so
+     * the selection is what the person is left with. Skipped if focus has moved on in the meantime.
+     */
+    private fun EditText.selectAllSoon() {
+        post { if (isFocused) selectAll() }
+    }
 
     fun show(
         context: Context,
@@ -41,6 +58,12 @@ object WakePromptDialog {
         val hour   = view.findViewById<TextInputEditText>(R.id.etWakeHour)
         val minute = view.findViewById<TextInputEditText>(R.id.etWakeMinute)
         val second = view.findViewById<TextInputEditText>(R.id.etWakeSecond)
+
+        // Select-all on arrival, for each box on its own.
+        val boxes = listOf(day, month, year, hour, minute, second)
+        boxes.forEach { box ->
+            box.setOnFocusChangeListener { v, hasFocus -> if (hasFocus) (v as EditText).selectAllSoon() }
+        }
 
         // Title row with the universal info icon; its text follows the selected mode.
         val titleRow = LayoutInflater.from(context).inflate(R.layout.dialog_wake_title, null)
@@ -67,6 +90,8 @@ object WakePromptDialog {
                 info.infoText = WakeRules.modeInfo(m)
                 setFields(WakeRules.Fields(0, 0, 0, 0, 0, 0))
             }
+            // The boxes were just refilled: if one has focus, its new value is what the next digit should replace.
+            boxes.firstOrNull { it.isFocused }?.selectAllSoon()
         }
 
         fun number(box: TextInputEditText): Int? = box.text?.toString().orEmpty().trim().let { if (it.isEmpty()) null else it.toIntOrNull() }

@@ -5,6 +5,31 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.52.0 — Wake popup: each box selects its value when it gets focus
+
+Includes everything in 6.51.1. No database change, no layout change, `versionCode` untouched.
+
+### Added
+- **Fast entry in the wake popup.** Whenever one of the six boxes (Day, Month, Year, Hour, Min, Sec) receives
+  focus — a tap, the keyboard's Next / Enter moving in, an arrow or D-pad move — its whole value is selected,
+  so the first digit you type replaces it; nothing has to be cleared first. Only the box that gained focus is
+  selected. Example: tap Hour, type 3, Enter, 4, Enter, 0, Enter → 3 h 4 m 0 s (the keyboard already moved
+  Day → Month → Year → Hour → Min → Sec, and Done on Sec; the last Enter still just closes the keyboard).
+- Tapping a box that ALREADY has focus places the cursor where you tapped, so a single digit can still be
+  fixed; select-all happens only on arrival.
+- After switching Alarm ↔ Timer the boxes are refilled, and if one has focus its new value is selected too.
+
+### How
+The selection is made in code (`EditText.selectAllSoon`), one loop turn after the focus change, rather than
+with `android:selectAllOnFocus`: a tap's touch-up lands after the focus change and places the cursor, which
+collapses a selection made inside the focus callback on some Android versions. It is skipped if focus has
+moved on in the meantime. Wake popup only; the semaphore and sleep fields are unchanged.
+
+### Verified / not verified
+Nothing to unit-test (it is focus behaviour on a real keyboard); the UI geometry guard passes. **Not built,
+not run:** check on the phone with the example above — tap Hour, 3 Enter 4 Enter 0 Enter — and that a second
+tap on the same box puts the cursor instead of selecting everything.
+
 ## 6.51.1 — Wake: the icon and Select / Preempt no longer die after the screen stops
 
 Includes everything in 6.51.0. No database change, `versionCode` untouched.
