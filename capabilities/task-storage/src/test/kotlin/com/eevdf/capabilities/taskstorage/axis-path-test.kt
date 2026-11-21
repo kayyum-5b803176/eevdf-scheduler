@@ -12,144 +12,158 @@ class AxisPathTest {
     private fun t(id: String, axis: String, group: Boolean = false, parent: String? = null) =
         Task(id = id, name = id, priority = 1, timeSliceSeconds = 60, isGroup = group, parentId = parent, axisId = axis)
 
-    // x: types (leaves hold users), plus a group.   y: users (leaves hold activities), plus a group.
-    // z: activities are groups; hello is a task inside act1.
+    // x: types (tasks) plus a group, and a container.   y: users (tasks) plus a group.   z: activities (groups) plus a task.
     private val type5 = t("type5", Axes.X); private val type6 = t("type6", Axes.X)
     private val typesGroup = t("types", Axes.X, group = true)
+    private val cont = t("cont", Axes.X, group = true)
     private val user1 = t("user1", Axes.Y); private val user2 = t("user2", Axes.Y)
     private val team = t("team", Axes.Y, group = true)
     private val act1 = t("act1", Axes.Z, group = true); private val act2 = t("act2", Axes.Z, group = true)
     private val hello = t("hello", Axes.Z, parent = "act1")
 
-    private fun snap(
-        acl: List<AxisAcl> = emptyList(), doors: List<AxisDoor> = emptyList(),
-        hiddenEverywhere: Set<String> = emptySet(), containers: Set<String> = emptySet(),
-        xRows: List<Task> = listOf(type5, type6, typesGroup),
-    ) = AxisPath.Snapshot(xRows, listOf(user1, user2, team, act1, act2, hello), acl, doors, hiddenEverywhere, containers)
+    private fun snap(xRows: List<Task> = listOf(type5, type6, typesGroup, cont)) =
+        AxisPath.Snapshot(xRows, listOf(user1, user2, team, act1, act2, hello), containers = setOf("cont"))
 
-    private fun choice(task: Task, holder: Boolean) = AxisPath.Choice(task, holder)
-    private val pType5 = choice(type5, true); private val pUser1 = choice(user1, true)
-    private val pAct1 = choice(act1, false); private val pTeam = choice(team, false)
-
+    private fun group(task: Task) = AxisPath.Choice(task, group = true)
+    private fun leaf(task: Task) = AxisPath.Choice(task, group = false)
+    private val none: List<AxisPath.Choice?> = listOf(null, null, null)
     private fun ids(list: List<AxisPath.Choice>) = list.map { it.task.id }.toSet()
+    private fun ok(r: AxisPath.Result) = (r as AxisPath.Result.Ok).placement
+    private fun reason(r: AxisPath.Result) = (r as AxisPath.Result.Invalid).reason
 
-    // ── what each axis lists ─────────────────────────────────────────────
+    // ── what an axis lists: groups until a deeper axis has a pick, then leaves ─────
 
-    @Test fun `the first axis is a route - it lists only entries that can hold the next axis`() {
-        val container = t("cont", Axes.X, group = true)
-        val list = AxisPath.choices(axes, 0, listOf(null, null, null), snap(xRows = listOf(type5, typesGroup, container), containers = setOf("cont")))
-        assertEquals(setOf("type5", "cont"), ids(list))          // the plain group is not on the route
-        assertTrue(list.all { it.holder })
+    @Test fun `tap any axis first and it lists its groups, whatever the other axes hold`() {
+        assertEquals(setOf("types"), ids(AxisPath.choices(axes, 0, none, snap())))
+        assertEquals(setOf("team"), ids(AxisPath.choices(axes, 1, none, snap())))
+        assertEquals(setOf("act1", "act2"), ids(AxisPath.choices(axes, 2, none, snap())))
     }
 
-    @Test fun `a later axis lists nothing until the axes before it are picked`() {
-        assertTrue(AxisPath.choices(axes, 1, listOf(null, null, null), snap()).isEmpty())
-        assertTrue(AxisPath.choices(axes, 2, listOf(pType5, null, null), snap()).isEmpty())
+    @Test fun `a list is never a mix of groups and leaves`() {
+        for (i in 0..2) {
+            val groups = AxisPath.choices(axes, i, none, snap())
+            assertTrue(groups.all { it.group })
+        }
+        val picks = listOf(null, null, group(act1))
+        for (i in 0..1) assertTrue(AxisPath.choices(axes, i, picks, snap()).none { it.group })
     }
 
-    @Test fun `the second axis lists only what exists under the picked row, holders only`() {
-        val acl = listOf(AxisAcl("type5", "user2", hidden = true))
-        assertEquals(setOf("user1"), ids(AxisPath.choices(axes, 1, listOf(pType5, null, null), snap(acl = acl))))
-        assertEquals(setOf("user1", "user2"), ids(AxisPath.choices(axes, 1, listOf(choice(type6, true), null, null), snap(acl = acl))))
+    @Test fun `once a deeper axis has a pick, the axes above list leaf nodes - the route`() {
+        val picks = listOf(null, null, group(act1))
+        assertEquals(setOf("type5", "type6", "cont"), ids(AxisPath.choices(axes, 0, picks, snap())))   // a container is a leaf
+        assertEquals(setOf("user1", "user2"), ids(AxisPath.choices(axes, 1, picks, snap())))
     }
 
-    @Test fun `a route axis never mixes in groups, the last axis never mixes in leaves`() {
-        val y = AxisPath.choices(axes, 1, listOf(pType5, null, null), snap())
-        val z = AxisPath.choices(axes, 2, listOf(pType5, pUser1, null), snap())
-        assertTrue(y.none { it.task.isGroup }); assertTrue(y.all { it.holder })
-        assertTrue(z.all { it.task.isGroup }); assertTrue(z.none { it.holder })
+    @Test fun `an axis switches by itself - clearing the deeper pick brings its groups back`() {
+        assertTrue(AxisPath.wantsGroups(1, none))
+        assertFalse(AxisPath.wantsGroups(1, listOf(null, null, group(act1))))
+        assertTrue(AxisPath.wantsGroups(1, listOf(leaf(type5), null, null)))        // x is above y: it does not count
     }
 
-    @Test fun `the last axis offers groups only`() {
-        val list = AxisPath.choices(axes, 2, listOf(pType5, pUser1, null), snap())
-        assertEquals(setOf("act1", "act2"), ids(list))          // hello (a leaf) cannot hold anything
-        assertTrue(list.none { it.holder })
+    @Test fun `the last axis always lists groups, the first axis lists leaves as soon as anything below is picked`() {
+        assertTrue(AxisPath.wantsGroups(2, listOf(leaf(type5), leaf(user1), null)))
+        assertFalse(AxisPath.wantsGroups(0, listOf(null, group(team), null)))
     }
 
-    @Test fun `the third axis follows the entry's door layered with the copy's own`() {
-        // every copy of user1 hides act2; under type5 that copy shows it again
-        val acl = listOf(AxisAcl("def:user1", "act2", true), AxisAcl("type5/user1", "act2", false))
-        assertEquals(setOf("act1"), ids(AxisPath.choices(axes, 2, listOf(choice(type6, true), pUser1, null), snap(acl = acl))))
-        assertEquals(setOf("act1", "act2"), ids(AxisPath.choices(axes, 2, listOf(pType5, pUser1, null), snap(acl = acl))))
-    }
-
-    @Test fun `an entry placed elsewhere is not offered here unless this door shows it`() {
-        val s = snap(hiddenEverywhere = setOf("user2"), acl = listOf(AxisAcl("type5", "user2", false)))
-        assertEquals(setOf("user1", "user2"), ids(AxisPath.choices(axes, 1, listOf(pType5, null, null), s)))
-        assertEquals(setOf("user1"), ids(AxisPath.choices(axes, 1, listOf(choice(type6, true), null, null), s)))
+    @Test fun `lists are not narrowed by the other picks - a route axis can be picked first or skipped`() {
+        val a = AxisPath.choices(axes, 0, listOf(null, group(team), null), snap())
+        val b = AxisPath.choices(axes, 0, listOf(null, null, group(act1)), snap())
+        assertEquals(ids(a), ids(b))
     }
 
     @Test fun `the row being edited and everything inside it are never offered`() {
-        val list = AxisPath.choices(axes, 2, listOf(pType5, pUser1, null), snap(), exclude = "act1")
-        assertEquals(setOf("act2"), ids(list))
+        assertEquals(setOf("act2"), ids(AxisPath.choices(axes, 2, none, snap(), exclude = "act1")))
     }
 
-    // ── picks → placement ────────────────────────────────────────────────
-
-    private fun ok(r: AxisPath.Result) = (r as AxisPath.Result.Ok).placement
-
-    @Test fun `type5, user1 and a group on z - the task goes in that group and exists only at type5 then user1`() {
-        val p = ok(AxisPath.resolve(axes, listOf(pType5, pUser1, pAct1)))
-        assertEquals(2, p.axisIndex); assertEquals("act1", p.parentId); assertEquals("type5/user1", p.door)
+    @Test fun `interrupt and completed rows are not offered on the first axis`() {
+        val interrupt = type6.copy(isInterrupt = true); val done = type5.copy(isCompleted = true)
+        val list = AxisPath.choices(axes, 0, listOf(null, null, group(act1)), snap(xRows = listOf(done, interrupt, cont)))
+        assertEquals(setOf("cont"), ids(list))
     }
 
-    @Test fun `type5 and user1 with z empty - the task goes directly under user1`() {
-        val p = ok(AxisPath.resolve(axes, listOf(pType5, pUser1, null)))
-        assertEquals(2, p.axisIndex); assertEquals(null, p.parentId); assertEquals("type5/user1", p.door)
+    // ── picks -> placement: your examples ───────────────────────────────
+
+    @Test fun `tap Y first, pick y1, route x - the task is in y1 and exists only under type5`() {
+        val p = ok(AxisPath.resolve(axes, listOf(leaf(type5), group(t("y1", Axes.Y, group = true)), null)))
+        assertEquals(1, p.axisIndex); assertEquals("y1", p.parentId); assertEquals("type5", p.route)
+        assertEquals(listOf("type5", "y1"), p.labels)
     }
 
-    @Test fun `only type5 - the task goes directly under type5, on the second axis`() {
-        val p = ok(AxisPath.resolve(axes, listOf(pType5, null, null)))
-        assertEquals(1, p.axisIndex); assertEquals(null, p.parentId); assertEquals("type5", p.door)
+    @Test fun `tap Z, pick the group, skip Y, route x - any user under type5`() {
+        val p = ok(AxisPath.resolve(axes, listOf(leaf(type5), null, group(act1))))
+        assertEquals(2, p.axisIndex); assertEquals("act1", p.parentId); assertEquals("type5/*", p.route)
+        assertEquals(listOf("type5", "any", "act1"), p.labels)
     }
 
-    @Test fun `a group on y with type5 - parent group on y, existing only under type5`() {
-        val p = ok(AxisPath.resolve(axes, listOf(pType5, pTeam, null)))
-        assertEquals(1, p.axisIndex); assertEquals("team", p.parentId); assertEquals("type5", p.door)
+    @Test fun `route x and y, group on z - exactly that place`() {
+        val p = ok(AxisPath.resolve(axes, listOf(leaf(type5), leaf(user1), group(act1))))
+        assertEquals("type5/user1", p.route)
     }
 
-    @Test fun `only a group on x is an ordinary placement with nothing narrowed`() {
-        val p = ok(AxisPath.resolve(axes, listOf(choice(typesGroup, false), null, null)))
-        assertEquals(0, p.axisIndex); assertEquals("types", p.parentId); assertEquals(null, p.door)
+    @Test fun `skipping x but picking y - any type, that user`() {
+        val p = ok(AxisPath.resolve(axes, listOf(null, leaf(user1), group(act1))))
+        assertEquals("*/user1", p.route)
     }
 
-    @Test fun `labels are the names of the picks, in order`() {
-        assertEquals(listOf("type5", "user1", "act1"), ok(AxisPath.resolve(axes, listOf(pType5, pUser1, pAct1))).labels)
+    @Test fun `only a group - an ordinary placement with nothing narrowed`() {
+        assertEquals(null, ok(AxisPath.resolve(axes, listOf(null, null, group(act1)))).route)
+        assertEquals(null, ok(AxisPath.resolve(axes, listOf(null, group(team), null))).route)
+    }
+
+    @Test fun `a group on the first axis is an ordinary placement`() {
+        val p = ok(AxisPath.resolve(axes, listOf(group(typesGroup), null, null)))
+        assertEquals(0, p.axisIndex); assertEquals("types", p.parentId); assertEquals(null, p.route)
     }
 
     // ── what is not allowed ──────────────────────────────────────────────
 
-    private fun reason(r: AxisPath.Result) = (r as AxisPath.Result.Invalid).reason
-
     @Test fun `nothing picked`() {
-        assertTrue(AxisPath.resolve(axes, listOf(null, null, null)) is AxisPath.Result.Invalid)
+        assertEquals("Pick a group.", reason(AxisPath.resolve(axes, none)))
     }
 
-    @Test fun `picks must start at the first axis`() {
-        assertEquals("Pick X first.", reason(AxisPath.resolve(axes, listOf(null, pUser1, null))))
-        assertEquals("Pick Y first.", reason(AxisPath.resolve(axes, listOf(pType5, null, pAct1))))
+    @Test fun `the last pick must be a group`() {
+        assertEquals("Pick a group on Y.", reason(AxisPath.resolve(axes, listOf(null, leaf(user1), null))))
     }
 
-    @Test fun `a group can only be the last pick`() {
-        val r = AxisPath.resolve(axes, listOf(choice(typesGroup, false), pUser1, null))
-        assertTrue(reason(r).contains("group"))
+    @Test fun `a route entry must be a task`() {
+        assertTrue(reason(AxisPath.resolve(axes, listOf(group(typesGroup), null, group(act1)))).contains("group"))
     }
 
-    @Test fun `a leaf on the last axis holds nothing`() {
-        val r = AxisPath.resolve(axes, listOf(pType5, pUser1, choice(hello, true)))
-        assertEquals("Pick a group on Z.", reason(r))
+    // ── keeping the picks consistent ─────────────────────────────────────
+
+    @Test fun `a group above the anchor is dropped - a group cannot be a route entry`() {
+        val n = AxisPath.normalize(axes, listOf(group(typesGroup), group(team), null))
+        assertEquals(listOf(null, group(team), null), n.picks)
+        assertEquals(listOf("x"), n.cleared)
     }
 
-    // ── your example, end to end ─────────────────────────────────────────
+    @Test fun `a leaf as the deepest pick is dropped - it cannot be the group`() {
+        val n = AxisPath.normalize(axes, listOf(leaf(type5), null, null))
+        assertEquals(none, n.picks); assertEquals(listOf("x"), n.cleared)
+    }
 
-    @Test fun `type5, user1 and a group on z, picked through the lists, place the task only there`() {
-        val snapshot = snap()
-        val x = AxisPath.choices(axes, 0, listOf(null, null, null), snapshot).first { it.task.id == "type5" }
-        val y = AxisPath.choices(axes, 1, listOf(x, null, null), snapshot).first { it.task.id == "user1" }
-        val z = AxisPath.choices(axes, 2, listOf(x, y, null), snapshot).first { it.task.id == "act1" }
-        val p = ok(AxisPath.resolve(axes, listOf(x, y, z)))
-        assertEquals("act1", p.parentId); assertEquals(Axes.ALL.indexOf(Axes.Z), p.axisIndex); assertEquals("type5/user1", p.door)
-        // the route is x then y; the last axis is the parent picker
-        assertTrue(AxisPath.choices(axes, 2, listOf(x, y, null), snapshot).all { it.task.isGroup })
+    @Test fun `clearing the anchor drops the route that hung from it`() {
+        val n = AxisPath.normalize(axes, listOf(leaf(type5), leaf(user1), null))
+        assertEquals(none, n.picks); assertEquals(listOf("y", "x"), n.cleared)
+    }
+
+    @Test fun `a consistent set of picks is left alone`() {
+        val picks = listOf(leaf(type5), leaf(user1), group(act1))
+        val n = AxisPath.normalize(axes, picks)
+        assertEquals(picks, n.picks); assertTrue(n.cleared.isEmpty())
+    }
+
+    // ── your example, end to end through the lists ───────────────────────
+
+    @Test fun `z first, then y and x as the route, through the lists`() {
+        val s = snap()
+        var picks: List<AxisPath.Choice?> = none
+        val a = AxisPath.choices(axes, 2, picks, s).first { it.task.id == "act1" }              // tap Z: its groups
+        picks = listOf(null, null, a)
+        val y = AxisPath.choices(axes, 1, picks, s).first { it.task.id == "user1" }              // then Y: leaves
+        picks = listOf(null, y, a)
+        val x = AxisPath.choices(axes, 0, picks, s).first { it.task.id == "type5" }              // then X: leaves
+        val p = ok(AxisPath.resolve(axes, listOf(x, y, a)))
+        assertEquals("type5/user1", p.route); assertEquals("act1", p.parentId); assertEquals(2, p.axisIndex)
     }
 }

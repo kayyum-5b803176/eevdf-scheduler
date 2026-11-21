@@ -28,11 +28,11 @@ import com.eevdf.capabilities.taskstorage.Task
         WakeReturn::class,              // ← new: the wake preempt return stack
         AxisAcl::class,                 // ← new: per-door Inherit/Hide/Show rules over a later axis's entries
         AxisDoor::class,                // ← new: a door's "hide new" default
-        AxisEntryHidden::class,         // ← new: the single '−' of an entry placed on a path
+        AxisEntryRoute::class,          // ← new: where an entry placed on a path exists (a pattern over doors)
         AxisNode::class,                // ← new: marks a real row as a copy of a later-axis definition
         AxisContainer::class,           // ← new: rows that are containers only because copies hang under them
     ],
-    version  = 37,                      // ← bumped from 36 (axis_entry_hidden: entries placed on a path)
+    version  = 38,                      // ← bumped from 37 (axis_entry_hidden → axis_entry_route: path patterns)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -719,6 +719,24 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 37 → 38: a placed entry's reach is a PATTERN over doors, not one door. `axis_entry_hidden`
+         * (6.62–6.63: hidden everywhere + a '+' on one door) becomes `axis_entry_route`: each entry that
+         * had a '+' keeps exactly that door as its pattern (no wildcard), so it exists where it did.
+         * The '+' rules stay as ordinary explicit rules.
+         */
+        private val MIGRATION_37_38 = object : Migration(37, 38) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `axis_entry_route` (`definitionId` TEXT NOT NULL, `route` TEXT NOT NULL, PRIMARY KEY(`definitionId`))")
+                db.execSQL(
+                    "INSERT OR REPLACE INTO `axis_entry_route` (`definitionId`, `route`) " +
+                        "SELECT a.`childKey`, a.`scopeKey` FROM `axis_acl` a " +
+                        "WHERE a.`hidden` = 0 AND a.`childKey` IN (SELECT `definitionId` FROM `axis_entry_hidden`)"
+                )
+                db.execSQL("DROP TABLE IF EXISTS `axis_entry_hidden`")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -735,7 +753,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                         MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
-                        MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
+                        MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
                     )
                     .build()
                 INSTANCE = instance

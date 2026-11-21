@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.taskstorage.AclChoice
 import com.eevdf.capabilities.taskstorage.AclResolution
 import com.eevdf.capabilities.taskstorage.AxisAclRules
+import com.eevdf.capabilities.taskstorage.AxisRoute
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -72,8 +73,11 @@ internal class AxisAclTab(
     /** This door's own rules, the entry's rules it is layered over, and the two "hide new" defaults (null = not set). */
     private var ownRules: Map<String, Boolean>   = emptyMap()
     private var entryRules: Map<String, Boolean> = emptyMap()
-    /** Entries carrying the single '−' (placed on a path): hidden at every door that has no rule of its own for them. */
-    private var hiddenEverywhere: Set<String> = emptySet()
+    /** Entries placed on a path, by the pattern of doors they exist at: shown where it matches THIS door, hidden elsewhere. */
+    private var routes: Map<String, String> = emptyMap()
+    /** Which routed entries this door shows / hides. A definition's own "def:" door is not a place, so it has none. */
+    private val atDoor: AxisRoute.AtDoor
+        get() = if (door.startsWith(Axes.DEFINITION_DOOR)) AxisRoute.AtDoor.NONE else AxisRoute.at(routes, door)
     private var ownHideNew: Boolean?   = null
     private var entryHideNew: Boolean? = null
     private val rules: Map<String, Boolean> get() = AxisAclRules.merge(entryRules, ownRules)
@@ -113,7 +117,7 @@ internal class AxisAclTab(
             entryRules = layerDoor?.let { l -> all.asSequence().filter { it.scopeKey == l }.associate { it.childKey to it.hidden } }.orEmpty()
             refresh()
         }
-        repository.allAxisEntryHidden.observe(activity) { all -> hiddenEverywhere = all.mapTo(HashSet()) { it.definitionId }; refresh() }
+        repository.allAxisEntryRoutes.observe(activity) { all -> routes = all.associate { it.definitionId to it.route }; refresh() }
         repository.allAxisDoors.observe(activity) { all ->
             ownHideNew   = all.firstOrNull { it.scopeKey == door }?.newChildrenHidden
             entryHideNew = layerDoor?.let { l -> all.firstOrNull { it.scopeKey == l }?.newChildrenHidden }
@@ -180,7 +184,7 @@ internal class AxisAclTab(
 
         // Is the level being viewed itself hidden? Then nothing in it can be changed.
         val merged = rules
-        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, merged, hideNew, hiddenEverywhere) }
+        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, merged, hideNew, atDoor.hidden, atDoor.shown) }
         if (here != null && here.hidden) {
             tvLocked.text = "\"${stack.last().name}\" is hidden, so everything inside it is hidden too. " +
                 "Make it visible to change these."
@@ -229,7 +233,8 @@ internal class AxisAclTab(
                 lockedBy != null              -> "Hidden by ${nameOfKey[lockedBy] ?: "a parent"}"
                 res.choice == AclChoice.HIDE  -> "Hidden · set here"
                 res.choice == AclChoice.SHOW  -> "Shown · set here"
-                res.hidden && key in hiddenEverywhere -> "Hidden · all other places (tap + to add it here)"
+                !res.hidden && key in atDoor.shown   -> "Shown · from its path"
+                res.hidden && key in atDoor.hidden   -> "Hidden · all other places (tap + to add it here)"
                 res.hidden                    -> "Hidden (inherited)"
                 else                          -> "Shown (inherited)"
             }
@@ -241,7 +246,7 @@ internal class AxisAclTab(
             .filter { (it.parentId?.takeIf { p -> p in byId }) == nodeId }
             .sortedBy { it.name.lowercase() }
             .map { t ->
-                val res    = AxisAclRules.resolve(ancestorKeys, t.id, merged, effHide, hiddenEverywhere)
+                val res    = AxisAclRules.resolve(ancestorKeys, t.id, merged, effHide, atDoor.hidden, atDoor.shown)
                 // On a copy the circles show what is set HERE; "Inherit" means follow the entry's ACL.
                 val own    = if (layerDoor == null) res.choice else when (ownRules[t.id]) {
                     null -> AclChoice.INHERIT; true -> AclChoice.HIDE; false -> AclChoice.SHOW

@@ -213,11 +213,11 @@ class AddTaskActivity : AppCompatActivity() {
     internal var axisMoveConfirmed = false
 
     /**
-     * Set by the picker's path mode: the door the row must exist at ONLY (see [com.eevdf.capabilities.taskstorage.AxisPath]).
-     * Saved as the single '−' plus a '+' there, before the row is written, so nothing is copied elsewhere.
-     * Null = a normal placement (copied wherever it is included).
+     * Set by the picker's path mode: the pattern of the doors the row must exist at ONLY (an
+     * [com.eevdf.capabilities.taskstorage.AxisRoute], `type5/<any>` = under type5, any user). Saved BEFORE the row is
+     * written, so nothing is copied elsewhere. Null = a normal placement (copied wherever it is included).
      */
-    internal var axisPathDoor: String? = null
+    internal var axisPathRoute: String? = null
 
     /** A plain (non-path) pick was made this session: saving a later-axis entry then puts it back to "copied wherever included". */
     internal var axisPlainPicked = false

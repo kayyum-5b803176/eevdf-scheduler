@@ -5,6 +5,67 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.64.1 — Fix: 6.64.0 did not compile (comments containing `/` + `*`)
+
+Includes everything in 6.64.0. No database change, `versionCode` untouched.
+
+### Fixed
+- **Build failure** — `Unclosed comment` in `axis.kt`, `task-repository.kt` (and a cascading `Missing '}'`, then a KSP
+  `MissingType` for `TaskDatabase`). Kotlin block comments NEST, so a route pattern written inside a KDoc comment — `type5` followed
+  by `/*` — opened a second comment that was never closed (and a pattern ending in `*/` would have closed one early). Three comments
+  were reworded (`axis.kt` ×2, `task-repository.kt`, `add-task-screen`'s activity); the patterns now read `type5/<any>` in prose.
+  The string constant `AxisRoute.ANY = "*"` and the tests' string literals were never affected.
+
+### Checked
+Every Kotlin file in the project scanned for nested / unclosed block comments (none left); brace, parenthesis and bracket balance
+checked on all 18 files of the axis work; all 18 parsed with the real Kotlin compiler (0 syntax errors — the only errors it reports
+here are the Android / Room libraries missing from the sandbox). **Not built with Gradle** — please build.
+
+---
+
+## 6.64.0 — Path mode redone: tap any axis, the deepest pick is the group, the axes above are the route
+
+Includes everything in 6.63.0. **Database 37 → 38.** `versionCode` untouched. Replaces the path mode of 6.62.0 and 6.63.0,
+which treated a route entry as something that holds the task. The picker looks as it does today — same dialog, same rows,
+same Path switch and footer; nothing new on screen.
+
+### How it works now
+- **Tap any axis first.** It lists that axis's **groups**, like the normal parent picker, whatever the other axes hold.
+- **The deepest axis with a pick is the anchor**: the picked group is the task's parent, on that axis.
+- **Every axis above it is the route** and lists **leaf nodes only** (so they work as today). It switches by itself: an axis lists
+  groups while no deeper axis has a pick, leaves as soon as one does, and back to groups if that pick is cleared.
+- **Route picks are optional and in any order.** A skipped axis means "any". After a pick the dialog moves to the axis above.
+- If a change makes an earlier pick impossible (a group above the anchor, a leaf as the last pick) it is cleared and the footer says so.
+- Footer: `Exists only in:  type5 › any › activity1`, or `Placed in group activity1, wherever it is included.` when no route was picked.
+  List headers: `Parent group · Y` / `Route · X`; the None rows read "None (no parent group)" / "None (any)". A hint line appears only
+  when a list is empty ("No groups on Y." / "No tasks on X to route through.").
+
+### Skipped axes are a pattern, not a list of places
+- A placed entry stores its route as a pattern, one segment per axis before its own: `type5/*` = under type5, any user;
+  `*/user1` = any type, that user. A door whose key matches shows the entry; every other door hides it. A user added later under
+  type5 therefore gets it by itself, one under type6 never does, and any other place can add it with + in its own ACL tab. An explicit
+  rule at a door still wins over the route.
+- Written before the entry is saved, so no copy is ever made in a wrong place. The ACL tab reads "Shown · from its path" /
+  "Hidden · all other places (tap + to add it here)".
+- Migration 37 → 38 turns every 6.62/6.63 placement (hidden everywhere + one '+') into a route equal to that door.
+
+### Changed
+- The two "hold the task" paths of 6.62/6.63 (a leaf as the last pick placing the task under it) are gone: a path always ends in a group.
+  Without a route it is an ordinary placement (use the plain picker as before).
+- The single '−' table (`axis_entry_hidden`) is replaced by `axis_entry_route`; `AxisAclRules` takes "hidden here / shown here"
+  sets computed per door from the routes.
+
+### Verified / not verified
+`axis-path-test.kt` (rewritten): any axis lists groups first; never a mix; route axes list leaves once a deeper axis has a pick and
+switch back when it is cleared; lists are not narrowed by other picks; your examples (tap Y, pick y1, route X → `type5`; tap Z, skip Y,
+route X → `type5/*`; X and Y → `type5/user1`; skip X → `*/user1`); invalid cases; consistency after a change; Z then Y then X through the
+lists. `axis-rules-test.kt`: routed entries (shown where it matches, hidden elsewhere, rule beats route, group locks) and pattern matching
+(wildcards, depth mismatch, a place created later). `axis-reconcile-test.kt`: copies only where the route matches. **Not built, not run.**
+On the phone: Path on → tap Z → groups only → pick activity1 → the dialog moves to Y (leaves) → skip it → pick type5 on X → Done:
+the footer reads `type5 › any › activity1`; add a user under type5 later and it has the task, under type6 it does not.
+
+---
+
 ## 6.63.0 — Path mode: the axes before the last are the route, the last is the parent picker
 
 Includes everything in 6.62.0. No database change, `versionCode` untouched.

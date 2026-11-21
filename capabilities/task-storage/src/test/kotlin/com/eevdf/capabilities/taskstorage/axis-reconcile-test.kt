@@ -150,29 +150,33 @@ class AxisReconcileTest {
         assertNull(AxisReconcile.newCopy(d, "id", "L").internalWeight)
     }
 
-    // ── a placed entry is copied only where it is shown ──────────────────
+    // ── a routed entry is copied only where its route matches ────────────
 
-    @Test fun `placed entry - no copy at a door that does not show it`() {
+    @Test fun `routed entry - no copy at a door its route does not match`() {
         val defs = listOf(def("a"), def("placed"))
-        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, emptyList(), hiddenEverywhere = setOf("placed"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, emptyList(), hiddenHere = setOf("placed"))
         assertEquals(listOf("a"), p.create.map { it.id })
     }
 
-    @Test fun `placed entry - a copy at the door that shows it`() {
+    @Test fun `routed entry - a copy at a door its route matches`() {
         val defs = listOf(def("a"), def("placed"))
-        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("placed" to false), false, emptyList(), hiddenEverywhere = setOf("placed"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, emptyList(), shownHere = setOf("placed"))
         assertEquals(setOf("a", "placed"), p.create.map { it.id }.toSet())
     }
 
-    @Test fun `placing an existing entry removes its copy from the places that do not show it`() {
+    @Test fun `re-placing an existing entry removes its copy from the doors that no longer match`() {
         val defs = listOf(def("placed"))
-        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, listOf(existing("placed", "type6")), hiddenEverywhere = setOf("placed"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, listOf(existing("placed", "type6")), hiddenHere = setOf("placed"))
         assertEquals(listOf("placed"), p.remove.map { it.node.definitionId })
     }
 
-    @Test fun `a place created later does not pick the placed entry up`() {
-        // a brand-new door has no rules and no defaults at all
-        val p = AxisReconcile.plan(Axes.Y, listOf(def("placed")), emptyMap(), false, emptyList(), hiddenEverywhere = setOf("placed"))
-        assertTrue(p.create.isEmpty())
+    @Test fun `a place created later gets the entry when it matches, and not when it does not`() {
+        val route = mapOf("placed" to "type5/*")
+        val newUnderType5 = AxisRoute.at(route, "type5/brand-new")
+        val newUnderType6 = AxisRoute.at(route, "type6/brand-new")
+        val a = AxisReconcile.plan(Axes.Y, listOf(def("placed")), emptyMap(), false, emptyList(), newUnderType5.hidden, newUnderType5.shown)
+        val b = AxisReconcile.plan(Axes.Y, listOf(def("placed")), emptyMap(), false, emptyList(), newUnderType6.hidden, newUnderType6.shown)
+        assertEquals(listOf("placed"), a.create.map { it.id })
+        assertTrue(b.create.isEmpty())
     }
 }

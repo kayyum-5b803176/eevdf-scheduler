@@ -101,7 +101,7 @@ internal fun AddTaskActivity.setupGroupSection() {
                 axisLockedHint  = if (row?.isInterrupt == true) "Interrupt tasks stay on ${Axes.ALL.first().uppercase()}."
                                   else "Stop it to move it to another axis."
                 onAxisGroupSelected = { axis, chosen ->
-                    axisPathDoor = null                                   // a plain pick: copied wherever it is included
+                    axisPathRoute = null                                  // a plain pick: copied wherever it is included
                     axisPlainPicked = true
                     targetAxisOverride = axis
                     selectedParentId = chosen?.id
@@ -113,12 +113,12 @@ internal fun AddTaskActivity.setupGroupSection() {
                 pathExclude = existingTaskId
                 pathSnapshot = snapshot
                 onPathChosen = { pickedTasks, placement ->
-                    val group = placement.parentId?.let { id -> pickedTasks.firstOrNull { it?.id == id } }
-                    axisPathDoor = placement.door
+                    val group = pickedTasks.getOrNull(placement.axisIndex)         // the anchor: the parent group
+                    axisPathRoute = placement.route
                     axisPlainPicked = false
                     targetAxisOverride = Axes.ALL[placement.axisIndex]
                     selectedParentId = placement.parentId
-                    actvParentGroup.setText(placement.labels.joinToString(" › "), false)     // "type5 › user1 › activity1"
+                    actvParentGroup.setText(placement.labels.joinToString(" › "), false)     // "type5 › any › activity1"
                     onParentChosen(group)
                 }
             }

@@ -66,23 +66,23 @@ class AxisFacade internal constructor(
     /** The groups [axisId] offers as a parent. */
     suspend fun pickerGroups(axisId: String): List<Task> = repository.axisPickerGroups(axisId)
 
-    /** What moving [task] to [targetAxis] would cost — null-loss means no confirmation is needed. */
-    suspend fun movePreview(task: Task, targetAxis: String, door: String? = null): AxisMovePreview =
-        repository.axisMovePreview(task, targetAxis, door)
+    /** What moving [task] to [targetAxis] would cost — null-loss means no confirmation is needed. [route] re-places it (path mode). */
+    suspend fun movePreview(task: Task, targetAxis: String, route: String? = null): AxisMovePreview =
+        repository.axisMovePreview(task, targetAxis, route)
 
     /**
-     * Save [edited] and move it (and, for a group, what is inside it) to [Task.axisId]. With a [door] it is also
-     * placed ONLY there (path mode). False when something is running.
+     * Save [edited] and move it (and, for a group, what is inside it) to [Task.axisId]. With a [route] (path mode) it is
+     * also placed ONLY where that pattern matches. False when something is running.
      */
-    suspend fun moveToAxis(edited: Task, door: String? = null): Boolean = repository.moveToAxis(edited, door)
+    suspend fun moveToAxis(edited: Task, route: String? = null): Boolean = repository.moveToAxis(edited, route)
 
     // ── path mode ─────────────────────────────────────────────────────────
-    /** Everything the picker's path mode needs to list each axis. */
+    /** Everything the picker's path mode lists. */
     suspend fun pathSnapshot(): AxisPath.Snapshot = repository.axisPathSnapshot()
 
     /** Back to the default for [taskId]: copied wherever it is included. */
     suspend fun clearPlacement(taskId: String) = repository.clearAxisPlacement(taskId)
 
-    /** Place [taskId] only at [door] (the single '−' plus a '+' there). Write before the entry is saved. */
-    suspend fun setPlacement(taskId: String, door: String) = repository.setAxisPlacement(taskId, door)
+    /** Place [taskId] only where [route] matches. Write before the entry is saved. */
+    suspend fun setPlacement(taskId: String, route: String) = repository.setAxisRoute(taskId, route)
 }

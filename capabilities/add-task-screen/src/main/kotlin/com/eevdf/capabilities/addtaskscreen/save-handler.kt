@@ -245,7 +245,7 @@ internal fun AddTaskActivity.saveTask() {
 
     // ── Moving to another axis: say what it costs first ───────────────────────
     // An axis change, or a path that re-places an existing later-axis entry (copies outside it would go).
-    val movingRow = existingTask?.takeIf { targetAxisId != it.axisId || (axisPathDoor != null && it.axisId != com.eevdf.capabilities.taskstorage.Axes.DEFAULT) }
+    val movingRow = existingTask?.takeIf { targetAxisId != it.axisId || (axisPathRoute != null && it.axisId != com.eevdf.capabilities.taskstorage.Axes.DEFAULT) }
     if (movingRow != null && !axisMoveConfirmed) {
         confirmAxisMove(movingRow)
         return
@@ -297,16 +297,16 @@ internal fun AddTaskActivity.saveTask() {
             updated.isInterrupt && updated.interruptSlot == "B"         -> viewModel.clearInterruptTaskB()
             updated.isInterrupt                                          -> viewModel.clearInterruptTask()
         }
-        val pathDoor = axisPathDoor
+        val pathRoute = axisPathRoute
         if (updated.axisId != existingTask!!.axisId) {
             // A move touches several rows (copies, links, the group's contents), so it gets a scope of its
-            // own: finish() below ends this screen's before it could complete. A path (door) places it ONLY there.
-            CoroutineScope(Dispatchers.Default).launch { viewModel.axes.moveToAxis(updated, pathDoor) }
-        } else if (pathDoor != null) {
-            // Re-placed on a path inside its own axis: the placement is written first, then the entry saved
+            // own: finish() below ends this screen's before it could complete. A route places it ONLY where its pattern matches.
+            CoroutineScope(Dispatchers.Default).launch { viewModel.axes.moveToAxis(updated, pathRoute) }
+        } else if (pathRoute != null) {
+            // Re-placed on a route inside its own axis: the placement is written first, then the entry saved
             // (copies follow), so nothing appears in a place it should not.
             CoroutineScope(Dispatchers.Default).launch {
-                viewModel.axes.setPlacement(updated.id, pathDoor)
+                viewModel.axes.setPlacement(updated.id, pathRoute)
                 viewModel.updateTask(updated)
             }
         } else if (axisPlainPicked && updated.axisId != com.eevdf.capabilities.taskstorage.Axes.DEFAULT) {
@@ -358,11 +358,11 @@ internal fun AddTaskActivity.saveTask() {
             rtActivationSecond  = rtActivationSecond,
             rtSliceTimeoutSeconds = rtSliceTimeoutSeconds,
         )
-        val newPathDoor = axisPathDoor
-        if (newPathDoor != null) {
+        val newPathRoute = axisPathRoute
+        if (newPathRoute != null) {
             // Placed on a path: write "only there" BEFORE the entry exists, so no copy is ever made elsewhere.
             CoroutineScope(Dispatchers.Default).launch {
-                viewModel.axes.setPlacement(task.id, newPathDoor)
+                viewModel.axes.setPlacement(task.id, newPathRoute)
                 viewModel.addTask(task)
             }
         } else {

@@ -102,9 +102,10 @@ class PickerDialog : DialogFragment() {
 
     // ── Path mode (optional, needs axes) ─────────────────────────────────────
     //
-    // A switch in the title row turns the picker into "pick one entry on each axis": taps tick (and
-    // untick) instead of closing, each axis's chip shows its pick, and Done places the row in that path
-    // ONLY ([AxisPath]). Off — the default — the picker behaves exactly as before.
+    // A switch in the title row turns the picker into: tap ANY axis, pick a group there (the normal parent
+    // picker) — the deepest axis with a pick is the anchor and the axes above it become the route, listing
+    // leaf nodes only and skippable ("any"). Taps tick instead of closing, each chip shows its pick, and Done
+    // places the row ([AxisPath]). Off — the default — the picker behaves exactly as before.
 
     /** What each axis lists in path mode. Null = no path mode, no switch. */
     var pathSnapshot: AxisPath.Snapshot? = null
@@ -119,6 +120,8 @@ class PickerDialog : DialogFragment() {
     private var pathMode = false
     private var picks: Array<AxisPath.Choice?> = emptyArray()
     private var viewedChoices: List<AxisPath.Choice> = emptyList()
+    /** Said in the footer when a change dropped an earlier pick (a group cannot be a route entry, a leaf cannot be the group). */
+    private var pathNote = ""
     private val axisChips = ArrayList<Chip>()
     private lateinit var footer: View
     private lateinit var tvPathSummary: TextView
@@ -238,6 +241,7 @@ class PickerDialog : DialogFragment() {
             footer.visibility = if (on) View.VISIBLE else View.GONE
             if (on) {
                 picks.fill(null)
+                pathNote = ""
                 etSearch.clearFocus()
                 (requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
                     ?.hideSoftInputFromWindow(etSearch.windowToken, 0)
@@ -251,41 +255,43 @@ class PickerDialog : DialogFragment() {
 
     private fun refreshChipLabels() {
         axisChips.forEachIndexed { i, chip ->
-            val pick = picks.getOrNull(i)
-            chip.text = axisIds[i].uppercase() + if (!pathMode) "" else " · " + (pick?.task?.name ?: "—")
+            val pick = if (pathMode) picks.getOrNull(i) else null
+            chip.text = axisIds[i].uppercase() + (pick?.let { " · ${it.task.name}" } ?: "")
         }
     }
 
-    /** A tap in path mode ticks the entry for the viewed axis (tap it again, or None, to clear) and keeps the dialog open. */
+    /**
+     * A tap in path mode ticks the entry for the viewed axis (tap it again, or None, to clear) and keeps the dialog
+     * open. Picks that can no longer stand are dropped ([AxisPath.normalize]) and said so in the footer. After a pick
+     * the view moves to the axis ABOVE: that is the route, and the group axis has just changed which axes list leaves.
+     */
     private fun onPathPick(chosen: Task?) {
         val axis = viewedAxisId ?: return
         val i = axisIds.indexOf(axis)
         val already = picks[i]?.task?.id
-        val newPick = if (chosen == null || chosen.id == already) null else viewedChoices.firstOrNull { it.task.id == chosen.id }
-        picks[i] = newPick
-        for (j in i + 1 until picks.size) picks[j] = null     // deeper lists depend on this pick
+        picks[i] = if (chosen == null || chosen.id == already) null else viewedChoices.firstOrNull { it.task.id == chosen.id }
+        val kept = AxisPath.normalize(axisIds, picks.toList())
+        for (k in picks.indices) picks[k] = kept.picks[k]
+        pathNote = if (kept.cleared.isEmpty()) "" else
+            "Cleared ${kept.cleared.joinToString(", ") { it.uppercase() }}: a route entry must be a task, and the last pick must be a group."
         refreshChipLabels()
         updateFooter()
-        val next = axisIds.getOrNull(i + 1)
-        if (newPick != null && next != null) axisChips[i + 1].isChecked = true   // on to the next axis
+        if (picks[i] != null && i > 0) axisChips[i - 1].isChecked = true       // on to the route
         else showAxis(axis)
     }
 
     private fun updateFooter() {
         if (!pathMode) return
+        val note = if (pathNote.isEmpty()) "" else pathNote + "\n"
         when (val r = AxisPath.resolve(axisIds, picks.toList())) {
             is AxisPath.Result.Ok -> {
                 val p = r.placement
-                val doorNames = p.door?.let { p.labels.take(it.split('/').size) }
-                tvPathSummary.text = when {
-                    doorNames == null -> "No narrowing — a normal placement."
-                    p.parentId != null -> "Exists only in:  ${doorNames.joinToString(" › ")}\nIn group:  ${p.labels.last()}"
-                    else -> "Exists only in:  ${doorNames.joinToString(" › ")}"
-                }
+                tvPathSummary.text = note + if (p.route == null) "Placed in group ${p.labels.last()}, wherever it is included."
+                                            else "Exists only in:  ${p.labels.joinToString(" › ")}"
                 btnPathDone.isEnabled = true
             }
             is AxisPath.Result.Invalid -> {
-                tvPathSummary.text = r.reason
+                tvPathSummary.text = note + r.reason
                 btnPathDone.isEnabled = false
             }
         }
@@ -299,22 +305,14 @@ class PickerDialog : DialogFragment() {
             val i = axisIds.indexOf(axis)
             viewedChoices = AxisPath.choices(axisIds, i, picks.toList(), snapshot, pathExclude)
             allGroups = viewedChoices.map { it.task }
+            val groups = AxisPath.wantsGroups(i, picks.toList())
             adapter.selectedId = picks[i]?.task?.id          // None is ticked while nothing is picked here
-            adapter.noneLabel  = if (i == axisIds.lastIndex) "None (no parent group)" else "None (not selected on ${axis.uppercase()})"
+            adapter.noneLabel  = if (groups) "None (no parent group)" else "None (any)"
             adapter.labeler    = null                       // never a mix: nothing needs marking
-            val firstMissing = picks.take(i).indexOfFirst { it == null }
-            val route = picks.take(i).filterNotNull().joinToString(" › ") { it.task.name }
-            val isLast = i == axisIds.lastIndex
-            tvAxisHint.text = when {
-                firstMissing >= 0 -> "Pick ${axisIds[firstMissing].uppercase()} first."
-                viewedChoices.isEmpty() && i == 0 -> "No tasks on ${axis.uppercase()} to route through (a group cannot be a route)."
-                viewedChoices.isEmpty() && isLast ->
-                    "No groups on ${axis.uppercase()} under $route. Create a group on ${axis.uppercase()} first, or an ACL hides them here."
-                viewedChoices.isEmpty() -> "Nothing on ${axis.uppercase()} is included under $route."
-                isLast -> "Parent group on ${axis.uppercase()} — optional. Choose None to place it directly under $route."
-                else -> "Route — pick the ${axis.uppercase()} entry it should exist in."
-            }
-            tvAxisHint.visibility = View.VISIBLE
+            // Only when there is nothing to pick: say why, in plain words.
+            tvAxisHint.text = if (viewedChoices.isNotEmpty()) "" else
+                if (groups) "No groups on ${axis.uppercase()}." else "No tasks on ${axis.uppercase()} to route through."
+            tvAxisHint.visibility = if (viewedChoices.isEmpty()) View.VISIBLE else View.GONE
             applyFilter(etSearch.text?.toString() ?: "")
             return
         }
@@ -356,8 +354,11 @@ class PickerDialog : DialogFragment() {
             // All groups section
             items += PickerItem.Header(
                 when {
-                    pathMode -> if (viewedAxisId == axisIds.lastOrNull()) "Parent group · ${viewedAxisId?.uppercase() ?: ""}"
-                                else "Route · ${viewedAxisId?.uppercase() ?: ""}"
+                    pathMode -> {
+                        val i = axisIds.indexOf(viewedAxisId)
+                        if (i >= 0 && !AxisPath.wantsGroups(i, picks.toList())) "Route · ${viewedAxisId?.uppercase() ?: ""}"
+                        else "Parent group · ${viewedAxisId?.uppercase() ?: ""}"
+                    }
                     else     -> viewedAxisId?.let { "All Groups · ${it.uppercase()}" } ?: "All Groups"
                 },
             )

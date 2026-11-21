@@ -135,48 +135,80 @@ class AxisRulesTest {
         assertFalse("L/a".startsWith(Axes.DEFINITION_DOOR))
     }
 
-    // ── the single '−': hidden everywhere unless a door shows it ─────────
+    // ── a routed entry: shown where its route matches this door, hidden everywhere else ──
 
-    @Test fun `hidden everywhere - hidden at every door that has no rule for it`() {
-        val all = listOf(t("a"), t("placed"))
-        assertEquals(setOf("a"), AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("placed")).map { it.id }.toSet())
+    private fun included(all: List<Task>, rules: Map<String, Boolean> = emptyMap(), hideNew: Boolean = false,
+                         hidden: Set<String> = emptySet(), shown: Set<String> = emptySet()) =
+        AxisAclRules.includedEntries(Axes.Y, all, rules, hideNew, hidden, shown).map { it.id }.toSet()
+
+    @Test fun `a routed entry is hidden at a door its route does not match`() {
+        assertEquals(setOf("a"), included(listOf(t("a"), t("placed")), hidden = setOf("placed")))
     }
 
-    @Test fun `hidden everywhere - a Show on one door adds it there only`() {
-        val all = listOf(t("a"), t("placed"))
-        val here = AxisAclRules.includedEntries(Axes.Y, all, mapOf("placed" to false), false, setOf("placed")).map { it.id }.toSet()
-        val elsewhere = AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("placed")).map { it.id }.toSet()
-        assertEquals(setOf("a", "placed"), here)
-        assertEquals(setOf("a"), elsewhere)
-    }
-
-    @Test fun `hidden everywhere - the door default does not matter, only Show lifts it`() {
+    @Test fun `a routed entry is shown where its route matches, whatever the door default`() {
         val all = listOf(t("placed"))
-        assertEquals(emptySet<String>(), AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("placed")).map { it.id }.toSet())
-        assertEquals(setOf("placed"), AxisAclRules.includedEntries(Axes.Y, all, mapOf("placed" to false), true, setOf("placed")).map { it.id }.toSet())
+        assertEquals(setOf("placed"), included(all, shown = setOf("placed")))
+        assertEquals(setOf("placed"), included(all, hideNew = true, shown = setOf("placed")))   // hide new does not lift or hide it
     }
 
-    @Test fun `hidden everywhere - a deeper entry in a shown group is placed on its own`() {
+    @Test fun `an explicit rule at a door beats the route`() {
+        val all = listOf(t("placed"))
+        assertEquals(emptySet<String>(), included(all, rules = mapOf("placed" to true), shown = setOf("placed")))    // Hide where it matches
+        assertEquals(setOf("placed"), included(all, rules = mapOf("placed" to false), hidden = setOf("placed")))     // Show where it does not
+    }
+
+    @Test fun `a routed entry in a shown group is placed on its own`() {
         val all = listOf(t("g", group = true), t("task", parent = "g"))
-        val shown = AxisAclRules.includedEntries(Axes.Y, all, mapOf("task" to false), false, setOf("task")).map { it.id }.toSet()
-        val others = AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("task")).map { it.id }.toSet()
-        assertEquals(setOf("g", "task"), shown)
-        assertEquals(setOf("g"), others)
+        assertEquals(setOf("g", "task"), included(all, shown = setOf("task")))
+        assertEquals(setOf("g"), included(all, hidden = setOf("task")))
     }
 
-    @Test fun `a group hidden everywhere locks what is inside it until a door shows the group`() {
+    @Test fun `a routed group locks what is inside it where its route does not match`() {
         val all = listOf(t("g", group = true), t("g1", parent = "g"))
-        assertEquals(emptySet<String>(), AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("g")).map { it.id }.toSet())
-        assertEquals(setOf("g", "g1"), AxisAclRules.includedEntries(Axes.Y, all, mapOf("g" to false), false, setOf("g")).map { it.id }.toSet())
+        assertEquals(emptySet<String>(), included(all, hidden = setOf("g")))
+        assertEquals(setOf("g", "g1"), included(all, shown = setOf("g")))
     }
 
-    @Test fun `a plain entry is unaffected by another entry being hidden everywhere`() {
-        val r = AxisAclRules.resolve(emptyList(), "a", emptyMap(), false, setOf("other"))
-        assertFalse(r.hidden)
+    @Test fun `an unrouted entry is unaffected by another entry's route`() {
+        assertFalse(AxisAclRules.resolve(emptyList(), "a", emptyMap(), false, setOf("other"), emptySet()).hidden)
     }
 
-    @Test fun `the ACL tab can tell inherited-hidden from a rule`() {
-        val r = AxisAclRules.resolve(emptyList(), "placed", emptyMap(), false, setOf("placed"))
-        assertTrue(r.hidden); assertEquals(AclChoice.INHERIT, r.choice); assertEquals(null, r.lockedByKey)
+    @Test fun `the ACL tab can tell a route from a rule`() {
+        val away = AxisAclRules.resolve(emptyList(), "placed", emptyMap(), false, hiddenHere = setOf("placed"))
+        assertTrue(away.hidden); assertEquals(AclChoice.INHERIT, away.choice); assertEquals(null, away.lockedByKey)
+        val here = AxisAclRules.resolve(emptyList(), "placed", emptyMap(), false, shownHere = setOf("placed"))
+        assertFalse(here.hidden); assertEquals(AclChoice.INHERIT, here.choice)
+    }
+
+    // ── route patterns ───────────────────────────────────────────────────
+
+    @Test fun `a route matches a door segment by segment, any matches anything`() {
+        assertTrue(AxisRoute.matches("type5/*", "type5/user1"))
+        assertTrue(AxisRoute.matches("type5/*", "type5/user2"))
+        assertFalse(AxisRoute.matches("type5/*", "type6/user1"))
+        assertTrue(AxisRoute.matches("*/user1", "type6/user1"))
+        assertTrue(AxisRoute.matches("type5/user1", "type5/user1"))
+        assertFalse(AxisRoute.matches("type5/user1", "type5/user2"))
+    }
+
+    @Test fun `a route never matches a door of a different depth`() {
+        assertFalse(AxisRoute.matches("type5", "type5/user1"))
+        assertFalse(AxisRoute.matches("type5/*", "type5"))
+    }
+
+    @Test fun `a place created later matches the route by itself`() {
+        assertTrue(AxisRoute.matches("type5/*", "type5/brand-new-user"))
+    }
+
+    @Test fun `a route is built from the picks, a skipped axis is any`() {
+        assertEquals("type5/*", AxisRoute.of(listOf("type5", null)))
+        assertEquals("*/user1", AxisRoute.of(listOf(null, "user1")))
+        assertEquals("type5", AxisRoute.of(listOf("type5")))
+    }
+
+    @Test fun `routes split into what a door shows and hides`() {
+        val at = AxisRoute.at(mapOf("a" to "type5/*", "b" to "type6/*", "c" to "*/user1"), "type5/user1")
+        assertEquals(setOf("a", "c"), at.shown); assertEquals(setOf("b"), at.hidden)
+        assertEquals(AxisRoute.AtDoor.NONE, AxisRoute.at(emptyMap(), "type5/user1"))
     }
 }

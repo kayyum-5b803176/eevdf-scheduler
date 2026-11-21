@@ -67,7 +67,7 @@ class TaskRepository @Inject constructor(
     /** Live ACL rules and door defaults, for the ACL tab. */
     val allAxisAcl: LiveData<List<AxisAcl>> = axisDao.getAllAcl()
     val allAxisDoors: LiveData<List<AxisDoor>> = axisDao.getAllDoors()
-    val allAxisEntryHidden: LiveData<List<AxisEntryHidden>> = axisDao.getAllEntryHidden()
+    val allAxisEntryRoutes: LiveData<List<AxisEntryRoute>> = axisDao.getAllEntryRoutes()
 
     /**
      * What the edit screen should show for [task]: which row its Config tab edits and which ACL (if any)
@@ -133,34 +133,30 @@ class TaskRepository @Inject constructor(
 
     // ── Axes: path mode (placing an entry only where it was picked) ──────────
 
-    /** Everything the picker's path mode needs to list each axis, read once. */
+    /** Everything the picker's path mode lists, read once. */
     suspend fun axisPathSnapshot(): AxisPath.Snapshot = withContext(Dispatchers.IO) {
         val nodes = axisDao.getAllNodesSync().mapTo(HashSet()) { it.taskId }
         AxisPath.Snapshot(
-            firstAxisRows    = dao.getActiveTasksSync().filter { it.id !in nodes },
-            definitions      = Axes.ALL.drop(1).flatMap { dao.getActiveTasksOfAxisSync(it) },
-            acl              = axisDao.getAllAclSync(),
-            doors            = axisDao.getAllDoorsSync(),
-            hiddenEverywhere = axisDao.getAllEntryHiddenSync().mapTo(HashSet()) { it.definitionId },
-            containers       = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId },
+            firstAxisRows = dao.getActiveTasksSync().filter { it.id !in nodes },
+            definitions   = Axes.ALL.drop(1).flatMap { dao.getActiveTasksOfAxisSync(it) },
+            containers    = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId },
         )
     }
 
     /**
-     * Place [taskId] only at [door]: the single '−' (hidden everywhere) and a '+' on that door. Whatever
-     * placed it elsewhere before — Show/Hide rules, an earlier path — is cleared. Writes rules only; the
-     * copies follow when the entry is saved (insert / update / move all reconcile), so write this FIRST for
-     * a new entry and no copy is ever made in a place it should not be.
+     * Place [taskId] only where [route] says (an [AxisRoute] pattern: `type5/<any>` = under type5, any user). Whatever
+     * placed it before — Show/Hide rules, an earlier route — is cleared. Writes rules only; the copies follow when the
+     * entry is saved (insert / update / move all reconcile), so write this FIRST for a new entry and no copy is ever
+     * made in a place it should not be.
      */
-    suspend fun setAxisPlacement(taskId: String, door: String) = withContext(Dispatchers.IO) {
+    suspend fun setAxisRoute(taskId: String, route: String) = withContext(Dispatchers.IO) {
         axisDao.deleteAclOfChild(taskId)
-        axisDao.insertEntryHidden(AxisEntryHidden(taskId))
-        axisDao.upsertRule(AxisAcl(door, taskId, hidden = false))
+        axisDao.upsertEntryRoute(AxisEntryRoute(taskId, route))
     }
 
-    /** Back to the default: [taskId] is copied wherever it is included again (drops the single '−' and every rule placing it). */
+    /** Back to the default: [taskId] is copied wherever it is included again (drops its route and every rule placing it). */
     suspend fun clearAxisPlacement(taskId: String) = withContext(Dispatchers.IO) {
-        axisDao.deleteEntryHidden(taskId)
+        axisDao.deleteEntryRoute(taskId)
         axisDao.deleteAclOfChild(taskId)
     }
 
@@ -194,12 +190,12 @@ class TaskRepository @Inject constructor(
     }
 
     /** What moving [task] to [targetAxis] would cost — for the confirmation. */
-    suspend fun axisMovePreview(task: Task, targetAxis: String, door: String? = null): AxisMovePreview = withContext(Dispatchers.IO) {
+    suspend fun axisMovePreview(task: Task, targetAxis: String, route: String? = null): AxisMovePreview = withContext(Dispatchers.IO) {
         val current = dao.getTaskById(task.id) ?: return@withContext AxisMovePreview.NONE
         if (targetAxis == current.axisId) {
-            // Same axis. Only a path re-places it: copies outside the picked door would go.
-            if (door == null || current.axisId == Axes.DEFAULT) return@withContext AxisMovePreview.NONE
-            val outside = axisDao.getNodesOfDefinition(current.id).count { it.scopeKey != door }
+            // Same axis. Only a route re-places it: copies at doors the route does not match would go.
+            if (route == null || current.axisId == Axes.DEFAULT) return@withContext AxisMovePreview.NONE
+            val outside = axisDao.getNodesOfDefinition(current.id).count { !AxisRoute.matches(route, it.scopeKey) }
             return@withContext AxisMovePreview(1, outside, 0, resetsRuntime = false, blockedByRunning = false)
         }
         val set = collectMove(current)
@@ -240,11 +236,11 @@ class TaskRepository @Inject constructor(
      *  - later axis → later axis: every copy of it goes; copies of the new axis appear by reconcile
      * ACL rules that named the moved rows are dropped (they listed another axis). The id stays.
      */
-    suspend fun moveToAxis(edited: Task, door: String? = null): Boolean = withContext(Dispatchers.IO) {
+    suspend fun moveToAxis(edited: Task, route: String? = null): Boolean = withContext(Dispatchers.IO) {
         val current = dao.getTaskById(edited.id) ?: return@withContext false
         val target = edited.axisId
         if (target == current.axisId) {
-            if (door != null) setAxisPlacement(edited.id, door)
+            if (route != null) setAxisRoute(edited.id, route)
             update(edited); return@withContext true
         }
         if (!Axes.isKnown(target)) return@withContext false
@@ -264,7 +260,7 @@ class TaskRepository @Inject constructor(
                 detachLinks(row)
                 interruptReturnDao.clearByTask(row.id)
                 // The ACL rules that named this row, and the doors it opened, listed the OLD axis.
-                axisDao.deleteAclOfChild(row.id); axisDao.deleteEntryHidden(row.id)
+                axisDao.deleteAclOfChild(row.id); axisDao.deleteEntryRoute(row.id)
                 axisDao.deleteAclUnder(row.id); axisDao.deleteDoorsUnder(row.id)
                 axisDao.deleteAclUnder(Axes.definitionDoor(row.id)); axisDao.deleteDoorsUnder(Axes.definitionDoor(row.id))
                 axisDao.deleteContainerOf(row.id)
@@ -274,8 +270,8 @@ class TaskRepository @Inject constructor(
                 if (target != Axes.DEFAULT) next = next.asTemplate()
                 dao.update(next)
             }
-            // A path placement is written before the copies are reconciled, so none appear elsewhere.
-            if (door != null) setAxisPlacement(edited.id, door)
+            // A route is written before the copies are reconciled, so none appear elsewhere.
+            if (route != null) setAxisRoute(edited.id, route)
             true
         }
         if (!moved) return@withContext false
@@ -329,7 +325,7 @@ class TaskRepository @Inject constructor(
             .groupBy { it.scopeKey }
             .mapValues { (_, rows) -> rows.associate { it.childKey to it.hidden } }
         val hideNewByDoor = axisDao.getAllDoorsSync().associate { it.scopeKey to it.newChildrenHidden }
-        val hiddenEverywhere = axisDao.getAllEntryHiddenSync().mapTo(HashSet()) { it.definitionId }
+        val routes = axisDao.getAllEntryRoutesSync().associate { it.definitionId to it.route }
         var changed = false
 
         // One level per pass: first-axis leaves, then the copies they got, then theirs…
@@ -354,7 +350,7 @@ class TaskRepository @Inject constructor(
                                   else node.scopeKey == onlyUnder || node.scopeKey.startsWith("$onlyUnder/")
                     if (!inScope) continue
                 }
-                changed = reconcileUnder(p, node, containers, byId, defs, rulesByDoor, hideNewByDoor, hiddenEverywhere, byScope) || changed
+                changed = reconcileUnder(p, node, containers, byId, defs, rulesByDoor, hideNewByDoor, routes, byScope) || changed
             }
         }
         if (changed) {
@@ -368,7 +364,7 @@ class TaskRepository @Inject constructor(
     private suspend fun reconcileUnder(
         p: Task, pNode: AxisNode?, containers: Set<String>, byId: Map<String, Task>,
         defs: Map<String, List<Task>>, rulesByDoor: Map<String, Map<String, Boolean>>,
-        hideNewByDoor: Map<String, Boolean>, hiddenEverywhere: Set<String>, byScope: Map<String, List<AxisNode>>,
+        hideNewByDoor: Map<String, Boolean>, routes: Map<String, String>, byScope: Map<String, List<AxisNode>>,
     ): Boolean {
         val next  = Axes.next(pNode?.axisId ?: Axes.DEFAULT) ?: return false
         val scope = AxisReconcile.childScope(p, pNode)
@@ -379,7 +375,9 @@ class TaskRepository @Inject constructor(
         val layer = pNode?.let { Axes.definitionDoor(it.definitionId) }
         val rules = AxisAclRules.merge(layer?.let { rulesByDoor[it] }.orEmpty(), rulesByDoor[scope].orEmpty())
         val hideNew = AxisAclRules.effectiveHideNew(hideNewByDoor[scope], layer?.let { hideNewByDoor[it] })
-        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), rules, hideNew, existing, hiddenEverywhere)
+        // A routed entry (placed on a path) is shown where its pattern matches this door, hidden everywhere else.
+        val route = AxisRoute.at(routes, scope)
+        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), rules, hideNew, existing, route.hidden, route.shown)
         var changed = false
 
         // 1. switched off / deleted definitions: their copies go (a running copy is left until it stops)
@@ -772,7 +770,7 @@ class TaskRepository @Inject constructor(
         loadFactorDao.clearByTask(task.id)
         // Axes: this entry as a definition (every scope), and as an outer leaf (every scope under it).
         axisDao.deleteAclOfChild(task.id)
-        axisDao.deleteEntryHidden(task.id)
+        axisDao.deleteEntryRoute(task.id)
         axisDao.deleteAclUnder(task.id)
         axisDao.deleteDoorsUnder(task.id)
         if (task.axisId != Axes.DEFAULT) {   // a definition's own door goes with it
