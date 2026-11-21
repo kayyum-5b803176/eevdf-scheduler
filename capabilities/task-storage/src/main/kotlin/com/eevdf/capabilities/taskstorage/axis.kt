@@ -122,6 +122,9 @@ interface AxisDao {
     suspend fun deleteExclusionsOf(entryId: String)
 
     // ── instances ────────────────────────────────────────────────────────
+    @Query("SELECT * FROM axis_instance")
+    fun getAllInstances(): LiveData<List<AxisInstance>>
+
     @Query("SELECT * FROM axis_instance WHERE scopeKey = :scopeKey")
     suspend fun getInstances(scopeKey: String): List<AxisInstance>
 

@@ -5,6 +5,60 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.57.0 — Axes: the Schedule tab shows the real x → y → z tree
+
+Includes everything in 6.56.0 (built and passed). No database change, `versionCode` untouched. With no y/z
+entries nothing looks or behaves differently.
+
+### Fixed (6.56.0 got this wrong)
+6.56.0 only appended `Y: a › Z: p` to the category line of the X card. Every axis chains to the one above it, so
+the Schedule tab must show the structure, not just the winner. That text is removed.
+
+### Added
+- **Schedule tab tree.** A first-axis leaf holds its included second-axis entries the way a group holds children;
+  each second-axis leaf holds its included third-axis entries, and so on:
+
+      x   Task-1            ▾
+       y  Entry a           ▾      attached under THIS x leaf
+        z Item p                   attached under THIS y leaf
+       y  Entry b           ▸
+      x   Task-2            ▸
+
+  Same cards as every other row, indented by depth, with the group expand arrow on any leaf that has entries
+  under it, a small axis badge (`Y`, `Z`) on later-axis rows, and hierarchical numbers (`1`, `1.1`, `1.1.1`).
+- **Own copy, own runtime.** The same definition under two outer entries is two rows with two identities
+  (axis, scope, id) and each shows ITS scope's vruntime, quota, DL budget and run count. Switch-offs are applied
+  per outer entry, so counts and children differ per leaf.
+- **Collapsed by default.** A leaf's children are built only when opened (one count per leaf otherwise), so
+  1000 × 1000 stays manageable. A group inside a scope starts open like any group. Both survive restarts.
+- **Run order.** Each level is ordered DL → RT → EEVDF over its own siblings, the same order the run's descent
+  picks, so the first child of a level is what runs next there.
+- **Class filter at every level** (Deadline / Realtime / Fair), by each entry's own class; a group stays only as
+  context while a matching entry sits inside it.
+- `AxisScheduleRows` (pure, `task-storage`) builds the rows from data and never mutates the shared lists.
+  `TaskDisplayItem` gains `axisId`, `scopeKey`, `axisChildScope`, `axisChildCount`, `isAxisRow`; the diff
+  identity now includes axis and scope.
+
+### Behaviour on later-axis rows
+Long-press edits the shared definition (every copy changes). Run and Complete are refused with a toast. Sleep,
+wake, revert and reset-slice are hidden (they would write one scope's runtime back onto the definition). Delete
+asks first and says it removes the entry everywhere it is included.
+
+### Not changed on purpose
+Next / Auto / rotate still read the ORIGINAL schedule list, never the tree, so they can only ever choose a
+first-axis task. The tree has its own rendered list used only by the Schedule adapter. The timer still runs the
+first-axis leaf's slice; later axes are the rotation inside it.
+
+### Verified / not verified
+`axis-schedule-rows-test.kt`: no later entries → list untouched; collapsed default (arrow + count, no rows);
+expanded rows with scope/depth/numbers; z under a y leaf; same definition under two leaves has two identities;
+per-leaf switch-offs and all-off; per-scope runtime; order by vruntime; groups open/closed; groups and link rows
+get no children; class filter keeps group context; inputs never mutated. **Not built, not run.** On the phone:
+Schedule tab → arrow on an X leaf → Y entries appear under it → arrow on a Y entry → Z entries appear under that
+one; open a second X leaf and confirm its Y entries show their own numbers.
+
+---
+
 ## 6.56.0 — Axes: runs credit the x → y → z path, Schedule shows it, Z checklist
 
 Includes everything in 6.55.0 (built and passed). No database change, `versionCode` untouched. With no y/z entries

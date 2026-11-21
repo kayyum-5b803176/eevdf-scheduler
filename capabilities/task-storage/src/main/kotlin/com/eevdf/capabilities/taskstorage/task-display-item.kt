@@ -187,7 +187,24 @@ data class TaskDisplayItem(
      * Wait list (0 everywhere else). Display-only.
      */
     val waitPosition: Int = 0,
+    /**
+     * Axis identity. The same definition appears once per scope, so a row is identified by
+     * (axisId, scopeKey, task.id), not task.id alone. The first axis, scope "" is every row that
+     * existed before axes. [scopeKey] is the ids of the leaves picked on the outer axes ("L", "L/a").
+     */
+    val axisId: String = Axes.DEFAULT,
+    val scopeKey: String = "",
+    /**
+     * Non-null when this LEAF has next-axis entries included under it (the key its children live
+     * under, and the key of its expand state). Shown as the same expand arrow a group has.
+     */
+    val axisChildScope: String? = null,
+    /** How many next-axis entries are included under this leaf (0 = none, no arrow). */
+    val axisChildCount: Int = 0,
 ) {
+    /** A later-axis row (or a row inside a later scope): a shared definition shown with its own runtime. */
+    val isAxisRow: Boolean get() = axisId != Axes.DEFAULT || scopeKey.isNotEmpty()
+
     /** True for either a [symlinkId] or [membershipId] row — a "links" row, not the task's primary appearance. */
     val isLinkRow: Boolean get() = symlinkId != null || membershipId != null
 }

@@ -316,6 +316,8 @@ class TaskViewModel @Inject constructor(
     /** Axis state (Queue-tab axis, include/exclude checklist) — see [AxisFacade]. */
     val axes = AxisFacade(repository) { _queueDrillState.value = DrillState() }
     internal val listBuilder = ListBuilderDelegate(this)
+    /** The Schedule tab's axis tree — rendered list only; see [AxisScheduleDelegate]. */
+    internal val axisSchedule = AxisScheduleDelegate(this)
     internal val crud        = TaskCrudDelegate(this)
     internal val sleep       = SleepDelegate(this)
     internal val alarmOverrun = AlarmOverrunDelegate(this)
@@ -470,6 +472,7 @@ class TaskViewModel @Inject constructor(
 
         // ── Build flat lists (must come after repository + delegates are ready) ─
         listBuilder.setup()
+        axisSchedule.setup()
         flatActiveTasks   = listBuilder.flatActiveTasks
         flatScheduleOrder = listBuilder.flatScheduleOrder
     }

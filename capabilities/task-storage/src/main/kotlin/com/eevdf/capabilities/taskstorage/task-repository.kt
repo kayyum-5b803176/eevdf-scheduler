@@ -1048,24 +1048,12 @@ class TaskRepository @Inject constructor(
     private suspend fun anyLaterAxisEntries(): Boolean =
         Axes.ALL.drop(1).any { dao.getActiveTasksOfAxisSync(it).isNotEmpty() }
 
-    /**
-     * "Y: a › Z: p" for each first-axis leaf in [leaves] that has later-axis entries
-     * included (at most [limit] leaves; empty when no later axis has any entry, at no cost).
-     * Display only — the same descent the run uses.
-     */
-    suspend fun axisPathTexts(leaves: List<Task>, limit: Int = 200): Map<String, String> = withContext(Dispatchers.IO) {
-        if (!anyLaterAxisEntries()) return@withContext emptyMap()
-        val nowMs = clock.nowEpochMillis()
-        val cache = HashMap<String, List<Task>>()
-        val out = LinkedHashMap<String, String>()
-        for (leaf in leaves.asSequence().filter { !it.isGroup && it.axisId == Axes.DEFAULT }.take(limit)) {
-            val path = pathFrom(leaf, nowMs, cache)
-            if (path.size > 1) out[leaf.id] = path.drop(1).joinToString(" \u203A ") { "${it.axisId.uppercase()}: ${it.entry.name}" }
-        }
-        out
-    }
-
     val allAxisExclusions: LiveData<List<AxisExclusion>> = axisDao.getAllExclusions()
+    val allAxisInstances: LiveData<List<AxisInstance>> = axisDao.getAllInstances()
+    /** Active (awake) entries of every axis AFTER the first — what the Schedule tab hangs under first-axis leaves. */
+    val laterAxisTasks: LiveData<List<Task>> = MediatorLiveData<List<Task>>().apply {
+        addSource(dao.getActiveTasksNotOfAxis(Axes.DEFAULT)) { value = SleepRules.awake(it) }
+    }
 
     /** Credit the later axes for a run of first-axis leaf [leaf]: whichever entries the descent picks inside it. */
     private suspend fun creditLaterAxes(leaf: Task, secondsRan: Long) {

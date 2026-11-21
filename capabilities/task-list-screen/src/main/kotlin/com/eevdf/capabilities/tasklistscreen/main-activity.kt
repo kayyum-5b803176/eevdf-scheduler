@@ -529,7 +529,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeAdapter(showRank: Boolean = false, scheduleTab: Boolean = false) = TaskAdapter(
-        axisPathProvider     = { id -> if (scheduleTab) viewModel.axes.pathTextOf(id) else null },
+        onAxisToggle         = { item -> item.axisChildScope?.let { viewModel.axisSchedule.toggleLeaf(it) } },
         onTaskClick          = { /* tap does nothing — use long-press to edit */ },
         onTaskLongClick      = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
         else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
@@ -550,11 +550,12 @@ class MainActivity : AppCompatActivity() {
             // that manually at each call site was exactly how this drifted
             // out of sync with the type's own logic before.
             // Y/Z entries are definitions: they run through the X pick, never from their own card.
-            if (!scheduleTab && viewModel.axes.current != Axes.DEFAULT) {
+            if (item.isAxisRow || (!scheduleTab && viewModel.axes.current != Axes.DEFAULT)) {
                 Toast.makeText(this, "Run from the ${Axes.DEFAULT.uppercase()} tab — this axis is scheduled inside it", Toast.LENGTH_SHORT).show()
             } else viewModel.setCurrentTask(item.task, TaskInstanceRef.of(item))
         },
         onGroupToggle        = { item ->
+            if (item.isAxisRow) viewModel.axisSchedule.toggleGroup(item.scopeKey, item.task.id) else {
             val task  = item.task
             val style = if (scheduleTab) viewModel.scheduleListStyle.value else viewModel.queueListStyle.value
             if (style == TaskListStyle.DRILL_DOWN) {
@@ -568,6 +569,7 @@ class MainActivity : AppCompatActivity() {
                 updateBreadcrumb()
             } else if (scheduleTab) viewModel.toggleScheduleGroupExpanded(task)
             else viewModel.toggleQueueGroupExpanded(task)
+            }
         },
         onGroupToggleDeep    = { if (scheduleTab) viewModel.deepToggleScheduleGroupExpanded(it)
                                  else viewModel.deepToggleQueueGroupExpanded(it) },
@@ -613,8 +615,9 @@ class MainActivity : AppCompatActivity() {
             else             { if (!viewModel.getQueueExpanded(parent.id))    viewModel.toggleQueueGroupExpanded(parent) }
             parentId = parent.parentId
         }
-        val list = if (scheduleTab) viewModel.flatScheduleOrder.value else viewModel.flatActiveTasks.value
-        val index = list?.indexOfFirst { it.task.id == task.id && it.symlinkId == null && it.membershipId == null } ?: -1
+        // The Schedule tab scrolls its RENDERED list (axis rows included), so indexes must come from it.
+        val list = if (scheduleTab) scheduleAdapter.currentList else viewModel.flatActiveTasks.value
+        val index = list?.indexOfFirst { it.task.id == task.id && it.symlinkId == null && it.membershipId == null && !it.isAxisRow } ?: -1
         if (index >= 0) {
             scrollRange.release()   // an explicit "go there" must not be pushed back into the Auto Scroll box
             recyclerView.post { (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(index, 0) }
@@ -626,14 +629,6 @@ class MainActivity : AppCompatActivity() {
     private fun setupAdapters() {
         activeAdapter   = makeAdapter()
         scheduleAdapter = makeAdapter(showRank = true, scheduleTab = true)
-        // Schedule rows show the later-axis path ("Y: a › Z: p") under each first-axis leaf.
-        viewModel.listBuilder.scheduleDisplayList.observe(this) { items ->
-            lifecycleScope.launch { viewModel.axes.refreshPathTexts(items.map { it.task }) }
-        }
-        viewModel.axes.exclusionsChanged.observe(this) {
-            lifecycleScope.launch { viewModel.axes.refreshPathTexts(viewModel.listBuilder.scheduleDisplayList.value.orEmpty().map { it.task }) }
-        }
-        viewModel.axes.pathTexts.observe(this) { scheduleAdapter.notifyDataSetChanged() }
         completedAdapter = TaskAdapter(
             onTaskClick      = { /* tap does nothing */ },
             onTaskLongClick  = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
@@ -931,10 +926,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete(task: Task) {
-        val msg = if (task.isGroup)
-            "Delete group \"${task.name}\" and all its tasks?"
-        else
-            "Delete \"${task.name}\"?"
+        val msg = when {
+            // A later-axis entry is ONE definition shared by every outer entry that includes it.
+            task.axisId != Axes.DEFAULT ->
+                "Delete ${task.axisId.uppercase()} entry \"${task.name}\"" +
+                    (if (task.isGroup) " and everything in it" else "") + " everywhere it is included?"
+            task.isGroup -> "Delete group \"${task.name}\" and all its tasks?"
+            else         -> "Delete \"${task.name}\"?"
+        }
         MaterialAlertDialogBuilder(this)
             .setTitle("Delete")
             .setMessage(msg)

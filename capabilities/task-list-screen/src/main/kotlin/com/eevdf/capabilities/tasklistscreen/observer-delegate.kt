@@ -96,7 +96,7 @@ internal class ObserverDelegate(private val activity: MainActivity) {
         }
 
         // Schedule tab — flat group-aware list, or one drill-down level
-        activity.viewModel.listBuilder.scheduleDisplayList.observe(activity) { items ->
+        activity.viewModel.axisSchedule.scheduleRenderList.observe(activity) { items ->
             activity.scheduleAdapter.submitList(items)
             activity.scheduleAdapter.setRunningTask(activity.viewModel.currentInstanceRef.value)
             activity.updateScheduleRankBadge()

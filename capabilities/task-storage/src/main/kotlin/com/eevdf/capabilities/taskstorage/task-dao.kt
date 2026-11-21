@@ -166,6 +166,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE axisId = :axisId AND isCompleted = 0")
     suspend fun getActiveTasksOfAxisSync(axisId: String): List<Task>
 
+    @Query("SELECT * FROM tasks WHERE axisId != :axisId AND isCompleted = 0")
+    fun getActiveTasksNotOfAxis(axisId: String): LiveData<List<Task>>
+
     @Query("SELECT * FROM tasks WHERE axisId = :axisId AND isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
     fun getActiveGroupsOfAxis(axisId: String): LiveData<List<Task>>
 }

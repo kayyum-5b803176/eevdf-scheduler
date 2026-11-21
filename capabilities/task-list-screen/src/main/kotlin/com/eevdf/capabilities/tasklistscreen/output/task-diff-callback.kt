@@ -16,7 +16,10 @@ class DiffCallback : DiffUtil.ItemCallback<TaskDisplayItem>() {
     override fun areItemsTheSame(old: TaskDisplayItem, new: TaskDisplayItem) =
         old.task.id == new.task.id &&
         old.symlinkId == new.symlinkId &&
-        old.membershipId == new.membershipId
+        old.membershipId == new.membershipId &&
+        // The same definition shows once per scope (x leaf, y leaf…): the scope is part of the identity.
+        old.axisId == new.axisId &&
+        old.scopeKey == new.scopeKey
     override fun areContentsTheSame(old: TaskDisplayItem, new: TaskDisplayItem) =
         old == new
 }
