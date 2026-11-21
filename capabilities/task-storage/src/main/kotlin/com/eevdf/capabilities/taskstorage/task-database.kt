@@ -26,8 +26,10 @@ import com.eevdf.capabilities.taskstorage.Task
         MembershipAcl::class,           // ← new: per-placement child visibility (hardlink ACL)
         TaskWake::class,                // ← new: scheduled wake per task (task-wake)
         WakeReturn::class,              // ← new: the wake preempt return stack
+        AxisExclusion::class,           // ← new: per-outer-leaf switch-offs of another axis's entries
+        AxisInstance::class,            // ← new: private runtime per (scope, entry)
     ],
-    version  = 33,                      // ← bumped from 32 (task_wake + wake_return tables)
+    version  = 34,                      // ← bumped from 33 (tasks.axisId + axis_exclusion + axis_instance)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -40,6 +42,7 @@ abstract class TaskDatabase : RoomDatabase() {
     abstract fun taskMembershipDao(): TaskMembershipDao // ← new
     abstract fun membershipAclDao(): MembershipAclDao   // ← new: hardlink ACL
     abstract fun taskWakeDao(): TaskWakeDao             // ← new: scheduled wakes
+    abstract fun axisDao(): AxisDao                     // ← new: axis exclusions + instances
 
     companion object {
         @Volatile
@@ -640,6 +643,26 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /** version 33 → 34: axes. tasks.axisId (all existing rows = 'x') + two side tables. */
+        private val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN axisId TEXT NOT NULL DEFAULT 'x'")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `axis_exclusion` (" +
+                        "`outerKey` TEXT NOT NULL, `axisId` TEXT NOT NULL, `entryId` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`outerKey`, `axisId`, `entryId`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `axis_instance` (" +
+                        "`scopeKey` TEXT NOT NULL, `entryId` TEXT NOT NULL, " +
+                        "`vruntime` REAL NOT NULL, `quotaUsedSeconds` INTEGER NOT NULL, " +
+                        "`quotaPeriodStartEpoch` INTEGER NOT NULL, `dlPeriodStartEpoch` INTEGER NOT NULL, " +
+                        "`dlRuntimeUsedSeconds` INTEGER NOT NULL, `totalRunTime` INTEGER NOT NULL, " +
+                        "`runCount` INTEGER NOT NULL, PRIMARY KEY(`scopeKey`, `entryId`))"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -656,6 +679,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                         MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
+                        MIGRATION_33_34,
                     )
                     .build()
                 INSTANCE = instance

@@ -282,7 +282,15 @@ data class Task(
     val semaphoreEnabled: Boolean = false,
     val semaphoreLimit: Int = SemaphoreRules.DEFAULT_LIMIT,
     var semaphoreHeld: Boolean = false,
-    var semaphoreQueuedAt: Long = 0L
+    var semaphoreQueuedAt: Long = 0L,
+
+    // ── Axis ──────────────────────────────────────────────────────────────────
+    //
+    // Which axis definition tree this row belongs to (see [Axes]). Every row that
+    // existed before axes is "x". The same model is reused unchanged for every
+    // axis: quota, share, class, DL/RT, hierarchy all mean the same thing on
+    // each. Read by every list query and scheduler pass, hence on the row.
+    val axisId: String = Axes.DEFAULT
 ) {
     /** True while this task's OWN sleep is active (a sleeping ancestor is checked by [SleepRules]). */
     val isAsleep: Boolean get() = sleepUntilEpoch > 0L

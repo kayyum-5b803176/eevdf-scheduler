@@ -1,5 +1,6 @@
 package com.eevdf.capabilities.backuprestore.logic
 
+import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.SemaphoreRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.kernel.clock.Clock
@@ -134,6 +135,7 @@ object BackupManager {
         put("semaphoreLimit", t.semaphoreLimit)
         put("semaphoreHeld", t.semaphoreHeld)
         put("semaphoreQueuedAt", t.semaphoreQueuedAt)
+        put("axisId", t.axisId)
     }
 
     private fun taskFromJson(j: JSONObject): Task = Task(
@@ -197,6 +199,7 @@ object BackupManager {
         semaphoreLimit       = j.optInt("semaphoreLimit", SemaphoreRules.DEFAULT_LIMIT),
         semaphoreHeld        = j.optBoolean("semaphoreHeld", false),
         semaphoreQueuedAt    = j.optLong("semaphoreQueuedAt", 0L),
+        axisId               = j.optString("axisId", Axes.DEFAULT),
     )
 
     // ── Multi-user sync (preserves live timer state) ─────────────────────────────

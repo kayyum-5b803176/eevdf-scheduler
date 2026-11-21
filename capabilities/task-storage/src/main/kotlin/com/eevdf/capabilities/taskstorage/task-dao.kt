@@ -6,20 +6,20 @@ import com.eevdf.capabilities.taskstorage.Task
 
 @Dao
 interface TaskDao {
-    @Query("SELECT * FROM tasks ORDER BY virtualDeadline ASC, priority DESC")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' ORDER BY virtualDeadline ASC, priority DESC")
     fun getAllTasks(): LiveData<List<Task>>
 
-    @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY virtualDeadline ASC")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isCompleted = 0 ORDER BY virtualDeadline ASC")
     fun getActiveTasks(): LiveData<List<Task>>
 
-    @Query("SELECT * FROM tasks WHERE isCompleted = 1 ORDER BY createdAt DESC")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isCompleted = 1 ORDER BY createdAt DESC")
     fun getCompletedTasks(): LiveData<List<Task>>
 
     /** Suspend/sync variant of [getCompletedTasks] — used by
      *  TaskRepository.clearCompleted() to run per-task deleteOrPromote instead
      *  of a single bulk DELETE, so a completed task with a surviving hardlink
      *  placement elsewhere is promoted rather than destroyed outright. */
-    @Query("SELECT * FROM tasks WHERE isCompleted = 1")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isCompleted = 1")
     suspend fun getCompletedTasksSync(): List<Task>
 
     @Query("SELECT * FROM tasks WHERE id = :id")
@@ -27,7 +27,7 @@ interface TaskDao {
 
     /** First non-completed task matching the given name — used as a restart
      *  fallback when the in-memory expired task is gone (e.g. process death). */
-    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND name = :name LIMIT 1")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isCompleted = 0 AND name = :name LIMIT 1")
     suspend fun getActiveTaskByName(name: String): Task?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -49,7 +49,7 @@ interface TaskDao {
     @Query("UPDATE tasks SET isRunning = 0")
     suspend fun stopAllRunning()
 
-    @Query("SELECT * FROM tasks WHERE isCompleted = 0")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isCompleted = 0")
     suspend fun getActiveTasksSync(): List<Task>
 
     /**
@@ -62,23 +62,23 @@ interface TaskDao {
     suspend fun updateScheduleCache(items: List<ScheduleCache>)
 
     /** All non-completed tasks whose parent is the given id (or root if null). */
-    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND parentId IS :parentId")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isCompleted = 0 AND parentId IS :parentId")
     suspend fun getChildrenOf(parentId: String?): List<Task>
 
     /** All group tasks (containers) that are not completed. */
-    @Query("SELECT * FROM tasks WHERE isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
     fun getActiveGroups(): LiveData<List<Task>>
 
     /** Returns the task/group flagged as interrupt for slot A, or null if none assigned. */
-    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND interruptSlot = 'A' AND isCompleted = 0 LIMIT 1")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isInterrupt = 1 AND interruptSlot = 'A' AND isCompleted = 0 LIMIT 1")
     suspend fun getInterruptTask(): Task?
 
     /** Returns the task/group flagged as interrupt for slot B, or null if none assigned. */
-    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND interruptSlot = 'B' AND isCompleted = 0 LIMIT 1")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isInterrupt = 1 AND interruptSlot = 'B' AND isCompleted = 0 LIMIT 1")
     suspend fun getInterruptTaskB(): Task?
 
     /** Returns the task/group flagged as interrupt, or null if none assigned. */
-    @Query("SELECT * FROM tasks WHERE isInterrupt = 1 AND isCompleted = 0 LIMIT 1")
+    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isInterrupt = 1 AND isCompleted = 0 LIMIT 1")
     suspend fun getAnyInterruptTask(): Task?
 
     /** Returns the task currently running with a live epoch anchor, or null.
@@ -156,4 +156,16 @@ interface TaskDao {
      */
     @Query("SELECT DISTINCT category FROM tasks WHERE category != '' ORDER BY category ASC")
     fun getDistinctCategories(): LiveData<List<String>>
+
+    // ── Axis-aware reads (y, z, …). The queries above are X-only on purpose:
+    //    every existing screen and scheduler pass keeps seeing exactly today's rows.
+
+    @Query("SELECT * FROM tasks WHERE axisId = :axisId AND isCompleted = 0 ORDER BY virtualDeadline ASC")
+    fun getActiveTasksOfAxis(axisId: String): LiveData<List<Task>>
+
+    @Query("SELECT * FROM tasks WHERE axisId = :axisId AND isCompleted = 0")
+    suspend fun getActiveTasksOfAxisSync(axisId: String): List<Task>
+
+    @Query("SELECT * FROM tasks WHERE axisId = :axisId AND isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
+    fun getActiveGroupsOfAxis(axisId: String): LiveData<List<Task>>
 }

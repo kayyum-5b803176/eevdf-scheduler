@@ -5,6 +5,34 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.53.0 — Axes (x, y, z): data layer
+
+Includes everything in 6.52.0. **Database 33 → 34.** `versionCode` untouched. No visible change yet: every
+existing row is axis `x`, every existing screen and scheduler pass sees exactly the rows it saw before.
+
+### Added
+- **Generic axes.** `Axes` (`x`, `y`, `z`) is only a list of ids; nothing in code assumes what an axis means.
+  Each axis has one definition tree made of ordinary `Task` rows tagged with `Task.axisId` (default `x`).
+- **`axis_exclusion` table.** Per outer leaf, which definition entries of the next axis are switched OFF.
+  Default is included; only exclusions are stored. Switching a group off removes its whole subtree.
+- **`axis_instance` table.** Private runtime per (scope, entry): vruntime, quota used, DL period, run count.
+  Created on first run, never up front. Scope key = ids of the leaves picked on the outer axes, joined by `/`.
+- **`AxisRules`** (pure Kotlin) — which entries are included under an outer leaf. Unit-tested with the
+  user-1 (only a) / user-2 (b, c, a) example, group cascade, and a parent-cycle guard.
+- New axis-aware DAO reads for y/z (`getActiveTasksOfAxis`, `getActiveGroupsOfAxis`, …).
+
+### Changed
+- Every existing `TaskDao` read is now X-only (`axisId = 'x'`). Backup still reads all rows and now writes /
+  reads `axisId`.
+- `tasks` freeze list: `axisId` added as the narrow exception (read on every list query and scheduler pass;
+  sync snapshots the Task row). Everything else is in the two new tables.
+
+### Not yet
+Axis-descent selection, repository delete hooks for the new tables, Queue-tab axis popup, include toggles,
+Schedule-tab path rows. **Not built, not run:** regenerate the Room schema for v34 and run `verifyAll`.
+
+---
+
 ## 6.52.0 — Wake popup: each box selects its value when it gets focus
 
 Includes everything in 6.51.1. No database change, no layout change, `versionCode` untouched.
