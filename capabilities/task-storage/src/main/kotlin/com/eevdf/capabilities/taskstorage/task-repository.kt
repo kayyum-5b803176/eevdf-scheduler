@@ -25,6 +25,7 @@ class TaskRepository @Inject constructor(
     private val taskLinkDao: TaskLinkDao,               // ← new: symlinks
     private val taskMembershipDao: TaskMembershipDao,   // ← new: hardlinks
     private val membershipAclDao: MembershipAclDao,     // ← new: hardlink ACL (hidden direct children)
+    private val axisDao: AxisDao,                       // ← new: axis exclusions + per-scope runtime
     /** Kernel event bus — publishes `task.saved` (rule 3: bus-only, never a direct call out). */
     private val bus: EventBus,
     /** Single source of "now" for every scheduling decision (kernel rule 1) —
@@ -398,6 +399,11 @@ class TaskRepository @Inject constructor(
         dao.delete(task)
         interruptReturnDao.clearByTask(task.id)
         loadFactorDao.clearByTask(task.id)
+        // Axes: this entry as a definition (every scope), and as an outer leaf (every scope under it).
+        axisDao.deleteExclusionsOf(task.id)
+        axisDao.deleteInstancesOf(task.id)
+        axisDao.deleteExclusionsUnder(task.id)
+        axisDao.deleteInstancesUnder(task.id)
         // ACL rows first: their cleanup subqueries read task_memberships, which is
         // about to lose the very rows that name them.
         membershipAclDao.deleteByMembershipsOfTask(task.id)           // ACLs of this task's own placements
@@ -983,6 +989,46 @@ class TaskRepository @Inject constructor(
         // not re-read per RT/DL check — so a single decision can't observe two
         // different instants of "now" (kernel rule 1).
         selectNextCgroup(allActive, null, nowMs = clock.nowEpochMillis())
+    }
+
+    /**
+     * The full x → y → z outcome: the first axis's leaf, then — inside it — each
+     * following axis's leaf (see [AxisDescent]). Same single sampled "now" and
+     * the same per-level selection as [selectNextTask]; the path's first element
+     * is always exactly what [selectNextTask] returns. Empty when nothing is runnable.
+     */
+    suspend fun selectNextPath(): List<AxisPick> = withContext(Dispatchers.IO) {
+        val nowMs = clock.nowEpochMillis()
+        val first = selectNextCgroup(awakeActiveSync(), null, nowMs = nowMs) ?: return@withContext emptyList()
+        AxisDescent.descend(
+            firstLeaf   = first,
+            definitions = { axis -> SleepRules.awake(dao.getActiveTasksOfAxisSync(axis)) },
+            excluded    = { axis, scope -> axisDao.getExclusions(scope, axis).mapTo(HashSet()) { it.entryId } },
+            instances   = { scope -> axisDao.getInstances(scope).associateBy { it.entryId } },
+            pickLevel   = { level -> selectNextCgroup(level, null, nowMs = nowMs) },
+        )
+    }
+
+    /**
+     * Credit [secondsRan] to every y/z step of [path] in its own scope — vruntime,
+     * quota and DL budget advance on the PRIVATE instance only; the shared
+     * definition row is never written. The first axis keeps its existing credit
+     * path ([updateVruntimeAfterRun]) and is skipped here.
+     */
+    suspend fun creditAxisRun(path: List<AxisPick>, secondsRan: Long) = withContext(Dispatchers.IO) {
+        val nowMs = clock.nowEpochMillis()
+        for (step in path) {
+            if (step.axisId == Axes.ALL.first()) continue
+            val t = step.entry.copy()
+            EEVDFScheduler.updateVruntime(t, secondsRan)          // vruntime, totalRunTime, runCount
+            if (t.isQuotaEnabled) {
+                val decayed = if (t.quotaPeriodStartEpoch == 0L) 0L else t.currentQuotaUsed(nowMs)
+                t.quotaPeriodStartEpoch = nowMs
+                t.quotaUsedSeconds = (decayed + secondsRan).coerceAtLeast(0L)
+            }
+            applyDlAccounting(t, secondsRan)
+            axisDao.upsertInstance(t.toAxisInstance(step.scopeKey))
+        }
     }
 
     private fun selectNextCgroup(

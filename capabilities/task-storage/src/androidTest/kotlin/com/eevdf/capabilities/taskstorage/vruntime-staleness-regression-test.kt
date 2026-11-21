@@ -70,6 +70,7 @@ class VruntimeStalenessRegressionTest {
             taskLinkDao = db.taskLinkDao(),
             taskMembershipDao = db.taskMembershipDao(),
             membershipAclDao = db.membershipAclDao(),
+            axisDao = db.axisDao(),
             // A real (not Fake) bus: this is an androidTest, not a capability
             // unit test, so it isn't covered by kernel/testing's FakeBus
             // exception — a real EventBus over a real Supervisor is just as

@@ -5,6 +5,41 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.54.0 — Axes: x → y → z selection and per-scope accounting
+
+Includes everything in 6.53.0 (which built and passed). No database change, no UI change, `versionCode`
+untouched. Nothing calls the new API yet, so running behaviour is identical to 6.53.0.
+
+### Added
+- **`AxisDescent`** (pure Kotlin). Starting from the first axis's leaf, each following axis: take its
+  definition entries → drop the ones this scope switched off (children follow parents) → overlay each
+  survivor's private runtime for the scope → let the existing per-level pass resolve the whole hierarchy to a
+  leaf. If an axis has nothing included or runnable, the descent stops and the path so far stands — with no
+  y/z definitions that is exactly today's behaviour.
+- **`TaskRepository.selectNextPath()`** — the full x → y → z outcome. Same single sampled "now" and the same
+  per-level selection (`selectNextCgroup`: DL > RT > EEVDF) used once per axis; the first element is always
+  what `selectNextTask()` returns.
+- **`TaskRepository.creditAxisRun(path, seconds)`** — vruntime, quota and DL budget advance on the PRIVATE
+  `axis_instance` of each y/z step; the shared definition row is never written. The first axis keeps its
+  existing credit path.
+- `AxisPick`, `AxisInstance.applyTo` / `Task.toAxisInstance` (overlay and its inverse).
+
+### Changed
+- `forceDelete` now also clears `axis_exclusion` / `axis_instance` rows for the deleted entry, both as a
+  definition (any scope) and as an outer leaf (every scope under it).
+- `TaskRepository` takes `AxisDao` (Hilt binding `provideAxisDao` added; androidTest constructor updated).
+
+### Verified / not verified
+`axis-descent-test.kt`: no y/z → path is the first leaf; scope keys `""`, `L`, `L/a`; per-outer-leaf
+exclusions; all-excluded stops (z never reached); runtime overlay is per scope; nothing runnable stops;
+instance ↔ overlay round-trip. **Not built, not run** — run `verifyAll`.
+
+### Not yet
+Wiring the running timer to `selectNextPath`/`creditAxisRun`, Queue-tab axis popup, add/edit on the selected
+axis, include toggles on x cards, Schedule-tab path rows.
+
+---
+
 ## 6.53.0 — Axes (x, y, z): data layer
 
 Includes everything in 6.52.0. **Database 33 → 34.** `versionCode` untouched. No visible change yet: every

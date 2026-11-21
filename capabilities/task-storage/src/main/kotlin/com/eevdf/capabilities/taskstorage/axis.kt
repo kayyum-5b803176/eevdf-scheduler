@@ -171,3 +171,68 @@ object AxisRules {
         return defs.values.filter { isIncluded(it, defs, excludedIds) }
     }
 }
+
+/**
+ * One step of the descent: on [axisId], inside [scopeKey], [entry] was picked.
+ * [entry] is the definition overlaid with this scope's private runtime, so it
+ * can be handed straight to the existing scheduler/quota helpers.
+ */
+data class AxisPick(val axisId: String, val scopeKey: String, val entry: Task)
+
+/** Overlay this instance's private runtime onto the shared definition. */
+fun AxisInstance.applyTo(definition: Task): Task = definition.copy(
+    vruntime              = vruntime,
+    quotaUsedSeconds      = quotaUsedSeconds,
+    quotaPeriodStartEpoch = quotaPeriodStartEpoch,
+    dlPeriodStartEpoch    = dlPeriodStartEpoch,
+    dlRuntimeUsedSeconds  = dlRuntimeUsedSeconds,
+    totalRunTime          = totalRunTime,
+    runCount              = runCount,
+)
+
+/** Read back the private runtime of an overlaid [entry] (the inverse of [applyTo]). */
+fun Task.toAxisInstance(scopeKey: String) = AxisInstance(
+    scopeKey = scopeKey, entryId = id,
+    vruntime = vruntime, quotaUsedSeconds = quotaUsedSeconds,
+    quotaPeriodStartEpoch = quotaPeriodStartEpoch,
+    dlPeriodStartEpoch = dlPeriodStartEpoch, dlRuntimeUsedSeconds = dlRuntimeUsedSeconds,
+    totalRunTime = totalRunTime, runCount = runCount,
+)
+
+/**
+ * The x → y → z descent, as a pure function. It owns NO scheduling policy:
+ * each axis's own pass (hierarchy, DL > RT > EEVDF) is [pickLevel], which the
+ * repository supplies from the existing selection code.
+ *
+ * Starting from the first axis's already-picked leaf, for every following axis:
+ *   1. take that axis's definition entries ([definitions]),
+ *   2. drop the ones this scope switched off ([excluded], children follow parents),
+ *   3. overlay each survivor's private runtime for this scope ([instances]),
+ *   4. let [pickLevel] resolve the whole hierarchy to one leaf.
+ * If an axis has nothing included (or nothing runnable) the descent stops there
+ * and the path so far stands — which is also exactly today's behaviour when no
+ * y/z definitions exist.
+ */
+object AxisDescent {
+
+    suspend fun descend(
+        firstLeaf: Task,
+        definitions: suspend (axisId: String) -> List<Task>,
+        excluded: suspend (axisId: String, scopeKey: String) -> Set<String>,
+        instances: suspend (scopeKey: String) -> Map<String, AxisInstance>,
+        pickLevel: (List<Task>) -> Task?,
+    ): List<AxisPick> {
+        val path = mutableListOf(AxisPick(Axes.ALL.first(), "", firstLeaf))
+        for (axisId in Axes.ALL.drop(1)) {
+            // scope = leaves picked on every OUTER axis, outermost first
+            val scope = Axes.scopeKey(path.map { it.entry.id })
+            val included = AxisRules.includedEntries(axisId, definitions(axisId), excluded(axisId, scope))
+            if (included.isEmpty()) break
+            val inst = instances(scope)
+            val level = included.map { d -> inst[d.id]?.applyTo(d) ?: d }
+            val picked = pickLevel(level) ?: break
+            path += AxisPick(axisId, scope, picked)
+        }
+        return path
+    }
+}

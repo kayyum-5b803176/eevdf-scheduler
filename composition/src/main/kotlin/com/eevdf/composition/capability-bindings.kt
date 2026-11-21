@@ -21,6 +21,7 @@ import com.eevdf.capabilities.runhistory.RunLogDao
 import com.eevdf.capabilities.runhistory.RunLogRepository
 import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
 import com.eevdf.capabilities.settingsstorage.state.AppPreferences
+import com.eevdf.capabilities.taskstorage.AxisDao
 import com.eevdf.capabilities.taskstorage.InterruptReturnDao
 import com.eevdf.capabilities.taskstorage.MembershipAclDao
 import com.eevdf.capabilities.taskstorage.TaskDao
@@ -234,6 +235,9 @@ object CapabilityBindings {
 
     @Provides
     fun provideMembershipAclDao(db: TaskDatabase): MembershipAclDao = db.membershipAclDao()
+
+    @Provides
+    fun provideAxisDao(db: TaskDatabase): AxisDao = db.axisDao()
 
     @Provides
     fun provideTaskWakeDao(db: TaskDatabase): TaskWakeDao = db.taskWakeDao()
