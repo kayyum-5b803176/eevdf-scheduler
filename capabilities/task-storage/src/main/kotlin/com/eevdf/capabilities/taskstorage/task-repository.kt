@@ -12,6 +12,8 @@ import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -69,6 +71,130 @@ class TaskRepository @Inject constructor(
     suspend fun setAxisIncluded(outerKey: String, axisId: String, entryId: String, included: Boolean) = withContext(Dispatchers.IO) {
         if (included) axisDao.include(outerKey, axisId, entryId)
         else axisDao.exclude(AxisExclusion(outerKey, axisId, entryId))
+    }
+
+    // ── Axes: real copies ────────────────────────────────────────────────────
+    //
+    // A later-axis definition is a template. Under every first-axis leaf (and under each copy
+    // that is itself a leaf) its included definitions exist as REAL child rows — see [Axes].
+    // [reconcileAxes] is the one place that creates, refreshes and removes them; it is idempotent,
+    // so running it again, from anywhere, only ever repairs.
+
+    private val axisMutex = Mutex()
+
+    /** Live set of copies — lets screens badge a row as a copy and send an edit to its definition. */
+    val allAxisNodes: LiveData<List<AxisNode>> = axisDao.getAllNodes()
+
+    /**
+     * Bring the real copies in step with the definitions and the include switches.
+     * [onlyUnder] limits the pass to one first-axis leaf (new leaf / changed switches);
+     * null = everywhere (startup, edited or deleted definition).
+     */
+    suspend fun reconcileAxes(onlyUnder: String? = null) = withContext(Dispatchers.IO) {
+        axisMutex.withLock { reconcileAxesLocked(onlyUnder) }
+    }
+
+    /** Deleting a copy by hand is switching that definition off for its scope, so it does not come back. */
+    private suspend fun excludeIfCopy(taskId: String) {
+        val node = axisDao.getNodeOf(taskId) ?: return
+        axisDao.exclude(AxisExclusion(node.scopeKey, node.axisId, node.definitionId))
+    }
+
+    private suspend fun reconcileAxesLocked(onlyUnder: String?) {
+        val laterAxes = Axes.ALL.drop(1)
+        val defs = laterAxes.associateWith { dao.getActiveTasksOfAxisSync(it) }
+        // Nothing defined and nothing created: the common case costs these three reads.
+        if (defs.values.all { it.isEmpty() } && axisDao.getAllNodesSync().isEmpty() &&
+            axisDao.getAllContainersSync().isEmpty()) return
+
+        val exclusions = axisDao.getAllExclusionsSync()
+            .groupBy { "${it.outerKey}\u0000${it.axisId}" }
+            .mapValues { (_, rows) -> rows.mapTo(HashSet()) { it.entryId } }
+        var changed = false
+
+        // One level per pass: first-axis leaves, then the copies they got, then theirs…
+        for (level in 0 until laterAxes.size) {
+            val tasks      = dao.getActiveTasksSync()
+            val byId       = tasks.associateBy { it.id }
+            val nodes      = axisDao.getAllNodesSync()
+            val nodeOf     = nodes.associateBy { it.taskId }
+            val containers = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId }
+            // A copy row whose task is gone (not merely completed) is stale: forget it.
+            nodes.filter { it.taskId !in byId && dao.getTaskById(it.taskId) == null }
+                .forEach { axisDao.deleteNodeOf(it.taskId) }
+            val byScope = nodes.groupBy { it.scopeKey }
+
+            for (p in tasks) {
+                val node = nodeOf[p.id]
+                val axisLevel = if (node == null) 0 else Axes.ALL.indexOf(node.axisId)
+                if (axisLevel != level || p.isInterrupt || p.isRunning) continue
+                if (p.isGroup && p.id !in containers) continue                 // a real group holds real children only
+                if (onlyUnder != null) {
+                    val inScope = if (node == null) p.id == onlyUnder
+                                  else node.scopeKey == onlyUnder || node.scopeKey.startsWith("$onlyUnder/")
+                    if (!inScope) continue
+                }
+                changed = reconcileUnder(p, node, containers, byId, defs, exclusions, byScope) || changed
+            }
+        }
+        if (changed) {
+            recalculateScheduleCache()
+            val pinned = EEVDFScheduler.syncPinnedWeights(dao.getActiveTasksSync())
+            if (pinned.isNotEmpty()) updateBatch(pinned)
+        }
+    }
+
+    /** One parent: create / refresh / remove its copies and make it a container while it has any. */
+    private suspend fun reconcileUnder(
+        p: Task, pNode: AxisNode?, containers: Set<String>, byId: Map<String, Task>,
+        defs: Map<String, List<Task>>, exclusions: Map<String, Set<String>>, byScope: Map<String, List<AxisNode>>,
+    ): Boolean {
+        val next  = Axes.next(pNode?.axisId ?: Axes.DEFAULT) ?: return false
+        val scope = AxisReconcile.childScope(p, pNode)
+        val existing = byScope[scope].orEmpty().mapNotNull { n ->
+            (byId[n.taskId] ?: dao.getTaskById(n.taskId))?.let { AxisReconcile.Existing(n, it) }
+        }
+        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), exclusions["$scope\u0000$next"].orEmpty(), existing)
+        var changed = false
+
+        // 1. switched off / deleted definitions: their copies go (a running copy is left until it stops)
+        for (e in plan.remove) {
+            if (e.task.isRunning) continue
+            forceDelete(e.task); changed = true
+        }
+
+        // 2. missing copies, parents first, each placed like any new arrival among its siblings
+        val includedIds = plan.included.mapTo(HashSet()) { it.id }
+        val copyOf = HashMap<String, String>().also { m -> plan.keep.forEach { (e, d) -> m[d.id] = e.task.id } }
+        val pool = byId.values.toMutableList()
+        val now  = clock.nowEpochMillis()
+        for (d in plan.create) {
+            val parentId = AxisReconcile.parentFor(d, includedIds, copyOf, p.id)
+            val copy = AxisReconcile.newCopy(d, java.util.UUID.randomUUID().toString(), parentId)
+            SemaphoreRules.stamp(copy, pool, now)
+            EEVDFScheduler.placeNewTask(copy, pool.filter { it.parentId == parentId && !it.isCompleted && !it.isAsleep })
+            dao.insert(copy)
+            axisDao.insertNode(AxisNode(copy.id, d.id, next, scope))
+            copyOf[d.id] = copy.id; pool += copy; changed = true
+        }
+
+        // 3. existing copies follow their definition (shared fields + where they hang)
+        for ((e, d) in plan.keep) {
+            val fresh = dao.getTaskById(e.task.id) ?: continue
+            if (fresh.isRunning) continue
+            val parentId = AxisReconcile.parentFor(d, includedIds, copyOf, p.id)
+            val updated  = fresh.sharingFrom(d).let { if (it.parentId != parentId) it.copy(parentId = parentId) else it }
+            if (updated != fresh) { dao.update(updated); changed = true }
+        }
+
+        // 4. the parent is a container exactly while it has copies
+        val freshP = dao.getTaskById(p.id) ?: return changed
+        if (plan.included.isNotEmpty() && !freshP.isGroup) {
+            dao.update(freshP.copy(isGroup = true)); axisDao.insertContainer(AxisContainer(p.id)); changed = true
+        } else if (plan.included.isEmpty() && p.id in containers && dao.getChildrenOf(p.id).isEmpty()) {
+            dao.update(freshP.copy(isGroup = false)); axisDao.deleteContainerOf(p.id); changed = true
+        }
+        return changed
     }
 
     // ── Links (symlinks) + Memberships (hardlinks) ────────────────────────────
@@ -255,6 +381,9 @@ class TaskRepository @Inject constructor(
         // capability that never touches TaskViewModel (group-picker,
         // links-screen, backup-restore's restore path).
         bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
+        // A new later-axis definition reaches every outer leaf; a new first-axis leaf gets its copies.
+        if (task.axisId != Axes.DEFAULT) reconcileAxes()
+        else if (!task.isGroup && !task.isInterrupt) reconcileAxes(onlyUnder = task.id)
     }
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
@@ -287,6 +416,8 @@ class TaskRepository @Inject constructor(
             }
         }
         bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
+        // An edited later-axis definition is pushed to every copy (a copy's own state is never touched).
+        if (task.axisId != Axes.DEFAULT) reconcileAxes()
     }
 
     /**
@@ -416,9 +547,14 @@ class TaskRepository @Inject constructor(
         loadFactorDao.clearByTask(task.id)
         // Axes: this entry as a definition (every scope), and as an outer leaf (every scope under it).
         axisDao.deleteExclusionsOf(task.id)
-        axisDao.deleteInstancesOf(task.id)
         axisDao.deleteExclusionsUnder(task.id)
-        axisDao.deleteInstancesUnder(task.id)
+        // A later-axis DEFINITION goes: every real copy of it goes too.
+        if (task.axisId != Axes.DEFAULT) {
+            axisDao.getNodesOfDefinition(task.id).forEach { n -> dao.getTaskById(n.taskId)?.let { forceDelete(it) } }
+        }
+        // This row as a copy / as a container.
+        axisDao.deleteNodeOf(task.id)
+        axisDao.deleteContainerOf(task.id)
         // ACL rows first: their cleanup subqueries read task_memberships, which is
         // about to lose the very rows that name them.
         membershipAclDao.deleteByMembershipsOfTask(task.id)           // ACLs of this task's own placements
@@ -488,6 +624,7 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
+        excludeIfCopy(task.id)
         val parentId = dao.getTaskById(task.id)?.parentId ?: task.parentId
         deleteOrPromote(task)
         // A holder that is deleted frees its slot for the next waiter.
@@ -521,7 +658,7 @@ class TaskRepository @Inject constructor(
      * the old bulk query never performed.
      */
     suspend fun clearCompleted() = withContext(Dispatchers.IO) {
-        dao.getCompletedTasksSync().forEach { forceDelete(it) }
+        dao.getCompletedTasksSync().forEach { excludeIfCopy(it.id); forceDelete(it) }
     }
 
     suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) { dao.getTaskById(id) }
@@ -633,23 +770,19 @@ class TaskRepository @Inject constructor(
      *   See [creditAncestors] for the shared walk that applies this
      *   uniformly at whichever level the boundary actually falls.
      */
-    /**
-     * Credits a finished run. The first axis is credited exactly as before; then, inside
-     * the same leaf, whichever later-axis entries the descent picks are credited the
-     * same seconds on their private instances (see [creditAxisRun]). Every caller —
-     * timer expiry, pause, recovery, call-switch, bubble — gets this for free.
-     */
     suspend fun updateVruntimeAfterRun(
         task: Task,
         session: RunSession,
         membershipId: String? = null,
     ): Task {
-        val result = updateVruntimeAfterRunFirstAxis(task, session, membershipId)
-        withContext(Dispatchers.IO) { creditLaterAxes(task, session.wallClockSeconds) }
+        val result = creditRun(task, session, membershipId)
+        // A leaf cannot become a container while it runs; catch up the moment it stops.
+        val root = withContext(Dispatchers.IO) { axisDao.getNodeOf(task.id) }?.scopeKey?.substringBefore('/') ?: task.id
+        reconcileAxes(onlyUnder = root)
         return result
     }
 
-    private suspend fun updateVruntimeAfterRunFirstAxis(
+    private suspend fun creditRun(
         task: Task,
         session: RunSession,
         membershipId: String? = null,
@@ -1020,69 +1153,6 @@ class TaskRepository @Inject constructor(
         // not re-read per RT/DL check — so a single decision can't observe two
         // different instants of "now" (kernel rule 1).
         selectNextCgroup(allActive, null, nowMs = clock.nowEpochMillis())
-    }
-
-    /**
-     * The full x → y → z outcome: the first axis's leaf, then — inside it — each
-     * following axis's leaf (see [AxisDescent]). Same single sampled "now" and
-     * the same per-level selection as [selectNextTask]; the path's first element
-     * is always exactly what [selectNextTask] returns. Empty when nothing is runnable.
-     */
-    suspend fun selectNextPath(): List<AxisPick> = withContext(Dispatchers.IO) {
-        val nowMs = clock.nowEpochMillis()
-        val first = selectNextCgroup(awakeActiveSync(), null, nowMs = nowMs) ?: return@withContext emptyList()
-        pathFrom(first, nowMs)
-    }
-
-    /** The y/z descent inside one already-chosen first-axis leaf. [defsCache] lets a batch load each axis once. */
-    private suspend fun pathFrom(
-        first: Task, nowMs: Long, defsCache: MutableMap<String, List<Task>> = HashMap(),
-    ): List<AxisPick> = AxisDescent.descend(
-        firstLeaf   = first,
-        definitions = { axis -> defsCache.getOrPut(axis) { SleepRules.awake(dao.getActiveTasksOfAxisSync(axis)) } },
-        excluded    = { axis, scope -> axisDao.getExclusions(scope, axis).mapTo(HashSet()) { it.entryId } },
-        instances   = { scope -> axisDao.getInstances(scope).associateBy { it.entryId } },
-        pickLevel   = { level -> selectNextCgroup(level, null, nowMs = nowMs) },
-    )
-
-    private suspend fun anyLaterAxisEntries(): Boolean =
-        Axes.ALL.drop(1).any { dao.getActiveTasksOfAxisSync(it).isNotEmpty() }
-
-    val allAxisExclusions: LiveData<List<AxisExclusion>> = axisDao.getAllExclusions()
-    val allAxisInstances: LiveData<List<AxisInstance>> = axisDao.getAllInstances()
-    /** Active (awake) entries of every axis AFTER the first — what the Schedule tab hangs under first-axis leaves. */
-    val laterAxisTasks: LiveData<List<Task>> = MediatorLiveData<List<Task>>().apply {
-        addSource(dao.getActiveTasksNotOfAxis(Axes.DEFAULT)) { value = SleepRules.awake(it) }
-    }
-
-    /** Credit the later axes for a run of first-axis leaf [leaf]: whichever entries the descent picks inside it. */
-    private suspend fun creditLaterAxes(leaf: Task, secondsRan: Long) {
-        if (leaf.isGroup || leaf.axisId != Axes.DEFAULT || secondsRan <= 0L) return
-        if (!anyLaterAxisEntries()) return
-        val path = pathFrom(leaf, clock.nowEpochMillis())
-        if (path.size > 1) creditAxisRun(path, secondsRan)
-    }
-
-    /**
-     * Credit [secondsRan] to every y/z step of [path] in its own scope — vruntime,
-     * quota and DL budget advance on the PRIVATE instance only; the shared
-     * definition row is never written. The first axis keeps its existing credit
-     * path ([updateVruntimeAfterRun]) and is skipped here.
-     */
-    suspend fun creditAxisRun(path: List<AxisPick>, secondsRan: Long) = withContext(Dispatchers.IO) {
-        val nowMs = clock.nowEpochMillis()
-        for (step in path) {
-            if (step.axisId == Axes.ALL.first()) continue
-            val t = step.entry.copy()
-            EEVDFScheduler.updateVruntime(t, secondsRan)          // vruntime, totalRunTime, runCount
-            if (t.isQuotaEnabled) {
-                val decayed = if (t.quotaPeriodStartEpoch == 0L) 0L else t.currentQuotaUsed(nowMs)
-                t.quotaPeriodStartEpoch = nowMs
-                t.quotaUsedSeconds = (decayed + secondsRan).coerceAtLeast(0L)
-            }
-            applyDlAccounting(t, secondsRan)
-            axisDao.upsertInstance(t.toAxisInstance(step.scopeKey))
-        }
     }
 
     private fun selectNextCgroup(

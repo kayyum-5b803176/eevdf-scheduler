@@ -529,7 +529,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeAdapter(showRank: Boolean = false, scheduleTab: Boolean = false) = TaskAdapter(
-        onAxisToggle         = { item -> item.axisChildScope?.let { viewModel.axisSchedule.toggleLeaf(it) } },
+        axisBadgeProvider    = { id -> viewModel.axes.badgeOf(id) },
         onTaskClick          = { /* tap does nothing — use long-press to edit */ },
         onTaskLongClick      = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
         else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
@@ -550,12 +550,11 @@ class MainActivity : AppCompatActivity() {
             // that manually at each call site was exactly how this drifted
             // out of sync with the type's own logic before.
             // Y/Z entries are definitions: they run through the X pick, never from their own card.
-            if (item.isAxisRow || (!scheduleTab && viewModel.axes.current != Axes.DEFAULT)) {
+            if (!scheduleTab && viewModel.axes.current != Axes.DEFAULT) {
                 Toast.makeText(this, "Run from the ${Axes.DEFAULT.uppercase()} tab — this axis is scheduled inside it", Toast.LENGTH_SHORT).show()
             } else viewModel.setCurrentTask(item.task, TaskInstanceRef.of(item))
         },
         onGroupToggle        = { item ->
-            if (item.isAxisRow) viewModel.axisSchedule.toggleGroup(item.scopeKey, item.task.id) else {
             val task  = item.task
             val style = if (scheduleTab) viewModel.scheduleListStyle.value else viewModel.queueListStyle.value
             if (style == TaskListStyle.DRILL_DOWN) {
@@ -569,7 +568,6 @@ class MainActivity : AppCompatActivity() {
                 updateBreadcrumb()
             } else if (scheduleTab) viewModel.toggleScheduleGroupExpanded(task)
             else viewModel.toggleQueueGroupExpanded(task)
-            }
         },
         onGroupToggleDeep    = { if (scheduleTab) viewModel.deepToggleScheduleGroupExpanded(it)
                                  else viewModel.deepToggleQueueGroupExpanded(it) },
@@ -615,9 +613,8 @@ class MainActivity : AppCompatActivity() {
             else             { if (!viewModel.getQueueExpanded(parent.id))    viewModel.toggleQueueGroupExpanded(parent) }
             parentId = parent.parentId
         }
-        // The Schedule tab scrolls its RENDERED list (axis rows included), so indexes must come from it.
-        val list = if (scheduleTab) scheduleAdapter.currentList else viewModel.flatActiveTasks.value
-        val index = list?.indexOfFirst { it.task.id == task.id && it.symlinkId == null && it.membershipId == null && !it.isAxisRow } ?: -1
+        val list = if (scheduleTab) viewModel.flatScheduleOrder.value else viewModel.flatActiveTasks.value
+        val index = list?.indexOfFirst { it.task.id == task.id && it.symlinkId == null && it.membershipId == null } ?: -1
         if (index >= 0) {
             scrollRange.release()   // an explicit "go there" must not be pushed back into the Auto Scroll box
             recyclerView.post { (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(index, 0) }
@@ -629,6 +626,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupAdapters() {
         activeAdapter   = makeAdapter()
         scheduleAdapter = makeAdapter(showRank = true, scheduleTab = true)
+        // Badges depend on which rows are copies; that set changes only when copies are made or removed.
+        viewModel.axes.nodes.observe(this) { activeAdapter.notifyDataSetChanged(); scheduleAdapter.notifyDataSetChanged() }
         completedAdapter = TaskAdapter(
             onTaskClick      = { /* tap does nothing */ },
             onTaskLongClick  = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
@@ -917,16 +916,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTaskDetail(task: Task, membershipId: String? = null) {
+        // A copy of a later-axis definition follows that definition: editing it edits the definition,
+        // and every copy is brought in step. (Its own timer / sleep / completed state is not edited here.)
+        val definition = viewModel.axes.definitionOf(task.id)
+        if (definition != null) {
+            Toast.makeText(this, "Editing the shared ${definition.second.uppercase()} definition", Toast.LENGTH_SHORT).show()
+        }
         startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK).apply {
-            putExtra("task_id", task.id)
-            putExtra("axis_id", task.axisId)
+            putExtra("task_id", definition?.first ?: task.id)
+            putExtra("axis_id", definition?.second ?: task.axisId)
             // Only when launched from a hardlink row: AddTaskActivity shows the ACL tab.
             if (membershipId != null) putExtra("membership_id", membershipId)
         })
     }
 
     private fun confirmDelete(task: Task) {
+        val copyAxis = viewModel.axes.badgeOf(task.id)
         val msg = when {
+            // A copy: only this one goes, and it stays off (switch it back on from Axis inclusion).
+            copyAxis != null ->
+                "Remove \"${task.name}\"" + (if (task.isGroup) " and everything in it" else "") +
+                    " from here? It stays defined on $copyAxis; switch it back on from Axis inclusion."
             // A later-axis entry is ONE definition shared by every outer entry that includes it.
             task.axisId != Axes.DEFAULT ->
                 "Delete ${task.axisId.uppercase()} entry \"${task.name}\"" +

@@ -3,8 +3,10 @@ package com.eevdf.capabilities.taskstorage
 import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
+import androidx.room.PrimaryKey
 import androidx.room.Query
 
 /**
@@ -14,19 +16,22 @@ import androidx.room.Query
  * `x`, `y`, `z`, and later any other id appended to [Axes.ALL]. "User",
  * "activity", "process" are explanations in a design discussion, never code.
  *
- * Model (see the design notes in the project history):
- *  - Every axis has ONE definition tree: ordinary [Task] rows whose
- *    [Task.axisId] is that axis (x rows are every row that existed before axes).
- *    Edit a definition once and every instance sees it.
- *  - Selection descends in [Axes.ALL] order. The first axis resolves its whole
- *    hierarchy to a leaf; INSIDE that leaf the next axis resolves its own
- *    hierarchy to a leaf; and so on. Each pass orders only its own siblings
- *    with its own scheduler classes, so nothing starves at any count.
- *  - The next axis's definition entries are, by default, ALL included under
- *    every outer leaf. The user switches entries off per outer leaf
- *    ([AxisExclusion]); only the exclusions are stored.
- *  - An included entry has its OWN runtime accounting per outer leaf
- *    ([AxisInstance]); it is created on first run, never up front.
+ * Model:
+ *  - Every axis after the first has ONE definition tree: ordinary [Task] rows whose
+ *    [Task.axisId] is that axis. A definition is a TEMPLATE — it is never scheduled
+ *    itself. Every row that existed before axes is "x" (the executed pool).
+ *  - A first-axis LEAF holds the next axis's included definitions as REAL child rows
+ *    (axisId "x", real [Task.parentId]); each of those leaves holds the axis after
+ *    that the same way. The parent turns into a container (isGroup) while it has
+ *    any, exactly like a group — so the timer, Next, rotate, run history, sleep,
+ *    wake, semaphore, completed, backup and sync all work on them with no special
+ *    case, and a run credits the node, then every ancestor, as it does for any child.
+ *  - Definitions are edited once; [AxisReconcile] keeps every copy's shared fields
+ *    in step. Per-copy state (timer, vruntime, quota used, completed, sleep…) is the
+ *    copy's own and is never overwritten.
+ *  - Everything is included by default; the user switches entries off per outer
+ *    leaf ([AxisExclusion]); only the exclusions are stored. Deleting a copy by hand
+ *    is the same switch-off, so it does not come back.
  */
 object Axes {
     const val X = "x"
@@ -73,26 +78,31 @@ data class AxisExclusion(
 )
 
 /**
- * Private runtime state of ONE definition entry inside ONE scope.
+ * Marks a real task row as a COPY of a later-axis definition.
  *
- * Properties (quota size, share, class, slice…) always come from the shared
- * definition [Task]; only what CHANGES while running lives here, so two
- * outer leaves running the same definition never affect each other.
- *
- * Absent row = fresh instance (all zero); created on first credited run.
+ * [taskId]       the copy (axisId "x", a real child of its parent)
+ * [definitionId] the template it follows
+ * [axisId]       which axis the template lives on ("y", "z", …)
+ * [scopeKey]     where the copy lives: the scope its parent opens ([AxisReconcile.childScope]).
+ *                (scopeKey, definitionId) is unique — one copy per definition per scope.
  */
-@Entity(tableName = "axis_instance", primaryKeys = ["scopeKey", "entryId"])
-data class AxisInstance(
-    val scopeKey: String,
-    val entryId: String,
-    val vruntime: Double = 0.0,
-    val quotaUsedSeconds: Long = 0L,
-    val quotaPeriodStartEpoch: Long = 0L,
-    val dlPeriodStartEpoch: Long = 0L,
-    val dlRuntimeUsedSeconds: Long = 0L,
-    val totalRunTime: Long = 0L,
-    val runCount: Int = 0,
+@Entity(
+    tableName = "axis_node",
+    indices = [Index(value = ["scopeKey", "definitionId"], unique = true), Index(value = ["definitionId"])],
 )
+data class AxisNode(
+    @PrimaryKey val taskId: String,
+    val definitionId: String,
+    val axisId: String,
+    val scopeKey: String,
+)
+
+/**
+ * A row that is a container ONLY because later-axis copies hang under it (it was a leaf and
+ * was flipped to a group). Lets it flip back when the last copy goes. A real group is never listed.
+ */
+@Entity(tableName = "axis_container")
+data class AxisContainer(@PrimaryKey val taskId: String)
 
 @Dao
 interface AxisDao {
@@ -121,27 +131,34 @@ interface AxisDao {
     @Query("DELETE FROM axis_exclusion WHERE entryId = :entryId")
     suspend fun deleteExclusionsOf(entryId: String)
 
-    // ── instances ────────────────────────────────────────────────────────
-    @Query("SELECT * FROM axis_instance")
-    fun getAllInstances(): LiveData<List<AxisInstance>>
+    // ── nodes (copies) ───────────────────────────────────────────────────
+    @Query("SELECT * FROM axis_node")
+    fun getAllNodes(): LiveData<List<AxisNode>>
 
-    @Query("SELECT * FROM axis_instance WHERE scopeKey = :scopeKey")
-    suspend fun getInstances(scopeKey: String): List<AxisInstance>
+    @Query("SELECT * FROM axis_node")
+    suspend fun getAllNodesSync(): List<AxisNode>
 
-    @Query("SELECT * FROM axis_instance")
-    suspend fun getAllInstancesSync(): List<AxisInstance>
+    @Query("SELECT * FROM axis_node WHERE taskId = :taskId")
+    suspend fun getNodeOf(taskId: String): AxisNode?
 
-    @Query("SELECT * FROM axis_instance WHERE scopeKey = :scopeKey AND entryId = :entryId")
-    suspend fun getInstance(scopeKey: String, entryId: String): AxisInstance?
+    @Query("SELECT * FROM axis_node WHERE definitionId = :definitionId")
+    suspend fun getNodesOfDefinition(definitionId: String): List<AxisNode>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertInstance(row: AxisInstance)
+    suspend fun insertNode(node: AxisNode)
 
-    @Query("DELETE FROM axis_instance WHERE entryId = :entryId")
-    suspend fun deleteInstancesOf(entryId: String)
+    @Query("DELETE FROM axis_node WHERE taskId = :taskId")
+    suspend fun deleteNodeOf(taskId: String)
 
-    @Query("DELETE FROM axis_instance WHERE scopeKey = :id OR scopeKey LIKE :id || '/%' OR scopeKey LIKE '%/' || :id || '/%' OR scopeKey LIKE '%/' || :id")
-    suspend fun deleteInstancesUnder(id: String)
+    // ── containers ───────────────────────────────────────────────────────
+    @Query("SELECT * FROM axis_container")
+    suspend fun getAllContainersSync(): List<AxisContainer>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertContainer(row: AxisContainer)
+
+    @Query("DELETE FROM axis_container WHERE taskId = :taskId")
+    suspend fun deleteContainerOf(taskId: String)
 }
 
 /** Pure rules — no Android, no database: testable with plain lists. */
@@ -172,71 +189,6 @@ object AxisRules {
     ): List<Task> {
         val defs = all.asSequence().filter { it.axisId == axisId }.associateBy { it.id }
         return defs.values.filter { isIncluded(it, defs, excludedIds) }
-    }
-}
-
-/**
- * One step of the descent: on [axisId], inside [scopeKey], [entry] was picked.
- * [entry] is the definition overlaid with this scope's private runtime, so it
- * can be handed straight to the existing scheduler/quota helpers.
- */
-data class AxisPick(val axisId: String, val scopeKey: String, val entry: Task)
-
-/** Overlay this instance's private runtime onto the shared definition. */
-fun AxisInstance.applyTo(definition: Task): Task = definition.copy(
-    vruntime              = vruntime,
-    quotaUsedSeconds      = quotaUsedSeconds,
-    quotaPeriodStartEpoch = quotaPeriodStartEpoch,
-    dlPeriodStartEpoch    = dlPeriodStartEpoch,
-    dlRuntimeUsedSeconds  = dlRuntimeUsedSeconds,
-    totalRunTime          = totalRunTime,
-    runCount              = runCount,
-)
-
-/** Read back the private runtime of an overlaid [entry] (the inverse of [applyTo]). */
-fun Task.toAxisInstance(scopeKey: String) = AxisInstance(
-    scopeKey = scopeKey, entryId = id,
-    vruntime = vruntime, quotaUsedSeconds = quotaUsedSeconds,
-    quotaPeriodStartEpoch = quotaPeriodStartEpoch,
-    dlPeriodStartEpoch = dlPeriodStartEpoch, dlRuntimeUsedSeconds = dlRuntimeUsedSeconds,
-    totalRunTime = totalRunTime, runCount = runCount,
-)
-
-/**
- * The x → y → z descent, as a pure function. It owns NO scheduling policy:
- * each axis's own pass (hierarchy, DL > RT > EEVDF) is [pickLevel], which the
- * repository supplies from the existing selection code.
- *
- * Starting from the first axis's already-picked leaf, for every following axis:
- *   1. take that axis's definition entries ([definitions]),
- *   2. drop the ones this scope switched off ([excluded], children follow parents),
- *   3. overlay each survivor's private runtime for this scope ([instances]),
- *   4. let [pickLevel] resolve the whole hierarchy to one leaf.
- * If an axis has nothing included (or nothing runnable) the descent stops there
- * and the path so far stands — which is also exactly today's behaviour when no
- * y/z definitions exist.
- */
-object AxisDescent {
-
-    suspend fun descend(
-        firstLeaf: Task,
-        definitions: suspend (axisId: String) -> List<Task>,
-        excluded: suspend (axisId: String, scopeKey: String) -> Set<String>,
-        instances: suspend (scopeKey: String) -> Map<String, AxisInstance>,
-        pickLevel: (List<Task>) -> Task?,
-    ): List<AxisPick> {
-        val path = mutableListOf(AxisPick(Axes.ALL.first(), "", firstLeaf))
-        for (axisId in Axes.ALL.drop(1)) {
-            // scope = leaves picked on every OUTER axis, outermost first
-            val scope = Axes.scopeKey(path.map { it.entry.id })
-            val included = AxisRules.includedEntries(axisId, definitions(axisId), excluded(axisId, scope))
-            if (included.isEmpty()) break
-            val inst = instances(scope)
-            val level = included.map { d -> inst[d.id]?.applyTo(d) ?: d }
-            val picked = pickLevel(level) ?: break
-            path += AxisPick(axisId, scope, picked)
-        }
-        return path
     }
 }
 
@@ -272,3 +224,86 @@ object AxisChecklist {
             .mapTo(HashSet()) { it.id }
     }
 }
+
+/**
+ * Keeping the real copies in step with the definitions. Pure: it only decides, the
+ * repository applies. See [Axes] for the model.
+ */
+object AxisReconcile {
+
+    /** A copy that already exists: its node row and its task row. */
+    data class Existing(val node: AxisNode, val task: Task)
+
+    /**
+     * @param create   definitions that have no copy here yet, parents before children
+     * @param remove   copies whose definition is no longer included (switched off or deleted)
+     * @param keep     copies to refresh, with the definition they follow
+     * @param included every definition included here (its size is the number of copies wanted)
+     */
+    data class Plan(
+        val create: List<Task>,
+        val remove: List<Existing>,
+        val keep: List<Pair<Existing, Task>>,
+        val included: List<Task>,
+    )
+
+    fun plan(axisId: String, defs: List<Task>, excluded: Set<String>, existing: List<Existing>): Plan {
+        val included = AxisRules.includedEntries(axisId, defs, excluded)
+        val inc      = included.associateBy { it.id }
+        val have     = existing.associateBy { it.node.definitionId }
+        return Plan(
+            create   = included.filter { it.id !in have }.sortedBy { depth(it, inc) },
+            remove   = existing.filter { it.node.definitionId !in inc },
+            keep     = existing.filter { it.node.definitionId in inc }.map { it to inc.getValue(it.node.definitionId) },
+            included = included,
+        )
+    }
+
+    private fun depth(t: Task, inc: Map<String, Task>): Int {
+        var d = 0; var cur: Task? = t; val seen = HashSet<String>()
+        while (cur != null && seen.add(cur.id)) { cur = cur.parentId?.let { inc[it] }; if (cur != null) d++ }
+        return d
+    }
+
+    /** The scope the children of [parent] live in: its own id for a first-axis row, else its node's path. */
+    fun childScope(parent: Task, parentNode: AxisNode?): String =
+        if (parentNode == null) parent.id else "${parentNode.scopeKey}/${parentNode.definitionId}"
+
+    /** Where a copy of [def] hangs: under the copy of its parent definition if that is included here, else under [fallbackParentId]. */
+    fun parentFor(def: Task, includedIds: Set<String>, copyOf: Map<String, String>, fallbackParentId: String): String =
+        def.parentId?.takeIf { it in includedIds }?.let { copyOf[it] } ?: fallbackParentId
+
+    /** A fresh copy of [def]: shared fields from the definition, its own runtime from zero. */
+    fun newCopy(def: Task, id: String, parentId: String): Task =
+        Task(id = id, name = def.name, priority = def.priority, timeSliceSeconds = def.timeSliceSeconds,
+            parentId = parentId, isGroup = def.isGroup, axisId = Axes.DEFAULT)
+            .sharingFrom(def)
+}
+
+/**
+ * The fields a copy takes from its definition. Everything that CHANGES while the copy lives —
+ * timer, vruntime, quota used, DL period, completed, sleep, semaphore slot, load average — is
+ * deliberately not in this list, so editing the definition never disturbs a running copy.
+ * `isGroup` and `parentId` are not here either: structure is decided by [AxisReconcile].
+ * `internalWeight` is derived per sibling pool, so each copy gets its own from the pin.
+ */
+fun Task.sharingFrom(def: Task): Task = copy(
+    name = def.name, description = def.description, priority = def.priority,
+    timeSliceSeconds = def.timeSliceSeconds,
+    // An untouched timer follows a new slice; a partly used one is left alone (same rule as inherited slices).
+    remainingSeconds = if (remainingSeconds == timeSliceSeconds) def.timeSliceSeconds else remainingSeconds,
+    timeSliceInherited = def.timeSliceInherited,
+    category = def.category, color = def.color,
+    taskType = def.taskType, notificationDelaySeconds = def.notificationDelaySeconds,
+    notificationRestSeconds = def.notificationRestSeconds, notificationRepeatCount = def.notificationRepeatCount,
+    resumeType = def.resumeType, pinnedShare = def.pinnedShare,
+    quotaSeconds = def.quotaSeconds, quotaPeriodSeconds = def.quotaPeriodSeconds,
+    schedulerClass = def.schedulerClass,
+    dlRuntimeSeconds = def.dlRuntimeSeconds, dlDeadlineSeconds = def.dlDeadlineSeconds, dlPeriodSeconds = def.dlPeriodSeconds,
+    rtPriority = def.rtPriority, rtPolicy = def.rtPolicy, rtActiveDays = def.rtActiveDays,
+    rtActivationHour = def.rtActivationHour, rtActivationMinute = def.rtActivationMinute,
+    rtActivationSecond = def.rtActivationSecond, rtSliceTimeoutSeconds = def.rtSliceTimeoutSeconds,
+    loadFactor = def.loadFactor, loadFactorInherited = def.loadFactorInherited,
+    sleepDurationSeconds = def.sleepDurationSeconds,
+    semaphoreEnabled = def.semaphoreEnabled, semaphoreLimit = def.semaphoreLimit,
+)

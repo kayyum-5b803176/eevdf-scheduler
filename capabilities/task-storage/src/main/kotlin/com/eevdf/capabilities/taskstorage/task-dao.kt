@@ -62,7 +62,7 @@ interface TaskDao {
     suspend fun updateScheduleCache(items: List<ScheduleCache>)
 
     /** All non-completed tasks whose parent is the given id (or root if null). */
-    @Query("SELECT * FROM tasks WHERE axisId = 'x' AND isCompleted = 0 AND parentId IS :parentId")
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND parentId IS :parentId AND (axisId = 'x' OR parentId IS NOT NULL)")
     suspend fun getChildrenOf(parentId: String?): List<Task>
 
     /** All group tasks (containers) that are not completed. */
@@ -165,9 +165,6 @@ interface TaskDao {
 
     @Query("SELECT * FROM tasks WHERE axisId = :axisId AND isCompleted = 0")
     suspend fun getActiveTasksOfAxisSync(axisId: String): List<Task>
-
-    @Query("SELECT * FROM tasks WHERE axisId != :axisId AND isCompleted = 0")
-    fun getActiveTasksNotOfAxis(axisId: String): LiveData<List<Task>>
 
     @Query("SELECT * FROM tasks WHERE axisId = :axisId AND isGroup = 1 AND isCompleted = 0 ORDER BY name ASC")
     fun getActiveGroupsOfAxis(axisId: String): LiveData<List<Task>>

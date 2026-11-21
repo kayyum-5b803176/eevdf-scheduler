@@ -5,6 +5,62 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.58.0 — Axes: later-axis entries are real nodes
+
+Includes everything in 6.57.0. **Database 34 → 35.** `versionCode` untouched. Run `scripts/apply-6.58.0-deletions.sh`
+after extracting. With no y/z entries defined nothing changes (one cheap check, then out).
+
+### Changed — this reverses three things 6.54.0–6.57.0 said were by design
+- **Y/Z entries are real rows.** An included definition exists under each first-axis leaf as an ordinary task
+  row (axisId `x`, a real `parentId`); a Y leaf holds its Z copies the same way. While it holds any, the parent
+  is a container (`isGroup`) and flips back when the last copy goes. So `z2` has its own timer, Run, Complete,
+  Sleep, Wake, Revert, semaphore slot, run history, alarm, backup and sync — every existing feature, because it
+  *is* an existing row. **Run and Complete are no longer refused** (only the Queue·Y/Z *definition* cards still
+  are: they are templates).
+- **Next / rotate / auto select them like child leaves of a real group.** Nothing in the selection code
+  changed — they are simply children now. The timer runs the node itself.
+- **A run credits the node, then every ancestor** (the existing `creditAncestors`), exactly as a child of a real
+  group. The 6.54.0 "credit all later axes the same seconds" step, `axis_instance`, `AxisDescent`,
+  `selectNextPath`, `creditAxisRun` and the 6.57.0 virtual tree are removed.
+
+### Added
+- `axis_node` (which row is a copy of which definition, and where), `axis_container` (leaves that are containers
+  only because copies hang under them). `AxisReconcile` (pure) decides create / refresh / remove;
+  `TaskRepository.reconcileAxes()` applies it, idempotent, serialised by a mutex.
+- **Definitions are edited once.** Saving a definition pushes its shared fields (name, priority, slice, class,
+  quota size, DL/RT settings, load factor, semaphore config…) to every copy. A copy's own state — timer,
+  vruntime, quota used, completed, sleep, wake, slot — is never overwritten, a running copy is left alone, an
+  untouched timer follows a new slice. Editing a copy from a list opens its definition.
+- **Per-scope switches decide existence.** Switching a definition off for a leaf removes that copy; switching
+  it on creates one. **Deleting a copy by hand is the same switch-off**, so it does not come back (also for
+  Clear completed). Deleting a definition deletes all its copies.
+- A small `Y` / `Z` badge on copies. Reconcile runs at startup, when a leaf or definition is added or edited, when
+  switches change, and right after each run (a leaf that was running when a definition appeared becomes a
+  container then).
+- `getChildrenOf(non-null id)` now finds children on any axis (it was first-axis-only since 6.53.0, which would
+  have left a Y group's children behind when it was deleted or when inherited slices propagated).
+
+### Know this
+- **Rows scale with what you include.** Every included pair is a real row (leaves × entries); default is
+  everything included, and the switches are how you control the count. The app keeps all active rows in memory,
+  so thousands of pairs are fine and a million are not.
+- The Queue tab (X) shows the copies as real children, because they are.
+- The 34-era `axis_instance` table is dropped; the first reconcile after upgrading creates the copies fresh.
+- A restore from the legacy `tasks.json` brings copies back as ordinary tasks (the node table is only in the
+  `.db` backup, which is what normal restore uses).
+
+### Verified / not verified
+`axis-reconcile-test.kt`: create / skip-existing / remove switched-off and deleted, group subtree, parents before
+children, one axis only; scope of a first-axis row and of a copy equals the checklist's key; parent placement;
+a copy takes the definition's fields with fresh runtime; editing never touches copy state; untouched timer follows
+a new slice; internal weight not copied. **Not built, not run.** On the phone: define two Y entries, open the
+Schedule tab — each X leaf is now a group holding them; run `a` under one leaf, then the same `a` under another and
+confirm their run counts differ; Complete one and confirm only that copy completes; Next from the top and confirm
+it lands on the first Y copy; delete a copy and confirm it stays gone; rename the definition and confirm every copy
+follows.
+
+---
+
 ## 6.57.0 — Axes: the Schedule tab shows the real x → y → z tree
 
 Includes everything in 6.56.0 (built and passed). No database change, `versionCode` untouched. With no y/z

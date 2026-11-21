@@ -27,9 +27,10 @@ import com.eevdf.capabilities.taskstorage.Task
         TaskWake::class,                // ← new: scheduled wake per task (task-wake)
         WakeReturn::class,              // ← new: the wake preempt return stack
         AxisExclusion::class,           // ← new: per-outer-leaf switch-offs of another axis's entries
-        AxisInstance::class,            // ← new: private runtime per (scope, entry)
+        AxisNode::class,                // ← new: marks a real row as a copy of a later-axis definition
+        AxisContainer::class,           // ← new: rows that are containers only because copies hang under them
     ],
-    version  = 34,                      // ← bumped from 33 (tasks.axisId + axis_exclusion + axis_instance)
+    version  = 35,                      // ← bumped from 34 (axis_instance dropped; axis_node + axis_container: real copies)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -663,6 +664,26 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 34 → 35: later-axis entries become REAL child rows. Their runtime lives on those
+         * rows, so the 34-era `axis_instance` table is dropped; `axis_node` marks which row is a copy
+         * of which definition, `axis_container` marks leaves that are containers only because copies
+         * hang under them. Copies are created by the first reconcile pass after the upgrade.
+         */
+        private val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `axis_instance`")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `axis_node` (" +
+                        "`taskId` TEXT NOT NULL, `definitionId` TEXT NOT NULL, " +
+                        "`axisId` TEXT NOT NULL, `scopeKey` TEXT NOT NULL, PRIMARY KEY(`taskId`))"
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_axis_node_scopeKey_definitionId` ON `axis_node` (`scopeKey`, `definitionId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_axis_node_definitionId` ON `axis_node` (`definitionId`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `axis_container` (`taskId` TEXT NOT NULL, PRIMARY KEY(`taskId`))")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -679,7 +700,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                         MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
-                        MIGRATION_33_34,
+                        MIGRATION_33_34, MIGRATION_34_35,
                     )
                     .build()
                 INSTANCE = instance

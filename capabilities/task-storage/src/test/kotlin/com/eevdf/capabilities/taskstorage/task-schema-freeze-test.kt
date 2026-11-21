@@ -90,7 +90,8 @@ class TaskSchemaFreezeTest {
             // query and every scheduler pass filters on `axisId` (x vs y vs z trees), so
             // a side-table join would sit on the hottest path, and multi-user sync
             // snapshots the Task row as-is. Everything else axes need (exclusions,
-            // per-scope runtime) is in its own tables: axis_exclusion, axis_instance.
+            // which row is a copy of which definition, containers) is in its own tables:
+            // axis_exclusion, axis_node, axis_container.
             "axisId",
         )
     }

@@ -33,8 +33,8 @@ import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
  *   • NoticeSegments.kt — segmented notice-bar build and fill-update
  */
 class TaskAdapter(
-    /** Expand / collapse the later-axis entries under a leaf ([TaskDisplayItem.axisChildScope]). */
-    private val onAxisToggle:       (TaskDisplayItem) -> Unit = {},
+    /** "Y" / "Z" / … for a row that is a real copy of a later-axis definition, else null. */
+    private val axisBadgeProvider:  (String) -> String? = { null },
     private val onTaskClick:        (Task) -> Unit,
     private val onTaskLongClick:    (Task) -> Unit = {},
     /**
@@ -425,7 +425,7 @@ class TaskAdapter(
                 holder.btnGroupToggle.setOnLongClickListener { true }
             } else {
                 // Rotate play icon: 180° = pointing down (expanded), 0° = pointing right (collapsed)
-                holder.btnGroupToggle.rotation = if (if (item.isAxisRow) item.isExpanded else expandStateProvider(task.id)) 180f else 0f
+                holder.btnGroupToggle.rotation = if (expandStateProvider(task.id)) 180f else 0f
                 holder.btnGroupToggle.setOnClickListener { onGroupToggle(item) }
                 holder.btnGroupToggle.setOnLongClickListener { onGroupToggleDeep(task); true }
             }
@@ -437,13 +437,6 @@ class TaskAdapter(
             setTimeInfoColor(holder, R.color.app_text_label)   // views are recycled: undo a group's RL colour
             holder.tvRunCount.text  = "Runs: ${fmtInt(task.runCount)}"
             holder.btnGroupToggle.visibility = View.GONE  // fix: hide group toggle on recycled leaf ViewHolders
-            // A leaf with later-axis entries under it is expandable exactly like a group.
-            if (item.axisChildScope != null) {
-                holder.btnGroupToggle.visibility = View.VISIBLE
-                holder.btnGroupToggle.rotation   = if (item.isExpanded) 180f else 0f
-                holder.btnGroupToggle.setOnClickListener { onAxisToggle(item) }
-                holder.btnGroupToggle.setOnLongClickListener { true }
-            }
             // NOTIFICATION tasks: show segmented bar (execute=blue, wait=green) with live fill.
             // All other types: show the standard single-colour progress bar.
             if (task.taskType == "NOTIFICATION") {
@@ -656,23 +649,12 @@ class TaskAdapter(
                 holder.btnDelete.setOnClickListener { onDeleteClick(task) }
             }
         }
-        if (item.isAxisRow) applyAxisRowOverrides(holder, item)
-    }
-
-    /**
-     * A later-axis row is a shared definition shown with ONE scope's runtime. Anything that would
-     * write the row back (sleep, wake, revert, reset slice) is hidden — those edit the definition,
-     * from its own Queue tab. Edit (long-press) and delete stay: both act on the definition by id.
-     * The badge names the axis, so the tree reads x / y / z at a glance.
-     */
-    private fun applyAxisRowOverrides(holder: TaskViewHolder, item: TaskDisplayItem) {
-        holder.btnSleep.visibility      = View.GONE
-        holder.btnWake.visibility       = View.GONE
-        holder.btnRevert.visibility     = View.GONE
-        holder.btnResetSlice.visibility = View.GONE
-        holder.tvLinkBadge.text         = item.axisId.uppercase()
-        holder.tvLinkBadge.visibility   = View.VISIBLE
-        applyPillColor(holder.tvLinkBadge, holder.itemView.context, R.color.linkBadgeReal)
+        // A copy of a later-axis definition is an ordinary row; the badge only says which axis it follows.
+        axisBadgeProvider(task.id)?.let { axis ->
+            holder.tvLinkBadge.text       = axis
+            holder.tvLinkBadge.visibility = View.VISIBLE
+            applyPillColor(holder.tvLinkBadge, holder.itemView.context, R.color.linkBadgeReal)
+        }
     }
 
     override fun onBindViewHolder(

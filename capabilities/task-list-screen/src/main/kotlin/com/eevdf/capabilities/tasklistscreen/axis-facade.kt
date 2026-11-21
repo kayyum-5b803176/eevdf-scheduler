@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
 import com.eevdf.capabilities.taskstorage.AxisChecklist
+import com.eevdf.capabilities.taskstorage.AxisNode
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskRepository
@@ -45,6 +46,17 @@ class AxisFacade internal constructor(
     /** Entries of any axis for edit-screen validation (siblings). The first axis uses the ordinary list. */
     fun tasksOf(axisId: String): LiveData<List<Task>> = repository.activeTasksOfAxis(axisId)
 
+    // ── copies: real rows that follow a later-axis definition ─────────────
+    /** Every real copy; changes only when copies are created or removed, never on a timer tick. */
+    val nodes: LiveData<List<AxisNode>> = repository.allAxisNodes
+
+    /** The axis label ("Y", "Z", …) for a row that is a copy of a later-axis definition, else null. */
+    fun badgeOf(taskId: String): String? = nodes.value?.firstOrNull { it.taskId == taskId }?.axisId?.uppercase()
+
+    /** The definition a copy follows, as (definition id, its axis) — an edit of a copy opens this instead. */
+    fun definitionOf(taskId: String): Pair<String, String>? =
+        nodes.value?.firstOrNull { it.taskId == taskId }?.let { it.definitionId to it.axisId }
+
     // ── include / exclude checklist ──────────────────────────────────────
     suspend fun definitions(axisId: String): List<Task> = repository.axisDefinitions(axisId)
     suspend fun exclusions(outerKey: String, axisId: String): Set<String> = repository.axisExclusions(outerKey, axisId)
@@ -55,5 +67,7 @@ class AxisFacade internal constructor(
         val after  = AxisChecklist.topmostExcluded(defs, checked)
         (after - before).forEach { repository.setAxisIncluded(outerKey, axisId, it, false) }
         (before - after).forEach { repository.setAxisIncluded(outerKey, axisId, it, true) }
+        // The switches only decide; the copies are created / removed here.
+        repository.reconcileAxes(onlyUnder = outerKey.substringBefore('/'))
     }
 }
