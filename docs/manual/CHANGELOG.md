@@ -5,6 +5,54 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.59.0 — Axes: inclusion is an ACL, one tab per row, per copy
+
+Includes everything in 6.58.0. **Database 35 → 36.** `versionCode` untouched. Run `scripts/apply-6.59.0-deletions.sh`
+after extracting. With no y/z entries defined nothing changes.
+
+### Changed
+- **What a row includes from the next axis is the hardlink ACL, for axes.** Per definition entry, at any depth:
+  Inherit / Hide / Show, inherited downward, deepest rule wins; hiding a group hides its whole inside and nothing
+  inside a hidden group can be shown. The old switch-off list (`axis_exclusion`, topmost-only, no Show) is gone.
+- **A "hide new" default per row**, like a hardlink's: with it on, only what is Shown appears, and definitions
+  created later do not appear on that row by themselves. This is the "user-1 only a" case in two taps.
+- **Every row with a next axis has its own ACL tab** on its edit screen: an X leaf lists the Y entries; each Y
+  copy lists the Z entries — **its own list, not shared**, so the copy under one X leaf can include different Z
+  entries than the copy under another. No tab on the last axis, on real groups, on copies of definition groups,
+  or on the Queue·Y/Z definition cards (a definition has no outer row). Editing a copy still opens its definition
+  for the config; the ACL tab on that same screen is that copy's own door.
+- **Same screen as the hardlink ACL tab** (same layouts and row adapter): one level at a time, three circles per row,
+  tap a group to open it, breadcrumb/back to go up, "hide new" switch, saves on every tap, locked rows under a
+  hidden group. Every tap also brings that door's real copies in step. The two never coexist on one screen.
+- **Deleting a copy by hand (or Clear completed) writes a Hide rule** for its definition at its door.
+- The door key stays the stable path (`L`, `L/a`), so rules survive a copy being hidden and shown again.
+
+### Added
+- `axis_acl` (rule per door and entry), `axis_door` (the "hide new" default). `AxisAclRules` (pure) is asserted
+  equal to the hardlink's `MembershipAclRules.resolve` over every combination of ancestors, rules and default, so
+  the two cannot drift apart. The hardlink code itself is untouched.
+- Migration 35 → 36 carries every old exclusion over row for row as a Hide rule (the door keys already had the ACL's
+  format) and drops `axis_exclusion`.
+
+### Removed
+The "Axis inclusion…" overflow entry and dialog, `AxisChecklist`, `AxisRules`.
+
+### Know this
+- The Z list is per Y copy, so it only exists once that copy does (a copy is created by the background pass after
+  the X leaf's ACL lets its definition through).
+- Old Z rules were stored per (X leaf, Y entry) pair, which is already one door per copy — nothing is merged.
+
+### Verified / not verified
+`axis-rules-test.kt` (rewritten for the ACL): default all-included, Hide, hide new + Show, Show beats the default for
+one entry, group hide locks its inside, deeper rule wins, hide new is direct-only, one axis only, cycle-safe.
+`axis-acl-rules-test.kt`: axis rules equal hardlink rules for 2 defaults × 11 rule sets × 4 depths.
+`axis-reconcile-test.kt`: plus hide new creates only Shown entries, a later definition does not appear, Show under a
+hidden group stays hidden. **Not built, not run.** On the phone: edit an X leaf → ACL tab → Hide `b` and watch its
+copy disappear; turn "hide new" on and Show only `a`; define a new entry and confirm it does not appear on that leaf;
+open a Y copy → ACL tab → Hide a Z entry under one X leaf and confirm the same Y under another X leaf still has it.
+
+---
+
 ## 6.58.0 — Axes: later-axis entries are real nodes
 
 Includes everything in 6.57.0. **Database 34 → 35.** `versionCode` untouched. Run `scripts/apply-6.58.0-deletions.sh`

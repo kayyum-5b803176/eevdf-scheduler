@@ -29,9 +29,12 @@ import androidx.room.Query
  *  - Definitions are edited once; [AxisReconcile] keeps every copy's shared fields
  *    in step. Per-copy state (timer, vruntime, quota used, completed, sleep…) is the
  *    copy's own and is never overwritten.
- *  - Everything is included by default; the user switches entries off per outer
- *    leaf ([AxisExclusion]); only the exclusions are stored. Deleting a copy by hand
- *    is the same switch-off, so it does not come back.
+ *  - Everything is included by default. What an outer row includes is an ACL, the same
+ *    one a hardlinked group has ([MembershipAcl]): per definition entry, at any depth,
+ *    Inherit / Hide / Show, inherited downward, with a per-row "hide new" default
+ *    ([AxisAcl], [AxisDoor], [AxisAclRules]). Every row that has a next axis has one — an
+ *    X leaf for Y, each Y copy (its own, not shared) for Z. Deleting a copy by hand is a
+ *    Hide, so it does not come back.
  */
 object Axes {
     const val X = "x"
@@ -59,22 +62,33 @@ object Axes {
 }
 
 /**
- * "[outerKey] does NOT include definition entry [entryId] of axis [axisId]."
+ * One ACL rule of one door: whether definition entry [childKey] is hidden (true) or shown
+ * (false) under [scopeKey]. No row = Inherit. Exactly [MembershipAcl], for axes.
  *
- * Absent row = included (the default). [outerKey] is the scope key of the
- * outer leaf the switch belongs to (see [Axes.scopeKey]).
+ * The door is the OUTER row whose copies these entries become, named by its scope key
+ * ([AxisReconcile.childScope]): a first-axis leaf's own id ("L"), or a copy's path ("L/a").
+ * The path, not the copy's row id, so the rules survive that copy being switched off and on.
+ * Every copy has its own door, so two copies of the same entry can include different things.
  *
- * Same idea as [MembershipAcl], kept separate on purpose: that one filters
- * what is VISIBLE through a hardlink on one axis; this one decides which
- * definition entries of ANOTHER axis exist under an outer leaf at all.
- * Switching a group off removes its whole subtree (children follow the parent),
- * see [AxisRules.isIncluded].
+ * Rules sit on ANY entry of the definition tree, inherit downward, and the deepest rule wins;
+ * hiding a group hides everything inside it and nothing inside a hidden group can be shown.
  */
-@Entity(tableName = "axis_exclusion", primaryKeys = ["outerKey", "axisId", "entryId"])
-data class AxisExclusion(
-    val outerKey: String,
-    val axisId: String,
-    val entryId: String,
+@Entity(tableName = "axis_acl", primaryKeys = ["scopeKey", "childKey"])
+data class AxisAcl(
+    val scopeKey: String,
+    val childKey: String,
+    val hidden: Boolean,
+)
+
+/**
+ * The door's default for DIRECT entries that have no rule of their own ([TaskMembership.newChildrenHidden]
+ * for hardlinks). `true` = "hide new": only what is Shown appears, and entries defined later do
+ * not appear here by themselves. No row = false (everything included — today's behaviour).
+ */
+@Entity(tableName = "axis_door")
+data class AxisDoor(
+    @PrimaryKey val scopeKey: String,
+    val newChildrenHidden: Boolean,
 )
 
 /**
@@ -107,29 +121,42 @@ data class AxisContainer(@PrimaryKey val taskId: String)
 @Dao
 interface AxisDao {
 
-    // ── exclusions ───────────────────────────────────────────────────────
-    @Query("SELECT * FROM axis_exclusion")
-    fun getAllExclusions(): LiveData<List<AxisExclusion>>
+    // ── ACL rules + door defaults ────────────────────────────────────────
+    @Query("SELECT * FROM axis_acl")
+    fun getAllAcl(): LiveData<List<AxisAcl>>
 
-    @Query("SELECT * FROM axis_exclusion")
-    suspend fun getAllExclusionsSync(): List<AxisExclusion>
-
-    @Query("SELECT * FROM axis_exclusion WHERE outerKey = :outerKey AND axisId = :axisId")
-    suspend fun getExclusions(outerKey: String, axisId: String): List<AxisExclusion>
+    @Query("SELECT * FROM axis_acl")
+    suspend fun getAllAclSync(): List<AxisAcl>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun exclude(row: AxisExclusion)
+    suspend fun upsertRule(row: AxisAcl)
 
-    @Query("DELETE FROM axis_exclusion WHERE outerKey = :outerKey AND axisId = :axisId AND entryId = :entryId")
-    suspend fun include(outerKey: String, axisId: String, entryId: String)
+    /** Back to Inherit: no row. */
+    @Query("DELETE FROM axis_acl WHERE scopeKey = :scopeKey AND childKey = :childKey")
+    suspend fun deleteRule(scopeKey: String, childKey: String)
 
-    /** Cascade: an outer leaf is deleted — every switch that belonged to it (any depth) goes. */
-    @Query("DELETE FROM axis_exclusion WHERE outerKey = :id OR outerKey LIKE :id || '/%' OR outerKey LIKE '%/' || :id || '/%' OR outerKey LIKE '%/' || :id")
-    suspend fun deleteExclusionsUnder(id: String)
+    @Query("SELECT * FROM axis_door")
+    fun getAllDoors(): LiveData<List<AxisDoor>>
 
-    /** Cascade: a definition entry is deleted — nobody needs to exclude it any more. */
-    @Query("DELETE FROM axis_exclusion WHERE entryId = :entryId")
-    suspend fun deleteExclusionsOf(entryId: String)
+    @Query("SELECT * FROM axis_door")
+    suspend fun getAllDoorsSync(): List<AxisDoor>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertDoor(row: AxisDoor)
+
+    @Query("DELETE FROM axis_door WHERE scopeKey = :scopeKey")
+    suspend fun deleteDoor(scopeKey: String)
+
+    /** A definition entry is deleted: its rule goes from every door. */
+    @Query("DELETE FROM axis_acl WHERE childKey = :childKey")
+    suspend fun deleteAclOfChild(childKey: String)
+
+    /** An outer row / entry [id] is deleted: every door it opened, at any depth, goes with its rules. */
+    @Query("DELETE FROM axis_acl WHERE scopeKey = :id OR scopeKey LIKE :id || '/%' OR scopeKey LIKE '%/' || :id || '/%' OR scopeKey LIKE '%/' || :id")
+    suspend fun deleteAclUnder(id: String)
+
+    @Query("DELETE FROM axis_door WHERE scopeKey = :id OR scopeKey LIKE :id || '/%' OR scopeKey LIKE '%/' || :id || '/%' OR scopeKey LIKE '%/' || :id")
+    suspend fun deleteDoorsUnder(id: String)
 
     // ── nodes (copies) ───────────────────────────────────────────────────
     @Query("SELECT * FROM axis_node")
@@ -152,6 +179,9 @@ interface AxisDao {
 
     // ── containers ───────────────────────────────────────────────────────
     @Query("SELECT * FROM axis_container")
+    fun getAllContainers(): LiveData<List<AxisContainer>>
+
+    @Query("SELECT * FROM axis_container")
     suspend fun getAllContainersSync(): List<AxisContainer>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -161,67 +191,42 @@ interface AxisDao {
     suspend fun deleteContainerOf(taskId: String)
 }
 
-/** Pure rules — no Android, no database: testable with plain lists. */
-object AxisRules {
+/**
+ * The ACL rules for axes — pure, and deliberately the SAME semantics as [MembershipAclRules.resolve]
+ * (a test asserts they agree), so a hardlink's ACL and an axis door behave identically:
+ *
+ *  - an entry's own rule wins; with none it inherits;
+ *  - a direct entry (no ancestor) inherits the door's "hide new" default;
+ *  - a deeper entry inherits "shown" — the only way to hide the inside of a group without a rule
+ *    of its own is to hide the group, which LOCKS everything inside it.
+ */
+object AxisAclRules {
 
-    /**
-     * Is definition entry [entry] included under the outer leaf whose
-     * exclusions are [excludedIds]?
-     *
-     * Included unless the entry OR any ancestor (within [definitions], by
-     * [Task.parentId]) is excluded — children follow the parent.
-     */
-    fun isIncluded(entry: Task, definitions: Map<String, Task>, excludedIds: Set<String>): Boolean {
-        var cur: Task? = entry
-        val seen = HashSet<String>()
-        while (cur != null && seen.add(cur.id)) {
-            if (cur.id in excludedIds) return false
-            cur = cur.parentId?.let { definitions[it] }
+    /** [rules]: childKey -> hidden for ONE door. [ancestorKeys]: the entry's ancestors, outermost first. */
+    fun resolve(ancestorKeys: List<String>, key: String, rules: Map<String, Boolean>, hideNew: Boolean): AclResolution {
+        val own = rules[key]
+        val choice = when (own) { null -> AclChoice.INHERIT; true -> AclChoice.HIDE; false -> AclChoice.SHOW }
+        ancestorKeys.forEachIndexed { depth, ancestor ->
+            val ancestorHidden = rules[ancestor] ?: (depth == 0 && hideNew)
+            if (ancestorHidden) return AclResolution(choice, hidden = true, lockedByKey = ancestor)
         }
-        return true
+        val inheritedHidden = ancestorKeys.isEmpty() && hideNew
+        return AclResolution(choice, hidden = own ?: inheritedHidden, lockedByKey = null)
     }
 
-    /** The definition entries of [axisId] that exist under one outer leaf. */
-    fun includedEntries(
-        axisId: String,
-        all: List<Task>,
-        excludedIds: Set<String>,
-    ): List<Task> {
+    /** Is [entry] hidden at this door? Walks its parents inside [defs] (cycle-safe) and resolves it. */
+    fun isHidden(entry: Task, defs: Map<String, Task>, rules: Map<String, Boolean>, hideNew: Boolean): Boolean {
+        val chain = ArrayList<String>()
+        var cur: Task? = entry.parentId?.let { defs[it] }
+        val seen = HashSet<String>().apply { add(entry.id) }
+        while (cur != null && seen.add(cur.id)) { chain.add(cur.id); cur = cur.parentId?.let { defs[it] } }
+        return resolve(chain.asReversed(), entry.id, rules, hideNew).hidden
+    }
+
+    /** The definition entries of [axisId] that exist at one door. */
+    fun includedEntries(axisId: String, all: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean): List<Task> {
         val defs = all.asSequence().filter { it.axisId == axisId }.associateBy { it.id }
-        return defs.values.filter { isIncluded(it, defs, excludedIds) }
-    }
-}
-
-/** One row of a flattened definition tree: [entry] at nesting [depth]. */
-data class AxisRow(val entry: Task, val depth: Int)
-
-/** Pure helpers for the include/exclude checklist. */
-object AxisChecklist {
-
-    /** Depth-first, name-sorted flattening of one axis's definition tree. */
-    fun flatten(defs: List<Task>): List<AxisRow> {
-        val byParent = defs.groupBy { it.parentId?.takeIf { p -> defs.any { d -> d.id == p } } }
-        val out = ArrayList<AxisRow>(defs.size)
-        fun walk(parent: String?, depth: Int) {
-            byParent[parent].orEmpty().sortedBy { it.name.lowercase() }.forEach { t ->
-                out += AxisRow(t, depth)
-                if (t.isGroup) walk(t.id, depth + 1)
-            }
-        }
-        walk(null, 0)
-        return out
-    }
-
-    /**
-     * From a checklist state (id -> checked), the minimal exclusion set to store:
-     * an unchecked entry whose parent is NOT already unchecked. Children follow
-     * their parent, so they need no row of their own.
-     */
-    fun topmostExcluded(defs: List<Task>, checked: Map<String, Boolean>): Set<String> {
-        val byId = defs.associateBy { it.id }
-        return defs.filter { checked[it.id] == false }
-            .filter { t -> t.parentId?.let { byId.containsKey(it) && checked[it] == false } != true }
-            .mapTo(HashSet()) { it.id }
+        return defs.values.filter { !isHidden(it, defs, rules, hideNew) }
     }
 }
 
@@ -236,7 +241,7 @@ object AxisReconcile {
 
     /**
      * @param create   definitions that have no copy here yet, parents before children
-     * @param remove   copies whose definition is no longer included (switched off or deleted)
+     * @param remove   copies whose definition is no longer included (hidden by the door's ACL or deleted)
      * @param keep     copies to refresh, with the definition they follow
      * @param included every definition included here (its size is the number of copies wanted)
      */
@@ -247,8 +252,8 @@ object AxisReconcile {
         val included: List<Task>,
     )
 
-    fun plan(axisId: String, defs: List<Task>, excluded: Set<String>, existing: List<Existing>): Plan {
-        val included = AxisRules.includedEntries(axisId, defs, excluded)
+    fun plan(axisId: String, defs: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean, existing: List<Existing>): Plan {
+        val included = AxisAclRules.includedEntries(axisId, defs, rules, hideNew)
         val inc      = included.associateBy { it.id }
         val have     = existing.associateBy { it.node.definitionId }
         return Plan(

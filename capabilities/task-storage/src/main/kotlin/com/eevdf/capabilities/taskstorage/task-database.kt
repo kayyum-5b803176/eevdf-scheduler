@@ -26,11 +26,12 @@ import com.eevdf.capabilities.taskstorage.Task
         MembershipAcl::class,           // ← new: per-placement child visibility (hardlink ACL)
         TaskWake::class,                // ← new: scheduled wake per task (task-wake)
         WakeReturn::class,              // ← new: the wake preempt return stack
-        AxisExclusion::class,           // ← new: per-outer-leaf switch-offs of another axis's entries
+        AxisAcl::class,                 // ← new: per-door Inherit/Hide/Show rules over a later axis's entries
+        AxisDoor::class,                // ← new: a door's "hide new" default
         AxisNode::class,                // ← new: marks a real row as a copy of a later-axis definition
         AxisContainer::class,           // ← new: rows that are containers only because copies hang under them
     ],
-    version  = 35,                      // ← bumped from 34 (axis_instance dropped; axis_node + axis_container: real copies)
+    version  = 36,                      // ← bumped from 35 (axis_exclusion → axis_acl + axis_door: ACL for axis inclusion)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -684,6 +685,28 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 35 → 36: what an outer row includes becomes an ACL (the hardlink ACL's rules, for axes).
+         * Every old exclusion was "this entry is off here" — exactly a Hide rule at the same door, so
+         * they are carried over row for row and `axis_exclusion` is dropped. The door keys already are
+         * the path format the ACL uses ("L", "L/a"). No door defaults exist yet (everything included).
+         */
+        private val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `axis_acl` (" +
+                        "`scopeKey` TEXT NOT NULL, `childKey` TEXT NOT NULL, `hidden` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`scopeKey`, `childKey`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `axis_door` (" +
+                        "`scopeKey` TEXT NOT NULL, `newChildrenHidden` INTEGER NOT NULL, PRIMARY KEY(`scopeKey`))"
+                )
+                db.execSQL("INSERT OR REPLACE INTO `axis_acl` (`scopeKey`, `childKey`, `hidden`) SELECT `outerKey`, `entryId`, 1 FROM `axis_exclusion`")
+                db.execSQL("DROP TABLE IF EXISTS `axis_exclusion`")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -700,7 +723,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                         MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
-                        MIGRATION_33_34, MIGRATION_34_35,
+                        MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
                     )
                     .build()
                 INSTANCE = instance

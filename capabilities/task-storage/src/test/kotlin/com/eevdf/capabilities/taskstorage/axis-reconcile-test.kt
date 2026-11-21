@@ -17,47 +17,65 @@ class AxisReconcileTest {
     // ── plan ─────────────────────────────────────────────────────────────
 
     @Test fun `nothing exists yet - every included definition is created`() {
-        val p = AxisReconcile.plan(Axes.Y, listOf(def("a"), def("b")), emptySet(), emptyList())
+        val p = AxisReconcile.plan(Axes.Y, listOf(def("a"), def("b")), emptyMap(), false, emptyList())
         assertEquals(setOf("a", "b"), p.create.map { it.id }.toSet())
         assertTrue(p.remove.isEmpty()); assertTrue(p.keep.isEmpty())
     }
 
     @Test fun `parents are created before their children`() {
         val defs = listOf(def("g1", parent = "g", group = false), def("g", group = true), def("solo"))
-        val order = AxisReconcile.plan(Axes.Y, defs, emptySet(), emptyList()).create.map { it.id }
+        val order = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, emptyList()).create.map { it.id }
         assertTrue(order.indexOf("g") < order.indexOf("g1"))
     }
 
-    @Test fun `switched off definitions are not created and their copies are removed`() {
+    @Test fun `hidden definitions are not created and their copies are removed`() {
         val defs = listOf(def("a"), def("b"))
         val have = listOf(existing("a", "L"), existing("b", "L"))
-        val p = AxisReconcile.plan(Axes.Y, defs, setOf("b"), have)
+        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("b" to true), false, have)
         assertEquals(listOf("b"), p.remove.map { it.node.definitionId })
         assertEquals(listOf("a"), p.keep.map { it.first.node.definitionId })
         assertTrue(p.create.isEmpty())
     }
 
-    @Test fun `switching a group off removes its whole subtree`() {
+    @Test fun `hiding a group removes its whole subtree`() {
         val defs = listOf(def("g", group = true), def("g1", parent = "g"), def("solo"))
         val have = listOf(existing("g", "L"), existing("g1", "L"), existing("solo", "L"))
-        val p = AxisReconcile.plan(Axes.Y, defs, setOf("g"), have)
+        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("g" to true), false, have)
         assertEquals(setOf("g", "g1"), p.remove.map { it.node.definitionId }.toSet())
         assertEquals(setOf("solo"), p.keep.map { it.first.node.definitionId }.toSet())
     }
 
+    @Test fun `hide new - only entries that are Shown get a copy`() {
+        val defs = listOf(def("a"), def("b"), def("c"))
+        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("a" to false), hideNew = true, existing = emptyList())
+        assertEquals(listOf("a"), p.create.map { it.id })
+    }
+
+    @Test fun `hide new - a definition added later does not appear by itself`() {
+        val have = listOf(existing("a", "L"))
+        val p = AxisReconcile.plan(Axes.Y, listOf(def("a"), def("later")), mapOf("a" to false), hideNew = true, existing = have)
+        assertTrue(p.create.isEmpty()); assertTrue(p.remove.isEmpty())
+    }
+
+    @Test fun `Show under a hidden group stays hidden - the group locks its inside`() {
+        val defs = listOf(def("g", group = true), def("g1", parent = "g"))
+        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("g" to true, "g1" to false), false, emptyList())
+        assertTrue(p.create.isEmpty())
+    }
+
     @Test fun `a deleted definition removes its copy`() {
-        val p = AxisReconcile.plan(Axes.Y, listOf(def("a")), emptySet(), listOf(existing("a", "L"), existing("gone", "L")))
+        val p = AxisReconcile.plan(Axes.Y, listOf(def("a")), emptyMap(), false, listOf(existing("a", "L"), existing("gone", "L")))
         assertEquals(listOf("gone"), p.remove.map { it.node.definitionId })
     }
 
     @Test fun `an existing copy is never created twice`() {
-        val p = AxisReconcile.plan(Axes.Y, listOf(def("a")), emptySet(), listOf(existing("a", "L")))
+        val p = AxisReconcile.plan(Axes.Y, listOf(def("a")), emptyMap(), false, listOf(existing("a", "L")))
         assertTrue(p.create.isEmpty())
         assertEquals(1, p.included.size)
     }
 
     @Test fun `only the requested axis is considered`() {
-        val p = AxisReconcile.plan(Axes.Y, listOf(def("a"), def("p", Axes.Z)), emptySet(), emptyList())
+        val p = AxisReconcile.plan(Axes.Y, listOf(def("a"), def("p", Axes.Z)), emptyMap(), false, emptyList())
         assertEquals(listOf("a"), p.create.map { it.id })
     }
 

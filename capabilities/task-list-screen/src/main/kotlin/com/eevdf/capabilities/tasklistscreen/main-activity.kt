@@ -925,6 +925,8 @@ class MainActivity : AppCompatActivity() {
         startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK).apply {
             putExtra("task_id", definition?.first ?: task.id)
             putExtra("axis_id", definition?.second ?: task.axisId)
+            // The ACL tab: this row's own door (X leaf → Y entries, Y copy → Z entries). Not for hardlink placements.
+            if (membershipId == null) viewModel.axes.doorFor(task)?.let { putExtra("axis_door", it) }
             // Only when launched from a hardlink row: AddTaskActivity shows the ACL tab.
             if (membershipId != null) putExtra("membership_id", membershipId)
         })

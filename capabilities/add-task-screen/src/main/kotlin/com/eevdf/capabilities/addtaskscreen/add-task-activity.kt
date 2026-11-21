@@ -61,6 +61,8 @@ class AddTaskActivity : AppCompatActivity() {
 
     /** Non-null only when opened from a hardlink row (intent extra `membership_id`) — see AclSection.kt. */
     internal var aclTab: AclTab? = null
+    /** The ACL tab for later-axis inclusion (see axis-acl-section.kt); never together with the hardlink one. */
+    internal var axisAclTab: AxisAclTab? = null
 
     // ── Basic task fields ─────────────────────────────────────────────────────
     internal lateinit var etName:           TextInputEditText
@@ -247,6 +249,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupWakeSection()
         setupSchedulerClassSection()
         setupAclSection()   // no-op without the membership_id extra
+        setupAxisAclSection()   // no-op without the axis_door extra
 
         // Observe activeTasks here (not just in validation) so .value is populated
         // the moment the user opens this screen and types a pinned share value.
@@ -417,27 +420,9 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     /** On the ACL tab the toolbar back arrow goes up one level first, then leaves the screen. */
-    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_add_task, menu)
-        return true
-    }
-
-    override fun onPrepareOptionsMenu(menu: android.view.Menu): Boolean {
-        // An existing entry of the first or second axis has a following axis to include things in
-        // (the second asks which first-axis entry first — see axis-inclusion-dialog.kt).
-        menu.findItem(R.id.action_axis_inclusion)?.isVisible =
-            existingTaskId != null && com.eevdf.capabilities.taskstorage.Axes.next(axisId) != null &&
-                com.eevdf.capabilities.taskstorage.Axes.ALL.indexOf(axisId) in 0..1
-        return super.onPrepareOptionsMenu(menu)
-    }
-
-    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
-        if (item.itemId == R.id.action_axis_inclusion) { showAxisInclusionDialog(); return true }
-        return super.onOptionsItemSelected(item)
-    }
-
     override fun onSupportNavigateUp(): Boolean {
         if (aclTab?.goUp() == true) return true
+        if (axisAclTab?.goUp() == true) return true
         finish(); return true
     }
 }

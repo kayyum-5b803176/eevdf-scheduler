@@ -268,7 +268,7 @@ internal class AclTab(
         val drillable: Boolean, val choice: AclChoice, val locked: Boolean, val caption: String,
     )
 
-    private class Adapter(
+    internal class Adapter(
         private val onChoice: (Row, AclChoice) -> Unit,
         private val onOpen: (Row) -> Unit,
     ) : RecyclerView.Adapter<Adapter.VH>() {

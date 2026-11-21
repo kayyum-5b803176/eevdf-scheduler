@@ -27,7 +27,7 @@ class TaskRepository @Inject constructor(
     private val taskLinkDao: TaskLinkDao,               // ← new: symlinks
     private val taskMembershipDao: TaskMembershipDao,   // ← new: hardlinks
     private val membershipAclDao: MembershipAclDao,     // ← new: hardlink ACL (hidden direct children)
-    private val axisDao: AxisDao,                       // ← new: axis exclusions + per-scope runtime
+    private val axisDao: AxisDao,                       // ← new: axis ACL, copies and containers
     /** Kernel event bus — publishes `task.saved` (rule 3: bus-only, never a direct call out). */
     private val bus: EventBus,
     /** Single source of "now" for every scheduling decision (kernel rule 1) —
@@ -64,13 +64,28 @@ class TaskRepository @Inject constructor(
     }
     fun activeGroupsOfAxis(axisId: String): LiveData<List<Task>> = dao.getActiveGroupsOfAxis(axisId)
     suspend fun axisDefinitions(axisId: String): List<Task> = withContext(Dispatchers.IO) { dao.getActiveTasksOfAxisSync(axisId) }
-    suspend fun axisExclusions(outerKey: String, axisId: String): Set<String> = withContext(Dispatchers.IO) {
-        axisDao.getExclusions(outerKey, axisId).mapTo(HashSet()) { it.entryId }
+    /** Live ACL rules and door defaults, for the ACL tab. */
+    val allAxisAcl: LiveData<List<AxisAcl>> = axisDao.getAllAcl()
+    val allAxisDoors: LiveData<List<AxisDoor>> = axisDao.getAllDoors()
+    val allAxisContainers: LiveData<List<AxisContainer>> = axisDao.getAllContainers()
+
+    /**
+     * Set one entry's ACL choice at [door] (Inherit = no row), then bring that door's copies in step.
+     * Same shape as [setMembershipChildChoice] for hardlinks.
+     */
+    suspend fun setAxisChoice(door: String, childKey: String, choice: AclChoice) = withContext(Dispatchers.IO) {
+        when (choice) {
+            AclChoice.INHERIT -> axisDao.deleteRule(door, childKey)
+            AclChoice.HIDE    -> axisDao.upsertRule(AxisAcl(door, childKey, hidden = true))
+            AclChoice.SHOW    -> axisDao.upsertRule(AxisAcl(door, childKey, hidden = false))
+        }
+        reconcileAxes(onlyUnder = door.substringBefore('/'))
     }
-    /** Switch [entryId] of [axisId] on/off under [outerKey]. Absent row = on. */
-    suspend fun setAxisIncluded(outerKey: String, axisId: String, entryId: String, included: Boolean) = withContext(Dispatchers.IO) {
-        if (included) axisDao.include(outerKey, axisId, entryId)
-        else axisDao.exclude(AxisExclusion(outerKey, axisId, entryId))
+
+    /** The door's "hide new" default (see [AxisDoor]); false is stored as no row. */
+    suspend fun setAxisHideNew(door: String, hidden: Boolean) = withContext(Dispatchers.IO) {
+        if (hidden) axisDao.upsertDoor(AxisDoor(door, true)) else axisDao.deleteDoor(door)
+        reconcileAxes(onlyUnder = door.substringBefore('/'))
     }
 
     // ── Axes: real copies ────────────────────────────────────────────────────
@@ -94,10 +109,10 @@ class TaskRepository @Inject constructor(
         axisMutex.withLock { reconcileAxesLocked(onlyUnder) }
     }
 
-    /** Deleting a copy by hand is switching that definition off for its scope, so it does not come back. */
-    private suspend fun excludeIfCopy(taskId: String) {
+    /** Deleting a copy by hand is a Hide rule for its definition at its door, so it does not come back. */
+    private suspend fun hideIfCopy(taskId: String) {
         val node = axisDao.getNodeOf(taskId) ?: return
-        axisDao.exclude(AxisExclusion(node.scopeKey, node.axisId, node.definitionId))
+        axisDao.upsertRule(AxisAcl(node.scopeKey, node.definitionId, hidden = true))
     }
 
     private suspend fun reconcileAxesLocked(onlyUnder: String?) {
@@ -107,9 +122,10 @@ class TaskRepository @Inject constructor(
         if (defs.values.all { it.isEmpty() } && axisDao.getAllNodesSync().isEmpty() &&
             axisDao.getAllContainersSync().isEmpty()) return
 
-        val exclusions = axisDao.getAllExclusionsSync()
-            .groupBy { "${it.outerKey}\u0000${it.axisId}" }
-            .mapValues { (_, rows) -> rows.mapTo(HashSet()) { it.entryId } }
+        val rulesByDoor = axisDao.getAllAclSync()
+            .groupBy { it.scopeKey }
+            .mapValues { (_, rows) -> rows.associate { it.childKey to it.hidden } }
+        val hideNewByDoor = axisDao.getAllDoorsSync().associate { it.scopeKey to it.newChildrenHidden }
         var changed = false
 
         // One level per pass: first-axis leaves, then the copies they got, then theirs…
@@ -134,7 +150,7 @@ class TaskRepository @Inject constructor(
                                   else node.scopeKey == onlyUnder || node.scopeKey.startsWith("$onlyUnder/")
                     if (!inScope) continue
                 }
-                changed = reconcileUnder(p, node, containers, byId, defs, exclusions, byScope) || changed
+                changed = reconcileUnder(p, node, containers, byId, defs, rulesByDoor, hideNewByDoor, byScope) || changed
             }
         }
         if (changed) {
@@ -147,14 +163,15 @@ class TaskRepository @Inject constructor(
     /** One parent: create / refresh / remove its copies and make it a container while it has any. */
     private suspend fun reconcileUnder(
         p: Task, pNode: AxisNode?, containers: Set<String>, byId: Map<String, Task>,
-        defs: Map<String, List<Task>>, exclusions: Map<String, Set<String>>, byScope: Map<String, List<AxisNode>>,
+        defs: Map<String, List<Task>>, rulesByDoor: Map<String, Map<String, Boolean>>,
+        hideNewByDoor: Map<String, Boolean>, byScope: Map<String, List<AxisNode>>,
     ): Boolean {
         val next  = Axes.next(pNode?.axisId ?: Axes.DEFAULT) ?: return false
         val scope = AxisReconcile.childScope(p, pNode)
         val existing = byScope[scope].orEmpty().mapNotNull { n ->
             (byId[n.taskId] ?: dao.getTaskById(n.taskId))?.let { AxisReconcile.Existing(n, it) }
         }
-        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), exclusions["$scope\u0000$next"].orEmpty(), existing)
+        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), rulesByDoor[scope].orEmpty(), hideNewByDoor[scope] ?: false, existing)
         var changed = false
 
         // 1. switched off / deleted definitions: their copies go (a running copy is left until it stops)
@@ -546,8 +563,9 @@ class TaskRepository @Inject constructor(
         interruptReturnDao.clearByTask(task.id)
         loadFactorDao.clearByTask(task.id)
         // Axes: this entry as a definition (every scope), and as an outer leaf (every scope under it).
-        axisDao.deleteExclusionsOf(task.id)
-        axisDao.deleteExclusionsUnder(task.id)
+        axisDao.deleteAclOfChild(task.id)
+        axisDao.deleteAclUnder(task.id)
+        axisDao.deleteDoorsUnder(task.id)
         // A later-axis DEFINITION goes: every real copy of it goes too.
         if (task.axisId != Axes.DEFAULT) {
             axisDao.getNodesOfDefinition(task.id).forEach { n -> dao.getTaskById(n.taskId)?.let { forceDelete(it) } }
@@ -624,7 +642,7 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
-        excludeIfCopy(task.id)
+        hideIfCopy(task.id)
         val parentId = dao.getTaskById(task.id)?.parentId ?: task.parentId
         deleteOrPromote(task)
         // A holder that is deleted frees its slot for the next waiter.
@@ -658,7 +676,7 @@ class TaskRepository @Inject constructor(
      * the old bulk query never performed.
      */
     suspend fun clearCompleted() = withContext(Dispatchers.IO) {
-        dao.getCompletedTasksSync().forEach { excludeIfCopy(it.id); forceDelete(it) }
+        dao.getCompletedTasksSync().forEach { hideIfCopy(it.id); forceDelete(it) }
     }
 
     suspend fun getTaskById(id: String): Task? = withContext(Dispatchers.IO) { dao.getTaskById(id) }
