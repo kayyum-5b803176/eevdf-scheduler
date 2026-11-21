@@ -219,6 +219,15 @@ class AddTaskActivity : AppCompatActivity() {
      */
     internal var axisPathRoute: String? = null
 
+    /** The id of the task being created, fixed on the first Save so a second Save (after a question) keeps it. */
+    internal var pendingNewTaskId: String? = null
+
+    /** The "copy it?" prompt has been answered (or there was nothing to ask), so Save can go on without asking again. */
+    internal var axisCopyAsked = false
+
+    /** The '+' rules of an accepted copy offer; written before the row is saved. Empty = "don't copy". */
+    internal var axisCopyRules: List<com.eevdf.capabilities.taskstorage.AxisAcl> = emptyList()
+
     /** A plain (non-path) pick was made this session: saving a later-axis entry then puts it back to "copied wherever included". */
     internal var axisPlainPicked = false
 

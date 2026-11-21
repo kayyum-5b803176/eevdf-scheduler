@@ -11,7 +11,9 @@ import com.eevdf.capabilities.multidevicesync.logic.SyncCoordinator
 import com.eevdf.capabilities.notification.NotificationCancelHandler
 import com.eevdf.capabilities.appforeground.AppForegroundTracker
 import com.eevdf.capabilities.runhistory.TaskSavedCompactionHandler
+import com.eevdf.capabilities.settingsstorage.state.AxisPrefs
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
+import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.taskstorage.logic.BackupCheckpointHandler
 import com.eevdf.capabilities.taskwake.WakeCoordinator
 import com.eevdf.capabilities.timercard.TimerCardController
@@ -66,6 +68,7 @@ class ApplicationEntry : Application() {
     @Inject lateinit var appForegroundTracker: AppForegroundTracker
     @Inject lateinit var timerCardController: TimerCardController   // hears card.show / card.hide from the first moment
     @Inject lateinit var wakeCoordinator: WakeCoordinator   // subscribes to current-task / foreground / wake-icon topics
+    @Inject lateinit var taskRepository: TaskRepository     // told the global "hide new" default below
 
     override fun onCreate() {
         super.onCreate()
@@ -77,5 +80,7 @@ class ApplicationEntry : Application() {
         // Publishes Topics.APP_FOREGROUND_CHANGED — alarm-ringer (and any
         // future reader) consumes it via the bus, not this call.
         appForegroundTracker.install(this)
+        // The repository has no Context: it asks this for the global "hide new" default (a setting) whenever it reconciles.
+        taskRepository.hideNewByDefault = { AxisPrefs.isHideNewByDefault(this) }
     }
 }

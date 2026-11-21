@@ -5,6 +5,55 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.65.0 — Hide new by default, and a prompt before anything is copied
+
+Includes everything in 6.64.1. **No database change** (still version 38), `versionCode` untouched.
+
+### Hide new by default
+- Out of the box a new entry on another axis is **not copied anywhere by itself**, and a new place (a first-axis task) **starts
+  empty**. Before, adding an entry copied it into every place.
+- **It hides NEW entries only.** Copies that already exist are never removed because of the default, so upgrading changes nothing
+  you already have and needs no migration. A "hide new" switch you set yourself on a place still hides what is already copied there,
+  exactly like a hardlink's ACL.
+- The switch in an ACL tab now shows the real effective value (the place's own, else its entry's, else this default). A value equal
+  to what the place follows anyway is stored as "follow it".
+- ACL rows for entries already copied read "Shown · already copied". Path mode is unaffected (it already says exactly where).
+- **Setting "Hide new entries by default"** (Settings → Display). Off restores the old behaviour for everything new: every new entry
+  is copied into every place automatically.
+
+### A prompt before copying
+- Saving a **new entry** (including moving a task onto a later axis) asks, only when there is somewhere to copy it:
+  `Copy "hello world"? It can be copied into 12 places.` — **Don't copy** / **Copy to all 12**. An entry inside a group is only
+  offered the places where that group is copied.
+- Saving a **new place** (a first-axis task that is not a group) asks, only when entries exist:
+  `Copy existing entries into "type7"? 5 entries on Y can be copied here.` — **Don't copy** / **Copy all 5**. Top-level entries are
+  counted (a group brings what is inside it); entries placed on a path decide for themselves and are not offered.
+- **Don't copy** saves it alone — add it later with + in an ACL tab, or place it on a path. **Copy** is nothing but '+' rules written
+  BEFORE the row is saved, so the copies are made once, in those places only. Places added later stay opt-in.
+- Never asked in path mode (the path already chose), when nothing can be copied, or when the setting below is off.
+- **Setting "Ask before copying"** (Settings → Display, on by default). Off: nothing is asked and nothing is copied.
+
+### Fixed
+- A new task's id was generated on every Save; Save now runs again after a question, so the id is made once and kept (otherwise the
+  rules written for the first id would have missed the saved task).
+
+### Under the hood
+- `AxisPrefs` (`settings-storage`) holds the two settings; the app hands the repository the default at startup, so the repository
+  needs no Context. `AxisReconcile.plan` takes a separate rule for existing copies; `AxisCopy` (pure) builds the offers' rules.
+
+### Verified / not verified
+`axis-copy-test.kt`: a top-level entry is offered every place; one inside a group only where the group is; nothing to offer with no places;
+the '+' rules of an offer; accepting shows the entry only where offered, declining shows it nowhere. `axis-reconcile-test.kt`: by default
+a new entry is not copied and an empty place does not become a container; an existing copy stays; a switch the place set itself hides
+existing copies; a '+' still copies; an explicit Hide still removes; a copied group keeps what is inside it. `axis-rules-test.kt`: the
+global default, and that only a switch the place set counts as explicit. All new pure code parses and type-checks with the real Kotlin
+compiler (the rest needs the Android libraries). **Not built with Gradle.** On the phone: add a Y entry → the dialog offers N places →
+Don't copy → it exists only as a template; add another and Copy → it is under every X task; add a new X task → the dialog offers the
+existing Y entries; turn "Ask before copying" off and add an entry → no dialog and no copies; turn "Hide new entries by default" off and add
+an entry → it appears in every place at once.
+
+---
+
 ## 6.64.1 — Fix: 6.64.0 did not compile (comments containing `/` + `*`)
 
 Includes everything in 6.64.0. No database change, `versionCode` untouched.

@@ -120,15 +120,66 @@ class TaskRepository @Inject constructor(
     }
 
     /**
-     * The door's "hide new" default. For a copy's door, a value equal to the entry's default is stored as
-     * no row (it follows the entry); anything else is stored. Elsewhere false is stored as no row.
+     * The door's "hide new" switch. A value equal to what the door would follow anyway — its entry's, for a copy; the
+     * global default otherwise — is stored as no row (it keeps following it); anything else is stored.
      */
     suspend fun setAxisHideNew(door: String, hidden: Boolean) = withContext(Dispatchers.IO) {
         val layer = Axes.layerDoorOf(door)
-        val entryDefault = layer?.let { l -> axisDao.getAllDoorsSync().firstOrNull { it.scopeKey == l }?.newChildrenHidden }
-        val follows = if (layer != null) hidden == (entryDefault ?: false) else !hidden
-        if (follows) axisDao.deleteDoor(door) else axisDao.upsertDoor(AxisDoor(door, hidden))
+        val followed = layer?.let { l -> axisDao.getAllDoorsSync().firstOrNull { it.scopeKey == l }?.newChildrenHidden }
+            ?: hideNewByDefault()
+        if (hidden == followed) axisDao.deleteDoor(door) else axisDao.upsertDoor(AxisDoor(door, hidden))
         reconcileAxes(onlyUnder = onlyUnderOf(door))
+    }
+
+    // ── Axes: the "copy it?" prompt ──────────────────────────────────────────
+    //
+    // With "hide new" on, nothing is copied by itself. When a new entry or a new place is saved the screen asks, and a
+    // "Copy" is nothing more than these '+' rules, written BEFORE the row so the copies are made once, in the right places.
+
+    /** Rows that hold the entries of axis [axisId]: first-axis leaves, or copies of the axis before it that are leaves. */
+    private suspend fun placesFor(axisId: String): List<String> {
+        val level = Axes.ALL.indexOf(axisId) - 1
+        if (level < 0) return emptyList()
+        val nodes = axisDao.getAllNodesSync()
+        val nodeOf = nodes.associateBy { it.taskId }
+        val containers = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId }
+        return dao.getActiveTasksSync().asSequence()
+            .filter { !it.isInterrupt && (!it.isGroup || it.id in containers) }
+            .mapNotNull { row ->
+                val node = nodeOf[row.id]
+                val rowLevel = if (node == null) 0 else Axes.ALL.indexOf(node.axisId)
+                if (rowLevel != level) null else AxisReconcile.childScope(row, node)
+            }.toList()
+    }
+
+    /**
+     * A new entry of [entryAxis] (a later axis) named [name] with parent group [parentId]: the offer to copy it into
+     * every place it could appear. Null when there is nowhere to copy it (or it is on the first axis).
+     */
+    suspend fun axisCopyOfferForEntry(entryId: String, entryAxis: String, parentId: String?, name: String): AxisCopy.Offer? =
+        withContext(Dispatchers.IO) {
+            if (entryAxis == Axes.DEFAULT || !Axes.isKnown(entryAxis)) return@withContext null
+            val places = placesFor(entryAxis)
+            val copiesByDoor = axisDao.getAllNodesSync().groupBy({ it.scopeKey }, { it.definitionId }).mapValues { it.value.toSet() }
+            val doors = AxisCopy.eligibleDoors(places, parentId, copiesByDoor)
+            if (doors.isEmpty()) null else AxisCopy.Offer(AxisCopy.Kind.ENTRY, name, entryAxis, AxisCopy.entryRules(entryId, doors))
+        }
+
+    /**
+     * A new first-axis leaf [placeId] named [name]: the offer to copy the existing entries of the next axis into it
+     * (top-level entries; a group brings what is inside it). Entries placed on a path decide for themselves and are not
+     * offered. Null when there is nothing to copy.
+     */
+    suspend fun axisCopyOfferForPlace(placeId: String, name: String): AxisCopy.Offer? = withContext(Dispatchers.IO) {
+        val next = Axes.next(Axes.DEFAULT) ?: return@withContext null
+        val routed = axisDao.getAllEntryRoutesSync().mapTo(HashSet()) { it.definitionId }
+        val roots = dao.getActiveTasksOfAxisSync(next).filter { it.parentId == null && it.id !in routed }
+        if (roots.isEmpty()) null else AxisCopy.Offer(AxisCopy.Kind.PLACE, name, next, AxisCopy.placeRules(placeId, roots.map { it.id }))
+    }
+
+    /** Write the '+' rules of an accepted offer. The copies follow when the row is saved. */
+    suspend fun writeAxisRules(rules: List<AxisAcl>) = withContext(Dispatchers.IO) {
+        rules.forEach { axisDao.upsertRule(it) }
     }
 
     // ── Axes: path mode (placing an entry only where it was picked) ──────────
@@ -236,7 +287,7 @@ class TaskRepository @Inject constructor(
      *  - later axis → later axis: every copy of it goes; copies of the new axis appear by reconcile
      * ACL rules that named the moved rows are dropped (they listed another axis). The id stays.
      */
-    suspend fun moveToAxis(edited: Task, route: String? = null): Boolean = withContext(Dispatchers.IO) {
+    suspend fun moveToAxis(edited: Task, route: String? = null, copyRules: List<AxisAcl> = emptyList()): Boolean = withContext(Dispatchers.IO) {
         val current = dao.getTaskById(edited.id) ?: return@withContext false
         val target = edited.axisId
         if (target == current.axisId) {
@@ -272,6 +323,7 @@ class TaskRepository @Inject constructor(
             }
             // A route is written before the copies are reconciled, so none appear elsewhere.
             if (route != null) setAxisRoute(edited.id, route)
+            copyRules.forEach { axisDao.upsertRule(it) }     // an accepted "copy it?" — before any copy is reconciled
             true
         }
         if (!moved) return@withContext false
@@ -295,6 +347,13 @@ class TaskRepository @Inject constructor(
     // so running it again, from anywhere, only ever repairs.
 
     private val axisMutex = Mutex()
+
+    /**
+     * The global "hide new" default: with it ON (out of the box) a new entry is not copied anywhere by itself, and a
+     * new place starts empty. A setting the app owns (`settings-storage`), handed in at startup — the repository has no
+     * Context. It only decides which NEW copies are made; copies that already exist are never removed by it.
+     */
+    @Volatile var hideNewByDefault: () -> Boolean = { true }
 
     /** Live set of copies — lets screens badge a row as a copy and send an edit to its definition. */
     val allAxisNodes: LiveData<List<AxisNode>> = axisDao.getAllNodes()
@@ -374,10 +433,17 @@ class TaskRepository @Inject constructor(
         // A copy follows its entry's ACL unless it set its own; a first-axis row has only its own door.
         val layer = pNode?.let { Axes.definitionDoor(it.definitionId) }
         val rules = AxisAclRules.merge(layer?.let { rulesByDoor[it] }.orEmpty(), rulesByDoor[scope].orEmpty())
-        val hideNew = AxisAclRules.effectiveHideNew(hideNewByDoor[scope], layer?.let { hideNewByDoor[it] })
+        val copyFlag  = hideNewByDoor[scope]
+        val entryFlag = layer?.let { hideNewByDoor[it] }
+        val hideNew   = AxisAclRules.effectiveHideNew(copyFlag, entryFlag, hideNewByDefault())
+        // A default hides NEW entries only; a switch the person set on this door also hides what is already copied.
+        val judgeExistingByDefault = !AxisAclRules.isExplicitHideNew(copyFlag, entryFlag)
         // A routed entry (placed on a path) is shown where its pattern matches this door, hidden everywhere else.
         val route = AxisRoute.at(routes, scope)
-        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), rules, hideNew, existing, route.hidden, route.shown)
+        val plan = AxisReconcile.plan(
+            next, defs[next].orEmpty(), rules, hideNew, existing, route.hidden, route.shown,
+            hideNewForExisting = if (judgeExistingByDefault) false else hideNew,
+        )
         var changed = false
 
         // 1. switched off / deleted definitions: their copies go (a running copy is left until it stops)

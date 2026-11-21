@@ -117,6 +117,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
+            <!-- ══ AXES: HIDE NEW BY DEFAULT ════════════════════════════════ -->
+            <View style="@style/App.Divider.Section" />
+
+            <FrameLayout
+                android:id="@+id/axisHideNewContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <!-- ══ AXES: ASK BEFORE COPYING ═════════════════════════════════ -->
+            <View style="@style/App.Divider.Section" />
+
+            <FrameLayout
+                android:id="@+id/axisAskCopyContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
             <!-- ══ WINDOW CALIBRATE ═════════════════════════════════════════ -->
             <View style="@style/App.Divider.Section" />
 

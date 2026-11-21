@@ -179,4 +179,47 @@ class AxisReconcileTest {
         assertEquals(listOf("placed"), a.create.map { it.id })
         assertTrue(b.create.isEmpty())
     }
+
+    // ── "hide new" by default: new entries are not copied, copies that exist stay ──
+
+    @Test fun `by default a new entry is not copied anywhere`() {
+        val p = AxisReconcile.plan(Axes.Y, listOf(def("a"), def("b")), emptyMap(), hideNew = true, existing = emptyList(), hideNewForExisting = false)
+        assertTrue(p.create.isEmpty())
+        assertTrue(p.included.isEmpty())          // so an empty place does not turn into a container
+    }
+
+    @Test fun `by default a copy that already exists stays, only the new entry is held back`() {
+        val defs = listOf(def("old"), def("new"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), hideNew = true, existing = listOf(existing("old", "L")), hideNewForExisting = false)
+        assertTrue(p.remove.isEmpty())
+        assertTrue(p.create.isEmpty())
+        assertEquals(listOf("old"), p.included.map { it.id })
+    }
+
+    @Test fun `a switch the door set itself also hides what is already copied`() {
+        val defs = listOf(def("old"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), hideNew = true, existing = listOf(existing("old", "L")), hideNewForExisting = true)
+        assertEquals(listOf("old"), p.remove.map { it.node.definitionId })
+    }
+
+    @Test fun `by default an entry that was shown with a plus is still copied`() {
+        val defs = listOf(def("old"), def("chosen"))
+        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("chosen" to false), hideNew = true, existing = emptyList(), hideNewForExisting = false)
+        assertEquals(listOf("chosen"), p.create.map { it.id })
+    }
+
+    @Test fun `by default an explicit Hide still removes an existing copy`() {
+        val defs = listOf(def("old"))
+        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("old" to true), hideNew = true, existing = listOf(existing("old", "L")), hideNewForExisting = false)
+        assertEquals(listOf("old"), p.remove.map { it.node.definitionId })
+    }
+
+    @Test fun `by default a copy of a group keeps the copies inside it`() {
+        val defs = listOf(def("g", group = true), def("g1", parent = "g"))
+        val have = listOf(existing("g", "L"), existing("g1", "L"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), hideNew = true, existing = have, hideNewForExisting = false)
+        assertTrue(p.remove.isEmpty())
+        assertEquals(setOf("g", "g1"), p.included.map { it.id }.toSet())
+    }
 }
+

@@ -322,8 +322,14 @@ object AxisAclRules {
     fun merge(entryRules: Map<String, Boolean>, copyRules: Map<String, Boolean>): Map<String, Boolean> =
         entryRules + copyRules
 
-    /** A copy's own default if it set one, else the entry's, else everything included. */
-    fun effectiveHideNew(copyHideNew: Boolean?, entryHideNew: Boolean?): Boolean = copyHideNew ?: entryHideNew ?: false
+    /**
+     * A door's "hide new" default: its own if it set one, else its entry's, else the global default ([global], a setting,
+     * ON out of the box — so a new entry is not copied anywhere by itself).
+     */
+    fun effectiveHideNew(copyHideNew: Boolean?, entryHideNew: Boolean?, global: Boolean): Boolean = copyHideNew ?: entryHideNew ?: global
+
+    /** Did the door (or its entry) set "hide new" itself? Only then does it also hide copies that already exist. */
+    fun isExplicitHideNew(copyHideNew: Boolean?, entryHideNew: Boolean?): Boolean = copyHideNew != null || entryHideNew != null
 }
 
 /**
@@ -348,18 +354,34 @@ object AxisReconcile {
         val included: List<Task>,
     )
 
+    /**
+     * [hideNew] decides which NEW copies are made. [hideNewForExisting] decides which EXISTING copies stay — it is the
+     * same unless "hide new" came only from the global default, in which case pass false: a default hides NEW entries,
+     * it never removes a copy that is already there. (A switch the person set on a door does hide existing ones, as it
+     * does for a hardlink's ACL.)
+     */
     fun plan(
         axisId: String, defs: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean, existing: List<Existing>,
         hiddenHere: Set<String> = emptySet(), shownHere: Set<String> = emptySet(),
+        hideNewForExisting: Boolean = hideNew,
     ): Plan {
-        val included = AxisAclRules.includedEntries(axisId, defs, rules, hideNew, hiddenHere, shownHere)
-        val inc      = included.associateBy { it.id }
-        val have     = existing.associateBy { it.node.definitionId }
+        val forCreate = AxisAclRules.includedEntries(axisId, defs, rules, hideNew, hiddenHere, shownHere)
+        val forKeep   = if (hideNewForExisting == hideNew) forCreate
+                        else AxisAclRules.includedEntries(axisId, defs, rules, hideNewForExisting, hiddenHere, shownHere)
+        val keepById  = forKeep.associateBy { it.id }
+        val have      = existing.associateBy { it.node.definitionId }
+        val createById = forCreate.associateBy { it.id }
+
+        val create   = forCreate.filter { it.id !in have }.sortedBy { depth(it, createById) }
+        val staying  = existing.filter { it.node.definitionId in keepById }
+        val remove   = existing.filter { it.node.definitionId !in keepById }
         return Plan(
-            create   = included.filter { it.id !in have }.sortedBy { depth(it, inc) },
-            remove   = existing.filter { it.node.definitionId !in inc },
-            keep     = existing.filter { it.node.definitionId in inc }.map { it to inc.getValue(it.node.definitionId) },
-            included = included,
+            create   = create,
+            remove   = remove,
+            keep     = staying.map { it to keepById.getValue(it.node.definitionId) },
+            // What WILL exist here: the copies that stay and the ones about to be made. (Not everything the door could
+            // show if "hide new" were off — that must not turn an empty place into a container.)
+            included = staying.map { keepById.getValue(it.node.definitionId) } + create,
         )
     }
 
@@ -602,4 +624,34 @@ object AxisPath {
         val labels = (0 until anchorIndex).map { picks[it]?.task?.name ?: "any" } + anchor.task.name
         return Result.Ok(Placement(anchorIndex, anchor.task.id, route, labels))
     }
+}
+
+/**
+ * What the "copy it?" prompt offers, and the rules that carry it out. Nothing is copied without a '+': the prompt
+ * only decides whether those '+' rules are written. Pure.
+ */
+object AxisCopy {
+
+    enum class Kind { ENTRY, PLACE }
+
+    /**
+     * [ENTRY]: a new later-axis entry can be copied into [count] places. [PLACE]: a new place can receive [count]
+     * existing entries. [rules] are the '+' that do it; [axisId] is the axis the entries / places are on.
+     */
+    data class Offer(val kind: Kind, val name: String, val axisId: String, val rules: List<AxisAcl>) {
+        val count: Int get() = rules.size
+    }
+
+    /**
+     * The doors a NEW entry can be copied into: every place ([places] = door keys) — or, for an entry inside a group,
+     * only the places where a copy of that group exists ([copiesByDoor]: door -> definition ids copied there),
+     * because a child cannot appear where its group does not.
+     */
+    fun eligibleDoors(places: List<String>, parentId: String?, copiesByDoor: Map<String, Set<String>>): List<String> =
+        if (parentId == null) places else places.filter { parentId in copiesByDoor[it].orEmpty() }
+
+    fun entryRules(entryId: String, doors: List<String>): List<AxisAcl> = doors.map { AxisAcl(it, entryId, hidden = false) }
+
+    /** A new place [placeId] receives the entries [entryIds]: one '+' per entry at the place's own door. */
+    fun placeRules(placeId: String, entryIds: List<String>): List<AxisAcl> = entryIds.map { AxisAcl(placeId, it, hidden = false) }
 }

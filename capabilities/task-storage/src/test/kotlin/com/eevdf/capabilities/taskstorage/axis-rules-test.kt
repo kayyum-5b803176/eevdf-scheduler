@@ -103,16 +103,23 @@ class AxisRulesTest {
         assertEquals(emptySet<String>(), ids(all, merged))
     }
 
-    @Test fun `hide new - the copy's own default wins, else the entry's, else everything included`() {
-        assertEquals(true,  AxisAclRules.effectiveHideNew(copyHideNew = true,  entryHideNew = false))
-        assertEquals(false, AxisAclRules.effectiveHideNew(copyHideNew = false, entryHideNew = true))
-        assertEquals(true,  AxisAclRules.effectiveHideNew(copyHideNew = null,  entryHideNew = true))
-        assertEquals(false, AxisAclRules.effectiveHideNew(copyHideNew = null,  entryHideNew = null))
+    @Test fun `hide new - the copy's own default wins, else the entry's, else the global default`() {
+        assertEquals(true,  AxisAclRules.effectiveHideNew(copyHideNew = true,  entryHideNew = false, global = false))
+        assertEquals(false, AxisAclRules.effectiveHideNew(copyHideNew = false, entryHideNew = true,  global = true))
+        assertEquals(true,  AxisAclRules.effectiveHideNew(copyHideNew = null,  entryHideNew = true,  global = false))
+        assertEquals(true,  AxisAclRules.effectiveHideNew(copyHideNew = null,  entryHideNew = null,  global = true))    // ON out of the box
+        assertEquals(false, AxisAclRules.effectiveHideNew(copyHideNew = null,  entryHideNew = null,  global = false))
+    }
+
+    @Test fun `only a switch the door set itself counts as explicit`() {
+        assertTrue(AxisAclRules.isExplicitHideNew(true, null))
+        assertTrue(AxisAclRules.isExplicitHideNew(null, false))
+        assertFalse(AxisAclRules.isExplicitHideNew(null, null))     // it only follows the global default
     }
 
     @Test fun `an entry that hides new, and a copy that shows only one thing`() {
         val all = listOf(t("a"), t("b"), t("c"))
-        val hideNew = AxisAclRules.effectiveHideNew(null, true)
+        val hideNew = AxisAclRules.effectiveHideNew(null, true, global = false)
         assertEquals(emptySet<String>(), ids(all, AxisAclRules.merge(emptyMap(), emptyMap()), hideNew))
         assertEquals(setOf("b"), ids(all, AxisAclRules.merge(emptyMap(), mapOf("b" to false)), hideNew))
     }

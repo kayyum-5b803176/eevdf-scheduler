@@ -3,6 +3,8 @@ package com.eevdf.capabilities.tasklistscreen
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
+import com.eevdf.capabilities.taskstorage.AxisAcl
+import com.eevdf.capabilities.taskstorage.AxisCopy
 import com.eevdf.capabilities.taskstorage.AxisEditTarget
 import com.eevdf.capabilities.taskstorage.AxisMovePreview
 import com.eevdf.capabilities.taskstorage.AxisPath
@@ -74,7 +76,19 @@ class AxisFacade internal constructor(
      * Save [edited] and move it (and, for a group, what is inside it) to [Task.axisId]. With a [route] (path mode) it is
      * also placed ONLY where that pattern matches. False when something is running.
      */
-    suspend fun moveToAxis(edited: Task, route: String? = null): Boolean = repository.moveToAxis(edited, route)
+    suspend fun moveToAxis(edited: Task, route: String? = null, copyRules: List<AxisAcl> = emptyList()): Boolean =
+        repository.moveToAxis(edited, route, copyRules)
+
+    // ── the "copy it?" prompt ──────────────────────────────────────────────
+    /** The offer to copy a NEW later-axis entry into the places it could appear; null when there are none. */
+    suspend fun copyOfferForEntry(entryId: String, entryAxis: String, parentId: String?, name: String): AxisCopy.Offer? =
+        repository.axisCopyOfferForEntry(entryId, entryAxis, parentId, name)
+
+    /** The offer to copy the existing entries of the next axis into a NEW first-axis leaf; null when there are none. */
+    suspend fun copyOfferForPlace(placeId: String, name: String): AxisCopy.Offer? = repository.axisCopyOfferForPlace(placeId, name)
+
+    /** Write the '+' rules of an accepted offer, before the row is saved. */
+    suspend fun writeCopyRules(rules: List<AxisAcl>) = repository.writeAxisRules(rules)
 
     // ── path mode ─────────────────────────────────────────────────────────
     /** Everything the picker's path mode lists. */

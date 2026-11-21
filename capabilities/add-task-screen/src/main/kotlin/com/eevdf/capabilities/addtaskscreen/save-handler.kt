@@ -50,7 +50,8 @@ internal fun AddTaskActivity.saveTask() {
     // Pre-generate the task ID here so the [TaskLoadFactor] side table entry
     // can reference it before the Task row is inserted.  Existing tasks reuse
     // their stored ID unchanged.
-    val taskId = existingTask?.id ?: UUID.randomUUID().toString()
+    // A new task's id is made ONCE: Save may run again after a question (move / copy it?), and rules written for the first id must still match.
+    val taskId = existingTask?.id ?: (pendingNewTaskId ?: UUID.randomUUID().toString().also { pendingNewTaskId = it })
 
     val isLoadFactorEnabled = switchLoadFactorEnabled.isChecked
     val lfCognitive         = sliderCognitive.value.toInt()
@@ -251,6 +252,14 @@ internal fun AddTaskActivity.saveTask() {
         return
     }
 
+    // ── A new entry / a new place: offer to copy it ───────────────────────────
+    // With "hide new" on nothing is copied by itself. A path (route) has already said where it goes, so no question then.
+    val isNewHere = existingTask == null || targetAxisId != existingTask!!.axisId
+    if (!axisCopyAsked && axisPathRoute == null && isNewHere) {
+        offerAxisCopy(taskId, name, isGroup, parentId, interruptEnabled)
+        return
+    }
+
     // ── Assemble and persist — Task ───────────────────────────────────────────
     if (existingTask != null) {
         val updated = existingTask!!.copy(
@@ -301,7 +310,7 @@ internal fun AddTaskActivity.saveTask() {
         if (updated.axisId != existingTask!!.axisId) {
             // A move touches several rows (copies, links, the group's contents), so it gets a scope of its
             // own: finish() below ends this screen's before it could complete. A route places it ONLY where its pattern matches.
-            CoroutineScope(Dispatchers.Default).launch { viewModel.axes.moveToAxis(updated, pathRoute) }
+            CoroutineScope(Dispatchers.Default).launch { viewModel.axes.moveToAxis(updated, pathRoute, axisCopyRules) }
         } else if (pathRoute != null) {
             // Re-placed on a route inside its own axis: the placement is written first, then the entry saved
             // (copies follow), so nothing appears in a place it should not.
@@ -363,6 +372,13 @@ internal fun AddTaskActivity.saveTask() {
             // Placed on a path: write "only there" BEFORE the entry exists, so no copy is ever made elsewhere.
             CoroutineScope(Dispatchers.Default).launch {
                 viewModel.axes.setPlacement(task.id, newPathRoute)
+                viewModel.addTask(task)
+            }
+        } else if (axisCopyRules.isNotEmpty()) {
+            // An accepted "copy it?": write the '+' first, so the copies are made once, in those places only.
+            val rules = axisCopyRules
+            CoroutineScope(Dispatchers.Default).launch {
+                viewModel.axes.writeCopyRules(rules)
                 viewModel.addTask(task)
             }
         } else {

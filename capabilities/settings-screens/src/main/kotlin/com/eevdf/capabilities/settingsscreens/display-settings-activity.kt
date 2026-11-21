@@ -20,6 +20,7 @@ import com.eevdf.capabilities.designsystem.renderers.renderToggleCard
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.tabs.TabLayout
+import com.eevdf.capabilities.settingsstorage.state.AxisPrefs
 import com.eevdf.capabilities.settingsstorage.state.DisplayPrefs
 
 class DisplaySettingsActivity : AppCompatActivity() {
@@ -142,6 +143,32 @@ class DisplaySettingsActivity : AppCompatActivity() {
                     description = "VRT, VDL, Runs, TRT use SI suffixes. Floats: 88191 → 88.19K. Integers: 1800 → 1.8K. Time: 3d 28h 3s → 3d 28h.",
                     checked = DisplayPrefs.isUnitFormatEnabled(this),
                     onCheckedChange = { isChecked -> DisplayPrefs.setUnitFormatEnabled(this, isChecked) },
+                ),
+            )
+        )
+
+        // ── Axes: copying between axes ────────────────────────────────────────
+        findViewById<FrameLayout>(R.id.axisHideNewContainer).addView(
+            renderToggleCard(
+                this,
+                ToggleCardEntity(
+                    title = "Hide new entries by default",
+                    description = "A new entry on another axis, and a new place, are not copied anywhere by themselves. " +
+                        "What is already copied stays. Turn off to copy every new entry into every place automatically.",
+                    checked = AxisPrefs.isHideNewByDefault(this),
+                    onCheckedChange = { isChecked -> AxisPrefs.setHideNewByDefault(this, isChecked) },
+                ),
+            )
+        )
+        findViewById<FrameLayout>(R.id.axisAskCopyContainer).addView(
+            renderToggleCard(
+                this,
+                ToggleCardEntity(
+                    title = "Ask before copying",
+                    description = "When a new entry or a new place is saved, ask whether to copy it into the existing places " +
+                        "(or the existing entries into it). Off: nothing is copied and nothing is asked.",
+                    checked = AxisPrefs.isAskBeforeCopy(this),
+                    onCheckedChange = { isChecked -> AxisPrefs.setAskBeforeCopy(this, isChecked) },
                 ),
             )
         )

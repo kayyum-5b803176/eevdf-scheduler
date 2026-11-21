@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.taskstorage.AclChoice
 import com.eevdf.capabilities.taskstorage.AclResolution
 import com.eevdf.capabilities.taskstorage.AxisAclRules
+import com.eevdf.capabilities.settingsstorage.state.AxisPrefs
 import com.eevdf.capabilities.taskstorage.AxisRoute
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
@@ -81,7 +82,15 @@ internal class AxisAclTab(
     private var ownHideNew: Boolean?   = null
     private var entryHideNew: Boolean? = null
     private val rules: Map<String, Boolean> get() = AxisAclRules.merge(entryRules, ownRules)
-    private val hideNew: Boolean get() = AxisAclRules.effectiveHideNew(ownHideNew, entryHideNew)
+    private val hideNew: Boolean get() = AxisAclRules.effectiveHideNew(ownHideNew, entryHideNew, AxisPrefs.isHideNewByDefault(activity))
+
+    /** Entries already copied at THIS door. While "hide new" comes only from the default they stay (a default hides NEW entries). */
+    private var copiesHere: Set<String> = emptySet()
+    private val keptHere: Set<String>
+        get() = if (door.startsWith(Axes.DEFINITION_DOOR) || AxisAclRules.isExplicitHideNew(ownHideNew, entryHideNew)) emptySet() else copiesHere
+
+    /** What this door shows by its route or because it is already copied; hidden-here comes from the routes only. */
+    private val shownHere: Set<String> get() = atDoor.shown + keptHere
     private var tabsShown = false
     private var aclShown  = false
 
@@ -117,6 +126,7 @@ internal class AxisAclTab(
             entryRules = layerDoor?.let { l -> all.asSequence().filter { it.scopeKey == l }.associate { it.childKey to it.hidden } }.orEmpty()
             refresh()
         }
+        repository.allAxisNodes.observe(activity) { nodes -> copiesHere = nodes.asSequence().filter { it.scopeKey == door }.mapTo(HashSet()) { it.definitionId }; refresh() }
         repository.allAxisEntryRoutes.observe(activity) { all -> routes = all.associate { it.definitionId to it.route }; refresh() }
         repository.allAxisDoors.observe(activity) { all ->
             ownHideNew   = all.firstOrNull { it.scopeKey == door }?.newChildrenHidden
@@ -184,7 +194,7 @@ internal class AxisAclTab(
 
         // Is the level being viewed itself hidden? Then nothing in it can be changed.
         val merged = rules
-        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, merged, hideNew, atDoor.hidden, atDoor.shown) }
+        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, merged, hideNew, atDoor.hidden, shownHere) }
         if (here != null && here.hidden) {
             tvLocked.text = "\"${stack.last().name}\" is hidden, so everything inside it is hidden too. " +
                 "Make it visible to change these."
@@ -234,6 +244,7 @@ internal class AxisAclTab(
                 res.choice == AclChoice.HIDE  -> "Hidden · set here"
                 res.choice == AclChoice.SHOW  -> "Shown · set here"
                 !res.hidden && key in atDoor.shown   -> "Shown · from its path"
+                !res.hidden && key in keptHere       -> "Shown · already copied"
                 res.hidden && key in atDoor.hidden   -> "Hidden · all other places (tap + to add it here)"
                 res.hidden                    -> "Hidden (inherited)"
                 else                          -> "Shown (inherited)"
@@ -246,7 +257,7 @@ internal class AxisAclTab(
             .filter { (it.parentId?.takeIf { p -> p in byId }) == nodeId }
             .sortedBy { it.name.lowercase() }
             .map { t ->
-                val res    = AxisAclRules.resolve(ancestorKeys, t.id, merged, effHide, atDoor.hidden, atDoor.shown)
+                val res    = AxisAclRules.resolve(ancestorKeys, t.id, merged, effHide, atDoor.hidden, shownHere)
                 // On a copy the circles show what is set HERE; "Inherit" means follow the entry's ACL.
                 val own    = if (layerDoor == null) res.choice else when (ownRules[t.id]) {
                     null -> AclChoice.INHERIT; true -> AclChoice.HIDE; false -> AclChoice.SHOW
