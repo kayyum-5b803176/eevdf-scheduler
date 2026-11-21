@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
 import com.eevdf.capabilities.taskstorage.AxisChecklist
+import com.eevdf.capabilities.taskstorage.AxisExclusion
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskRepository
@@ -41,6 +42,23 @@ class AxisFacade internal constructor(
         if (axisId == Axes.DEFAULT) "Queue" else "Queue\u00B7${axisId.uppercase()}"
 
     fun groupsOf(axisId: String): LiveData<List<Task>> = repository.activeGroupsOfAxis(axisId)
+
+    /** Entries of any axis for edit-screen validation (siblings). The first axis uses the ordinary list. */
+    fun tasksOf(axisId: String): LiveData<List<Task>> = repository.activeTasksOfAxis(axisId)
+
+    // ── Schedule tab: the later-axis path under each first-axis leaf ──────
+    private val _pathTexts = MutableLiveData<Map<String, String>>(emptyMap())
+    val pathTexts: LiveData<Map<String, String>> = _pathTexts
+    fun pathTextOf(leafId: String): String? = _pathTexts.value?.get(leafId)
+
+    /** Recompute the path text of [leaves]; posts only when something changed. */
+    suspend fun refreshPathTexts(leaves: List<Task>) {
+        val m = repository.axisPathTexts(leaves)
+        if (m != _pathTexts.value) _pathTexts.postValue(m)
+    }
+
+    /** Fires when any include switch changes, so path texts can refresh. */
+    val exclusionsChanged: LiveData<List<AxisExclusion>> = repository.allAxisExclusions
 
     // ── include / exclude checklist ──────────────────────────────────────
     suspend fun definitions(axisId: String): List<Task> = repository.axisDefinitions(axisId)

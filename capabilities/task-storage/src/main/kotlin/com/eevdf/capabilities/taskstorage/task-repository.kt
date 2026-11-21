@@ -633,7 +633,23 @@ class TaskRepository @Inject constructor(
      *   See [creditAncestors] for the shared walk that applies this
      *   uniformly at whichever level the boundary actually falls.
      */
+    /**
+     * Credits a finished run. The first axis is credited exactly as before; then, inside
+     * the same leaf, whichever later-axis entries the descent picks are credited the
+     * same seconds on their private instances (see [creditAxisRun]). Every caller —
+     * timer expiry, pause, recovery, call-switch, bubble — gets this for free.
+     */
     suspend fun updateVruntimeAfterRun(
+        task: Task,
+        session: RunSession,
+        membershipId: String? = null,
+    ): Task {
+        val result = updateVruntimeAfterRunFirstAxis(task, session, membershipId)
+        withContext(Dispatchers.IO) { creditLaterAxes(task, session.wallClockSeconds) }
+        return result
+    }
+
+    private suspend fun updateVruntimeAfterRunFirstAxis(
         task: Task,
         session: RunSession,
         membershipId: String? = null,
@@ -1015,13 +1031,48 @@ class TaskRepository @Inject constructor(
     suspend fun selectNextPath(): List<AxisPick> = withContext(Dispatchers.IO) {
         val nowMs = clock.nowEpochMillis()
         val first = selectNextCgroup(awakeActiveSync(), null, nowMs = nowMs) ?: return@withContext emptyList()
-        AxisDescent.descend(
-            firstLeaf   = first,
-            definitions = { axis -> SleepRules.awake(dao.getActiveTasksOfAxisSync(axis)) },
-            excluded    = { axis, scope -> axisDao.getExclusions(scope, axis).mapTo(HashSet()) { it.entryId } },
-            instances   = { scope -> axisDao.getInstances(scope).associateBy { it.entryId } },
-            pickLevel   = { level -> selectNextCgroup(level, null, nowMs = nowMs) },
-        )
+        pathFrom(first, nowMs)
+    }
+
+    /** The y/z descent inside one already-chosen first-axis leaf. [defsCache] lets a batch load each axis once. */
+    private suspend fun pathFrom(
+        first: Task, nowMs: Long, defsCache: MutableMap<String, List<Task>> = HashMap(),
+    ): List<AxisPick> = AxisDescent.descend(
+        firstLeaf   = first,
+        definitions = { axis -> defsCache.getOrPut(axis) { SleepRules.awake(dao.getActiveTasksOfAxisSync(axis)) } },
+        excluded    = { axis, scope -> axisDao.getExclusions(scope, axis).mapTo(HashSet()) { it.entryId } },
+        instances   = { scope -> axisDao.getInstances(scope).associateBy { it.entryId } },
+        pickLevel   = { level -> selectNextCgroup(level, null, nowMs = nowMs) },
+    )
+
+    private suspend fun anyLaterAxisEntries(): Boolean =
+        Axes.ALL.drop(1).any { dao.getActiveTasksOfAxisSync(it).isNotEmpty() }
+
+    /**
+     * "Y: a › Z: p" for each first-axis leaf in [leaves] that has later-axis entries
+     * included (at most [limit] leaves; empty when no later axis has any entry, at no cost).
+     * Display only — the same descent the run uses.
+     */
+    suspend fun axisPathTexts(leaves: List<Task>, limit: Int = 200): Map<String, String> = withContext(Dispatchers.IO) {
+        if (!anyLaterAxisEntries()) return@withContext emptyMap()
+        val nowMs = clock.nowEpochMillis()
+        val cache = HashMap<String, List<Task>>()
+        val out = LinkedHashMap<String, String>()
+        for (leaf in leaves.asSequence().filter { !it.isGroup && it.axisId == Axes.DEFAULT }.take(limit)) {
+            val path = pathFrom(leaf, nowMs, cache)
+            if (path.size > 1) out[leaf.id] = path.drop(1).joinToString(" \u203A ") { "${it.axisId.uppercase()}: ${it.entry.name}" }
+        }
+        out
+    }
+
+    val allAxisExclusions: LiveData<List<AxisExclusion>> = axisDao.getAllExclusions()
+
+    /** Credit the later axes for a run of first-axis leaf [leaf]: whichever entries the descent picks inside it. */
+    private suspend fun creditLaterAxes(leaf: Task, secondsRan: Long) {
+        if (leaf.isGroup || leaf.axisId != Axes.DEFAULT || secondsRan <= 0L) return
+        if (!anyLaterAxisEntries()) return
+        val path = pathFrom(leaf, clock.nowEpochMillis())
+        if (path.size > 1) creditAxisRun(path, secondsRan)
     }
 
     /**

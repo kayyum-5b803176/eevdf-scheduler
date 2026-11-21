@@ -29,9 +29,11 @@ internal class TaskCrudDelegate(private val vm: TaskViewModel) {
      * the ones that actually changed.
      */
     private suspend fun syncPinnedWeights() {
-        val tasks   = vm.repository.getActiveTasksSync()
-        val changed = EEVDFScheduler.syncPinnedWeights(tasks)
-        if (changed.isNotEmpty()) vm.repository.updateBatch(changed)
+        // Every axis has its own sibling pools; each is normalised on its own.
+        for (axis in com.eevdf.capabilities.taskstorage.Axes.ALL) {
+            val changed = EEVDFScheduler.syncPinnedWeights(vm.repository.axisDefinitions(axis))
+            if (changed.isNotEmpty()) vm.repository.updateBatch(changed)
+        }
     }
 
     fun addTask(task: Task) = vm.viewModelScope.launch {

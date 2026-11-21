@@ -33,6 +33,8 @@ import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
  *   • NoticeSegments.kt — segmented notice-bar build and fill-update
  */
 class TaskAdapter(
+    /** Schedule tab only: "Y: a › Z: p" for a first-axis leaf, or null. */
+    private val axisPathProvider:   (String) -> String? = { null },
     private val onTaskClick:        (Task) -> Unit,
     private val onTaskLongClick:    (Task) -> Unit = {},
     /**
@@ -429,7 +431,13 @@ class TaskAdapter(
             }
         } else {
             // Leaf task row
-            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.category)
+            val categoryLine = buildCategoryLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.category)
+            val axisPath     = axisPathProvider(task.id)
+            holder.tvCategory.text  = when {
+                axisPath == null        -> categoryLine
+                categoryLine.isEmpty()  -> axisPath
+                else                    -> "$categoryLine | $axisPath"
+            }
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
             setTimeInfoColor(holder, R.color.app_text_label)   // views are recycled: undo a group's RL colour

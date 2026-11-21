@@ -5,6 +5,39 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.56.0 — Axes: runs credit the x → y → z path, Schedule shows it, Z checklist
+
+Includes everything in 6.55.0 (built and passed). No database change, `versionCode` untouched. With no y/z entries
+defined nothing changes: the extra work is skipped after one cheap query.
+
+### Added
+- **Runs credit the later axes.** `TaskRepository.updateVruntimeAfterRun` — the one funnel every caller uses
+  (timer expiry, pause, startup recovery, call-switch, bubble) — now also credits, inside the run's leaf, whichever
+  later-axis entries the descent picks, the same seconds, on their private `axis_instance` rows (vruntime, quota,
+  DL budget, run count). The first axis is credited exactly as before. Because vruntime advances, successive runs of
+  a leaf rotate through its Y/Z entries by each axis's own class.
+- **Schedule tab path.** Each first-axis leaf row appends `Y: a › Z: p` to its category line — the entries the
+  descent would pick inside it right now, using the same code as the run. Refreshes on every list rebuild and when
+  an include switch changes. Computed in the background for up to 200 leaves; skipped entirely when no later axis
+  has entries.
+- **Z include checklist.** Edit a Y entry → ⋮ → "Axis inclusion…" asks *inside which X entry*, then shows the Z
+  tree (scope `x/y`). X entries still manage Y as before.
+
+### Changed
+- **Edit screen looks at its own axis.** Pinned-share and save validation (and the semaphore wait check) now read
+  the siblings of the entry's axis, not the x list. Pinned weights are normalised per axis after add/edit.
+
+### Not changed on purpose
+The running timer still runs the first-axis leaf's time slice; later axes are the rotation inside it, shown and
+credited, not separate timers. Y/Z cards still refuse Run/Complete.
+
+### Verified / not verified
+Nothing new is unit-testable without a database (the descent and credit math are covered by 6.54.0's tests). **Not
+built, not run.** On the phone: define Y entries, run an X leaf twice, and confirm the Schedule row's `Y:` name
+rotates; switch an entry off in ⋮ → Axis inclusion and confirm it disappears from that leaf's path only.
+
+---
+
 ## 6.55.0 — Axes: Queue-tab axis popup, add/edit per axis, include checklist
 
 Includes everything in 6.54.0. No database change, `versionCode` untouched. With no y/z entries nothing looks or

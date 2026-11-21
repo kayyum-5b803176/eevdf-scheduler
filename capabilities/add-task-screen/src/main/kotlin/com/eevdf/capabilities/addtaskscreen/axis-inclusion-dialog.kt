@@ -19,21 +19,41 @@ import kotlinx.coroutines.launch
  * user-2: b, c, a). Editing a definition elsewhere changes every scope at once.
  */
 internal fun AddTaskActivity.showAxisInclusionDialog() {
-    val outer = existingTaskId ?: return
+    val self = existingTaskId ?: return
+    val index = Axes.ALL.indexOf(axisId)
     val nextAxis = Axes.next(axisId) ?: return
+    when (index) {
+        0 -> showInclusionChecklist(scope = self, nextAxis = nextAxis)
+        1 -> lifecycleScope.launch {
+            // This entry lives inside a first-axis leaf; the switches belong to that pairing ("<outer>/<this>").
+            val outers = viewModel.axes.definitions(Axes.ALL[0]).filter { !it.isGroup }.sortedBy { it.name.lowercase() }
+            if (outers.isEmpty()) return@launch
+            MaterialAlertDialogBuilder(this@showAxisInclusionDialog)
+                .setTitle("Inside which ${Axes.ALL[0].uppercase()} entry?")
+                .setItems(outers.map { it.name }.toTypedArray()) { _, i ->
+                    showInclusionChecklist(scope = Axes.scopeKey(listOf(outers[i].id, self)), nextAxis = nextAxis)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+        else -> Toast.makeText(this, "Open this from its outer entry", Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun AddTaskActivity.showInclusionChecklist(scope: String, nextAxis: String) {
     lifecycleScope.launch {
         val defs = viewModel.axes.definitions(nextAxis)
         if (defs.isEmpty()) {
-            Toast.makeText(this@showAxisInclusionDialog, "No ${nextAxis.uppercase()} entries defined yet", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@showInclusionChecklist, "No ${nextAxis.uppercase()} entries defined yet", Toast.LENGTH_SHORT).show()
             return@launch
         }
-        val excluded = viewModel.axes.exclusions(outer, nextAxis)
+        val excluded = viewModel.axes.exclusions(scope, nextAxis)
         val rows     = AxisChecklist.flatten(defs)
         val byId     = defs.associateBy { it.id }
         val checked  = rows.map { AxisRules.isIncluded(it.entry, byId, excluded) }.toBooleanArray()
         val labels   = rows.map { "    ".repeat(it.depth) + (if (it.entry.isGroup) "\u25B8 " else "") + it.entry.name }.toTypedArray()
 
-        MaterialAlertDialogBuilder(this@showAxisInclusionDialog)
+        MaterialAlertDialogBuilder(this@showInclusionChecklist)
             .setTitle("Include on ${nextAxis.uppercase()}")
             .setMultiChoiceItems(labels, checked) { dialog, which, isChecked ->
                 checked[which] = isChecked
@@ -46,7 +66,7 @@ internal fun AddTaskActivity.showAxisInclusionDialog() {
             }
             .setPositiveButton("Save") { _, _ ->
                 val state = rows.indices.associate { rows[it].entry.id to checked[it] }
-                lifecycleScope.launch { viewModel.axes.saveInclusion(outer, nextAxis, defs, state) }
+                lifecycleScope.launch { viewModel.axes.saveInclusion(scope, nextAxis, defs, state) }
             }
             .setNegativeButton("Cancel", null)
             .show()

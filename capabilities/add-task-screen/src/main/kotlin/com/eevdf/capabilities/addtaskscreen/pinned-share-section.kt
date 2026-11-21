@@ -69,7 +69,7 @@ internal fun AddTaskActivity.applySliderLock(pinnedValue: Double?) {
  * fallback weight (reasonable default for a task that has no float siblings yet).
  */
 internal fun AddTaskActivity.calcInternalWeight(targetShare: Double): Double {
-    val tasks = viewModel.activeTasks.value ?: emptyList()
+    val tasks = siblingTasks
     val parentId: String? = if (groupsEnabled) selectedParentId else null
     return EEVDFScheduler.calcPinnedWeight(
         targetShare    = targetShare,
@@ -85,7 +85,7 @@ internal fun AddTaskActivity.validatePinnedShare(newValue: Double?) {
         tvPinnedShareWarning.visibility = View.GONE
         return
     }
-    val tasks = viewModel.activeTasks.value ?: emptyList()
+    val tasks = siblingTasks
     val parentId: String? = if (groupsEnabled) selectedParentId else null
     val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId, parentId)
     val total = otherPinned + newValue

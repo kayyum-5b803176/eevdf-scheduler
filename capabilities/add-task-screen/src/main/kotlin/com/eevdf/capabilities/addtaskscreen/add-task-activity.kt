@@ -200,6 +200,11 @@ class AddTaskActivity : AppCompatActivity() {
     internal var selectedCategory  = "None"
     internal var existingTaskId:   String? = null
     /** Which axis this entry lives on — from the launching screen; the first axis when absent. */
+    /** Entries of THIS entry's axis — the siblings every validation here must look at. */
+    internal val axisTasks: androidx.lifecycle.LiveData<List<Task>> by lazy {
+        if (axisId == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) viewModel.activeTasks else viewModel.axes.tasksOf(axisId)
+    }
+    internal val siblingTasks: List<Task> get() = axisTasks.value ?: emptyList()
     internal val axisId: String by lazy { intent.getStringExtra("axis_id") ?: com.eevdf.capabilities.taskstorage.Axes.DEFAULT }
     internal var existingTask:     Task?   = null
     /** Groups from the ViewModel for the parent spinner; first entry = "None (root)" */
@@ -246,7 +251,7 @@ class AddTaskActivity : AppCompatActivity() {
         // Observe activeTasks here (not just in validation) so .value is populated
         // the moment the user opens this screen and types a pinned share value.
         // Also re-triggers weight calc if the task list changes while the form is open.
-        viewModel.activeTasks.observe(this) { recalcWeightFromPinned() }
+        axisTasks.observe(this) { recalcWeightFromPinned() }
 
         if (existingTaskId != null) {
             supportActionBar?.title = "Edit Task"
@@ -418,11 +423,11 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: android.view.Menu): Boolean {
-        // Only an existing entry of the FIRST axis has a following axis to include things in
-        // (deeper scopes are chosen from their own outer entry — see axis-inclusion-dialog.kt).
+        // An existing entry of the first or second axis has a following axis to include things in
+        // (the second asks which first-axis entry first — see axis-inclusion-dialog.kt).
         menu.findItem(R.id.action_axis_inclusion)?.isVisible =
-            existingTaskId != null && axisId == com.eevdf.capabilities.taskstorage.Axes.ALL.first() &&
-                com.eevdf.capabilities.taskstorage.Axes.next(axisId) != null
+            existingTaskId != null && com.eevdf.capabilities.taskstorage.Axes.next(axisId) != null &&
+                com.eevdf.capabilities.taskstorage.Axes.ALL.indexOf(axisId) in 0..1
         return super.onPrepareOptionsMenu(menu)
     }
 

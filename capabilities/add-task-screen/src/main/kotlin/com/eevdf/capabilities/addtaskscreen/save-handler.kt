@@ -75,7 +75,7 @@ internal fun AddTaskActivity.saveTask() {
     // slot), so say so instead of letting it silently vanish after the save.
     val willQueue = parentId != null && parentId != existingTask?.parentId &&
         !SemaphoreRules.admitsImmediately(
-            parentId, viewModel.activeTasksIncludingSleeping.value ?: emptyList(), excludeId = existingTask?.id,
+            parentId, (if (axisId == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) viewModel.activeTasksIncludingSleeping.value ?: emptyList() else siblingTasks), excludeId = existingTask?.id,
         )
 
     // ── Task type / notice ────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ internal fun AddTaskActivity.saveTask() {
     val pinnedShareRaw = etPinnedShare.text.toString().toDoubleOrNull()
     val pinnedShare: Double? = if (pinnedShareRaw != null) {
         val clamped = pinnedShareRaw.coerceIn(0.01, 99.99)
-        val tasks   = viewModel.activeTasks.value ?: emptyList()
+        val tasks   = siblingTasks
         val selectedParentId: String? = if (groupsEnabled) selectedParentId else null
         val otherPinned = EEVDFScheduler.otherPinnedTotal(tasks, existingTaskId, selectedParentId)
         if (otherPinned + clamped > 100.0) {

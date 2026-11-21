@@ -529,6 +529,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeAdapter(showRank: Boolean = false, scheduleTab: Boolean = false) = TaskAdapter(
+        axisPathProvider     = { id -> if (scheduleTab) viewModel.axes.pathTextOf(id) else null },
         onTaskClick          = { /* tap does nothing — use long-press to edit */ },
         onTaskLongClick      = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
         else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show() },
@@ -625,6 +626,14 @@ class MainActivity : AppCompatActivity() {
     private fun setupAdapters() {
         activeAdapter   = makeAdapter()
         scheduleAdapter = makeAdapter(showRank = true, scheduleTab = true)
+        // Schedule rows show the later-axis path ("Y: a › Z: p") under each first-axis leaf.
+        viewModel.listBuilder.scheduleDisplayList.observe(this) { items ->
+            lifecycleScope.launch { viewModel.axes.refreshPathTexts(items.map { it.task }) }
+        }
+        viewModel.axes.exclusionsChanged.observe(this) {
+            lifecycleScope.launch { viewModel.axes.refreshPathTexts(viewModel.listBuilder.scheduleDisplayList.value.orEmpty().map { it.task }) }
+        }
+        viewModel.axes.pathTexts.observe(this) { scheduleAdapter.notifyDataSetChanged() }
         completedAdapter = TaskAdapter(
             onTaskClick      = { /* tap does nothing */ },
             onTaskLongClick  = { if (viewModel.allowEditEnabled.value == true) showTaskDetail(it)
