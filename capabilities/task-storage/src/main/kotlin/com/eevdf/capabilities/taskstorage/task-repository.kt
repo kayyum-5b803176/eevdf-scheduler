@@ -56,6 +56,21 @@ class TaskRepository @Inject constructor(
     val completedTasks: LiveData<List<Task>> = dao.getCompletedTasks()
     val activeGroups: LiveData<List<Task>> = dao.getActiveGroups()
 
+    // ── Axes (y, z, …) — the reads above are X-only on purpose ──────────────
+    fun activeTasksOfAxis(axisId: String): LiveData<List<Task>> = MediatorLiveData<List<Task>>().apply {
+        addSource(dao.getActiveTasksOfAxis(axisId)) { value = SleepRules.awake(it) }
+    }
+    fun activeGroupsOfAxis(axisId: String): LiveData<List<Task>> = dao.getActiveGroupsOfAxis(axisId)
+    suspend fun axisDefinitions(axisId: String): List<Task> = withContext(Dispatchers.IO) { dao.getActiveTasksOfAxisSync(axisId) }
+    suspend fun axisExclusions(outerKey: String, axisId: String): Set<String> = withContext(Dispatchers.IO) {
+        axisDao.getExclusions(outerKey, axisId).mapTo(HashSet()) { it.entryId }
+    }
+    /** Switch [entryId] of [axisId] on/off under [outerKey]. Absent row = on. */
+    suspend fun setAxisIncluded(outerKey: String, axisId: String, entryId: String, included: Boolean) = withContext(Dispatchers.IO) {
+        if (included) axisDao.include(outerKey, axisId, entryId)
+        else axisDao.exclude(AxisExclusion(outerKey, axisId, entryId))
+    }
+
     // ── Links (symlinks) + Memberships (hardlinks) ────────────────────────────
 
     /** Symlinks whose target is asleep are hidden too — they must not render as "broken". */

@@ -292,6 +292,7 @@ internal fun AddTaskActivity.saveTask() {
     } else {
         val task = Task(
             id                  = taskId,              // pre-generated above
+            axisId              = axisId,
             name                = name,
             description         = description,
             priority            = priority,

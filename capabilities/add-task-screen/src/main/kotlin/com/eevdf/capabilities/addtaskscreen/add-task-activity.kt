@@ -199,6 +199,8 @@ class AddTaskActivity : AppCompatActivity() {
     internal var selectedTaskType  = "DEFAULT"
     internal var selectedCategory  = "None"
     internal var existingTaskId:   String? = null
+    /** Which axis this entry lives on — from the launching screen; the first axis when absent. */
+    internal val axisId: String by lazy { intent.getStringExtra("axis_id") ?: com.eevdf.capabilities.taskstorage.Axes.DEFAULT }
     internal var existingTask:     Task?   = null
     /** Groups from the ViewModel for the parent spinner; first entry = "None (root)" */
     internal val groupsList        = mutableListOf<Task?>()   // null = no parent
@@ -250,7 +252,8 @@ class AddTaskActivity : AppCompatActivity() {
             supportActionBar?.title = "Edit Task"
             loadExistingTask()
         } else {
-            supportActionBar?.title = "Add New Task"
+            supportActionBar?.title = if (axisId == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) "Add New Task"
+                                      else "Add New Task \u00B7 ${axisId.uppercase()}"
         }
     }
 
@@ -409,6 +412,25 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     /** On the ACL tab the toolbar back arrow goes up one level first, then leaves the screen. */
+    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_add_task, menu)
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: android.view.Menu): Boolean {
+        // Only an existing entry of the FIRST axis has a following axis to include things in
+        // (deeper scopes are chosen from their own outer entry — see axis-inclusion-dialog.kt).
+        menu.findItem(R.id.action_axis_inclusion)?.isVisible =
+            existingTaskId != null && axisId == com.eevdf.capabilities.taskstorage.Axes.ALL.first() &&
+                com.eevdf.capabilities.taskstorage.Axes.next(axisId) != null
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+        if (item.itemId == R.id.action_axis_inclusion) { showAxisInclusionDialog(); return true }
+        return super.onOptionsItemSelected(item)
+    }
+
     override fun onSupportNavigateUp(): Boolean {
         if (aclTab?.goUp() == true) return true
         finish(); return true

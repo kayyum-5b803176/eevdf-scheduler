@@ -236,3 +236,36 @@ object AxisDescent {
         return path
     }
 }
+
+/** One row of a flattened definition tree: [entry] at nesting [depth]. */
+data class AxisRow(val entry: Task, val depth: Int)
+
+/** Pure helpers for the include/exclude checklist. */
+object AxisChecklist {
+
+    /** Depth-first, name-sorted flattening of one axis's definition tree. */
+    fun flatten(defs: List<Task>): List<AxisRow> {
+        val byParent = defs.groupBy { it.parentId?.takeIf { p -> defs.any { d -> d.id == p } } }
+        val out = ArrayList<AxisRow>(defs.size)
+        fun walk(parent: String?, depth: Int) {
+            byParent[parent].orEmpty().sortedBy { it.name.lowercase() }.forEach { t ->
+                out += AxisRow(t, depth)
+                if (t.isGroup) walk(t.id, depth + 1)
+            }
+        }
+        walk(null, 0)
+        return out
+    }
+
+    /**
+     * From a checklist state (id -> checked), the minimal exclusion set to store:
+     * an unchecked entry whose parent is NOT already unchecked. Children follow
+     * their parent, so they need no row of their own.
+     */
+    fun topmostExcluded(defs: List<Task>, checked: Map<String, Boolean>): Set<String> {
+        val byId = defs.associateBy { it.id }
+        return defs.filter { checked[it.id] == false }
+            .filter { t -> t.parentId?.let { byId.containsKey(it) && checked[it] == false } != true }
+            .mapTo(HashSet()) { it.id }
+    }
+}

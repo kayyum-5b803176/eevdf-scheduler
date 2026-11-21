@@ -313,6 +313,8 @@ class TaskViewModel @Inject constructor(
     val queueDrillState:    LiveData<DrillState> = _queueDrillState
     val scheduleDrillState: LiveData<DrillState> = _scheduleDrillState
 
+    /** Axis state (Queue-tab axis, include/exclude checklist) — see [AxisFacade]. */
+    val axes = AxisFacade(repository) { _queueDrillState.value = DrillState() }
     internal val listBuilder = ListBuilderDelegate(this)
     internal val crud        = TaskCrudDelegate(this)
     internal val sleep       = SleepDelegate(this)

@@ -5,6 +5,41 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.55.0 — Axes: Queue-tab axis popup, add/edit per axis, include checklist
+
+Includes everything in 6.54.0. No database change, `versionCode` untouched. With no y/z entries nothing looks or
+behaves differently: the Queue tab is still axis x.
+
+### Added
+- **Queue-tab axis popup.** Tap the already-selected Queue tab → popup of axes (X / Y / Z, from `Axes.ALL`),
+  same mechanism as the Schedule tab's class filter. The tab label follows the choice (`Queue·Y`). The same
+  cards, groups, drill-down and edit screen then show that axis's entries. View-only: it changes no task.
+- **Add / edit on the selected axis.** `+` from Queue·Y creates a Y entry (`axis_id` extra); editing carries the
+  entry's own axis; the parent-group picker lists groups of that axis only; the form is identical for every axis.
+- **Axis inclusion checklist** (Edit screen → ⋮ → "Axis inclusion…", first-axis entries only). Lists the next
+  axis's definition tree, indented, everything on by default; unchecking a group unchecks its subtree; only the
+  topmost switched-off entries are stored (`axis_exclusion`, scope = this entry's id).
+- `AxisFacade` (one new property, `TaskViewModel.axes`): Queue-axis state and the checklist's reads/writes, so
+  the view model and activities grow no per-axis code. `AxisChecklist` (pure): flatten + topmost-exclusions.
+- Repository: `activeTasksOfAxis`, `activeGroupsOfAxis`, `axisDefinitions`, `axisExclusions`, `setAxisIncluded`.
+
+### Behaviour on Queue·Y / Queue·Z
+- Run is refused with a toast: those entries are scheduled inside the X pick, never from their own card.
+- Complete is refused (only X entries use the Completed tab).
+- Delete works and also clears that entry's exclusions/instances (6.54.0 hooks).
+
+### Known gaps (next)
+- Inclusion for the THIRD axis (scope `x/y`) has no UI yet; everything is included by default, which is correct.
+- Pinned-share / load-factor / semaphore sections still read x siblings when editing a y/z entry.
+- The running timer and the Schedule tab do not use `selectNextPath` yet.
+
+### Verified / not verified
+`axis-checklist-test.kt` (flatten order and depth, orphan as root, topmost-exclusion rules). **Not built, not
+run** — build, run `verifyAll`, then on the phone: tap Queue twice → pick Y, add an entry, long-press → edit,
+open an X entry → ⋮ → Axis inclusion.
+
+---
+
 ## 6.54.0 — Axes: x → y → z selection and per-scope accounting
 
 Includes everything in 6.53.0 (which built and passed). No database change, no UI change, `versionCode`

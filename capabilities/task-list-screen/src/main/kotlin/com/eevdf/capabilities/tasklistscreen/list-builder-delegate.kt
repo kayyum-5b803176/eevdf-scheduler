@@ -226,6 +226,15 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         queueDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
+                // Queue·Y / Queue·Z: the same builders over that axis's entries (no links/hardlinks there).
+                if (vm.axes.current != com.eevdf.capabilities.taskstorage.Axes.DEFAULT) {
+                    val axisTasks = vm.axes.tasks.value ?: emptyList()
+                    value = if (vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN) {
+                        val drill = vm.queueDrillState.value
+                        buildQueueDrillLevel(drill?.currentFrameId, axisTasks, emptyList(), emptyList(), drill?.currentHighlightTaskId, drill?.currentDoorMembershipId, emptyList())
+                    } else buildQueueList(axisTasks, vm.settings.groupsEnabled.value ?: false)
+                    return
+                }
                 value = withWaitingCounts(if (vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN) {
                     val tasks       = vm.activeTasks.value       ?: emptyList()
                     val links       = vm.allTaskLinks.value       ?: emptyList()
@@ -243,6 +252,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             addSource(flatActiveTasks)          { rebuild() }
             addSource(vm.settings.queueListStyle) { rebuild() }
             addSource(vm.queueDrillState)         { rebuild() }
+            addSource(vm.axes.queueAxis)          { rebuild() }
+            addSource(vm.axes.tasks)              { rebuild() }
             // The drill branch reads the ACL directly (not through flatActiveTasks).
             addSource(vm.allMembershipAcl)        { rebuild() }
         }

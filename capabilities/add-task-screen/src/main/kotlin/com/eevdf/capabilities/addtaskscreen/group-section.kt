@@ -26,7 +26,8 @@ internal fun AddTaskActivity.setupGroupSection() {
     groupSection.visibility     = View.VISIBLE
     groupTypeSection.visibility = View.VISIBLE
 
-    viewModel.activeGroups.observe(this) { groups ->
+    val groupSource = if (axisId == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) viewModel.activeGroups else viewModel.axes.groupsOf(axisId)
+    groupSource.observe(this) { groups ->
         groupsList.clear()
         groupsList.add(null)
 

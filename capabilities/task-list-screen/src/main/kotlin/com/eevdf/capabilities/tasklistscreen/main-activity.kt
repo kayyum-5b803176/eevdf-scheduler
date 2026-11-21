@@ -38,6 +38,7 @@ import com.eevdf.kernel.eventbus.StripState
 import javax.inject.Inject
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
+import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.settingsstorage.state.VibrationPrefs
 import dagger.hilt.android.AndroidEntryPoint
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -502,7 +503,10 @@ class MainActivity : AppCompatActivity() {
 
         fabAdd.setOnClickListener {
             haptic(it)
-            startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK))
+            startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK).apply {
+                // New entries from Queue·Y / Queue·Z belong to that axis.
+                if (currentTab == 0) putExtra("axis_id", viewModel.axes.current)
+            })
         }
 
         // Hold Add Task -> Links (symlink/hardlink creation). Tap still opens
@@ -534,14 +538,20 @@ class MainActivity : AppCompatActivity() {
             else Toast.makeText(this, "Enable \"Allow Edit\" from the menu", Toast.LENGTH_SHORT).show()
         },
         onDeleteClick        = { confirmDelete(it) },
-        onCompleteClick      = { viewModel.markCompleted(it) },
+        onCompleteClick      = {
+            if (it.axisId != Axes.DEFAULT) Toast.makeText(this, "Only ${Axes.DEFAULT.uppercase()} entries can be completed", Toast.LENGTH_SHORT).show()
+            else viewModel.markCompleted(it)
+        },
         onRunClick           = { item ->
             // TaskInstanceRef.of(item) already builds the correct door
             // centrally (own membership, or the inherited one, or a
             // symlink) — no need to re-derive or branch on it here; doing
             // that manually at each call site was exactly how this drifted
             // out of sync with the type's own logic before.
-            viewModel.setCurrentTask(item.task, TaskInstanceRef.of(item))
+            // Y/Z entries are definitions: they run through the X pick, never from their own card.
+            if (!scheduleTab && viewModel.axes.current != Axes.DEFAULT) {
+                Toast.makeText(this, "Run from the ${Axes.DEFAULT.uppercase()} tab — this axis is scheduled inside it", Toast.LENGTH_SHORT).show()
+            } else viewModel.setCurrentTask(item.task, TaskInstanceRef.of(item))
         },
         onGroupToggle        = { item ->
             val task  = item.task
@@ -661,6 +671,7 @@ class MainActivity : AppCompatActivity() {
             // class-filter popup — no new control added to the layout, per
             // the existing tab itself being the anchor.
             override fun onTabReselected(tab: TabLayout.Tab) {
+                if (tab.position == 0) showQueueAxisMenu(tab)
                 if (tab.position == 1) showScheduleClassFilterMenu(tab)
                 if (tab.position == 2) showCompletedTabModeMenu(tab)
             }
@@ -672,6 +683,11 @@ class MainActivity : AppCompatActivity() {
             completedAdapter.isSleepView = mode == CompletedTabMode.SLEEP
             completedAdapter.isWaitView  = mode == CompletedTabMode.WAIT
             menuSyncDelegate.syncTabVisibility()
+            updateEmptyView()
+        }
+
+        viewModel.axes.queueAxis.observe(this) { axis ->
+            tabLayout.getTabAt(0)?.text = viewModel.axes.tabLabel(axis)
             updateEmptyView()
         }
 
@@ -693,6 +709,24 @@ class MainActivity : AppCompatActivity() {
     private fun tabView(tab: TabLayout.Tab): View {
         val strip = tabLayout.getChildAt(0) as? ViewGroup ?: return tabLayout
         return strip.getChildAt(tab.position) ?: tabLayout
+    }
+
+    /**
+     * Tapping the already-selected Queue tab opens a popup of axes — same mechanism as
+     * the Schedule tab's class filter. The tab label follows the choice. View-only.
+     */
+    private fun showQueueAxisMenu(tab: TabLayout.Tab) {
+        val popup = android.widget.PopupMenu(this, tabView(tab), android.view.Gravity.CENTER_HORIZONTAL)
+        Axes.ALL.forEachIndexed { i, axis ->
+            popup.menu.add(0, i, i, axis.uppercase()).isCheckable = true
+            popup.menu.getItem(i).isChecked = axis == viewModel.axes.current
+        }
+        popup.menu.setGroupCheckable(0, true, true)
+        popup.setOnMenuItemClickListener { item ->
+            viewModel.axes.select(Axes.ALL[item.itemId])
+            true
+        }
+        popup.show()
     }
 
     /**
@@ -881,6 +915,7 @@ class MainActivity : AppCompatActivity() {
     private fun showTaskDetail(task: Task, membershipId: String? = null) {
         startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK).apply {
             putExtra("task_id", task.id)
+            putExtra("axis_id", task.axisId)
             // Only when launched from a hardlink row: AddTaskActivity shows the ACL tab.
             if (membershipId != null) putExtra("membership_id", membershipId)
         })
