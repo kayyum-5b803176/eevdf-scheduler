@@ -288,6 +288,9 @@ class TaskViewModel @Inject constructor(
 
     internal val settings    = ListTogglesDelegate(prefs)
     internal val groupExpand = GroupExpandDelegate(prefs, this)
+    /** The list the screens are built from: real rows plus the untouched copies of open places — see [AxisVirtualDelegate]. */
+    internal val axisVirtual = AxisVirtualDelegate(this)
+    val listTasks: LiveData<List<Task>> get() = axisVirtual.listTasks
     internal val lastRun     = QueueLastRunDelegate(prefs)
     internal val interrupt   = InterruptDelegate(this)
     internal val callSwitch  = CallSwitchDelegate(this)
@@ -471,6 +474,10 @@ class TaskViewModel @Inject constructor(
         viewModelScope.launch { repository.reconcileAxes() }
 
         // ── Build flat lists (must come after repository + delegates are ready) ─
+        axisVirtual.setup()
+        // Selecting an untouched copy (a tap, Next, auto-advance) makes it a real row first; it keeps its id.
+        currentTaskOwner.materializer = { repository.materialize(it) }
+        currentTaskOwner.isUntouched  = { id -> id in axisVirtual.virtualIds }
         listBuilder.setup()
         flatActiveTasks   = listBuilder.flatActiveTasks
         flatScheduleOrder = listBuilder.flatScheduleOrder

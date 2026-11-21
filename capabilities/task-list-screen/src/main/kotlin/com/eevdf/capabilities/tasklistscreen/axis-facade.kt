@@ -8,6 +8,7 @@ import com.eevdf.capabilities.taskstorage.AxisCopy
 import com.eevdf.capabilities.taskstorage.AxisEditTarget
 import com.eevdf.capabilities.taskstorage.AxisMovePreview
 import com.eevdf.capabilities.taskstorage.AxisPath
+import com.eevdf.capabilities.taskstorage.AxisVirtualId
 import com.eevdf.capabilities.taskstorage.AxisNode
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
@@ -55,7 +56,12 @@ class AxisFacade internal constructor(
     val nodes: LiveData<List<AxisNode>> = repository.allAxisNodes
 
     /** The axis label ("Y", "Z", …) for a row that is a copy of a later-axis definition, else null. */
-    fun badgeOf(taskId: String): String? = nodes.value?.firstOrNull { it.taskId == taskId }?.axisId?.uppercase()
+    fun badgeOf(taskId: String): String? {
+        nodes.value?.firstOrNull { it.taskId == taskId }?.let { return it.axisId.uppercase() }
+        // An untouched copy is not a row yet: its axis is its definition's.
+        val definitionId = AxisVirtualId.parse(taskId)?.second ?: return null
+        return repository.laterAxisTasks.value.orEmpty().firstOrNull { it.id == definitionId }?.axisId?.uppercase()
+    }
 
     /** The definition a copy follows, as (definition id, its axis) — an edit of a copy opens this instead. */
     fun definitionOf(taskId: String): Pair<String, String>? =

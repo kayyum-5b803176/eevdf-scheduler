@@ -5,6 +5,58 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.66.0 — Copy-on-write copies, and no more write storms
+
+Includes everything in 6.65.0. **No database change** (still version 38), `versionCode` untouched.
+
+### The problem
+Every copy was a real row, created up front. With 10 entries per axis that is about 1,110 rows (places × entries × …), and adding
+one task created ~110 of them with ~220 separate writes; each write made every list re-query and rebuild on the main thread, so the
+app worked for a few seconds, froze, and was killed. At 10,000 per axis it could never have worked.
+
+### Copy-on-write: an untouched copy is not stored
+- A copy exists only as a row once something TOUCHES it — runs it, completes it, sleeps it, or edits it on its own. Until then it is
+  derived on demand from the definition and the place, with fresh runtime. Storage and work follow what was touched or is open on
+  screen, never places × entries, however many exist.
+- **Same id before and after.** A derived copy's id is deterministic (`cp:<scope>|<definition>`), and touching it writes the row with
+  that very id, so a list row, a timer, a link or an expand state never has to be re-pointed.
+- **Lists.** A place that has untouched entries is shown as a group that starts COLLAPSED; opening it derives its entries (and opening
+  one of those that holds more derives the next axis's). Only what is open is built.
+- **Selection.** `selectNextTask` descends into untouched copies one place at a time (one level per axis), picks like a new arrival
+  among the real siblings, and makes the winner (and anything above it that was still virtual) a row before returning it. Choosing a
+  copy anywhere — a tap, Next, auto-advance — goes through `CurrentTaskOwner`, which materializes it first.
+- **Writes.** A write to an untouched copy (update, complete, sleep, wake, a run being credited) makes it a row first; deleting one
+  just writes a Hide at its door (there is nothing to delete). Editing a copy still opens its definition.
+- **Reconcile no longer creates anything.** It only keeps the copies that EXIST in step: a copy whose definition is gone or that its
+  door no longer shows is removed, the rest follow their definition, and a place stops being a container when its last touched copy
+  goes. Its cost follows the touched copies, not places × entries, so the startup pass is trivial.
+- **"Copy to all N" is now free**: it writes N rules in one transaction and creates no rows.
+
+### Stabilizing
+- Rules of an accepted copy, and of a move, are written in ONE transaction (one refresh of everything watching, however many places).
+- Nothing is created in bulk any more, so there is no write storm left to refresh against.
+
+### Know this
+- Copies that already exist as rows (made by earlier versions) stay rows; nothing is converted. Only new copies are virtual.
+- **Next / rotate follow what is open.** A collapsed place is skipped like any collapsed group; auto-advance after a run uses the
+  repository pick, which dives into untouched copies whether or not their place is open.
+- A place's own rank among its siblings is judged on its own state; a deadline or realtime setting on UNTOUCHED copies is considered
+  once that place wins its level, not while ranking places against each other.
+- A place that holds untouched entries is drawn as a group (no Run button), exactly like a container was.
+
+### Verified / not verified
+`axis-virtual-test.kt`: the id round-trips and an ordinary id is not virtual; by default nothing is derived; a plus derives exactly that
+entry at exactly that door; a derived copy is a fresh row of its definition; with hide new off every included entry is derived, a
+group's entries under their group copy, parents first; routes, explicit Hide and a door's own switch; a touched copy is not derived
+twice and an entry hangs under its group's real copy; what is a place; scope of a row, a real copy and a derived copy; a derived copy
+is itself a place for the next axis; an entry's own door applies to every copy of it; the last axis holds nothing; the cheap check
+never says no where there is something; the pure "missing" rule. The new pure code parses and type-checks with the real Kotlin
+compiler and every touched file parses. **Not built with Gradle, not run.** On the phone: with 10 entries on each axis, add a task and
+confirm there is no freeze; open a place — its untouched entries appear; run one — it becomes a normal task and keeps running after
+a restart; complete another and confirm only that copy completes; "Copy to all N" is instant.
+
+---
+
 ## 6.65.0 — Hide new by default, and a prompt before anything is copied
 
 Includes everything in 6.64.1. **No database change** (still version 38), `versionCode` untouched.

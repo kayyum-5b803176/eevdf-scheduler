@@ -145,7 +145,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         // fire caused by a different task's ACTIVATION is correctly not
         // reported here.
         val justExpired = rtActiveTaskIdsAtSchedule.filter { taskId ->
-            val task = vm.activeTasks.value?.find { it.id == taskId } ?: return@filter false
+            val task = vm.listTasks.value?.find { it.id == taskId } ?: return@filter false
             !RtScheduler.isRtWindowActive(task, vm.clock.nowEpochMillis())
         }
         if (justExpired.isNotEmpty()) {
@@ -182,14 +182,14 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     fun setup() {
         flatActiveTasks = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                val tasks       = vm.activeTasks.value        ?: emptyList()
+                val tasks       = vm.listTasks.value        ?: emptyList()
                 val enabled     = vm.settings.groupsEnabled.value ?: false
                 val links       = vm.allTaskLinks.value        ?: emptyList()
                 val memberships = vm.allTaskMemberships.value  ?: emptyList()
                 val acl         = vm.allMembershipAcl.value    ?: emptyList()
                 value = buildQueueList(tasks, enabled, links, memberships, acl)
             }
-            addSource(vm.activeTasks)                        { rebuild() }
+            addSource(vm.listTasks)                        { rebuild() }
             addSource(vm.settings.groupsEnabled)             { rebuild() }
             addSource(vm.groupExpand.queueExpandTrigger)     { rebuild() }
             addSource(vm.allTaskLinks)                       { rebuild() }
@@ -200,7 +200,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         flatScheduleOrder = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                val tasks       = vm.activeTasks.value        ?: emptyList()
+                val tasks       = vm.listTasks.value        ?: emptyList()
                 val enabled     = vm.settings.groupsEnabled.value ?: false
                 val links       = vm.allTaskLinks.value        ?: emptyList()
                 val memberships = vm.allTaskMemberships.value  ?: emptyList()
@@ -212,7 +212,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 // Re-arm the one-shot handler for the next RT window change.
                 rescheduleRtResort(tasks)
             }
-            addSource(vm.activeTasks)                        { rebuild() }
+            addSource(vm.listTasks)                        { rebuild() }
             addSource(vm.settings.groupsEnabled)             { rebuild() }
             addSource(vm.groupExpand.scheduleExpandTrigger)  { rebuild() }
             // Fourth source: fires when a DL period expires (wall-clock trigger).
@@ -236,7 +236,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                     return
                 }
                 value = withWaitingCounts(if (vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN) {
-                    val tasks       = vm.activeTasks.value       ?: emptyList()
+                    val tasks       = vm.listTasks.value       ?: emptyList()
                     val links       = vm.allTaskLinks.value       ?: emptyList()
                     val memberships = vm.allTaskMemberships.value ?: emptyList()
                     val acl         = vm.allMembershipAcl.value   ?: emptyList()
@@ -263,7 +263,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                 val filter = vm.scheduleClassFilter.value ?: ScheduleClassFilter.SCHEDULE
                 value = withWaitingCounts(when {
                     vm.settings.scheduleListStyle.value == TaskListStyle.DRILL_DOWN -> {
-                        val tasks       = vm.activeTasks.value       ?: emptyList()
+                        val tasks       = vm.listTasks.value       ?: emptyList()
                         val links       = vm.allTaskLinks.value       ?: emptyList()
                         val memberships = vm.allTaskMemberships.value ?: emptyList()
                         val acl         = vm.allMembershipAcl.value   ?: emptyList()
@@ -271,7 +271,7 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         buildScheduleDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId, acl)
                     }
                     filter != ScheduleClassFilter.SCHEDULE ->
-                        buildFilteredScheduleList(vm.activeTasks.value ?: emptyList(), filter, vm.allTaskLinks.value ?: emptyList(), vm.allTaskMemberships.value ?: emptyList(), vm.allMembershipAcl.value ?: emptyList())
+                        buildFilteredScheduleList(vm.listTasks.value ?: emptyList(), filter, vm.allTaskLinks.value ?: emptyList(), vm.allTaskMemberships.value ?: emptyList(), vm.allMembershipAcl.value ?: emptyList())
                     else -> flatScheduleOrder.value ?: emptyList()
                 })
             }
@@ -313,8 +313,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         }
 
         scheduleClassCounts = MediatorLiveData<Map<ScheduleClassFilter, Int>>().apply {
-            fun rebuild() { value = classCounts(vm.activeTasks.value ?: emptyList(), vm.clock.nowEpochMillis()) }
-            addSource(vm.activeTasks) { rebuild() }
+            fun rebuild() { value = classCounts(vm.listTasks.value ?: emptyList(), vm.clock.nowEpochMillis()) }
+            addSource(vm.listTasks) { rebuild() }
             // flatScheduleOrder already re-fires at the exact wall-clock
             // moment a DL budget replenishes or an RT window opens/closes
             // (_dlResortTick / _rtResortTick above) — reusing that as this

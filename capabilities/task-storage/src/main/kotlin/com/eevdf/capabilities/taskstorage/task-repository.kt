@@ -79,9 +79,12 @@ class TaskRepository @Inject constructor(
      *  - real groups, copies/definitions that are groups, and the last axis → no ACL
      */
     suspend fun axisEditTarget(task: Task): AxisEditTarget = withContext(Dispatchers.IO) {
-        val node = axisDao.getNodeOf(task.id)
+        val node = axisDao.getNodeOf(task.id) ?: AxisVirtualId.parse(task.id)?.let { (scope, definitionId) ->
+            dao.getTaskById(definitionId)?.let { AxisNode(task.id, definitionId, it.axisId, scope) }   // an untouched copy
+        }
         val container = axisDao.containerCount(task.id) > 0
-        val leafLike = !task.isGroup || container
+        // The STORED row decides: a place that holds untouched entries is drawn as a group but is really a leaf.
+        val leafLike = !(dao.getTaskById(task.id)?.isGroup ?: task.isGroup) || container
         when {
             node != null -> {
                 val next = Axes.next(node.axisId)
@@ -179,7 +182,7 @@ class TaskRepository @Inject constructor(
 
     /** Write the '+' rules of an accepted offer. The copies follow when the row is saved. */
     suspend fun writeAxisRules(rules: List<AxisAcl>) = withContext(Dispatchers.IO) {
-        rules.forEach { axisDao.upsertRule(it) }
+        axisDao.upsertRules(rules)          // ONE transaction: one refresh of everything watching, however many places
     }
 
     // ── Axes: path mode (placing an entry only where it was picked) ──────────
@@ -323,7 +326,7 @@ class TaskRepository @Inject constructor(
             }
             // A route is written before the copies are reconciled, so none appear elsewhere.
             if (route != null) setAxisRoute(edited.id, route)
-            copyRules.forEach { axisDao.upsertRule(it) }     // an accepted "copy it?" — before any copy is reconciled
+            if (copyRules.isNotEmpty()) axisDao.upsertRules(copyRules)   // an accepted "copy it?" — one transaction
             true
         }
         if (!moved) return@withContext false
@@ -357,6 +360,11 @@ class TaskRepository @Inject constructor(
 
     /** Live set of copies — lets screens badge a row as a copy and send an edit to its definition. */
     val allAxisNodes: LiveData<List<AxisNode>> = axisDao.getAllNodes()
+    val allAxisContainers: LiveData<List<AxisContainer>> = axisDao.getAllContainers()
+    /** Active (awake) definitions of every later axis — what the lists derive untouched copies from. */
+    val laterAxisTasks: LiveData<List<Task>> = MediatorLiveData<List<Task>>().apply {
+        addSource(dao.getActiveTasksNotOfAxis(Axes.DEFAULT)) { value = SleepRules.awake(it) }
+    }
 
     /**
      * Bring the real copies in step with the definitions and the include switches.
@@ -373,43 +381,74 @@ class TaskRepository @Inject constructor(
         axisDao.upsertRule(AxisAcl(node.scopeKey, node.definitionId, hidden = true))
     }
 
+    /**
+     * Keeps the copies that EXIST in step with their definitions — and nothing else. Copies are copy-on-write: an
+     * untouched copy is not a row (see [AxisVirtualEngine]), so there is nothing to create here and the work is
+     * proportional to the copies that were touched, never to places × entries.
+     *
+     * For each real copy: a copy whose definition is gone, or that its door no longer shows (an explicit Hide, a route that
+     * does not match, a hidden group above it), goes; every other copy follows its definition's shared fields. A leaf that
+     * held touched copies and now holds none stops being a container.
+     */
     private suspend fun reconcileAxesLocked(onlyUnder: String?) {
-        val laterAxes = Axes.ALL.drop(1)
-        val defs = laterAxes.associateWith { dao.getActiveTasksOfAxisSync(it) }
-        // Nothing defined and nothing created: the common case costs these three reads.
-        if (defs.values.all { it.isEmpty() } && axisDao.getAllNodesSync().isEmpty() &&
-            axisDao.getAllContainersSync().isEmpty()) return
+        val allNodes = axisDao.getAllNodesSync()
+        val containers = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId }
+        if (allNodes.isEmpty() && containers.isEmpty()) return          // nothing was ever touched: nothing to keep in step
+        val nodes = if (onlyUnder == null) allNodes
+                    else allNodes.filter { it.scopeKey == onlyUnder || it.scopeKey.startsWith("$onlyUnder/") }
+        if (nodes.isEmpty()) return                                    // nothing here to keep in step
 
+        val defs = Axes.ALL.drop(1).associateWith { dao.getActiveTasksOfAxisSync(it) }
+        val defsById = defs.values.flatten().associateBy { it.id }
+        val defsOfAxis = defs.mapValues { (_, list) -> list.associateBy { it.id } }
         val rulesByDoor = axisDao.getAllAclSync()
             .groupBy { it.scopeKey }
             .mapValues { (_, rows) -> rows.associate { it.childKey to it.hidden } }
         val hideNewByDoor = axisDao.getAllDoorsSync().associate { it.scopeKey to it.newChildrenHidden }
         val routes = axisDao.getAllEntryRoutesSync().associate { it.definitionId to it.route }
+        val global = hideNewByDefault()
+        val copiesAt = allNodes.groupBy({ it.scopeKey }, { it.definitionId to it.taskId }).mapValues { it.value.toMap() }
+
+        val rows = HashMap<String, Task>()
+        nodes.map { it.taskId }.chunked(500).forEach { chunk -> dao.getTasksByIds(chunk).forEach { rows[it.id] = it } }
+
         var changed = false
+        val touchedParents = HashSet<String>()
+        // Deepest first, so a copy removed with its parent is not also processed on its own.
+        for (n in nodes.sortedByDescending { it.scopeKey.count { c -> c == '/' } }) {
+            val row = rows[n.taskId]
+            if (row == null) { axisDao.deleteNodeOf(n.taskId); continue }              // its row is gone: forget it
+            if (row.isRunning) continue                                                // a running copy is left alone
+            val def = defsById[n.definitionId]
+            val scope = n.scopeKey
+            val layer = Axes.layerDoorOf(scope)
+            val copyFlag = hideNewByDoor[scope]; val entryFlag = layer?.let { hideNewByDoor[it] }
+            val existingHideNew = if (AxisAclRules.isExplicitHideNew(copyFlag, entryFlag))
+                AxisAclRules.effectiveHideNew(copyFlag, entryFlag, global) else false    // a default never removes what is there
+            val route = AxisRoute.at(routes, scope)
+            val stays = def != null && !AxisAclRules.isHidden(
+                def, defsOfAxis[n.axisId].orEmpty(),
+                AxisAclRules.merge(layer?.let { rulesByDoor[it] }.orEmpty(), rulesByDoor[scope].orEmpty()),
+                existingHideNew, route.hidden, route.shown,
+            )
+            if (!stays) {
+                row.parentId?.let { touchedParents += it }
+                forceDelete(row); changed = true
+                continue
+            }
+            // Follow the definition: shared fields, and where it hangs when its group changed.
+            val parentCopy = def!!.parentId?.let { copiesAt[scope]?.get(it) }
+            val updated = row.sharingFrom(def).let { if (parentCopy != null && it.parentId != parentCopy) it.copy(parentId = parentCopy) else it }
+            if (updated != row) { dao.update(updated); changed = true }
+        }
 
-        // One level per pass: first-axis leaves, then the copies they got, then theirs…
-        for (level in 0 until laterAxes.size) {
-            val tasks      = dao.getActiveTasksSync()
-            val byId       = tasks.associateBy { it.id }
-            val nodes      = axisDao.getAllNodesSync()
-            val nodeOf     = nodes.associateBy { it.taskId }
-            val containers = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId }
-            // A copy row whose task is gone (not merely completed) is stale: forget it.
-            nodes.filter { it.taskId !in byId && dao.getTaskById(it.taskId) == null }
-                .forEach { axisDao.deleteNodeOf(it.taskId) }
-            val byScope = nodes.groupBy { it.scopeKey }
-
-            for (p in tasks) {
-                val node = nodeOf[p.id]
-                val axisLevel = if (node == null) 0 else Axes.ALL.indexOf(node.axisId)
-                if (axisLevel != level || p.isInterrupt || p.isRunning) continue
-                if (p.isGroup && p.id !in containers) continue                 // a real group holds real children only
-                if (onlyUnder != null) {
-                    val inScope = if (node == null) p.id == onlyUnder
-                                  else node.scopeKey == onlyUnder || node.scopeKey.startsWith("$onlyUnder/")
-                    if (!inScope) continue
-                }
-                changed = reconcileUnder(p, node, containers, byId, defs, rulesByDoor, hideNewByDoor, routes, byScope) || changed
+        // A container is a container only while touched copies hang under it.
+        for (parentId in touchedParents) {
+            if (parentId !in containers) continue
+            val parent = dao.getTaskById(parentId)
+            if (parent == null) { axisDao.deleteContainerOf(parentId); continue }
+            if (dao.getChildrenOf(parentId).isEmpty()) {
+                dao.update(parent.copy(isGroup = false)); axisDao.deleteContainerOf(parentId); changed = true
             }
         }
         if (changed) {
@@ -419,72 +458,76 @@ class TaskRepository @Inject constructor(
         }
     }
 
-    /** One parent: create / refresh / remove its copies and make it a container while it has any. */
-    private suspend fun reconcileUnder(
-        p: Task, pNode: AxisNode?, containers: Set<String>, byId: Map<String, Task>,
-        defs: Map<String, List<Task>>, rulesByDoor: Map<String, Map<String, Boolean>>,
-        hideNewByDoor: Map<String, Boolean>, routes: Map<String, String>, byScope: Map<String, List<AxisNode>>,
-    ): Boolean {
-        val next  = Axes.next(pNode?.axisId ?: Axes.DEFAULT) ?: return false
-        val scope = AxisReconcile.childScope(p, pNode)
-        val existing = byScope[scope].orEmpty().mapNotNull { n ->
-            (byId[n.taskId] ?: dao.getTaskById(n.taskId))?.let { AxisReconcile.Existing(n, it) }
-        }
-        // A copy follows its entry's ACL unless it set its own; a first-axis row has only its own door.
-        val layer = pNode?.let { Axes.definitionDoor(it.definitionId) }
-        val rules = AxisAclRules.merge(layer?.let { rulesByDoor[it] }.orEmpty(), rulesByDoor[scope].orEmpty())
-        val copyFlag  = hideNewByDoor[scope]
-        val entryFlag = layer?.let { hideNewByDoor[it] }
-        val hideNew   = AxisAclRules.effectiveHideNew(copyFlag, entryFlag, hideNewByDefault())
-        // A default hides NEW entries only; a switch the person set on this door also hides what is already copied.
-        val judgeExistingByDefault = !AxisAclRules.isExplicitHideNew(copyFlag, entryFlag)
-        // A routed entry (placed on a path) is shown where its pattern matches this door, hidden everywhere else.
-        val route = AxisRoute.at(routes, scope)
-        val plan = AxisReconcile.plan(
-            next, defs[next].orEmpty(), rules, hideNew, existing, route.hidden, route.shown,
-            hideNewForExisting = if (judgeExistingByDefault) false else hideNew,
+    // ── Axes: copy-on-write ──────────────────────────────────────────────────
+
+    /** The data [AxisVirtualEngine] derives copies from, or null when no later axis has any entry — the common case. */
+    private suspend fun loadVirtualEngine(): AxisVirtualEngine? {
+        val defs = SleepRules.awake(Axes.ALL.drop(1).flatMap { dao.getActiveTasksOfAxisSync(it) })
+        if (defs.isEmpty()) return null
+        val real = dao.getActiveTasksSync()
+        val byParent = real.groupBy { it.parentId }
+        return AxisVirtualEngine(
+            laterDefinitions = defs,
+            nodes            = axisDao.getAllNodesSync(),
+            containers       = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId },
+            acl              = axisDao.getAllAclSync(),
+            doors            = axisDao.getAllDoorsSync(),
+            routes           = axisDao.getAllEntryRoutesSync().associate { it.definitionId to it.route },
+            globalHideNew    = hideNewByDefault(),
+            realChildrenOf   = { byParent[it].orEmpty() },
         )
-        var changed = false
-
-        // 1. switched off / deleted definitions: their copies go (a running copy is left until it stops)
-        for (e in plan.remove) {
-            if (e.task.isRunning) continue
-            forceDelete(e.task); changed = true
-        }
-
-        // 2. missing copies, parents first, each placed like any new arrival among its siblings
-        val includedIds = plan.included.mapTo(HashSet()) { it.id }
-        val copyOf = HashMap<String, String>().also { m -> plan.keep.forEach { (e, d) -> m[d.id] = e.task.id } }
-        val pool = byId.values.toMutableList()
-        val now  = clock.nowEpochMillis()
-        for (d in plan.create) {
-            val parentId = AxisReconcile.parentFor(d, includedIds, copyOf, p.id)
-            val copy = AxisReconcile.newCopy(d, java.util.UUID.randomUUID().toString(), parentId)
-            SemaphoreRules.stamp(copy, pool, now)
-            EEVDFScheduler.placeNewTask(copy, pool.filter { it.parentId == parentId && !it.isCompleted && !it.isAsleep })
-            dao.insert(copy)
-            axisDao.insertNode(AxisNode(copy.id, d.id, next, scope))
-            copyOf[d.id] = copy.id; pool += copy; changed = true
-        }
-
-        // 3. existing copies follow their definition (shared fields + where they hang)
-        for ((e, d) in plan.keep) {
-            val fresh = dao.getTaskById(e.task.id) ?: continue
-            if (fresh.isRunning) continue
-            val parentId = AxisReconcile.parentFor(d, includedIds, copyOf, p.id)
-            val updated  = fresh.sharingFrom(d).let { if (it.parentId != parentId) it.copy(parentId = parentId) else it }
-            if (updated != fresh) { dao.update(updated); changed = true }
-        }
-
-        // 4. the parent is a container exactly while it has copies
-        val freshP = dao.getTaskById(p.id) ?: return changed
-        if (plan.included.isNotEmpty() && !freshP.isGroup) {
-            dao.update(freshP.copy(isGroup = true)); axisDao.insertContainer(AxisContainer(p.id)); changed = true
-        } else if (plan.included.isEmpty() && p.id in containers && dao.getChildrenOf(p.id).isEmpty()) {
-            dao.update(freshP.copy(isGroup = false)); axisDao.deleteContainerOf(p.id); changed = true
-        }
-        return changed
     }
+
+    /**
+     * Make the copy named by a virtual id a real row — and, first, every ancestor it hangs under (its group copies, and the
+     * place's own copy when that is virtual too). Idempotent; the row gets the SAME id, so nothing that already points at
+     * the virtual copy (a list row, a timer, a link) has to change. The place becomes a container while touched copies hang
+     * under it. Returns the row, or null when the definition is gone.
+     */
+    suspend fun materialize(virtualId: String): Task? = withContext(Dispatchers.IO) {
+        axisMutex.withLock { materializeLocked(virtualId) }
+    }
+
+    /** [task] as a real row: itself when it already is, else its materialized copy (with the writer's own changes applied after). */
+    suspend fun materialize(task: Task): Task =
+        if (!AxisVirtualId.isVirtual(task.id)) task else (materialize(task.id) ?: task)
+
+    private suspend fun materializeLocked(id: String): Task? {
+        val (scope, definitionId) = AxisVirtualId.parse(id) ?: return dao.getTaskById(id)
+        axisDao.getNodeAt(scope, definitionId)?.let { return dao.getTaskById(it.taskId) }   // touched before: it is a row
+        val def = dao.getTaskById(definitionId)?.takeIf { it.axisId != Axes.DEFAULT } ?: return null
+
+        // Where it hangs: under the copy of its group in this door, else under the place itself.
+        val parentId: String = def.parentId
+            ?.let { parentDef -> materializeLocked(AxisVirtualId.of(scope, parentDef))?.id }
+            ?: placeIdOf(scope) ?: return null
+
+        val siblings = dao.getChildrenOf(parentId)
+        val copy = AxisReconcile.newCopy(def, id, parentId)
+        SemaphoreRules.stamp(copy, siblings, clock.nowEpochMillis())
+        EEVDFScheduler.placeNewTask(copy, siblings.filter { !it.isCompleted && !it.isAsleep })
+        dao.insert(copy)
+        axisDao.insertNode(AxisNode(id, definitionId, def.axisId, scope))
+
+        // The place that holds touched copies is a container (a group's own children need no flip).
+        val parent = dao.getTaskById(parentId)
+        if (parent != null && !parent.isGroup) {
+            dao.update(parent.copy(isGroup = true)); axisDao.insertContainer(AxisContainer(parentId))
+        }
+        return copy
+    }
+
+    /** The row that holds the entries of [scope]: a first-axis task is its own door; a deeper door is a copy, made real if it is not yet. */
+    private suspend fun placeIdOf(scope: String): String? {
+        if ('/' !in scope) return scope
+        val parentScope = scope.substringBeforeLast('/')
+        val definitionId = scope.substringAfterLast('/')
+        return axisDao.getNodeAt(parentScope, definitionId)?.taskId
+            ?: materializeLocked(AxisVirtualId.of(parentScope, definitionId))?.id
+    }
+
+    /** Whatever a caller is about to WRITE must be a row: a virtual id is materialized first (the write follows). */
+    private suspend fun ensureReal(id: String) { if (AxisVirtualId.isVirtual(id) && dao.getTaskById(id) == null) materialize(id) }
 
     // ── Links (symlinks) + Memberships (hardlinks) ────────────────────────────
 
@@ -676,6 +719,7 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
+        ensureReal(task.id)                          // copy-on-write: a write to an untouched copy makes it a row first
         val prev = dao.getTaskById(task.id)
         val toWrite: Task = if (prev == null) task else {
             // Moving into another group, or un-doing a completed task, is an ARRIVAL:
@@ -816,6 +860,7 @@ class TaskRepository @Inject constructor(
 
     /** Batch-persists a list of tasks whose [Task.internalWeight] was re-synced. */
     suspend fun updateBatch(tasks: List<Task>) = withContext(Dispatchers.IO) {
+        tasks.forEach { ensureReal(it.id) }
         if (tasks.isNotEmpty()) dao.updateAll(tasks)
     }
 
@@ -919,6 +964,12 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun delete(task: Task) = withContext(Dispatchers.IO) {
+        AxisVirtualId.parse(task.id)?.let { (scope, definitionId) ->
+            if (dao.getTaskById(task.id) == null) {          // never touched: no row to delete, just Hide it at its door
+                axisDao.upsertRule(AxisAcl(scope, definitionId, hidden = true))
+                return@withContext
+            }
+        }
         hideIfCopy(task.id)
         val parentId = dao.getTaskById(task.id)?.parentId ?: task.parentId
         deleteOrPromote(task)
@@ -933,6 +984,7 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun markCompleted(task: Task) = withContext(Dispatchers.IO) {
+        ensureReal(task.id)
         val updated = task.copy(isCompleted = true, isRunning = false, remainingSeconds = 0)
         dao.update(updated)
         // A completed task is no longer a valid return-to target.
@@ -1082,6 +1134,7 @@ class TaskRepository @Inject constructor(
         session: RunSession,
         membershipId: String? = null,
     ): Task = withContext(Dispatchers.IO) {
+        ensureReal(task.id)
         val secondsRan = session.wallClockSeconds
         // A door that now hides this task (hardlink ACL) no longer owns the run:
         // credit the real placement instead, exactly as if no door was given.
@@ -1443,11 +1496,24 @@ class TaskRepository @Inject constructor(
      * to normal EEVDF selection at the same level.
      */
     suspend fun selectNextTask(): Task? = withContext(Dispatchers.IO) {
-        val allActive = awakeActiveSync()
+        var all = awakeActiveSync()
         // Sampled ONCE here and threaded through every recursion level below —
         // not re-read per RT/DL check — so a single decision can't observe two
         // different instants of "now" (kernel rule 1).
-        selectNextCgroup(allActive, null, nowMs = clock.nowEpochMillis())
+        val nowMs = clock.nowEpochMillis()
+        val engine = loadVirtualEngine() ?: return@withContext selectNextCgroup(all, null, nowMs = nowMs)
+
+        // Copies nobody touched are not rows, so the pick descends into them one place at a time: the winner is a place
+        // that holds untouched entries? Add those entries, treat it as a container, and pick again — one level per axis.
+        var winner: Task? = null
+        repeat(Axes.ALL.size) {
+            winner = selectNextCgroup(all, null, nowMs = nowMs) ?: return@withContext null
+            val place = winner!!
+            val kids = engine.childrenOf(place)
+            if (kids.isEmpty()) return@withContext materialize(place)       // a virtual winner becomes a row now
+            all = all.map { if (it.id == place.id) it.copy(isGroup = true) else it } + kids
+        }
+        winner?.let { materialize(it) }
     }
 
     private fun selectNextCgroup(
@@ -1591,6 +1657,7 @@ class TaskRepository @Inject constructor(
      * The caller is responsible for stopping the timer first.
      */
     suspend fun sleepTask(taskId: String, untilEpochMs: Long) = withContext(Dispatchers.IO) {
+        ensureReal(taskId)
         val all  = dao.getActiveTasksSync()
         val task = all.find { it.id == taskId } ?: return@withContext
         if (task.isAsleep) return@withContext
@@ -1616,6 +1683,7 @@ class TaskRepository @Inject constructor(
 
     /** Wakes [taskId] immediately (the Sleep tab's "wake now"), re-placing it like an expired sleeper. */
     suspend fun wakeNow(taskId: String) = withContext(Dispatchers.IO) {
+        ensureReal(taskId)
         val all  = dao.getActiveTasksSync().toMutableList()
         val task = all.find { it.id == taskId && it.isAsleep } ?: return@withContext
         wakeAndPlace(all, listOf(task), clock.nowEpochMillis())

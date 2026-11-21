@@ -185,6 +185,10 @@ interface AxisDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRule(row: AxisAcl)
 
+    /** Many rules in ONE transaction: one write, one refresh of everything watching the table. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRules(rows: List<AxisAcl>)
+
     /** Back to Inherit: no row. */
     @Query("DELETE FROM axis_acl WHERE scopeKey = :scopeKey AND childKey = :childKey")
     suspend fun deleteRule(scopeKey: String, childKey: String)
@@ -235,6 +239,10 @@ interface AxisDao {
     @Query("SELECT * FROM axis_node WHERE taskId = :taskId")
     suspend fun getNodeOf(taskId: String): AxisNode?
 
+    /** The materialized copy of [definitionId] at [scopeKey], if it was ever touched. */
+    @Query("SELECT * FROM axis_node WHERE scopeKey = :scopeKey AND definitionId = :definitionId LIMIT 1")
+    suspend fun getNodeAt(scopeKey: String, definitionId: String): AxisNode?
+
     @Query("SELECT * FROM axis_node WHERE definitionId = :definitionId")
     suspend fun getNodesOfDefinition(definitionId: String): List<AxisNode>
 
@@ -245,6 +253,9 @@ interface AxisDao {
     suspend fun deleteNodeOf(taskId: String)
 
     // ── containers ───────────────────────────────────────────────────────
+    @Query("SELECT * FROM axis_container")
+    fun getAllContainers(): LiveData<List<AxisContainer>>
+
     @Query("SELECT COUNT(*) FROM axis_container WHERE taskId = :taskId")
     suspend fun containerCount(taskId: String): Int
 
@@ -383,6 +394,20 @@ object AxisReconcile {
             // show if "hide new" were off — that must not turn an empty place into a container.)
             included = staying.map { keepById.getValue(it.node.definitionId) } + create,
         )
+    }
+
+    /**
+     * The definitions of [axisId] that SHOULD have a copy at this door but do not have one yet, parents first — what
+     * [plan] calls `create`, without needing the copies that exist. These are the VIRTUAL copies ([AxisVirtualEngine]):
+     * they cost nothing until something touches them.
+     */
+    fun missing(
+        axisId: String, defs: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean, haveDefinitionIds: Set<String>,
+        hiddenHere: Set<String> = emptySet(), shownHere: Set<String> = emptySet(),
+    ): List<Task> {
+        val want = AxisAclRules.includedEntries(axisId, defs, rules, hideNew, hiddenHere, shownHere)
+        val byId = want.associateBy { it.id }
+        return want.filter { it.id !in haveDefinitionIds }.sortedBy { depth(it, byId) }
     }
 
     private fun depth(t: Task, inc: Map<String, Task>): Int {

@@ -3,6 +3,7 @@ package com.eevdf.capabilities.tasklistscreen
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.eevdf.capabilities.taskstorage.Task
+import kotlinx.coroutines.launch
 import com.eevdf.kernel.eventbus.CurrentTaskState
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
@@ -65,6 +66,17 @@ internal class CurrentTaskOwner(
     internal var refGuard: ((TaskInstanceRef?) -> TaskInstanceRef?)? = null
 
     /**
+     * Makes an untouched copy a real row before it is dispatched — see [com.eevdf.capabilities.taskstorage.AxisVirtualEngine].
+     * The row keeps the same id, so the ref stays valid. [isUntouched] says whether an id is one of the copies the screen is
+     * currently DERIVING (a row that was materialized keeps its id but is no longer in that set — which is what ends the
+     * hand-off below). Both null/false = nothing to materialize.
+     */
+    internal var materializer: (suspend (Task) -> Task)? = null
+    internal var isUntouched: (String) -> Boolean = { false }
+
+    private fun needsMaterializing(task: Task?): Boolean = task != null && materializer != null && isUntouched(task.id)
+
+    /**
      * Dispatches [task] (or `null` for "nothing dispatched") on the main
      * thread. Safe to call from any delegate that used to write
      * `vm._currentTask.value = ...` directly. [ref] defaults to the task's
@@ -80,6 +92,11 @@ internal class CurrentTaskOwner(
      * the time anything reacts to the task changing.
      */
     fun set(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
+        if (needsMaterializing(task)) { scope.launch { dispatch(materializer!!.invoke(task!!), ref) }; return }
+        dispatch(task, ref)
+    }
+
+    private fun dispatch(task: Task?, ref: TaskInstanceRef?) {
         val changed = task?.id != _current.value?.id
         val effective = refGuard?.invoke(ref) ?: ref
         _instanceRef.value = effective
@@ -89,6 +106,11 @@ internal class CurrentTaskOwner(
 
     /** Same as [set], but safe to call off the main thread (was `.postValue(...)`). */
     fun setAsync(task: Task?, ref: TaskInstanceRef? = task?.let { TaskInstanceRef.real(it) }) {
+        if (needsMaterializing(task)) { scope.launch { dispatchAsync(materializer!!.invoke(task!!), ref) }; return }
+        dispatchAsync(task, ref)
+    }
+
+    private fun dispatchAsync(task: Task?, ref: TaskInstanceRef?) {
         val changed = task?.id != _current.value?.id
         val effective = refGuard?.invoke(ref) ?: ref
         _instanceRef.postValue(effective)
