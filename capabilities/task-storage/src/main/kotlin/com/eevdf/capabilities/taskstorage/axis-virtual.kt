@@ -121,3 +121,67 @@ class AxisVirtualEngine(
         }
     }
 }
+
+/**
+ * Which untouched copies the screens derive, and how many — the rule that keeps the UI thread bounded.
+ *
+ *  - A place that has untouched entries is drawn as a group and is CLOSED until the person opens it ([isOpen] is an explicit
+ *    "open", never a default — a place that already holds touched copies is closed too). Only open places derive anything.
+ *  - Opening a place derives its entries; opening one of those that holds more derives the next axis's, to the last axis.
+ *  - A hard cap ([MAX_DERIVED]) stops deriving once reached, whatever the data looks like, so no amount of entries can bury
+ *    the UI thread. [Result.truncated] says it happened.
+ */
+object AxisVirtualList {
+
+    /**
+     * Derived rows beyond this are not built. Deriving is cheap (10,000 rows take ~40 ms); what is expensive is handing a huge
+     * list to the list builders, again and again, on the UI thread. About 1,100 real rows were always fine, so the extra stays in
+     * that range.
+     */
+    const val MAX_DERIVED = 1000
+
+    /** The most nested a derived row can be: one place per axis. */
+    private const val MAX_DEPTH = 4
+
+    class Result(val tasks: List<Task>, val derivedIds: Set<String>, val truncated: Boolean)
+
+    /**
+     * @param real     the rows that exist
+     * @param isOpen   has the person explicitly opened this place?
+     * @param onClosedPlace called for every place with untouched entries that is not open (the screens use it to start it closed)
+     */
+    fun build(
+        real: List<Task>,
+        engine: AxisVirtualEngine,
+        isOpen: (placeId: String) -> Boolean,
+        onClosedPlace: (placeId: String) -> Unit = {},
+        maxDerived: Int = MAX_DERIVED,
+    ): Result {
+        if (engine.isEmpty) return Result(real, emptySet(), false)
+        val out = ArrayList<Task>(real.size + 16)
+        val derived = HashSet<String>()
+        var truncated = false
+
+        /** A place with untouched entries looks like a group; the screens start it closed. */
+        fun present(place: Task): Task {
+            if (!engine.hasVirtual(place)) return place
+            if (!isOpen(place.id)) onClosedPlace(place.id)
+            return if (place.isGroup) place else place.copy(isGroup = true)
+        }
+
+        fun addOpen(place: Task, depth: Int) {
+            if (depth > MAX_DEPTH || !engine.hasVirtual(place) || !isOpen(place.id)) return
+            for (kid in engine.childrenOf(place)) {
+                if (derived.size >= maxDerived) { truncated = true; return }
+                derived += kid.id
+                out += present(kid)
+                // Ask about the ORIGINAL copy: the one drawn on screen is a group, and a group is not a place.
+                addOpen(kid, depth + 1)
+            }
+        }
+
+        for (t in real) out += present(t)
+        for (t in real) { if (truncated) break; addOpen(t, 0) }
+        return Result(out, derived, truncated)
+    }
+}

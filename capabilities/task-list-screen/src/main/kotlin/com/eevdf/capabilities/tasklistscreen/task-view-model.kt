@@ -834,6 +834,7 @@ class TaskViewModel @Inject constructor(
         timerEngine.clear()
         overrunTimer?.cancel()
         notice.cancelTimers()
+        axisVirtual.stop()
         listBuilder.stop()
         bus.unsubscribeAll(subscriberId)
     }

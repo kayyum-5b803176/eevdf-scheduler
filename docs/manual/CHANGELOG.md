@@ -5,6 +5,75 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.66.1 — Fix: the app froze when a group was placed on an axis (ANR in 6.66.0)
+
+Includes everything in 6.66.0. No database change, `versionCode` untouched.
+
+### What the log showed, and what it was
+Placing a group of 10 on Z with 99 tasks on X froze the app: the UI thread sat at 100% CPU for 7+ seconds (ANR). 6.66.0 caused it:
+- A place that already held touched copies was OPEN by default, so with the new group on Z every existing place opened at once and
+  derived the group's entries — about 11,000 rows.
+- That list feeds every other list, which was rebuilt for each of nine data sources and for each insert, so the list builders chewed
+  through ~12,000 rows over and over on the UI thread. (Deriving itself is cheap — measured: 10,890 rows in ~40 ms; it is handing a
+  huge list to the builders, repeatedly, that is slow.)
+
+### Fixed
+- **A place derives entries only when YOU open it.** Never by default, and a place that already holds touched copies is closed too, so
+  an upgrade or a new group can no longer open hundreds of places at once. (Existing containers that also have untouched entries now
+  start closed.)
+- **Rebuilds are coalesced.** A burst of changes (a dozen inserts, a batch of rules) now makes one rebuild, 80 ms later; with no
+  later-axis entries the real list is passed through immediately and untouched.
+- **A hard cap of 1,000 derived rows** total, whatever the data looks like.
+- **Nested derivation:** opening an untouched copy that holds more entries (a Y copy's Z entries) did not derive anything, because the
+  rule asked about the copy as drawn (a group) instead of as it is (a place). Found by running the tests; fixed.
+
+### Measured (pure list rule, 99 X tasks, 990 Y copies, a Z group of 10 in each)
+nothing open: 0 rows derived, 7 ms · every X place open: 0 · everything open: capped at 1,000 · 6.66.0's default-open, uncapped: 10,890
+rows (42 ms to derive, and the freeze came from what followed).
+
+### Verified
+For the first time the pure tests were actually EXECUTED, in a harness with stubbed Android/JUnit classes against the real project
+sources: **137 tests, all pass** (path, rules, reconcile, copy-on-write, copy prompt, move, ACL equivalence, and the new bounded-list
+tests). `axis-virtual-list-test.kt`: many places and none opened derive nothing; closed by default including places that hold touched
+copies; 990 places × 11 entries closed derive nothing; opening one place derives only its own; nested derivation; the cap, shared across
+places; the real list is returned untouched when there is nothing to derive. **Not built with Gradle.**
+
+---
+
+## 6.66.1 — Fix: opening a group of 10 on Z froze the app (ANR)
+
+Includes everything in 6.66.0. No database change, `versionCode` untouched.
+
+### What the ANR log showed
+The main thread sat at 100% CPU for 7+ seconds — CPU-bound work on the UI thread, not storage. Cause: 6.66.0 opened every place
+that already held touched copies BY DEFAULT. With 99 X tasks, ~990 Y places and a new Z group of 10 children, every Y place opened at
+once and derived 11 rows — ~10,890 rows — and that list is rebuilt for every data change (nine sources, several inserts), each time
+feeding every other list on the UI thread.
+
+### Fixed
+- **A place derives rows only when the person explicitly opens it.** Never by default, not even a place that already holds touched
+  copies. Places that have untouched entries start closed.
+- **Rebuilds are coalesced.** A burst of writes (a dozen inserts, a batch of rules) is folded into one rebuild (80 ms) instead of one per
+  change. With nothing derived the real list is passed straight through, immediately.
+- **A hard cap** (3,000 derived rows) so that no amount of entries can bury the UI thread, whatever the data looks like.
+- The rule is now plain, testable code (`AxisVirtualList`) instead of logic buried in the screen's delegate.
+- **A second bug the new tests caught:** opening an entry that itself holds more (Y → Z) derived nothing, because the next level asked
+  the on-screen copy (drawn as a group, so "not a place") instead of the original.
+
+### Measured here (plain Kotlin, same classes as the app; 99 X tasks, 990 real Y copies, a Z group of 10 children)
+- nothing open: **0** derived rows, 7 ms. Every X place open: 0 (their Y copies are already real). Everything open: capped at 3,000, 14 ms.
+- 6.66.0's behaviour (default-open, no cap): **10,890** derived rows. The derivation itself is cheap; the cost that froze the app is every
+  list builder processing that many rows, repeatedly — which is why the number of rows is what is bounded.
+
+### Verified / not verified
+All 137 axis tests now actually RUN here (a small stub harness for the few Android/JUnit classes the pure code touches): 137 pass.
+New in `axis-virtual-list-test.kt`: many places with none opened derive nothing and the list is no bigger than the real one; 990 places ×
+11 entries with none opened derive nothing; opening one place derives only that place; an opened entry that holds more derives the next
+axis; the cap holds and is shared across places; rows that are not places are left alone. **Not built with Gradle**; the on-device cost of
+the list builders themselves cannot be measured here. On the phone: repeat the exact steps that froze it.
+
+---
+
 ## 6.66.0 — Copy-on-write copies, and no more write storms
 
 Includes everything in 6.65.0. **No database change** (still version 38), `versionCode` untouched.

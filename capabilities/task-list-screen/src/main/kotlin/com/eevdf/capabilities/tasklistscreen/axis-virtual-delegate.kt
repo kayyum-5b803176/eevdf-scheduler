@@ -1,23 +1,27 @@
 package com.eevdf.capabilities.tasklistscreen
 
-import androidx.lifecycle.LiveData
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.MediatorLiveData
 import com.eevdf.capabilities.taskstorage.AxisVirtualEngine
+import com.eevdf.capabilities.taskstorage.AxisVirtualList
 import com.eevdf.capabilities.taskstorage.Task
 
 /**
- * The task list the screens are BUILT FROM: the real rows, plus the untouched copies of the places that are open.
+ * The task list the screens are BUILT FROM: the real rows, plus the untouched copies of the places the person has opened.
  *
  * Copies are copy-on-write (see [AxisVirtualEngine]): an untouched copy is not a row, so it is derived here, one open place
  * at a time, and handed to the ordinary list builders as ordinary tasks — the builders, Next, rotate and the rest need no
- * special case. A place that has untouched entries is shown as a group that starts COLLAPSED; opening it derives its entries
- * (and, opening one of those that holds more, the next axis's, and so on). Memory and work therefore follow what is open on
- * screen, not places × entries, however many exist.
+ * special case. A place with untouched entries is drawn as a group that is CLOSED until the person opens it; opening it derives
+ * its entries. Memory and work therefore follow what is open on screen, never places × entries ([AxisVirtualList] also caps it).
+ *
+ * Bursts of changes (a dozen inserts, a batch of rules) are COALESCED into one rebuild: this list feeds every other list, and
+ * rebuilding it per data change was what buried the UI thread.
  *
  * Touching a derived row (running it, completing it, sleeping it) writes it as a real row with the SAME id
  * ([com.eevdf.capabilities.taskstorage.TaskRepository.materialize]), so the row on screen simply becomes real.
  *
- * With no later-axis entries defined the list is the repository's list, untouched.
+ * With no later-axis entries defined the list is the repository's list, immediately and untouched.
  */
 internal class AxisVirtualDelegate(private val vm: TaskViewModel) {
 
@@ -28,21 +32,37 @@ internal class AxisVirtualDelegate(private val vm: TaskViewModel) {
     var virtualIds: Set<String> = emptySet()
         private set
 
+    private val handler = Handler(Looper.getMainLooper())
+    private var pending = false
+
     fun setup() {
         val repo = vm.repository
         listTasks = MediatorLiveData<List<Task>>().apply {
-            fun rebuild() { value = build() }
-            addSource(vm.activeTasks)                     { rebuild() }
-            addSource(repo.laterAxisTasks)                { rebuild() }
-            addSource(repo.allAxisNodes)                  { rebuild() }
-            addSource(repo.allAxisContainers)             { rebuild() }
-            addSource(repo.allAxisAcl)                    { rebuild() }
-            addSource(repo.allAxisDoors)                  { rebuild() }
-            addSource(repo.allAxisEntryRoutes)            { rebuild() }
-            addSource(vm.groupExpand.queueExpandTrigger)    { rebuild() }
-            addSource(vm.groupExpand.scheduleExpandTrigger) { rebuild() }
+            fun request() {
+                // Nothing derived at all (the common case): hand the real list through right now.
+                if (repo.laterAxisTasks.value.isNullOrEmpty()) {
+                    virtualIds = emptySet()
+                    value = vm.activeTasks.value ?: emptyList()
+                    return
+                }
+                if (pending) return                       // a rebuild is already queued: it will see the latest data
+                pending = true
+                handler.postDelayed({ pending = false; value = build() }, COALESCE_MS)
+            }
+            addSource(vm.activeTasks)                       { request() }
+            addSource(repo.laterAxisTasks)                  { request() }
+            addSource(repo.allAxisNodes)                    { request() }
+            addSource(repo.allAxisContainers)               { request() }
+            addSource(repo.allAxisAcl)                      { request() }
+            addSource(repo.allAxisDoors)                    { request() }
+            addSource(repo.allAxisEntryRoutes)              { request() }
+            addSource(vm.groupExpand.queueExpandTrigger)    { request() }
+            addSource(vm.groupExpand.scheduleExpandTrigger) { request() }
         }
     }
+
+    /** Called from [TaskViewModel.onCleared]. */
+    fun stop() { handler.removeCallbacksAndMessages(null) }
 
     private fun build(): List<Task> {
         val real = vm.activeTasks.value ?: emptyList()
@@ -61,43 +81,26 @@ internal class AxisVirtualDelegate(private val vm: TaskViewModel) {
             globalHideNew    = repo.hideNewByDefault(),
             realChildrenOf   = { byParent[it].orEmpty() },
         )
-        if (engine.isEmpty) { virtualIds = emptySet(); return real }
 
         val queue    = vm.groupExpand.queueExpandState
         val schedule = vm.groupExpand.scheduleExpandState
+        val result = AxisVirtualList.build(
+            real   = real,
+            engine = engine,
+            // Only an EXPLICIT open derives anything — never a default, so existing places do not all open at once.
+            isOpen = { id -> queue[id] == true || schedule[id] == true },
+            // A place with untouched entries starts closed (the builders' own default is open).
+            onClosedPlace = { id ->
+                if (!queue.containsKey(id))    queue[id] = false
+                if (!schedule.containsKey(id)) schedule[id] = false
+            },
+        )
+        virtualIds = result.derivedIds
+        return result.tasks
+    }
 
-        /** A place with untouched entries looks like a group. Collapsed until opened, unless it already holds touched ones. */
-        fun present(place: Task): Task {
-            if (!engine.hasVirtual(place)) return place
-            if (!place.isGroup) {                     // a plain leaf: closed by default (the builders' own default is open)
-                if (!queue.containsKey(place.id))    queue[place.id] = false
-                if (!schedule.containsKey(place.id)) schedule[place.id] = false
-                return place.copy(isGroup = true)
-            }
-            return place
-        }
-
-        fun open(place: Task): Boolean {
-            val fallback = place.isGroup && engine.isPlace(place)      // already a container: open like any group
-            return (queue[place.id] ?: fallback) || (schedule[place.id] ?: fallback)
-        }
-
-        val out = ArrayList<Task>(real.size + 16)
-        val derived = HashSet<String>()
-
-        fun addOpen(place: Task, depth: Int) {
-            if (depth > 4 || !engine.hasVirtual(place) || !open(place)) return
-            for (kid in engine.childrenOf(place)) {
-                derived += kid.id
-                val shown = present(kid)
-                out += shown
-                addOpen(shown, depth + 1)
-            }
-        }
-
-        for (t in real) out += present(t)
-        for (t in real) addOpen(t, 0)
-        virtualIds = derived
-        return out
+    private companion object {
+        /** Long enough to fold a burst of writes into one rebuild, short enough to feel immediate. */
+        const val COALESCE_MS = 80L
     }
 }
