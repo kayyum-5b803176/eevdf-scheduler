@@ -95,7 +95,7 @@
         android:visibility="gone" />
 
     <!-- Group list -->
-    <androidx.recyclerview.widget.RecyclerView
+    <com.eevdf.capabilities.grouppicker.output.MaxHeightRecyclerView
         android:id="@+id/rvGroupItems"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

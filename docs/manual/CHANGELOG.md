@@ -5,6 +5,38 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.63.0 — Path mode: the axes before the last are the route, the last is the parent picker
+
+Includes everything in 6.62.0. No database change, `versionCode` untouched.
+
+### Fixed
+- **Lists no longer mix groups and non-groups.** The axes before the last are the ROUTE: each lists only entries that can
+  hold the next axis (tasks, not groups). The LAST axis acts as the normal parent picker: groups only. So with
+  `type5 › user1 › activity1`, picking X `type5`, Y `user1` and Z group `activity1` places `hello world` inside that group,
+  only there. (6.62.0 listed both kinds on every axis with a "· group" tag.)
+- **Done could be pushed off screen.** The list took all the room a long list wants, and the footer with Done sits below it,
+  so with many entries you could pick a Z group but never finish. The list now stops growing at about 38% of the screen
+  (`MaxHeightRecyclerView`), so the footer is always visible. The on-screen keyboard is put away when Path is switched on.
+- **An empty list now says why**, in plain words under the chips, instead of looking broken:
+  "No groups on Z under type5 › user1. Create a group on Z first, or an ACL hides them here." / "Nothing on Y is included
+  under type5." / "No tasks on X to route through (a group cannot be a route)." / "Pick Y first."
+- **Each axis says what it is for**: the list header reads `Route · X` / `Route · Y` / `Parent group · Z`, with a hint line
+  ("Route — pick the Y entry it should exist in." / "Parent group on Z — optional. Choose None to place it directly under
+  type5 › user1."). The last axis's None row reads "None (no parent group)".
+
+### Know this
+- A route entry must be a task (or a task that already holds copies), not a group: only those can hold the next axis. If
+  your types or users were created as groups, X or Y will show "No tasks on X to route through".
+- A group on a route axis can still be chosen with the plain picker (Path off); it is just not part of a path.
+
+### Verified / not verified
+`axis-path-test.kt`: the first and second axes list holders only, the last groups only, never mixed; your example picked
+through the lists end to end gives parent `activity1`, door `type5/user1`. **Not built, not run.** On the phone: Path on →
+X lists only tasks (no groups) under the header "Route · X"; pick `type5` → Y lists only users; pick `user1` → Z lists only
+groups under "Parent group · Z"; pick `activity1`; the footer and Done are visible even with a long list.
+
+---
+
 ## 6.62.0 — Parent group picker: path mode (place an entry only where you picked)
 
 Includes everything in 6.61.0. **Database 36 → 37.** `versionCode` untouched. The picker keeps doing exactly what it

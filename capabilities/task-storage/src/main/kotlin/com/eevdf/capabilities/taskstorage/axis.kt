@@ -474,7 +474,10 @@ object AxisMove {
  * one door that was picked. Nothing is copied elsewhere, so there is nothing to delete afterwards; any
  * other place can add it later with '+' in its own ACL tab.
  *
- * Picks are contiguous from the first axis. The DEEPEST pick decides what the task is:
+ * The axes before the last one are the ROUTE: each lists only entries that can hold the next axis
+ * (holders — never groups mixed in), and together they say where the task exists. The LAST axis is the
+ * ordinary parent picker: it lists groups only. Picks are contiguous from the first axis. The DEEPEST pick
+ * decides what the task is:
  *  - a GROUP is the task's parent group, on that group's axis;
  *  - a HOLDER (a leaf with the next axis's entries hanging under it) means "inside it": the task becomes
  *    an entry of the NEXT axis, at its top level.
@@ -535,7 +538,9 @@ object AxisPath {
             AxisAclRules.includedEntries(axis, s.definitions, AxisAclRules.merge(entryRules, ownRules), hideNew, s.hiddenEverywhere)
                 .map { Choice(it, holder = !it.isGroup && !isLast) }
         }
-        val visible = if (isLast) list.filter { it.task.isGroup } else list
+        // Never a mix: the last axis acts as the plain parent picker (groups only); every axis before it is a
+        // route (holders only — a group cannot hold the next axis's entries).
+        val visible = if (isLast) list.filter { it.task.isGroup } else list.filter { it.holder }
         val kept = AxisMove.withoutSubtree(visible.map { it.task }, exclude).mapTo(HashSet()) { it.id }
         return visible.filter { it.task.id in kept }.sortedBy { it.task.name.lowercase() }
     }

@@ -35,13 +35,11 @@ class AxisPathTest {
 
     // ── what each axis lists ─────────────────────────────────────────────
 
-    @Test fun `the first axis lists its rows - leaves and containers hold, groups do not`() {
+    @Test fun `the first axis is a route - it lists only entries that can hold the next axis`() {
         val container = t("cont", Axes.X, group = true)
         val list = AxisPath.choices(axes, 0, listOf(null, null, null), snap(xRows = listOf(type5, typesGroup, container), containers = setOf("cont")))
-        assertEquals(setOf("type5", "types", "cont"), ids(list))
-        assertTrue(list.first { it.task.id == "type5" }.holder)
-        assertFalse(list.first { it.task.id == "types" }.holder)
-        assertTrue(list.first { it.task.id == "cont" }.holder)
+        assertEquals(setOf("type5", "cont"), ids(list))          // the plain group is not on the route
+        assertTrue(list.all { it.holder })
     }
 
     @Test fun `a later axis lists nothing until the axes before it are picked`() {
@@ -49,10 +47,17 @@ class AxisPathTest {
         assertTrue(AxisPath.choices(axes, 2, listOf(pType5, null, null), snap()).isEmpty())
     }
 
-    @Test fun `the second axis lists only what exists under the picked row`() {
+    @Test fun `the second axis lists only what exists under the picked row, holders only`() {
         val acl = listOf(AxisAcl("type5", "user2", hidden = true))
-        assertEquals(setOf("user1", "team"), ids(AxisPath.choices(axes, 1, listOf(pType5, null, null), snap(acl = acl))))
-        assertEquals(setOf("user1", "user2", "team"), ids(AxisPath.choices(axes, 1, listOf(choice(type6, true), null, null), snap(acl = acl))))
+        assertEquals(setOf("user1"), ids(AxisPath.choices(axes, 1, listOf(pType5, null, null), snap(acl = acl))))
+        assertEquals(setOf("user1", "user2"), ids(AxisPath.choices(axes, 1, listOf(choice(type6, true), null, null), snap(acl = acl))))
+    }
+
+    @Test fun `a route axis never mixes in groups, the last axis never mixes in leaves`() {
+        val y = AxisPath.choices(axes, 1, listOf(pType5, null, null), snap())
+        val z = AxisPath.choices(axes, 2, listOf(pType5, pUser1, null), snap())
+        assertTrue(y.none { it.task.isGroup }); assertTrue(y.all { it.holder })
+        assertTrue(z.all { it.task.isGroup }); assertTrue(z.none { it.holder })
     }
 
     @Test fun `the last axis offers groups only`() {
@@ -70,8 +75,8 @@ class AxisPathTest {
 
     @Test fun `an entry placed elsewhere is not offered here unless this door shows it`() {
         val s = snap(hiddenEverywhere = setOf("user2"), acl = listOf(AxisAcl("type5", "user2", false)))
-        assertEquals(setOf("user1", "team", "user2"), ids(AxisPath.choices(axes, 1, listOf(pType5, null, null), s)))
-        assertEquals(setOf("user1", "team"), ids(AxisPath.choices(axes, 1, listOf(choice(type6, true), null, null), s)))
+        assertEquals(setOf("user1", "user2"), ids(AxisPath.choices(axes, 1, listOf(pType5, null, null), s)))
+        assertEquals(setOf("user1"), ids(AxisPath.choices(axes, 1, listOf(choice(type6, true), null, null), s)))
     }
 
     @Test fun `the row being edited and everything inside it are never offered`() {
@@ -133,5 +138,18 @@ class AxisPathTest {
     @Test fun `a leaf on the last axis holds nothing`() {
         val r = AxisPath.resolve(axes, listOf(pType5, pUser1, choice(hello, true)))
         assertEquals("Pick a group on Z.", reason(r))
+    }
+
+    // ── your example, end to end ─────────────────────────────────────────
+
+    @Test fun `type5, user1 and a group on z, picked through the lists, place the task only there`() {
+        val snapshot = snap()
+        val x = AxisPath.choices(axes, 0, listOf(null, null, null), snapshot).first { it.task.id == "type5" }
+        val y = AxisPath.choices(axes, 1, listOf(x, null, null), snapshot).first { it.task.id == "user1" }
+        val z = AxisPath.choices(axes, 2, listOf(x, y, null), snapshot).first { it.task.id == "act1" }
+        val p = ok(AxisPath.resolve(axes, listOf(x, y, z)))
+        assertEquals("act1", p.parentId); assertEquals(Axes.ALL.indexOf(Axes.Z), p.axisIndex); assertEquals("type5/user1", p.door)
+        // the route is x then y; the last axis is the parent picker
+        assertTrue(AxisPath.choices(axes, 2, listOf(x, y, null), snapshot).all { it.task.isGroup })
     }
 }

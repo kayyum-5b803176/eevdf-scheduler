@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
@@ -159,6 +160,8 @@ class PickerDialog : DialogFragment() {
         }
         rvItems.layoutManager = LinearLayoutManager(requireContext())
         rvItems.adapter       = adapter
+        // A long list must not push the path footer (Done) off screen.
+        if (axisIds.isNotEmpty()) (rvItems as? MaxHeightRecyclerView)?.maxHeightPx = (resources.displayMetrics.heightPixels * 0.38f).toInt()
         setupAxisChips(view)
 
         // Initial render
@@ -233,7 +236,12 @@ class PickerDialog : DialogFragment() {
         sw.setOnCheckedChangeListener { _, on ->
             pathMode = on
             footer.visibility = if (on) View.VISIBLE else View.GONE
-            if (on) picks.fill(null)
+            if (on) {
+                picks.fill(null)
+                etSearch.clearFocus()
+                (requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                    ?.hideSoftInputFromWindow(etSearch.windowToken, 0)
+            }
             refreshChipLabels()
             etSearch.setText("")
             showAxis(viewedAxisId ?: axisIds.first())
@@ -291,13 +299,22 @@ class PickerDialog : DialogFragment() {
             val i = axisIds.indexOf(axis)
             viewedChoices = AxisPath.choices(axisIds, i, picks.toList(), snapshot, pathExclude)
             allGroups = viewedChoices.map { it.task }
-            val holders = viewedChoices.filter { it.holder }.mapTo(HashSet()) { it.task.id }
             adapter.selectedId = picks[i]?.task?.id          // None is ticked while nothing is picked here
-            adapter.noneLabel  = "None (not selected on ${axis.uppercase()})"
-            adapter.labeler    = { t -> if (t.id in holders) t.name else "${t.name}  ·  group" }
+            adapter.noneLabel  = if (i == axisIds.lastIndex) "None (no parent group)" else "None (not selected on ${axis.uppercase()})"
+            adapter.labeler    = null                       // never a mix: nothing needs marking
             val firstMissing = picks.take(i).indexOfFirst { it == null }
-            tvAxisHint.text = if (firstMissing >= 0) "Pick ${axisIds[firstMissing].uppercase()} first." else ""
-            tvAxisHint.visibility = if (firstMissing >= 0) View.VISIBLE else View.GONE
+            val route = picks.take(i).filterNotNull().joinToString(" › ") { it.task.name }
+            val isLast = i == axisIds.lastIndex
+            tvAxisHint.text = when {
+                firstMissing >= 0 -> "Pick ${axisIds[firstMissing].uppercase()} first."
+                viewedChoices.isEmpty() && i == 0 -> "No tasks on ${axis.uppercase()} to route through (a group cannot be a route)."
+                viewedChoices.isEmpty() && isLast ->
+                    "No groups on ${axis.uppercase()} under $route. Create a group on ${axis.uppercase()} first, or an ACL hides them here."
+                viewedChoices.isEmpty() -> "Nothing on ${axis.uppercase()} is included under $route."
+                isLast -> "Parent group on ${axis.uppercase()} — optional. Choose None to place it directly under $route."
+                else -> "Route — pick the ${axis.uppercase()} entry it should exist in."
+            }
+            tvAxisHint.visibility = View.VISIBLE
             applyFilter(etSearch.text?.toString() ?: "")
             return
         }
@@ -339,7 +356,8 @@ class PickerDialog : DialogFragment() {
             // All groups section
             items += PickerItem.Header(
                 when {
-                    pathMode -> "Pick on ${viewedAxisId?.uppercase() ?: ""}"
+                    pathMode -> if (viewedAxisId == axisIds.lastOrNull()) "Parent group · ${viewedAxisId?.uppercase() ?: ""}"
+                                else "Route · ${viewedAxisId?.uppercase() ?: ""}"
                     else     -> viewedAxisId?.let { "All Groups · ${it.uppercase()}" } ?: "All Groups"
                 },
             )
