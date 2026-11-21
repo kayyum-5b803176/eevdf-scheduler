@@ -19,17 +19,20 @@ import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
 
 /**
- * ACL tab for [AddTaskActivity] — what this row includes from the NEXT axis.
+ * ACL tab for [AddTaskActivity] — what a row includes from the NEXT axis.
  *
- * Every row that has a next axis has one: a first-axis leaf lists the Y definitions, and each Y
- * copy lists the Z definitions — its own list, so two copies of the same Y entry can differ.
- * Shown when the screen was opened with the `axis_door` extra (the row's door, see
- * [com.eevdf.capabilities.tasklistscreen.AxisFacade.doorFor]) and that axis has any entries.
+ * Opened with the `axis_door` extras, which [com.eevdf.capabilities.taskstorage.TaskRepository.axisEditTarget]
+ * decides from the database. The three places it appears:
+ *  - editing a first-axis leaf (Queue·X, Schedule): its own list of Y entries;
+ *  - editing a later-axis entry in its own Queue tab (Queue·Y): the list of Z entries for EVERY copy of it;
+ *  - editing a copy (a row under an X leaf): that copy's own list, layered over the entry's — a row set
+ *    here wins, Inherit follows the entry's ACL, so one copy can differ from the others.
+ * Shown only when that next axis has any entries.
  *
  * Exactly the hardlink ACL tab ([AclTab]) — same layouts, same row adapter, same behaviour:
  * one level at a time, three circles per row (Inherit / Hide / Show), tap a group to open it,
  * breadcrumb or back to go up, a "hide new" switch for the door's default, every tap saves at
- * once, and everything under a hidden group is locked. Each change also brings that door's
+ * once, and everything under a hidden group is locked. Each change also brings the affected
  * real copies in step (copies are created or removed in the background).
  *
  * The two tabs never coexist: a hardlink placement's ACL owns the tab bar when `membership_id`
@@ -37,17 +40,19 @@ import kotlinx.coroutines.launch
  */
 internal fun AddTaskActivity.setupAxisAclSection() {
     val door = intent.getStringExtra("axis_door") ?: return
+    val axis = intent.getStringExtra("axis_door_axis") ?: return
     if (intent.getStringExtra("membership_id") != null) return
-    axisAclTab = AxisAclTab(this, door).also { it.start() }
+    axisAclTab = AxisAclTab(this, door, axis, intent.getStringExtra("axis_door_layer")).also { it.start() }
 }
 
 internal class AxisAclTab(
     private val activity: AddTaskActivity,
     private val door: String,
+    /** The axis this door lists. */
+    private val listAxis: String,
+    /** For a copy: the entry's door its own rules are layered over; null otherwise. */
+    private val layerDoor: String?,
 ) {
-    /** The axis this door lists: one past the number of rows in its path ("L" → y, "L/a" → z). */
-    private val listAxis: String? = Axes.ALL.getOrNull(door.split('/').size)
-
     private val tabs: TabLayout        = activity.findViewById(R.id.tabAddTask)
     private val configScroll: View     = activity.findViewById(R.id.configScroll)
     private val aclContainer: View     = activity.findViewById(R.id.aclContainer)
@@ -64,8 +69,13 @@ internal class AxisAclTab(
     )
 
     private var defs: List<Task>   = emptyList()
-    private var rules: Map<String, Boolean> = emptyMap()
-    private var hideNew = false
+    /** This door's own rules, the entry's rules it is layered over, and the two "hide new" defaults (null = not set). */
+    private var ownRules: Map<String, Boolean>   = emptyMap()
+    private var entryRules: Map<String, Boolean> = emptyMap()
+    private var ownHideNew: Boolean?   = null
+    private var entryHideNew: Boolean? = null
+    private val rules: Map<String, Boolean> get() = AxisAclRules.merge(entryRules, ownRules)
+    private val hideNew: Boolean get() = AxisAclRules.effectiveHideNew(ownHideNew, entryHideNew)
     private var tabsShown = false
     private var aclShown  = false
 
@@ -82,7 +92,6 @@ internal class AxisAclTab(
     }
 
     fun start() {
-        val axis = listAxis ?: return
         rv.layoutManager = LinearLayoutManager(activity)
         rv.adapter = adapter
         activity.onBackPressedDispatcher.addCallback(activity, backCallback)
@@ -96,13 +105,15 @@ internal class AxisAclTab(
         })
         switchHideNew.setOnCheckedChangeListener(onHideNewChanged)
 
-        activity.viewModel.axes.tasksOf(axis).observe(activity) { defs = it; refresh() }
+        activity.viewModel.axes.tasksOf(listAxis).observe(activity) { defs = it; refresh() }
         repository.allAxisAcl.observe(activity) { all ->
-            rules = all.asSequence().filter { it.scopeKey == door }.associate { it.childKey to it.hidden }
+            ownRules   = all.asSequence().filter { it.scopeKey == door }.associate { it.childKey to it.hidden }
+            entryRules = layerDoor?.let { l -> all.asSequence().filter { it.scopeKey == l }.associate { it.childKey to it.hidden } }.orEmpty()
             refresh()
         }
         repository.allAxisDoors.observe(activity) { all ->
-            hideNew = all.firstOrNull { it.scopeKey == door }?.newChildrenHidden ?: false
+            ownHideNew   = all.firstOrNull { it.scopeKey == door }?.newChildrenHidden
+            entryHideNew = layerDoor?.let { l -> all.firstOrNull { it.scopeKey == l }?.newChildrenHidden }
             refresh()
         }
     }
@@ -129,7 +140,6 @@ internal class AxisAclTab(
     }
 
     private fun refresh() {
-        val axis = listAxis ?: return
         // Nothing defined on that axis yet: there is nothing to include — the screen stays as it was.
         if (defs.isEmpty()) {
             tabs.visibility = View.GONE
@@ -162,11 +172,12 @@ internal class AxisAclTab(
             switchHideNew.setOnCheckedChangeListener(onHideNewChanged)
         }
 
-        renderBreadcrumb(axis)
+        renderBreadcrumb(listAxis)
         val ancestorKeys = stack.map { it.id }
 
         // Is the level being viewed itself hidden? Then nothing in it can be changed.
-        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, rules, hideNew) }
+        val merged = rules
+        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, merged, hideNew) }
         if (here != null && here.hidden) {
             tvLocked.text = "\"${stack.last().name}\" is hidden, so everything inside it is hidden too. " +
                 "Make it visible to change these."
@@ -183,7 +194,12 @@ internal class AxisAclTab(
     private fun renderBreadcrumb(axis: String) {
         breadcrumb.removeAllViews()
         val inflater = LayoutInflater.from(activity)
-        val names = listOf(axis.uppercase()) + stack.map { it.name }
+        val scopeNote = when {
+            layerDoor != null                              -> " · this copy"
+            door.startsWith(Axes.DEFINITION_DOOR)          -> " · every copy"
+            else                                           -> ""
+        }
+        val names = listOf(axis.uppercase() + scopeNote) + stack.map { it.name }
         names.forEachIndexed { index, name ->
             if (index > 0) breadcrumb.addView((inflater.inflate(R.layout.item_acl_crumb, breadcrumb, false) as TextView).apply {
                 text = "›"; alpha = 0.5f
@@ -215,14 +231,22 @@ internal class AxisAclTab(
             }
         }
 
+        val merged = rules
+        val effHide = hideNew
         return defs
             .filter { (it.parentId?.takeIf { p -> p in byId }) == nodeId }
             .sortedBy { it.name.lowercase() }
             .map { t ->
-                val res    = AxisAclRules.resolve(ancestorKeys, t.id, rules, hideNew)
+                val res    = AxisAclRules.resolve(ancestorKeys, t.id, merged, effHide)
+                // On a copy the circles show what is set HERE; "Inherit" means follow the entry's ACL.
+                val own    = if (layerDoor == null) res.choice else when (ownRules[t.id]) {
+                    null -> AclChoice.INHERIT; true -> AclChoice.HIDE; false -> AclChoice.SHOW
+                }
+                val fromEntry = layerDoor != null && ownRules[t.id] == null && entryRules[t.id] != null && res.lockedByKey == null
                 val inside = if (t.isGroup) rulesInside(t.id, byId) else 0
-                val text   = caption(res) + if (inside > 0) " · $inside rule${if (inside == 1) "" else "s"} inside" else ""
-                AclTab.Row(t.id, t.id, t.name, if (t.isGroup) "cgroup" else "task", t.isGroup, res.choice,
+                val base   = if (fromEntry) (if (res.hidden) "Hidden" else "Shown") + " · from the entry's ACL" else caption(res)
+                val text   = base + if (inside > 0) " · $inside rule${if (inside == 1) "" else "s"} inside" else ""
+                AclTab.Row(t.id, t.id, t.name, if (t.isGroup) "cgroup" else "task", t.isGroup, own,
                     locked = res.lockedByKey != null, caption = text)
             }
     }

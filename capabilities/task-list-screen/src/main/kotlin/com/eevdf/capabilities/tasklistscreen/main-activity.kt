@@ -916,20 +916,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTaskDetail(task: Task, membershipId: String? = null) {
-        // A copy of a later-axis definition follows that definition: editing it edits the definition,
-        // and every copy is brought in step. (Its own timer / sleep / completed state is not edited here.)
-        val definition = viewModel.axes.definitionOf(task.id)
-        if (definition != null) {
-            Toast.makeText(this, "Editing the shared ${definition.second.uppercase()} definition", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            // What the Config tab edits (a copy follows its definition: editing it edits the definition and every
+            // copy is brought in step) and which ACL the ACL tab edits — read from the database, not a screen's state.
+            val target = viewModel.axes.editTarget(task)
+            if (target.isCopy) {
+                Toast.makeText(this@MainActivity, "Editing the shared ${target.axisId.uppercase()} definition", Toast.LENGTH_SHORT).show()
+            }
+            startActivity(Intent().setClassName(this@MainActivity, AppRoutes.ADD_TASK).apply {
+                putExtra("task_id", target.taskId)
+                putExtra("axis_id", target.axisId)
+                // Only when launched from a hardlink row: AddTaskActivity shows the hardlink ACL tab instead.
+                if (membershipId != null) putExtra("membership_id", membershipId)
+                else if (target.door != null && target.doorAxis != null) {
+                    putExtra("axis_door", target.door)
+                    putExtra("axis_door_axis", target.doorAxis)
+                    target.layerDoor?.let { putExtra("axis_door_layer", it) }
+                }
+            })
         }
-        startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK).apply {
-            putExtra("task_id", definition?.first ?: task.id)
-            putExtra("axis_id", definition?.second ?: task.axisId)
-            // The ACL tab: this row's own door (X leaf → Y entries, Y copy → Z entries). Not for hardlink placements.
-            if (membershipId == null) viewModel.axes.doorFor(task)?.let { putExtra("axis_door", it) }
-            // Only when launched from a hardlink row: AddTaskActivity shows the ACL tab.
-            if (membershipId != null) putExtra("membership_id", membershipId)
-        })
     }
 
     private fun confirmDelete(task: Task) {

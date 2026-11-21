@@ -67,10 +67,46 @@ class TaskRepository @Inject constructor(
     /** Live ACL rules and door defaults, for the ACL tab. */
     val allAxisAcl: LiveData<List<AxisAcl>> = axisDao.getAllAcl()
     val allAxisDoors: LiveData<List<AxisDoor>> = axisDao.getAllDoors()
-    val allAxisContainers: LiveData<List<AxisContainer>> = axisDao.getAllContainers()
 
     /**
-     * Set one entry's ACL choice at [door] (Inherit = no row), then bring that door's copies in step.
+     * What the edit screen should show for [task]: which row its Config tab edits and which ACL (if any)
+     * its ACL tab edits. Read from the database, never from a screen's LiveData.
+     *
+     *  - a COPY of a definition  → Config edits the definition; ACL is the copy's own door (layered over the entry's)
+     *  - a first-axis leaf / container → its own door (lists the next axis)
+     *  - a later-axis LEAF definition (Queue·Y/Z) → its "def:" door: the ACL for all its copies
+     *  - real groups, copies/definitions that are groups, and the last axis → no ACL
+     */
+    suspend fun axisEditTarget(task: Task): AxisEditTarget = withContext(Dispatchers.IO) {
+        val node = axisDao.getNodeOf(task.id)
+        val container = axisDao.containerCount(task.id) > 0
+        val leafLike = !task.isGroup || container
+        when {
+            node != null -> {
+                val next = Axes.next(node.axisId)
+                val door = if (next != null && leafLike) "${node.scopeKey}/${node.definitionId}" else null
+                AxisEditTarget(node.definitionId, node.axisId, door, next.takeIf { door != null },
+                    door?.let { Axes.layerDoorOf(it) }, isCopy = true)
+            }
+            task.axisId == Axes.DEFAULT -> {
+                val next = Axes.next(task.axisId)
+                val door = if (next != null && leafLike && !task.isInterrupt) task.id else null
+                AxisEditTarget(task.id, task.axisId, door, next.takeIf { door != null }, null, isCopy = false)
+            }
+            else -> {   // a later-axis definition, from its own Queue tab
+                val next = Axes.next(task.axisId)
+                val door = if (next != null && !task.isGroup) Axes.definitionDoor(task.id) else null
+                AxisEditTarget(task.id, task.axisId, door, next.takeIf { door != null }, null, isCopy = false)
+            }
+        }
+    }
+
+    /** A "def:" door changes every copy of an entry (everywhere); any other door only the leaf it belongs to. */
+    private fun onlyUnderOf(door: String): String? =
+        if (door.startsWith(Axes.DEFINITION_DOOR)) null else door.substringBefore('/')
+
+    /**
+     * Set one entry's ACL choice at [door] (Inherit = no row), then bring the affected copies in step.
      * Same shape as [setMembershipChildChoice] for hardlinks.
      */
     suspend fun setAxisChoice(door: String, childKey: String, choice: AclChoice) = withContext(Dispatchers.IO) {
@@ -79,13 +115,19 @@ class TaskRepository @Inject constructor(
             AclChoice.HIDE    -> axisDao.upsertRule(AxisAcl(door, childKey, hidden = true))
             AclChoice.SHOW    -> axisDao.upsertRule(AxisAcl(door, childKey, hidden = false))
         }
-        reconcileAxes(onlyUnder = door.substringBefore('/'))
+        reconcileAxes(onlyUnder = onlyUnderOf(door))
     }
 
-    /** The door's "hide new" default (see [AxisDoor]); false is stored as no row. */
+    /**
+     * The door's "hide new" default. For a copy's door, a value equal to the entry's default is stored as
+     * no row (it follows the entry); anything else is stored. Elsewhere false is stored as no row.
+     */
     suspend fun setAxisHideNew(door: String, hidden: Boolean) = withContext(Dispatchers.IO) {
-        if (hidden) axisDao.upsertDoor(AxisDoor(door, true)) else axisDao.deleteDoor(door)
-        reconcileAxes(onlyUnder = door.substringBefore('/'))
+        val layer = Axes.layerDoorOf(door)
+        val entryDefault = layer?.let { l -> axisDao.getAllDoorsSync().firstOrNull { it.scopeKey == l }?.newChildrenHidden }
+        val follows = if (layer != null) hidden == (entryDefault ?: false) else !hidden
+        if (follows) axisDao.deleteDoor(door) else axisDao.upsertDoor(AxisDoor(door, hidden))
+        reconcileAxes(onlyUnder = onlyUnderOf(door))
     }
 
     // ── Axes: real copies ────────────────────────────────────────────────────
@@ -171,7 +213,11 @@ class TaskRepository @Inject constructor(
         val existing = byScope[scope].orEmpty().mapNotNull { n ->
             (byId[n.taskId] ?: dao.getTaskById(n.taskId))?.let { AxisReconcile.Existing(n, it) }
         }
-        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), rulesByDoor[scope].orEmpty(), hideNewByDoor[scope] ?: false, existing)
+        // A copy follows its entry's ACL unless it set its own; a first-axis row has only its own door.
+        val layer = pNode?.let { Axes.definitionDoor(it.definitionId) }
+        val rules = AxisAclRules.merge(layer?.let { rulesByDoor[it] }.orEmpty(), rulesByDoor[scope].orEmpty())
+        val hideNew = AxisAclRules.effectiveHideNew(hideNewByDoor[scope], layer?.let { hideNewByDoor[it] })
+        val plan = AxisReconcile.plan(next, defs[next].orEmpty(), rules, hideNew, existing)
         var changed = false
 
         // 1. switched off / deleted definitions: their copies go (a running copy is left until it stops)
@@ -566,6 +612,10 @@ class TaskRepository @Inject constructor(
         axisDao.deleteAclOfChild(task.id)
         axisDao.deleteAclUnder(task.id)
         axisDao.deleteDoorsUnder(task.id)
+        if (task.axisId != Axes.DEFAULT) {   // a definition's own door goes with it
+            axisDao.deleteAclUnder(Axes.definitionDoor(task.id))
+            axisDao.deleteDoorsUnder(Axes.definitionDoor(task.id))
+        }
         // A later-axis DEFINITION goes: every real copy of it goes too.
         if (task.axisId != Axes.DEFAULT) {
             axisDao.getNodesOfDefinition(task.id).forEach { n -> dao.getTaskById(n.taskId)?.let { forceDelete(it) } }

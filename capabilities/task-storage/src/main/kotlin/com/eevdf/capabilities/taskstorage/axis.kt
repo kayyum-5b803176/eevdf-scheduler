@@ -49,6 +49,18 @@ object Axes {
 
     fun isKnown(axisId: String): Boolean = axisId in ALL
 
+    /** Prefix of a DEFINITION's own door: the ACL a later-axis entry sets for ALL its copies ("def:<id>"). */
+    const val DEFINITION_DOOR = "def:"
+
+    fun definitionDoor(definitionId: String): String = DEFINITION_DOOR + definitionId
+
+    /**
+     * The definition-level door a COPY's door layers over ("L/a" → "def:a"). Null for a first-axis
+     * row's door ("L") and for a definition's own door — neither has anything underneath it to follow.
+     */
+    fun layerDoorOf(door: String): String? =
+        if (!door.startsWith(DEFINITION_DOOR) && '/' in door) definitionDoor(door.substringAfterLast('/')) else null
+
     /** The axis picked right after [axisId], or null when [axisId] is the last. */
     fun next(axisId: String): String? = ALL.getOrNull(ALL.indexOf(axisId) + 1)
 
@@ -69,6 +81,9 @@ object Axes {
  * ([AxisReconcile.childScope]): a first-axis leaf's own id ("L"), or a copy's path ("L/a").
  * The path, not the copy's row id, so the rules survive that copy being switched off and on.
  * Every copy has its own door, so two copies of the same entry can include different things.
+ * A later-axis ENTRY also has a door of its own ("def:<id>", see [Axes.definitionDoor]): the ACL
+ * for ALL its copies, edited once. A copy's door is layered over it — the copy's own rule wins,
+ * no rule follows the entry's, and so does the "hide new" default ([AxisAclRules.merge]).
  *
  * Rules sit on ANY entry of the definition tree, inherit downward, and the deepest rule wins;
  * hiding a group hides everything inside it and nothing inside a hidden group can be shown.
@@ -178,8 +193,8 @@ interface AxisDao {
     suspend fun deleteNodeOf(taskId: String)
 
     // ── containers ───────────────────────────────────────────────────────
-    @Query("SELECT * FROM axis_container")
-    fun getAllContainers(): LiveData<List<AxisContainer>>
+    @Query("SELECT COUNT(*) FROM axis_container WHERE taskId = :taskId")
+    suspend fun containerCount(taskId: String): Int
 
     @Query("SELECT * FROM axis_container")
     suspend fun getAllContainersSync(): List<AxisContainer>
@@ -213,6 +228,13 @@ object AxisAclRules {
         val inheritedHidden = ancestorKeys.isEmpty() && hideNew
         return AclResolution(choice, hidden = own ?: inheritedHidden, lockedByKey = null)
     }
+
+    /** A copy's effective rules: the entry's, with the copy's own rule winning per key. */
+    fun merge(entryRules: Map<String, Boolean>, copyRules: Map<String, Boolean>): Map<String, Boolean> =
+        entryRules + copyRules
+
+    /** A copy's own default if it set one, else the entry's, else everything included. */
+    fun effectiveHideNew(copyHideNew: Boolean?, entryHideNew: Boolean?): Boolean = copyHideNew ?: entryHideNew ?: false
 
     /** Is [entry] hidden at this door? Walks its parents inside [defs] (cycle-safe) and resolves it. */
     fun isHidden(entry: Task, defs: Map<String, Task>, rules: Map<String, Boolean>, hideNew: Boolean): Boolean {
@@ -311,4 +333,22 @@ fun Task.sharingFrom(def: Task): Task = copy(
     loadFactor = def.loadFactor, loadFactorInherited = def.loadFactorInherited,
     sleepDurationSeconds = def.sleepDurationSeconds,
     semaphoreEnabled = def.semaphoreEnabled, semaphoreLimit = def.semaphoreLimit,
+)
+
+/**
+ * What an edit screen needs to know about the row it was opened from.
+ *
+ * [taskId]/[axisId]  what the Config tab edits — for a copy, its DEFINITION.
+ * [door]             the ACL the ACL tab edits, or null for no tab: a first-axis leaf's own door, a
+ *                    copy's own door, or a definition's "def:" door. See [AxisReconcile.childScope].
+ * [doorAxis]         the axis that door lists (the one after this row's).
+ * [layerDoor]        for a copy: the entry's door its own rules are layered over; else null.
+ */
+data class AxisEditTarget(
+    val taskId: String,
+    val axisId: String,
+    val door: String?,
+    val doorAxis: String?,
+    val layerDoor: String?,
+    val isCopy: Boolean,
 )

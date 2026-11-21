@@ -3,7 +3,7 @@ package com.eevdf.capabilities.tasklistscreen
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
-import com.eevdf.capabilities.taskstorage.AxisContainer
+import com.eevdf.capabilities.taskstorage.AxisEditTarget
 import com.eevdf.capabilities.taskstorage.AxisNode
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
@@ -57,24 +57,6 @@ class AxisFacade internal constructor(
     fun definitionOf(taskId: String): Pair<String, String>? =
         nodes.value?.firstOrNull { it.taskId == taskId }?.let { it.definitionId to it.axisId }
 
-    // ── ACL doors ─────────────────────────────────────────────────────────
-    /** Rows that are containers only because later-axis copies hang under them. */
-    val containers: LiveData<List<AxisContainer>> = repository.allAxisContainers
-
-    /**
-     * The door [task] opens, or null when it has none. Every row that has a next axis has one:
-     * a first-axis leaf (its Y entries) and each copy that is a leaf (its Z entries, per copy).
-     * A real group, a copy of a definition group, a definition itself and the last axis have none.
-     * The key is the scope the row's copies live in — see [AxisReconcile.childScope].
-     */
-    fun doorFor(task: Task): String? {
-        val node = nodes.value?.firstOrNull { it.taskId == task.id }
-        val isContainer = containers.value?.any { it.taskId == task.id } == true
-        if (task.isGroup && !isContainer) return null
-        return when {
-            node == null -> if (task.axisId == Axes.DEFAULT && !task.isInterrupt) task.id else null
-            Axes.next(node.axisId) != null -> "${node.scopeKey}/${node.definitionId}"
-            else -> null
-        }
-    }
+    /** What the edit screen should show for [task] — see [TaskRepository.axisEditTarget]. */
+    suspend fun editTarget(task: Task): AxisEditTarget = repository.axisEditTarget(task)
 }

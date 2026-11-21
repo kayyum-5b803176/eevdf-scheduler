@@ -77,4 +77,61 @@ class AxisRulesTest {
         assertFalse(AxisAclRules.isHidden(a, mapOf("a" to a, "b" to b), emptyMap(), false))
         assertTrue(AxisAclRules.isHidden(a, mapOf("a" to a, "b" to b), mapOf("b" to true), false))
     }
+
+    // ── a copy's door is layered over its entry's door ───────────────────
+
+    @Test fun `copy rule wins over the entry's per key, the rest follows the entry`() {
+        val merged = AxisAclRules.merge(entryRules = mapOf("a" to true, "b" to true), copyRules = mapOf("a" to false))
+        assertEquals(mapOf("a" to false, "b" to true), merged)
+    }
+
+    @Test fun `a copy that sets nothing follows the entry entirely`() {
+        val all = listOf(t("a"), t("b"), t("c"))
+        val merged = AxisAclRules.merge(mapOf("b" to true), emptyMap())
+        assertEquals(setOf("a", "c"), ids(all, merged))
+    }
+
+    @Test fun `Show on a copy overrides the entry's Hide for that one entry`() {
+        val all = listOf(t("a"), t("b"))
+        val merged = AxisAclRules.merge(mapOf("a" to true, "b" to true), mapOf("a" to false))
+        assertEquals(setOf("a"), ids(all, merged))
+    }
+
+    @Test fun `Show on a copy cannot reach inside a group the entry hides - the group locks it`() {
+        val all = listOf(t("g", group = true), t("g1", parent = "g"))
+        val merged = AxisAclRules.merge(mapOf("g" to true), mapOf("g1" to false))
+        assertEquals(emptySet<String>(), ids(all, merged))
+    }
+
+    @Test fun `hide new - the copy's own default wins, else the entry's, else everything included`() {
+        assertEquals(true,  AxisAclRules.effectiveHideNew(copyHideNew = true,  entryHideNew = false))
+        assertEquals(false, AxisAclRules.effectiveHideNew(copyHideNew = false, entryHideNew = true))
+        assertEquals(true,  AxisAclRules.effectiveHideNew(copyHideNew = null,  entryHideNew = true))
+        assertEquals(false, AxisAclRules.effectiveHideNew(copyHideNew = null,  entryHideNew = null))
+    }
+
+    @Test fun `an entry that hides new, and a copy that shows only one thing`() {
+        val all = listOf(t("a"), t("b"), t("c"))
+        val hideNew = AxisAclRules.effectiveHideNew(null, true)
+        assertEquals(emptySet<String>(), ids(all, AxisAclRules.merge(emptyMap(), emptyMap()), hideNew))
+        assertEquals(setOf("b"), ids(all, AxisAclRules.merge(emptyMap(), mapOf("b" to false)), hideNew))
+    }
+
+    // ── door keys ────────────────────────────────────────────────────────
+
+    @Test fun `a copy's door layers over its entry's door`() {
+        assertEquals("def:a", Axes.layerDoorOf("L/a"))
+        assertEquals("def:b", Axes.layerDoorOf("L/a/b"))
+        assertEquals(Axes.definitionDoor("a"), Axes.layerDoorOf("L/a"))
+    }
+
+    @Test fun `a first-axis row's door and an entry's own door have nothing to layer over`() {
+        assertEquals(null, Axes.layerDoorOf("L"))
+        assertEquals(null, Axes.layerDoorOf(Axes.definitionDoor("a")))
+    }
+
+    @Test fun `an entry's door can never collide with a row path`() {
+        assertTrue(Axes.definitionDoor("a").startsWith(Axes.DEFINITION_DOOR))
+        assertFalse("L/a".startsWith(Axes.DEFINITION_DOOR))
+    }
 }

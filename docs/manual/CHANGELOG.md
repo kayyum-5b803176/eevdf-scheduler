@@ -5,6 +5,42 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.60.0 — Axes: the ACL tab actually shows, on every axis tab
+
+Includes everything in 6.59.0. No database change, `versionCode` untouched.
+
+### Fixed (6.59.0 showed no ACL anywhere)
+- **X leaves.** Once Y entries exist an X leaf is flipped into a container (`isGroup`). The check for "is this a
+  container" read a LiveData nothing on that screen observed, so it was always empty and every such leaf was treated
+  as a real group — no ACL. The check now reads the database (`axisEditTarget`), never a screen's state.
+- **Queue·Y / Queue·Z cards had no ACL at all** (6.59.0 gave a definition no door). They have one now.
+
+### Changed — what each edit screen's ACL tab lists
+- **Edit an X entry (Queue·X, Schedule):** ACL tab lists the **Y** entries — that leaf's own door.
+- **Edit a Y entry in Queue·Y:** ACL tab lists the **Z** entries only — the ACL for **every copy** of that Y entry,
+  edited once. Breadcrumb reads `Z · every copy`.
+- **Edit a Y copy (a row under an X leaf):** Config still edits the shared definition; the ACL tab is **that copy's
+  own** list, layered over the entry's: a row set here wins, **Inherit means follow the entry's ACL** (shown as
+  "from the entry's ACL"), and so does the "hide new" default. So one copy can differ from the others while the
+  rest follow the entry. Breadcrumb reads `Z · this copy`.
+- No tab on real groups, on copies/definitions that are groups (they hold no copies), or on the last axis.
+- A change to an entry's door re-reconciles every copy everywhere; a copy's door only its own leaf.
+- A copy's "hide new" switch stores nothing when it matches the entry's (it follows it); otherwise it stores its own.
+- Deleting a definition also removes its own door.
+
+### Added
+- `Axes.definitionDoor` / `layerDoorOf`, `AxisAclRules.merge` / `effectiveHideNew`, `AxisEditTarget`,
+  `TaskRepository.axisEditTarget`.
+
+### Verified / not verified
+`axis-rules-test.kt` plus: copy rule wins per key, a silent copy follows the entry, Show on a copy overrides the
+entry's Hide for that entry only, a hidden group still locks its inside, hide-new precedence (copy, entry, none),
+door-key helpers. **Not built, not run.** On the phone: Queue tab, X axis, long-press a task → ACL tab lists Y.
+Queue·Y, long-press a Y entry → ACL tab lists Z, Hide one → it disappears from every copy of that Y entry.
+Long-press a Y copy under an X leaf → ACL → Show that Z entry → only that copy gets it back.
+
+---
+
 ## 6.59.0 — Axes: inclusion is an ACL, one tab per row, per copy
 
 Includes everything in 6.58.0. **Database 35 → 36.** `versionCode` untouched. Run `scripts/apply-6.59.0-deletions.sh`
