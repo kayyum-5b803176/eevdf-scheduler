@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
  */
 internal fun AddTaskActivity.confirmAxisMove(row: Task) {
     lifecycleScope.launch {
-        val cost = viewModel.axes.movePreview(row, targetAxisId)
+        val cost = viewModel.axes.movePreview(row, targetAxisId, axisPathDoor)
         if (cost.blockedByRunning) {
             Toast.makeText(this@confirmAxisMove, "Stop it first — something in it is running.", Toast.LENGTH_LONG).show()
             return@launch
@@ -36,7 +36,10 @@ internal fun AddTaskActivity.confirmAxisMove(row: Task) {
             if (cost.rowsMoved > 1) add("${cost.rowsMoved} items move together.")
         }
         MaterialAlertDialogBuilder(this@confirmAxisMove)
-            .setTitle("Move \"${row.name}\" to ${targetAxisId.uppercase()}?")
+            .setTitle(
+                if (targetAxisId != row.axisId) "Move \"${row.name}\" to ${targetAxisId.uppercase()}?"
+                else "Place \"${row.name}\" only in the chosen path?",
+            )
             .setMessage(lines.joinToString("\n\n"))
             .setPositiveButton("Move") { _, _ -> axisMoveConfirmed = true; saveTask() }
             .setNegativeButton("Cancel", null)

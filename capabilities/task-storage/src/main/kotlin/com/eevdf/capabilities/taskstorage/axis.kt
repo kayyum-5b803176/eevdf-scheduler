@@ -133,6 +133,16 @@ data class AxisNode(
 @Entity(tableName = "axis_container")
 data class AxisContainer(@PrimaryKey val taskId: String)
 
+/**
+ * The ONE '−' rule of a definition that was placed on a path: "hidden everywhere", except where a door
+ * says Show. Without it a new later-axis entry is copied into every place by default; with it only the
+ * doors that Show it (the path it was placed on, and any the person later adds with '+') get a copy —
+ * including places created afterwards. Nothing has to be deleted or edited elsewhere. Absent = the
+ * default (everywhere). See [AxisAclRules] and [AxisPath].
+ */
+@Entity(tableName = "axis_entry_hidden")
+data class AxisEntryHidden(@PrimaryKey val definitionId: String)
+
 @Dao
 interface AxisDao {
 
@@ -172,6 +182,19 @@ interface AxisDao {
 
     @Query("DELETE FROM axis_door WHERE scopeKey = :id OR scopeKey LIKE :id || '/%' OR scopeKey LIKE '%/' || :id || '/%' OR scopeKey LIKE '%/' || :id")
     suspend fun deleteDoorsUnder(id: String)
+
+    // ── entries hidden everywhere (the single '−') ───────────────────────
+    @Query("SELECT * FROM axis_entry_hidden")
+    fun getAllEntryHidden(): LiveData<List<AxisEntryHidden>>
+
+    @Query("SELECT * FROM axis_entry_hidden")
+    suspend fun getAllEntryHiddenSync(): List<AxisEntryHidden>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEntryHidden(row: AxisEntryHidden)
+
+    @Query("DELETE FROM axis_entry_hidden WHERE definitionId = :definitionId")
+    suspend fun deleteEntryHidden(definitionId: String)
 
     // ── nodes (copies) ───────────────────────────────────────────────────
     @Query("SELECT * FROM axis_node")
@@ -217,16 +240,44 @@ interface AxisDao {
  */
 object AxisAclRules {
 
-    /** [rules]: childKey -> hidden for ONE door. [ancestorKeys]: the entry's ancestors, outermost first. */
-    fun resolve(ancestorKeys: List<String>, key: String, rules: Map<String, Boolean>, hideNew: Boolean): AclResolution {
+    /**
+     * [rules]: childKey -> hidden for ONE door. [ancestorKeys]: the entry's ancestors, outermost first.
+     * [hiddenEverywhere]: entries carrying the single '−' ([AxisEntryHidden]) — hidden at every door that
+     * has no rule of its own for them, exactly as if that door said Hide. Empty = the plain hardlink rules.
+     */
+    fun resolve(
+        ancestorKeys: List<String>, key: String, rules: Map<String, Boolean>, hideNew: Boolean,
+        hiddenEverywhere: Set<String> = emptySet(),
+    ): AclResolution {
         val own = rules[key]
         val choice = when (own) { null -> AclChoice.INHERIT; true -> AclChoice.HIDE; false -> AclChoice.SHOW }
         ancestorKeys.forEachIndexed { depth, ancestor ->
-            val ancestorHidden = rules[ancestor] ?: (depth == 0 && hideNew)
+            val ancestorHidden = rules[ancestor] ?: (ancestor in hiddenEverywhere || (depth == 0 && hideNew))
             if (ancestorHidden) return AclResolution(choice, hidden = true, lockedByKey = ancestor)
         }
-        val inheritedHidden = ancestorKeys.isEmpty() && hideNew
+        val inheritedHidden = key in hiddenEverywhere || (ancestorKeys.isEmpty() && hideNew)
         return AclResolution(choice, hidden = own ?: inheritedHidden, lockedByKey = null)
+    }
+
+    /** Is [entry] hidden at this door? Walks its parents inside [defs] (cycle-safe) and resolves it. */
+    fun isHidden(
+        entry: Task, defs: Map<String, Task>, rules: Map<String, Boolean>, hideNew: Boolean,
+        hiddenEverywhere: Set<String> = emptySet(),
+    ): Boolean {
+        val chain = ArrayList<String>()
+        var cur: Task? = entry.parentId?.let { defs[it] }
+        val seen = HashSet<String>().apply { add(entry.id) }
+        while (cur != null && seen.add(cur.id)) { chain.add(cur.id); cur = cur.parentId?.let { defs[it] } }
+        return resolve(chain.asReversed(), entry.id, rules, hideNew, hiddenEverywhere).hidden
+    }
+
+    /** The definition entries of [axisId] that exist at one door. */
+    fun includedEntries(
+        axisId: String, all: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean,
+        hiddenEverywhere: Set<String> = emptySet(),
+    ): List<Task> {
+        val defs = all.asSequence().filter { it.axisId == axisId }.associateBy { it.id }
+        return defs.values.filter { !isHidden(it, defs, rules, hideNew, hiddenEverywhere) }
     }
 
     /** A copy's effective rules: the entry's, with the copy's own rule winning per key. */
@@ -235,21 +286,6 @@ object AxisAclRules {
 
     /** A copy's own default if it set one, else the entry's, else everything included. */
     fun effectiveHideNew(copyHideNew: Boolean?, entryHideNew: Boolean?): Boolean = copyHideNew ?: entryHideNew ?: false
-
-    /** Is [entry] hidden at this door? Walks its parents inside [defs] (cycle-safe) and resolves it. */
-    fun isHidden(entry: Task, defs: Map<String, Task>, rules: Map<String, Boolean>, hideNew: Boolean): Boolean {
-        val chain = ArrayList<String>()
-        var cur: Task? = entry.parentId?.let { defs[it] }
-        val seen = HashSet<String>().apply { add(entry.id) }
-        while (cur != null && seen.add(cur.id)) { chain.add(cur.id); cur = cur.parentId?.let { defs[it] } }
-        return resolve(chain.asReversed(), entry.id, rules, hideNew).hidden
-    }
-
-    /** The definition entries of [axisId] that exist at one door. */
-    fun includedEntries(axisId: String, all: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean): List<Task> {
-        val defs = all.asSequence().filter { it.axisId == axisId }.associateBy { it.id }
-        return defs.values.filter { !isHidden(it, defs, rules, hideNew) }
-    }
 }
 
 /**
@@ -274,8 +310,11 @@ object AxisReconcile {
         val included: List<Task>,
     )
 
-    fun plan(axisId: String, defs: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean, existing: List<Existing>): Plan {
-        val included = AxisAclRules.includedEntries(axisId, defs, rules, hideNew)
+    fun plan(
+        axisId: String, defs: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean, existing: List<Existing>,
+        hiddenEverywhere: Set<String> = emptySet(),
+    ): Plan {
+        val included = AxisAclRules.includedEntries(axisId, defs, rules, hideNew, hiddenEverywhere)
         val inc      = included.associateBy { it.id }
         val have     = existing.associateBy { it.node.definitionId }
         return Plan(
@@ -423,5 +462,102 @@ object AxisMove {
         val queue = ArrayDeque<String>().apply { add(rootId) }
         while (queue.isNotEmpty()) for (c in byParent[queue.removeFirst()].orEmpty()) if (banned.add(c.id)) queue.add(c.id)
         return groups.filter { it.id !in banned }
+    }
+}
+
+/**
+ * PATH MODE of the parent group picker: pick at most one entry per axis, in one go, and the task is
+ * placed in that path ONLY.
+ *
+ * By default a later-axis entry is copied into every place that includes it. A path says where it
+ * should exist: the entry gets the single '−' ([AxisEntryHidden], "hidden everywhere") and a '+' on the
+ * one door that was picked. Nothing is copied elsewhere, so there is nothing to delete afterwards; any
+ * other place can add it later with '+' in its own ACL tab.
+ *
+ * Picks are contiguous from the first axis. The DEEPEST pick decides what the task is:
+ *  - a GROUP is the task's parent group, on that group's axis;
+ *  - a HOLDER (a leaf with the next axis's entries hanging under it) means "inside it": the task becomes
+ *    an entry of the NEXT axis, at its top level.
+ * Every shallower pick must be a holder — it names the place the task exists in.
+ *
+ * Pure: no Android, no database — the picker and the tests feed it plain lists.
+ */
+object AxisPath {
+
+    /** One selectable entry. [holder]: a leaf that holds the next axis's entries (false = a group). */
+    data class Choice(val task: Task, val holder: Boolean)
+
+    /** What the picker needs to list each axis; read once from the database. */
+    data class Snapshot(
+        /** Real first-axis rows (no copies), active. */
+        val firstAxisRows: List<Task>,
+        /** Active definitions of every later axis. */
+        val definitions: List<Task>,
+        val acl: List<AxisAcl>,
+        val doors: List<AxisDoor>,
+        val hiddenEverywhere: Set<String>,
+        /** Rows that are containers only because copies hang under them (leaves, not groups). */
+        val containers: Set<String>,
+    )
+
+    /** Where the task goes. [axisIndex] indexes the axis list; [door] is where the '+' is written (null = no narrowing). */
+    data class Placement(val axisIndex: Int, val parentId: String?, val door: String?, val labels: List<String>)
+
+    sealed class Result {
+        data class Ok(val placement: Placement) : Result()
+        data class Invalid(val reason: String) : Result()
+    }
+
+    /**
+     * What axis [axisIndex] offers, given the picks on the axes before it ([picks] is indexed by axis).
+     * The first axis offers its real rows; a later axis offers only the entries that EXIST at the door the
+     * earlier picks name (so a path can never name a place that is not there). The last axis offers groups
+     * only — a leaf there holds nothing. Empty when an earlier axis has no pick. [exclude] (the row being
+     * edited) and everything inside it are left out: a row cannot be placed under itself.
+     */
+    fun choices(axes: List<String>, axisIndex: Int, picks: List<Choice?>, s: Snapshot, exclude: String? = null): List<Choice> {
+        val axis = axes.getOrNull(axisIndex) ?: return emptyList()
+        val isLast = axisIndex == axes.lastIndex
+        val list: List<Choice> = if (axisIndex == 0) {
+            s.firstAxisRows.filter { !it.isInterrupt && !it.isCompleted }
+                .map { Choice(it, holder = !it.isGroup || it.id in s.containers) }
+        } else {
+            val prior = picks.take(axisIndex)
+            if (prior.size < axisIndex || prior.any { it == null }) return emptyList()
+            val door = Axes.scopeKey(prior.map { it!!.task.id })
+            val layer = Axes.layerDoorOf(door)
+            val ownRules = s.acl.asSequence().filter { it.scopeKey == door }.associate { it.childKey to it.hidden }
+            val entryRules = layer?.let { l -> s.acl.asSequence().filter { it.scopeKey == l }.associate { it.childKey to it.hidden } }.orEmpty()
+            val hideNew = AxisAclRules.effectiveHideNew(
+                s.doors.firstOrNull { it.scopeKey == door }?.newChildrenHidden,
+                layer?.let { l -> s.doors.firstOrNull { it.scopeKey == l }?.newChildrenHidden },
+            )
+            AxisAclRules.includedEntries(axis, s.definitions, AxisAclRules.merge(entryRules, ownRules), hideNew, s.hiddenEverywhere)
+                .map { Choice(it, holder = !it.isGroup && !isLast) }
+        }
+        val visible = if (isLast) list.filter { it.task.isGroup } else list
+        val kept = AxisMove.withoutSubtree(visible.map { it.task }, exclude).mapTo(HashSet()) { it.id }
+        return visible.filter { it.task.id in kept }.sortedBy { it.task.name.lowercase() }
+    }
+
+    /** Turn the picks (indexed by axis, null = nothing picked) into a placement, or say what is wrong. */
+    fun resolve(axes: List<String>, picks: List<Choice?>): Result {
+        val deepest = picks.indexOfLast { it != null }
+        if (deepest < 0) return Result.Invalid("Pick where it should exist.")
+        for (i in 0 until deepest) {
+            val p = picks[i] ?: return Result.Invalid("Pick ${axes[i].uppercase()} first.")
+            if (!p.holder) return Result.Invalid("${axes[i].uppercase()} · ${p.task.name} is a group — only the last pick can be one.")
+        }
+        val last = picks[deepest]!!
+        val labels = picks.take(deepest + 1).map { it!!.task.name }
+        return if (!last.holder) {
+            // A group: the task's parent group on that axis; the picks before it say where it exists.
+            Result.Ok(Placement(deepest, last.task.id,
+                if (deepest == 0) null else Axes.scopeKey(picks.take(deepest).map { it!!.task.id }), labels))
+        } else {
+            // A holder: "inside it" — an entry of the next axis, at its top level, existing only under this path.
+            if (deepest + 1 > axes.lastIndex) return Result.Invalid("Pick a group on ${axes[deepest].uppercase()}.")
+            Result.Ok(Placement(deepest + 1, null, Axes.scopeKey(picks.take(deepest + 1).map { it!!.task.id }), labels))
+        }
     }
 }

@@ -72,6 +72,8 @@ internal class AxisAclTab(
     /** This door's own rules, the entry's rules it is layered over, and the two "hide new" defaults (null = not set). */
     private var ownRules: Map<String, Boolean>   = emptyMap()
     private var entryRules: Map<String, Boolean> = emptyMap()
+    /** Entries carrying the single '−' (placed on a path): hidden at every door that has no rule of its own for them. */
+    private var hiddenEverywhere: Set<String> = emptySet()
     private var ownHideNew: Boolean?   = null
     private var entryHideNew: Boolean? = null
     private val rules: Map<String, Boolean> get() = AxisAclRules.merge(entryRules, ownRules)
@@ -111,6 +113,7 @@ internal class AxisAclTab(
             entryRules = layerDoor?.let { l -> all.asSequence().filter { it.scopeKey == l }.associate { it.childKey to it.hidden } }.orEmpty()
             refresh()
         }
+        repository.allAxisEntryHidden.observe(activity) { all -> hiddenEverywhere = all.mapTo(HashSet()) { it.definitionId }; refresh() }
         repository.allAxisDoors.observe(activity) { all ->
             ownHideNew   = all.firstOrNull { it.scopeKey == door }?.newChildrenHidden
             entryHideNew = layerDoor?.let { l -> all.firstOrNull { it.scopeKey == l }?.newChildrenHidden }
@@ -177,7 +180,7 @@ internal class AxisAclTab(
 
         // Is the level being viewed itself hidden? Then nothing in it can be changed.
         val merged = rules
-        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, merged, hideNew) }
+        val here = stack.lastOrNull()?.let { AxisAclRules.resolve(ancestorKeys.dropLast(1), it.id, merged, hideNew, hiddenEverywhere) }
         if (here != null && here.hidden) {
             tvLocked.text = "\"${stack.last().name}\" is hidden, so everything inside it is hidden too. " +
                 "Make it visible to change these."
@@ -220,12 +223,13 @@ internal class AxisAclTab(
     private fun buildRows(byId: Map<String, Task>, nodeId: String?, ancestorKeys: List<String>): List<AclTab.Row> {
         val nameOfKey = stack.associate { it.id to it.name }
 
-        fun caption(res: AclResolution): String {
+        fun caption(res: AclResolution, key: String): String {
             val lockedBy = res.lockedByKey   // local copy: a public property of another module can't be smart-cast
             return when {
                 lockedBy != null              -> "Hidden by ${nameOfKey[lockedBy] ?: "a parent"}"
                 res.choice == AclChoice.HIDE  -> "Hidden · set here"
                 res.choice == AclChoice.SHOW  -> "Shown · set here"
+                res.hidden && key in hiddenEverywhere -> "Hidden · all other places (tap + to add it here)"
                 res.hidden                    -> "Hidden (inherited)"
                 else                          -> "Shown (inherited)"
             }
@@ -237,14 +241,14 @@ internal class AxisAclTab(
             .filter { (it.parentId?.takeIf { p -> p in byId }) == nodeId }
             .sortedBy { it.name.lowercase() }
             .map { t ->
-                val res    = AxisAclRules.resolve(ancestorKeys, t.id, merged, effHide)
+                val res    = AxisAclRules.resolve(ancestorKeys, t.id, merged, effHide, hiddenEverywhere)
                 // On a copy the circles show what is set HERE; "Inherit" means follow the entry's ACL.
                 val own    = if (layerDoor == null) res.choice else when (ownRules[t.id]) {
                     null -> AclChoice.INHERIT; true -> AclChoice.HIDE; false -> AclChoice.SHOW
                 }
                 val fromEntry = layerDoor != null && ownRules[t.id] == null && entryRules[t.id] != null && res.lockedByKey == null
                 val inside = if (t.isGroup) rulesInside(t.id, byId) else 0
-                val base   = if (fromEntry) (if (res.hidden) "Hidden" else "Shown") + " · from the entry's ACL" else caption(res)
+                val base   = if (fromEntry) (if (res.hidden) "Hidden" else "Shown") + " · from the entry's ACL" else caption(res, t.id)
                 val text   = base + if (inside > 0) " · $inside rule${if (inside == 1) "" else "s"} inside" else ""
                 AclTab.Row(t.id, t.id, t.name, if (t.isGroup) "cgroup" else "task", t.isGroup, own,
                     locked = res.lockedByKey != null, caption = text)

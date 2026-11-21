@@ -149,4 +149,30 @@ class AxisReconcileTest {
         assertEquals(4.2, out.internalWeight!!, 0.0)
         assertNull(AxisReconcile.newCopy(d, "id", "L").internalWeight)
     }
+
+    // ── a placed entry is copied only where it is shown ──────────────────
+
+    @Test fun `placed entry - no copy at a door that does not show it`() {
+        val defs = listOf(def("a"), def("placed"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, emptyList(), hiddenEverywhere = setOf("placed"))
+        assertEquals(listOf("a"), p.create.map { it.id })
+    }
+
+    @Test fun `placed entry - a copy at the door that shows it`() {
+        val defs = listOf(def("a"), def("placed"))
+        val p = AxisReconcile.plan(Axes.Y, defs, mapOf("placed" to false), false, emptyList(), hiddenEverywhere = setOf("placed"))
+        assertEquals(setOf("a", "placed"), p.create.map { it.id }.toSet())
+    }
+
+    @Test fun `placing an existing entry removes its copy from the places that do not show it`() {
+        val defs = listOf(def("placed"))
+        val p = AxisReconcile.plan(Axes.Y, defs, emptyMap(), false, listOf(existing("placed", "type6")), hiddenEverywhere = setOf("placed"))
+        assertEquals(listOf("placed"), p.remove.map { it.node.definitionId })
+    }
+
+    @Test fun `a place created later does not pick the placed entry up`() {
+        // a brand-new door has no rules and no defaults at all
+        val p = AxisReconcile.plan(Axes.Y, listOf(def("placed")), emptyMap(), false, emptyList(), hiddenEverywhere = setOf("placed"))
+        assertTrue(p.create.isEmpty())
+    }
 }

@@ -212,6 +212,16 @@ class AddTaskActivity : AppCompatActivity() {
     /** Set once the person has confirmed an axis move, so Save can run again without asking again. */
     internal var axisMoveConfirmed = false
 
+    /**
+     * Set by the picker's path mode: the door the row must exist at ONLY (see [com.eevdf.capabilities.taskstorage.AxisPath]).
+     * Saved as the single '−' plus a '+' there, before the row is written, so nothing is copied elsewhere.
+     * Null = a normal placement (copied wherever it is included).
+     */
+    internal var axisPathDoor: String? = null
+
+    /** A plain (non-path) pick was made this session: saving a later-axis entry then puts it back to "copied wherever included". */
+    internal var axisPlainPicked = false
+
     /** Active entries of every axis; validation looks at the siblings on the TARGET axis. */
     private val axisTaskLists = HashMap<String, List<Task>>()
     internal val siblingTasks: List<Task> get() = axisTaskLists[targetAxisId].orEmpty()

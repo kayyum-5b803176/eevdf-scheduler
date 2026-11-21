@@ -4,6 +4,7 @@ import android.view.View
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.AxisMove
+import com.eevdf.capabilities.taskstorage.AxisPath
 import com.eevdf.capabilities.taskstorage.Task
 import kotlinx.coroutines.launch
 import com.eevdf.capabilities.grouppicker.output.PickerDialog
@@ -28,6 +29,33 @@ import com.eevdf.capabilities.taskstorage.logic.SortHelper
 internal fun parentLabel(axis: String, groupName: String?): String {
     val shown = groupName ?: "None (root level)"
     return if (axis == Axes.ALL.first()) shown else "${axis.uppercase()} · $shown"
+}
+
+/** What choosing (or clearing) a parent does to the inherited load factor and slice — shared by every way of picking one. */
+internal fun AddTaskActivity.onParentChosen(chosen: Task?) {
+    when {
+        // Parent picked while already in auto mode → sync to new parent
+        chosen != null && (isLoadFactorInherited || isTimeSliceInherited) -> {
+            if (isLoadFactorInherited) applyParentLoadFactor(chosen)   // ← Task, not Double
+            if (isTimeSliceInherited)  applyParentTimeSlice(chosen.timeSliceSeconds)
+        }
+
+        // Parent deselected while in auto mode → reset to defaults
+        chosen == null && (isLoadFactorInherited || isTimeSliceInherited) -> {
+            if (isLoadFactorInherited) resetLoadFactorToDefault()      // ← new helper
+            if (isTimeSliceInherited) {
+                isTimeSliceInherited = false
+                tvTimeSliceAutoLabel.visibility = View.GONE
+            }
+        }
+
+        // New task picking a parent for the first time → inherit both
+        chosen != null && existingTaskId == null -> {
+            applyParentLoadFactor(chosen)                              // ← Task, not Double
+            applyParentTimeSlice(chosen.timeSliceSeconds)
+        }
+    }
+    recalcWeightFromPinned()   // siblings changed with the axis / parent
 }
 
 internal fun AddTaskActivity.setupGroupSection() {
@@ -61,6 +89,7 @@ internal fun AddTaskActivity.setupGroupSection() {
             // moved under itself, so it and everything inside it are left out.
             val perAxis = Axes.ALL.associateWith { AxisMove.withoutSubtree(viewModel.axes.pickerGroups(it), existingTaskId) }
                 .mapValues { (_, groups) -> groups.sortedWith(SortHelper.taskNameComparator) }
+            val snapshot = viewModel.axes.pathSnapshot()
             val row = existingTask
             val locked = row != null && (row.isRunning || row.isInterrupt)
             val dialog = PickerDialog().apply {
@@ -72,33 +101,25 @@ internal fun AddTaskActivity.setupGroupSection() {
                 axisLockedHint  = if (row?.isInterrupt == true) "Interrupt tasks stay on ${Axes.ALL.first().uppercase()}."
                                   else "Stop it to move it to another axis."
                 onAxisGroupSelected = { axis, chosen ->
+                    axisPathDoor = null                                   // a plain pick: copied wherever it is included
+                    axisPlainPicked = true
                     targetAxisOverride = axis
                     selectedParentId = chosen?.id
                     actvParentGroup.setText(parentLabel(axis, chosen?.name), false)
+                    onParentChosen(chosen)
+                }
 
-                    when {
-                        // Parent picked while already in auto mode → sync to new parent
-                        chosen != null && (isLoadFactorInherited || isTimeSliceInherited) -> {
-                            if (isLoadFactorInherited) applyParentLoadFactor(chosen)   // ← Task, not Double
-                            if (isTimeSliceInherited)  applyParentTimeSlice(chosen.timeSliceSeconds)
-                        }
-
-                        // Parent deselected while in auto mode → reset to defaults
-                        chosen == null && (isLoadFactorInherited || isTimeSliceInherited) -> {
-                            if (isLoadFactorInherited) resetLoadFactorToDefault()      // ← new helper
-                            if (isTimeSliceInherited) {
-                                isTimeSliceInherited = false
-                                tvTimeSliceAutoLabel.visibility = View.GONE
-                            }
-                        }
-
-                        // New task picking a parent for the first time → inherit both
-                        chosen != null && existingTaskId == null -> {
-                            applyParentLoadFactor(chosen)                              // ← Task, not Double
-                            applyParentTimeSlice(chosen.timeSliceSeconds)
-                        }
-                    }
-                    recalcWeightFromPinned()   // siblings changed with the axis / parent
+                // Path mode: one pick per axis; the row exists ONLY in that path.
+                pathExclude = existingTaskId
+                pathSnapshot = snapshot
+                onPathChosen = { pickedTasks, placement ->
+                    val group = placement.parentId?.let { id -> pickedTasks.firstOrNull { it?.id == id } }
+                    axisPathDoor = placement.door
+                    axisPlainPicked = false
+                    targetAxisOverride = Axes.ALL[placement.axisIndex]
+                    selectedParentId = placement.parentId
+                    actvParentGroup.setText(placement.labels.joinToString(" › "), false)     // "type5 › user1 › activity1"
+                    onParentChosen(group)
                 }
             }
             dialog.show(supportFragmentManager, "group_picker")

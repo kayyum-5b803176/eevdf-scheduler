@@ -28,10 +28,11 @@ import com.eevdf.capabilities.taskstorage.Task
         WakeReturn::class,              // ← new: the wake preempt return stack
         AxisAcl::class,                 // ← new: per-door Inherit/Hide/Show rules over a later axis's entries
         AxisDoor::class,                // ← new: a door's "hide new" default
+        AxisEntryHidden::class,         // ← new: the single '−' of an entry placed on a path
         AxisNode::class,                // ← new: marks a real row as a copy of a later-axis definition
         AxisContainer::class,           // ← new: rows that are containers only because copies hang under them
     ],
-    version  = 36,                      // ← bumped from 35 (axis_exclusion → axis_acl + axis_door: ACL for axis inclusion)
+    version  = 37,                      // ← bumped from 36 (axis_entry_hidden: entries placed on a path)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -707,6 +708,17 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 36 → 37: `axis_entry_hidden` — an entry placed on a path carries ONE '−' (hidden everywhere)
+         * and a '+' only on the picked door, so nothing is copied elsewhere. Empty after upgrade: every entry
+         * keeps today's behaviour (included everywhere unless an ACL says otherwise).
+         */
+        private val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `axis_entry_hidden` (`definitionId` TEXT NOT NULL, PRIMARY KEY(`definitionId`))")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -723,7 +735,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                         MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
-                        MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
+                        MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
                     )
                     .build()
                 INSTANCE = instance

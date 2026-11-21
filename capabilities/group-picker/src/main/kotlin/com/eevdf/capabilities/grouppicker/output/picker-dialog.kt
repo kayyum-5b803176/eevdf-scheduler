@@ -17,7 +17,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.grouppicker.R
 import com.eevdf.capabilities.grouppicker.state.GroupTaskPrefs
 import com.eevdf.capabilities.grouppicker.state.RecentGroupPrefs
+import com.eevdf.capabilities.taskstorage.AxisPath
 import com.eevdf.capabilities.taskstorage.Task
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 
 /**
@@ -97,7 +99,30 @@ class PickerDialog : DialogFragment() {
     /** Invoked instead of [onGroupSelected] when axes are offered: the viewed axis and the chosen group (null = that axis's root). */
     var onAxisGroupSelected: ((axisId: String, group: Task?) -> Unit)? = null
 
+    // ── Path mode (optional, needs axes) ─────────────────────────────────────
+    //
+    // A switch in the title row turns the picker into "pick one entry on each axis": taps tick (and
+    // untick) instead of closing, each axis's chip shows its pick, and Done places the row in that path
+    // ONLY ([AxisPath]). Off — the default — the picker behaves exactly as before.
+
+    /** What each axis lists in path mode. Null = no path mode, no switch. */
+    var pathSnapshot: AxisPath.Snapshot? = null
+
+    /** The row being edited and everything inside it cannot be a pick. */
+    var pathExclude: String? = null
+
+    /** Invoked on Done with the picks (indexed by axis, null = nothing picked) and where the row goes. */
+    var onPathChosen: ((picks: List<Task?>, placement: AxisPath.Placement) -> Unit)? = null
+
     private var viewedAxisId: String? = null
+    private var pathMode = false
+    private var picks: Array<AxisPath.Choice?> = emptyArray()
+    private var viewedChoices: List<AxisPath.Choice> = emptyList()
+    private val axisChips = ArrayList<Chip>()
+    private lateinit var footer: View
+    private lateinit var tvPathSummary: TextView
+    private lateinit var btnPathDone: View
+    private lateinit var tvAxisHint: TextView
 
     // ── Views ─────────────────────────────────────────────────────────────────
 
@@ -125,6 +150,7 @@ class PickerDialog : DialogFragment() {
         rvItems  = view.findViewById(R.id.rvGroupItems)
 
         adapter = PickerAdapter(currentGroupId, noneLabel) { chosen ->
+            if (pathMode) { onPathPick(chosen); return@PickerAdapter }
             RecentGroupPrefs.push(requireContext(), chosen?.id)
             val axis = viewedAxisId
             if (axisIds.isNotEmpty() && axis != null) onAxisGroupSelected?.invoke(axis, chosen)
@@ -169,6 +195,7 @@ class PickerDialog : DialogFragment() {
         axisIds.forEach { axis ->
             val chip = layoutInflater.inflate(R.layout.item_group_picker_axis_chip, group, false) as Chip
             chip.text = axis.uppercase()
+            axisChips += chip
             chip.id = View.generateViewId()
             chip.isChecked = axis == start
             // A row that cannot move can still be looked at on its own axis only.
@@ -176,15 +203,107 @@ class PickerDialog : DialogFragment() {
             chip.setOnCheckedChangeListener { _, checked -> if (checked) { showAxis(axis); etSearch.setText("") } }
             group.addView(chip)
         }
+        tvAxisHint = hint
         if (axisLocked && axisLockedHint.isNotEmpty()) {
             hint.text = axisLockedHint
             hint.visibility = View.VISIBLE
+        }
+        setupPathMode(view)
+    }
+
+    // ── Path mode ─────────────────────────────────────────────────────────────
+
+    private fun setupPathMode(view: View) {
+        if (pathSnapshot == null) return
+        picks = arrayOfNulls(axisIds.size)
+        footer        = view.findViewById(R.id.layoutPickerPathFooter)
+        tvPathSummary = view.findViewById(R.id.tvPickerPathSummary)
+        btnPathDone   = view.findViewById(R.id.btnPickerPathDone)
+        view.findViewById<View>(R.id.btnPickerPathCancel).setOnClickListener { dismiss() }
+        btnPathDone.setOnClickListener {
+            val result = AxisPath.resolve(axisIds, picks.toList())
+            if (result is AxisPath.Result.Ok) {
+                onPathChosen?.invoke(picks.map { it?.task }, result.placement)
+                dismiss()
+            }
+        }
+        val sw = view.findViewById<SwitchMaterial>(R.id.switchPickerPath)
+        sw.visibility = View.VISIBLE
+        sw.isEnabled = !axisLocked              // a row that cannot move cannot be re-placed either
+        sw.setOnCheckedChangeListener { _, on ->
+            pathMode = on
+            footer.visibility = if (on) View.VISIBLE else View.GONE
+            if (on) picks.fill(null)
+            refreshChipLabels()
+            etSearch.setText("")
+            showAxis(viewedAxisId ?: axisIds.first())
+            updateFooter()
+        }
+    }
+
+    private fun refreshChipLabels() {
+        axisChips.forEachIndexed { i, chip ->
+            val pick = picks.getOrNull(i)
+            chip.text = axisIds[i].uppercase() + if (!pathMode) "" else " · " + (pick?.task?.name ?: "—")
+        }
+    }
+
+    /** A tap in path mode ticks the entry for the viewed axis (tap it again, or None, to clear) and keeps the dialog open. */
+    private fun onPathPick(chosen: Task?) {
+        val axis = viewedAxisId ?: return
+        val i = axisIds.indexOf(axis)
+        val already = picks[i]?.task?.id
+        val newPick = if (chosen == null || chosen.id == already) null else viewedChoices.firstOrNull { it.task.id == chosen.id }
+        picks[i] = newPick
+        for (j in i + 1 until picks.size) picks[j] = null     // deeper lists depend on this pick
+        refreshChipLabels()
+        updateFooter()
+        val next = axisIds.getOrNull(i + 1)
+        if (newPick != null && next != null) axisChips[i + 1].isChecked = true   // on to the next axis
+        else showAxis(axis)
+    }
+
+    private fun updateFooter() {
+        if (!pathMode) return
+        when (val r = AxisPath.resolve(axisIds, picks.toList())) {
+            is AxisPath.Result.Ok -> {
+                val p = r.placement
+                val doorNames = p.door?.let { p.labels.take(it.split('/').size) }
+                tvPathSummary.text = when {
+                    doorNames == null -> "No narrowing — a normal placement."
+                    p.parentId != null -> "Exists only in:  ${doorNames.joinToString(" › ")}\nIn group:  ${p.labels.last()}"
+                    else -> "Exists only in:  ${doorNames.joinToString(" › ")}"
+                }
+                btnPathDone.isEnabled = true
+            }
+            is AxisPath.Result.Invalid -> {
+                tvPathSummary.text = r.reason
+                btnPathDone.isEnabled = false
+            }
         }
     }
 
     /** List [axis]'s groups; the tick and the "none" wording follow which axis is being looked at. */
     private fun showAxis(axis: String) {
         viewedAxisId = axis
+        val snapshot = pathSnapshot
+        if (pathMode && snapshot != null) {
+            val i = axisIds.indexOf(axis)
+            viewedChoices = AxisPath.choices(axisIds, i, picks.toList(), snapshot, pathExclude)
+            allGroups = viewedChoices.map { it.task }
+            val holders = viewedChoices.filter { it.holder }.mapTo(HashSet()) { it.task.id }
+            adapter.selectedId = picks[i]?.task?.id          // None is ticked while nothing is picked here
+            adapter.noneLabel  = "None (not selected on ${axis.uppercase()})"
+            adapter.labeler    = { t -> if (t.id in holders) t.name else "${t.name}  ·  group" }
+            val firstMissing = picks.take(i).indexOfFirst { it == null }
+            tvAxisHint.text = if (firstMissing >= 0) "Pick ${axisIds[firstMissing].uppercase()} first." else ""
+            tvAxisHint.visibility = if (firstMissing >= 0) View.VISIBLE else View.GONE
+            applyFilter(etSearch.text?.toString() ?: "")
+            return
+        }
+        adapter.labeler = null
+        viewedChoices = emptyList()
+        if (::tvAxisHint.isInitialized && !(axisLocked && axisLockedHint.isNotEmpty())) tvAxisHint.visibility = View.GONE
         allGroups = axisGroups[axis].orEmpty()
         val onCurrent = axis == currentAxisId
         adapter.selectedId = if (onCurrent) currentGroupId else NOT_HERE
@@ -209,7 +328,7 @@ class PickerDialog : DialogFragment() {
 
         if (q.isEmpty()) {
             // Recent section
-            val recentIds = RecentGroupPrefs.getIds(requireContext())
+            val recentIds = if (pathMode) emptyList() else RecentGroupPrefs.getIds(requireContext())
             val recentGroups = recentIds.mapNotNull { id -> allGroups.find { it.id == id } }
             if (recentGroups.isNotEmpty()) {
                 items += PickerItem.Header("Recent")
@@ -218,7 +337,12 @@ class PickerDialog : DialogFragment() {
             }
 
             // All groups section
-            items += PickerItem.Header(viewedAxisId?.let { "All Groups · ${it.uppercase()}" } ?: "All Groups")
+            items += PickerItem.Header(
+                when {
+                    pathMode -> "Pick on ${viewedAxisId?.uppercase() ?: ""}"
+                    else     -> viewedAxisId?.let { "All Groups · ${it.uppercase()}" } ?: "All Groups"
+                },
+            )
             if (showNoneOption) items += PickerItem.Entry(null)
             allGroups.forEach { items += PickerItem.Entry(it) }
         } else {
@@ -246,6 +370,9 @@ class PickerDialog : DialogFragment() {
         var noneLabel: String,
         private val onPick: (Task?) -> Unit
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+        /** Optional text for an entry (path mode marks groups); null = just the name. */
+        var labeler: ((Task) -> String)? = null
 
         private var items: List<PickerItem> = emptyList()
 
@@ -293,7 +420,7 @@ class PickerDialog : DialogFragment() {
             private val ivCheck  = v.findViewById<View>(R.id.ivPickerCheck)
 
             fun bind(group: Task?) {
-                tvName.text   = group?.name ?: noneLabel
+                tvName.text   = if (group == null) noneLabel else (labeler?.invoke(group) ?: group.name)
                 val isSelected = group?.id == selectedId
                 ivCheck.visibility = if (isSelected) View.VISIBLE else View.INVISIBLE
                 itemView.setOnClickListener { onPick(group) }

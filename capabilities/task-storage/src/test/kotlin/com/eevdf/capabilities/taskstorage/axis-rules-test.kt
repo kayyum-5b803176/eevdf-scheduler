@@ -134,4 +134,49 @@ class AxisRulesTest {
         assertTrue(Axes.definitionDoor("a").startsWith(Axes.DEFINITION_DOOR))
         assertFalse("L/a".startsWith(Axes.DEFINITION_DOOR))
     }
+
+    // ── the single '−': hidden everywhere unless a door shows it ─────────
+
+    @Test fun `hidden everywhere - hidden at every door that has no rule for it`() {
+        val all = listOf(t("a"), t("placed"))
+        assertEquals(setOf("a"), AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("placed")).map { it.id }.toSet())
+    }
+
+    @Test fun `hidden everywhere - a Show on one door adds it there only`() {
+        val all = listOf(t("a"), t("placed"))
+        val here = AxisAclRules.includedEntries(Axes.Y, all, mapOf("placed" to false), false, setOf("placed")).map { it.id }.toSet()
+        val elsewhere = AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("placed")).map { it.id }.toSet()
+        assertEquals(setOf("a", "placed"), here)
+        assertEquals(setOf("a"), elsewhere)
+    }
+
+    @Test fun `hidden everywhere - the door default does not matter, only Show lifts it`() {
+        val all = listOf(t("placed"))
+        assertEquals(emptySet<String>(), AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("placed")).map { it.id }.toSet())
+        assertEquals(setOf("placed"), AxisAclRules.includedEntries(Axes.Y, all, mapOf("placed" to false), true, setOf("placed")).map { it.id }.toSet())
+    }
+
+    @Test fun `hidden everywhere - a deeper entry in a shown group is placed on its own`() {
+        val all = listOf(t("g", group = true), t("task", parent = "g"))
+        val shown = AxisAclRules.includedEntries(Axes.Y, all, mapOf("task" to false), false, setOf("task")).map { it.id }.toSet()
+        val others = AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("task")).map { it.id }.toSet()
+        assertEquals(setOf("g", "task"), shown)
+        assertEquals(setOf("g"), others)
+    }
+
+    @Test fun `a group hidden everywhere locks what is inside it until a door shows the group`() {
+        val all = listOf(t("g", group = true), t("g1", parent = "g"))
+        assertEquals(emptySet<String>(), AxisAclRules.includedEntries(Axes.Y, all, emptyMap(), false, setOf("g")).map { it.id }.toSet())
+        assertEquals(setOf("g", "g1"), AxisAclRules.includedEntries(Axes.Y, all, mapOf("g" to false), false, setOf("g")).map { it.id }.toSet())
+    }
+
+    @Test fun `a plain entry is unaffected by another entry being hidden everywhere`() {
+        val r = AxisAclRules.resolve(emptyList(), "a", emptyMap(), false, setOf("other"))
+        assertFalse(r.hidden)
+    }
+
+    @Test fun `the ACL tab can tell inherited-hidden from a rule`() {
+        val r = AxisAclRules.resolve(emptyList(), "placed", emptyMap(), false, setOf("placed"))
+        assertTrue(r.hidden); assertEquals(AclChoice.INHERIT, r.choice); assertEquals(null, r.lockedByKey)
+    }
 }

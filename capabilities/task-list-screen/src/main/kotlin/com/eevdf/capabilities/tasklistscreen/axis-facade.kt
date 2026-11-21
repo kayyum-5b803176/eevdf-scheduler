@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
 import com.eevdf.capabilities.taskstorage.AxisEditTarget
 import com.eevdf.capabilities.taskstorage.AxisMovePreview
+import com.eevdf.capabilities.taskstorage.AxisPath
 import com.eevdf.capabilities.taskstorage.AxisNode
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
@@ -66,8 +67,22 @@ class AxisFacade internal constructor(
     suspend fun pickerGroups(axisId: String): List<Task> = repository.axisPickerGroups(axisId)
 
     /** What moving [task] to [targetAxis] would cost — null-loss means no confirmation is needed. */
-    suspend fun movePreview(task: Task, targetAxis: String): AxisMovePreview = repository.axisMovePreview(task, targetAxis)
+    suspend fun movePreview(task: Task, targetAxis: String, door: String? = null): AxisMovePreview =
+        repository.axisMovePreview(task, targetAxis, door)
 
-    /** Save [edited] and move it (and, for a group, what is inside it) to [Task.axisId]. False when something is running. */
-    suspend fun moveToAxis(edited: Task): Boolean = repository.moveToAxis(edited)
+    /**
+     * Save [edited] and move it (and, for a group, what is inside it) to [Task.axisId]. With a [door] it is also
+     * placed ONLY there (path mode). False when something is running.
+     */
+    suspend fun moveToAxis(edited: Task, door: String? = null): Boolean = repository.moveToAxis(edited, door)
+
+    // ── path mode ─────────────────────────────────────────────────────────
+    /** Everything the picker's path mode needs to list each axis. */
+    suspend fun pathSnapshot(): AxisPath.Snapshot = repository.axisPathSnapshot()
+
+    /** Back to the default for [taskId]: copied wherever it is included. */
+    suspend fun clearPlacement(taskId: String) = repository.clearAxisPlacement(taskId)
+
+    /** Place [taskId] only at [door] (the single '−' plus a '+' there). Write before the entry is saved. */
+    suspend fun setPlacement(taskId: String, door: String) = repository.setAxisPlacement(taskId, door)
 }

@@ -5,6 +5,54 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.62.0 — Parent group picker: path mode (place an entry only where you picked)
+
+Includes everything in 6.61.0. **Database 36 → 37.** `versionCode` untouched. The picker keeps doing exactly what it
+did; path mode is a switch you turn on.
+
+### The problem it solves
+A new later-axis entry is copied into every place that includes it, so `hello world` added in `activity1` appeared
+under every user of every type. Path mode says where it should exist instead, so nothing has to be deleted afterwards.
+
+### Added
+- **Path switch in the picker's title row.** On: tapping an entry ticks it (tap again, or None, to clear) and keeps the
+  dialog open; one pick per axis; each chip shows its pick (`X · type5`, `Y · user1`, `Z · —`); after a pick it moves on to
+  the next axis; a footer says `Exists only in: type5 › user1` (and `In group: activity1`) and **Done** places the row.
+  Off — the default — nothing changes.
+- **What the picks mean.** Picks are contiguous from the first axis. The deepest pick decides the task:
+  - a **group** is the task's parent group, on that group's axis;
+  - a **holder** (a leaf with the next axis's entries hanging under it, e.g. `type5`, `user1`) means *inside it*: the task
+    becomes an entry of the **next** axis, at its top level;
+  - every shallower pick must be a holder — it names the place the task exists in.
+  `type5 + user1 + activity1` → in group activity1, only at type5 › user1. `type5 + user1` (z empty) → directly under user1,
+  only there. `type5` alone → directly under type5, only there.
+- **Only where you picked: one '−', one '+'.** The entry gets a single "hidden everywhere" mark (`axis_entry_hidden`) and a
+  '+' on the one door you picked. It is therefore never copied elsewhere — including places created later — and there is
+  nothing to delete or edit. In any other place's ACL tab it shows as "Hidden · all other places (tap + to add it here)";
+  tapping + adds it there.
+- **Each list only offers what exists.** The second axis lists only the entries included under the row you picked, the third
+  only those included under that copy (layered with the entry's ACL, as before), the last axis groups only. A path can never
+  name a place that is not there. The row being edited and everything inside it are never offered.
+- **Back to the default.** A plain (non-path) pick on a placed entry saves it as "copied wherever included" again.
+- **Confirmation** when re-placing an existing entry would remove its copies from other places (same dialog as a move).
+- `AxisPath` (pure): what each axis lists and how picks become a placement. `AxisAclRules` gained the single '−'; the
+  planner and reconcile honour it. Placement is written BEFORE the entry is saved, so no copy is ever made in a wrong place.
+
+### Know this
+- The picker does not remember a path when reopened; it starts empty.
+- Picks must start at the first axis (no gaps): to put an entry "everywhere", use the plain picker as before.
+- A group on the first axis can only be the last pick (an ordinary placement); it cannot hold later-axis copies.
+
+### Verified / not verified
+`axis-path-test.kt`: every list (holders vs groups, nothing until earlier axes are picked, only what exists under the row,
+groups only on the last axis, layered ACL, placed-elsewhere entries, exclusion of itself) and every placement from your
+examples plus the invalid ones. `axis-rules-test.kt` / `axis-reconcile-test.kt`: the single '−' (hidden everywhere, shown by
+a door, group locks, later places do not pick it up, an existing entry loses its other copies). **Not built, not run.** On the
+phone: add a task → Parent group → Path on → X type5, Y user1, Z activity1 → Done → Save: only type5 › user1 › activity1
+has it; open type6 › user1's ACL tab and confirm it reads "Hidden · all other places", tap + and it appears.
+
+---
+
 ## 6.61.0 — Move a task or group to another axis, from the parent group picker
 
 Includes everything in 6.60.0. No database change, `versionCode` untouched. Nothing changes until you choose a
