@@ -63,6 +63,28 @@
 
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- Axis chips: which axis's groups are listed (only when the caller offers axes) -->
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/chipGroupPickerAxis"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:visibility="gone"
+        app:singleSelection="true"
+        app:selectionRequired="true" />
+
+    <TextView
+        android:id="@+id/tvPickerAxisHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="4dp"
+        android:textSize="12sp"
+        android:textColor="#757575"
+        android:visibility="gone" />
+
     <!-- Group list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvGroupItems"

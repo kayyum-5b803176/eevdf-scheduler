@@ -202,11 +202,19 @@ class AddTaskActivity : AppCompatActivity() {
     internal var selectedCategory  = "None"
     internal var existingTaskId:   String? = null
     /** Which axis this entry lives on — from the launching screen; the first axis when absent. */
-    /** Entries of THIS entry's axis — the siblings every validation here must look at. */
-    internal val axisTasks: androidx.lifecycle.LiveData<List<Task>> by lazy {
-        if (axisId == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) viewModel.activeTasks else viewModel.axes.tasksOf(axisId)
-    }
-    internal val siblingTasks: List<Task> get() = axisTasks.value ?: emptyList()
+    /**
+     * The axis the row will be on after Save. Starts as [axisId]; choosing a group on another axis in the
+     * parent group picker changes it — that is how a row is moved. See [moveAxisPreviewAndSave].
+     */
+    internal var targetAxisOverride: String? = null
+    internal val targetAxisId: String get() = targetAxisOverride ?: axisId
+
+    /** Set once the person has confirmed an axis move, so Save can run again without asking again. */
+    internal var axisMoveConfirmed = false
+
+    /** Active entries of every axis; validation looks at the siblings on the TARGET axis. */
+    private val axisTaskLists = HashMap<String, List<Task>>()
+    internal val siblingTasks: List<Task> get() = axisTaskLists[targetAxisId].orEmpty()
     internal val axisId: String by lazy { intent.getStringExtra("axis_id") ?: com.eevdf.capabilities.taskstorage.Axes.DEFAULT }
     internal var existingTask:     Task?   = null
     /** Groups from the ViewModel for the parent spinner; first entry = "None (root)" */
@@ -254,7 +262,13 @@ class AddTaskActivity : AppCompatActivity() {
         // Observe activeTasks here (not just in validation) so .value is populated
         // the moment the user opens this screen and types a pinned share value.
         // Also re-triggers weight calc if the task list changes while the form is open.
-        axisTasks.observe(this) { recalcWeightFromPinned() }
+        com.eevdf.capabilities.taskstorage.Axes.ALL.forEach { axis ->
+            val source = if (axis == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) viewModel.activeTasks else viewModel.axes.tasksOf(axis)
+            source.observe(this) { list ->
+                axisTaskLists[axis] = list
+                if (axis == targetAxisId) recalcWeightFromPinned()
+            }
+        }
 
         if (existingTaskId != null) {
             supportActionBar?.title = "Edit Task"

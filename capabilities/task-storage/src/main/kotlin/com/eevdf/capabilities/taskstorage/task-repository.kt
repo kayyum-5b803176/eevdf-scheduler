@@ -130,6 +130,122 @@ class TaskRepository @Inject constructor(
         reconcileAxes(onlyUnder = onlyUnderOf(door))
     }
 
+    // ── Axes: moving a row to another axis ───────────────────────────────────
+    //
+    // The parent group picker offers every axis; picking a group on another axis moves the row (and, for
+    // a group, everything real inside it) there. Onto a later axis it becomes a template — copies appear
+    // under the outer rows that include it; back to the first axis it becomes a real task again.
+
+    /** The groups a row can be moved under, on [axisId]: real groups on the first axis (not copies, not containers), definition groups elsewhere. */
+    suspend fun axisPickerGroups(axisId: String): List<Task> = withContext(Dispatchers.IO) {
+        if (axisId != Axes.DEFAULT) return@withContext dao.getActiveTasksOfAxisSync(axisId).filter { it.isGroup }
+        val hidden = HashSet<String>().apply {
+            axisDao.getAllNodesSync().forEach { add(it.taskId) }
+            axisDao.getAllContainersSync().forEach { add(it.taskId) }
+        }
+        dao.getActiveTasksSync().filter { it.isGroup && it.id !in hidden }
+    }
+
+    private class MoveSet(val real: List<Task>, val copiesInside: List<Task>, val copiesOfDefinitions: List<Task>)
+
+    private suspend fun collectMove(current: Task): MoveSet {
+        val all = dao.getAllTasksForBackup()
+        val nodes = axisDao.getAllNodesSync()
+        val collected = AxisMove.collect(current, all, nodes.mapTo(HashSet()) { it.taskId })
+        val realIds = collected.real.mapTo(HashSet()) { it.id }
+        val byId = all.associateBy { it.id }
+        // Copies of the moved DEFINITIONS, under other outer rows, are not inside the subtree.
+        val ofDefinitions = nodes.filter { it.definitionId in realIds }.mapNotNull { byId[it.taskId] }
+        return MoveSet(collected.real, collected.copies, ofDefinitions)
+    }
+
+    /** What moving [task] to [targetAxis] would cost — for the confirmation. */
+    suspend fun axisMovePreview(task: Task, targetAxis: String): AxisMovePreview = withContext(Dispatchers.IO) {
+        val current = dao.getTaskById(task.id) ?: return@withContext AxisMovePreview.NONE
+        if (targetAxis == current.axisId) return@withContext AxisMovePreview.NONE
+        val set = collectMove(current)
+        val ids = set.real.mapTo(HashSet()) { it.id }
+        val links = taskLinkDao.getAllSync().count { it.targetTaskId in ids || it.hostGroupId in ids } +
+            taskMembershipDao.getAllSync().count { it.taskId in ids || it.groupId in ids }
+        AxisMovePreview(
+            rowsMoved = set.real.size,
+            copiesRemoved = (set.copiesInside + set.copiesOfDefinitions).distinctBy { it.id }.size,
+            linksRemoved = if (current.axisId == Axes.DEFAULT) links else 0,
+            resetsRuntime = targetAxis != Axes.DEFAULT && set.real.any {
+                it.runCount > 0 || it.totalRunTime > 0 || it.vruntime != 0.0 || it.isCompleted
+            },
+            blockedByRunning = set.real.any { it.isRunning },
+        )
+    }
+
+    /** Hardlinks and symlinks to / hosted in [task] are removed, as a delete would — they only exist on the first axis. */
+    private suspend fun detachLinks(task: Task) {
+        membershipAclDao.deleteByMembershipsOfTask(task.id)
+        membershipAclDao.deleteChildKeysOfMembershipsOfTask(task.id)
+        membershipAclDao.deleteByChildKey(MembershipAclKeys.real(task.id))
+        taskMembershipDao.deleteByTask(task.id)
+        taskLinkDao.deleteByTarget(task.id)
+        if (task.isGroup) {
+            membershipAclDao.deleteByMembershipsHostedIn(task.id)
+            taskLinkDao.deleteByHost(task.id)
+            taskMembershipDao.deleteByGroup(task.id)
+        }
+    }
+
+    /**
+     * Save [edited] (its form edits, its new [Task.axisId] and [Task.parentId]) and move it — and, for a
+     * group, everything real inside it — to that axis. False if nothing moved (it, or something inside it, is running).
+     *
+     *  - first axis → later axis: copies hanging under it go, links go, it becomes a template (runtime reset)
+     *  - later axis → first axis: every copy of it goes, it becomes a real task
+     *  - later axis → later axis: every copy of it goes; copies of the new axis appear by reconcile
+     * ACL rules that named the moved rows are dropped (they listed another axis). The id stays.
+     */
+    suspend fun moveToAxis(edited: Task): Boolean = withContext(Dispatchers.IO) {
+        val current = dao.getTaskById(edited.id) ?: return@withContext false
+        val target = edited.axisId
+        if (target == current.axisId) { update(edited); return@withContext true }
+        if (!Axes.isKnown(target)) return@withContext false
+
+        val moved = axisMutex.withLock {
+            val set = collectMove(current)
+            if (set.real.any { it.isRunning }) return@withLock false
+            val containers = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId }
+
+            // Copies go first (their parents are about to move): those inside the subtree, and those of
+            // the moved definitions elsewhere. A cascade may already have removed some — look each up.
+            for (copy in (set.copiesInside + set.copiesOfDefinitions).distinctBy { it.id }) {
+                dao.getTaskById(copy.id)?.let { forceDelete(it) }
+            }
+
+            for (row in set.real) {
+                detachLinks(row)
+                interruptReturnDao.clearByTask(row.id)
+                // The ACL rules that named this row, and the doors it opened, listed the OLD axis.
+                axisDao.deleteAclOfChild(row.id); axisDao.deleteAclUnder(row.id); axisDao.deleteDoorsUnder(row.id)
+                axisDao.deleteAclUnder(Axes.definitionDoor(row.id)); axisDao.deleteDoorsUnder(Axes.definitionDoor(row.id))
+                axisDao.deleteContainerOf(row.id)
+
+                var next = (if (row.id == current.id) edited else row)
+                    .copy(axisId = target, isGroup = if (row.id in containers) false else (if (row.id == current.id) edited.isGroup else row.isGroup))
+                if (target != Axes.DEFAULT) next = next.asTemplate()
+                dao.update(next)
+            }
+            true
+        }
+        if (!moved) return@withContext false
+
+        // Pinned shares are normalised per sibling pool, and the pools just changed on both axes.
+        for (axis in Axes.ALL) {
+            val changed = EEVDFScheduler.syncPinnedWeights(axisDefinitions(axis))
+            if (changed.isNotEmpty()) updateBatch(changed)
+        }
+        reconcileAxes()                       // copies of the new axis appear / are repaired
+        recalculateScheduleCache()
+        bus.publish(Topics.TASK_SAVED, edited.id, "task-storage")
+        true
+    }
+
     // ── Axes: real copies ────────────────────────────────────────────────────
     //
     // A later-axis definition is a template. Under every first-axis leaf (and under each copy

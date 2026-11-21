@@ -352,3 +352,76 @@ data class AxisEditTarget(
     val layerDoor: String?,
     val isCopy: Boolean,
 )
+
+/**
+ * A task or group becomes a TEMPLATE when it moves onto a later axis: it is never scheduled itself, so
+ * everything that records "how it has been running" is meaningless and is reset. Configuration is kept.
+ */
+fun Task.asTemplate(): Task = copy(
+    vruntime = 0.0, eligibleTime = 0.0, virtualDeadline = 0.0, lag = 0.0,
+    remainingSeconds = timeSliceSeconds, isRunning = false, isCompleted = false,
+    totalRunTime = 0L, runCount = 0, accumulatedMs = 0L, startTimeEpoch = 0L,
+    quotaPeriodStartEpoch = 0L, quotaUsedSeconds = 0L,
+    dlPeriodStartEpoch = 0L, dlRuntimeUsedSeconds = 0L,
+    loadAverage = 0.0, loadLastUpdateEpoch = 0L,
+    loadAvgCognitive = 0.0, loadLastUpdateCognitive = 0L,
+    loadAvgPhysical = 0.0, loadLastUpdatePhysical = 0L,
+    loadAvgEmotional = 0.0, loadLastUpdateEmotional = 0L,
+    sleepUntilEpoch = 0L, sleepLag = 0.0, semaphoreHeld = false, semaphoreQueuedAt = 0L,
+)
+
+/** What moving a row to another axis would cost — shown before it is done. */
+data class AxisMovePreview(
+    /** Rows that move: the row itself, or the group and everything real inside it. */
+    val rowsMoved: Int,
+    /** Copies that go: copies hanging under the moved rows, and copies of the moved definitions elsewhere. */
+    val copiesRemoved: Int,
+    /** Hardlinks and symlinks that point at, or are hosted in, the moved rows. */
+    val linksRemoved: Int,
+    /** Moving onto a later axis resets timers, run counts and completion (a template never runs). */
+    val resetsRuntime: Boolean,
+    /** Something in the moved rows is running — it must be stopped first. */
+    val blockedByRunning: Boolean,
+) {
+    val hasLoss: Boolean get() = copiesRemoved > 0 || linksRemoved > 0 || resetsRuntime
+
+    companion object { val NONE = AxisMovePreview(0, 0, 0, false, false) }
+}
+
+/** Pure part of moving a row (and what is inside it) to another axis. */
+object AxisMove {
+
+    /** [real]: the row and every real row inside it (completed ones too). [copies]: copies hanging inside it. */
+    data class Collected(val real: List<Task>, val copies: List<Task>)
+
+    /**
+     * Everything under [root] in [all] (any axis, completed rows included), split into real rows, which
+     * move with it, and copies of later-axis definitions, which cannot — a copy follows its definition
+     * and is simply removed. Cycle-safe.
+     */
+    fun collect(root: Task, all: List<Task>, copyIds: Set<String>): Collected {
+        val byParent = all.groupBy { it.parentId }
+        val real = arrayListOf(root)
+        val copies = ArrayList<Task>()
+        val seen = hashSetOf(root.id)
+        val queue = ArrayDeque<String>().apply { add(root.id) }
+        while (queue.isNotEmpty()) {
+            for (child in byParent[queue.removeFirst()].orEmpty()) {
+                if (!seen.add(child.id)) continue
+                if (child.id in copyIds) copies += child else real += child
+                queue.add(child.id)
+            }
+        }
+        return Collected(real, copies)
+    }
+
+    /** [groups] minus [rootId] and everything inside it: where a row may NOT be moved (under itself). */
+    fun withoutSubtree(groups: List<Task>, rootId: String?): List<Task> {
+        if (rootId == null) return groups
+        val byParent = groups.groupBy { it.parentId }
+        val banned = hashSetOf(rootId)
+        val queue = ArrayDeque<String>().apply { add(rootId) }
+        while (queue.isNotEmpty()) for (c in byParent[queue.removeFirst()].orEmpty()) if (banned.add(c.id)) queue.add(c.id)
+        return groups.filter { it.id !in banned }
+    }
+}

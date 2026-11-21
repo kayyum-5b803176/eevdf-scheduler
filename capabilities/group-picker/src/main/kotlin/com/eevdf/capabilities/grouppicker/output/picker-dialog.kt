@@ -9,6 +9,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.TextView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -48,6 +50,11 @@ import com.google.android.material.textfield.TextInputEditText
  */
 class PickerDialog : DialogFragment() {
 
+    private companion object {
+        /** A selected id no group can have: nothing is ticked while another axis is viewed. */
+        const val NOT_HERE = "\u0000not-on-this-axis"
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /** Full sorted list of selectable items (excluding the task being edited). */
@@ -67,6 +74,30 @@ class PickerDialog : DialogFragment() {
 
     /** Invoked on the main thread when the user taps an item. */
     var onGroupSelected: ((Task?) -> Unit)? = null
+
+    // ── Axes (optional) ──────────────────────────────────────────────────────
+    //
+    // When [axisIds] is non-empty a row of chips under the search field chooses WHICH axis's groups are
+    // listed, and a pick reports the axis with it ([onAxisGroupSelected]) — choosing a group on another
+    // axis is how a row is moved there. Leave it empty and the dialog is exactly the plain picker.
+
+    /** The axes offered, in order. Empty = no chips. */
+    var axisIds: List<String> = emptyList()
+
+    /** The selectable groups of each axis (the caller has already left out what may not be chosen). */
+    var axisGroups: Map<String, List<Task>> = emptyMap()
+
+    /** The axis the current choice lives on; [currentGroupId] is ticked only while this axis is viewed. */
+    var currentAxisId: String? = null
+
+    /** Other axes cannot be chosen (the row cannot move right now); [axisLockedHint] says why. */
+    var axisLocked: Boolean = false
+    var axisLockedHint: String = ""
+
+    /** Invoked instead of [onGroupSelected] when axes are offered: the viewed axis and the chosen group (null = that axis's root). */
+    var onAxisGroupSelected: ((axisId: String, group: Task?) -> Unit)? = null
+
+    private var viewedAxisId: String? = null
 
     // ── Views ─────────────────────────────────────────────────────────────────
 
@@ -95,11 +126,14 @@ class PickerDialog : DialogFragment() {
 
         adapter = PickerAdapter(currentGroupId, noneLabel) { chosen ->
             RecentGroupPrefs.push(requireContext(), chosen?.id)
-            onGroupSelected?.invoke(chosen)
+            val axis = viewedAxisId
+            if (axisIds.isNotEmpty() && axis != null) onAxisGroupSelected?.invoke(axis, chosen)
+            else onGroupSelected?.invoke(chosen)
             dismiss()
         }
         rvItems.layoutManager = LinearLayoutManager(requireContext())
         rvItems.adapter       = adapter
+        setupAxisChips(view)
 
         // Initial render
         applyFilter("")
@@ -120,6 +154,42 @@ class PickerDialog : DialogFragment() {
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
         dialog?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+    }
+
+    // ── Axis chips ────────────────────────────────────────────────────────────
+
+    private fun setupAxisChips(view: View) {
+        if (axisIds.isEmpty()) return
+        val group = view.findViewById<ChipGroup>(R.id.chipGroupPickerAxis)
+        val hint  = view.findViewById<TextView>(R.id.tvPickerAxisHint)
+        val start = currentAxisId?.takeIf { it in axisIds } ?: axisIds.first()
+        viewedAxisId = start
+        showAxis(start)
+        group.visibility = View.VISIBLE
+        axisIds.forEach { axis ->
+            val chip = layoutInflater.inflate(R.layout.item_group_picker_axis_chip, group, false) as Chip
+            chip.text = axis.uppercase()
+            chip.id = View.generateViewId()
+            chip.isChecked = axis == start
+            // A row that cannot move can still be looked at on its own axis only.
+            chip.isEnabled = !axisLocked || axis == currentAxisId
+            chip.setOnCheckedChangeListener { _, checked -> if (checked) { showAxis(axis); etSearch.setText("") } }
+            group.addView(chip)
+        }
+        if (axisLocked && axisLockedHint.isNotEmpty()) {
+            hint.text = axisLockedHint
+            hint.visibility = View.VISIBLE
+        }
+    }
+
+    /** List [axis]'s groups; the tick and the "none" wording follow which axis is being looked at. */
+    private fun showAxis(axis: String) {
+        viewedAxisId = axis
+        allGroups = axisGroups[axis].orEmpty()
+        val onCurrent = axis == currentAxisId
+        adapter.selectedId = if (onCurrent) currentGroupId else NOT_HERE
+        adapter.noneLabel  = if (axis == axisIds.firstOrNull()) noneLabel else "None (root level of ${axis.uppercase()})"
+        applyFilter(etSearch.text?.toString() ?: "")
     }
 
     // ── Filter ────────────────────────────────────────────────────────────────
@@ -148,7 +218,7 @@ class PickerDialog : DialogFragment() {
             }
 
             // All groups section
-            items += PickerItem.Header("All Groups")
+            items += PickerItem.Header(viewedAxisId?.let { "All Groups · ${it.uppercase()}" } ?: "All Groups")
             if (showNoneOption) items += PickerItem.Entry(null)
             allGroups.forEach { items += PickerItem.Entry(it) }
         } else {
@@ -172,8 +242,8 @@ class PickerDialog : DialogFragment() {
     // ── Adapter ───────────────────────────────────────────────────────────────
 
     private class PickerAdapter(
-        private val selectedId: String?,
-        private val noneLabel: String,
+        var selectedId: String?,
+        var noneLabel: String,
         private val onPick: (Task?) -> Unit
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 

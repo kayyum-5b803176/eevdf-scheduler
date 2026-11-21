@@ -5,6 +5,49 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.61.0 — Move a task or group to another axis, from the parent group picker
+
+Includes everything in 6.60.0. No database change, `versionCode` untouched. Nothing changes until you choose a
+group on another axis.
+
+### Added
+- **Axis chips in the parent group picker.** `[ X ] [ Y ] [ Z ]` under the search field (from the axis list, so a
+  fourth axis is a fourth chip). The chips choose WHICH axis's groups are listed; the list header says which
+  (`All Groups · Y`) and the first row reads `None (root level of Y)`. The tick shows the current choice only while
+  you are looking at its axis. Picking an item **on another axis moves the row there**, applied on Save.
+- **The parent field says where it goes**: `Work` on X as before; `Y · Project B`, `Y · None (root level)` elsewhere.
+- **Groups move whole**: the group and every real row inside it (completed ones too).
+- **What a move does**
+  - first axis → later axis: the row becomes a **template** (timer, vruntime, run counts, completion, sleep and
+    semaphore state reset; configuration kept); copies hanging under it and hardlinks/symlinks to or inside it are
+    removed; copies appear under every outer row that includes it.
+  - later axis → first axis: every copy of it is removed and it becomes a normal task.
+  - later axis → later axis: its copies are removed; copies on the new axis appear.
+  - The id stays. ACL rules that named the moved rows (they listed the old axis) are dropped. Pinned weights are
+    normalised again on both axes.
+- **Save asks first, only when something is lost** — "Move "Write" to Y?" listing the reset, the copies and the
+  links, and how many items move together. Nothing lost → no dialog.
+- **Nothing silently unsafe**: a row that is running (or contains one) cannot be moved — the other chips are greyed
+  with "Stop it to move it to another axis."; interrupt tasks stay on the first axis; a row cannot be moved under
+  itself or anything inside it.
+- **Add screen**: the picker opens on the axis of the Queue tab you pressed + from; choosing another axis there simply
+  creates the row on that axis.
+- Validation on the edit screen (pinned share, semaphore) now follows the TARGET axis and parent as you change them.
+
+### Know this
+- The picker only exists when groups are enabled in settings, so moving needs groups enabled.
+- A scheduled wake that targets a moved row is left as it is.
+
+### Verified / not verified
+`axis-move-test.kt`: a template loses its running history and keeps its configuration; a group moves with everything
+real inside it, completed rows included; copies inside are removed, not moved; a lone leaf moves alone; cycle-safe;
+a row cannot be moved under itself or its contents; only losses ask for confirmation. **Not built, not run.** On the
+phone: edit a task → Parent group → tap `Y` → pick a group (or None) → Save, confirm → Queue·Y shows it and each X
+entry now holds a copy; edit it from Queue·Y → Parent group → `X` → Save → the copies are gone and it is a normal
+task; move a group that holds tasks and confirm they all go; try it on a running task and confirm the chips are greyed.
+
+---
+
 ## 6.60.0 — Axes: the ACL tab actually shows, on every axis tab
 
 Includes everything in 6.59.0. No database change, `versionCode` untouched.

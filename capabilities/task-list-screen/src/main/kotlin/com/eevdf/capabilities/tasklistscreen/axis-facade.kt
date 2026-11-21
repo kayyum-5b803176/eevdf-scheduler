@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
 import com.eevdf.capabilities.taskstorage.AxisEditTarget
+import com.eevdf.capabilities.taskstorage.AxisMovePreview
 import com.eevdf.capabilities.taskstorage.AxisNode
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
@@ -59,4 +60,14 @@ class AxisFacade internal constructor(
 
     /** What the edit screen should show for [task] — see [TaskRepository.axisEditTarget]. */
     suspend fun editTarget(task: Task): AxisEditTarget = repository.axisEditTarget(task)
+
+    // ── moving a row to another axis (the parent group picker) ────────────
+    /** The groups [axisId] offers as a parent. */
+    suspend fun pickerGroups(axisId: String): List<Task> = repository.axisPickerGroups(axisId)
+
+    /** What moving [task] to [targetAxis] would cost — null-loss means no confirmation is needed. */
+    suspend fun movePreview(task: Task, targetAxis: String): AxisMovePreview = repository.axisMovePreview(task, targetAxis)
+
+    /** Save [edited] and move it (and, for a group, what is inside it) to [Task.axisId]. False when something is running. */
+    suspend fun moveToAxis(edited: Task): Boolean = repository.moveToAxis(edited)
 }

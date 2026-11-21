@@ -75,7 +75,7 @@ internal fun AddTaskActivity.saveTask() {
     // slot), so say so instead of letting it silently vanish after the save.
     val willQueue = parentId != null && parentId != existingTask?.parentId &&
         !SemaphoreRules.admitsImmediately(
-            parentId, (if (axisId == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) viewModel.activeTasksIncludingSleeping.value ?: emptyList() else siblingTasks), excludeId = existingTask?.id,
+            parentId, (if (targetAxisId == com.eevdf.capabilities.taskstorage.Axes.DEFAULT) viewModel.activeTasksIncludingSleeping.value ?: emptyList() else siblingTasks), excludeId = existingTask?.id,
         )
 
     // ── Task type / notice ────────────────────────────────────────────────────
@@ -243,6 +243,13 @@ internal fun AddTaskActivity.saveTask() {
         RtScheduler.clearRrState(prefs)
     }
 
+    // ── Moving to another axis: say what it costs first ───────────────────────
+    val movingRow = existingTask?.takeIf { targetAxisId != it.axisId }
+    if (movingRow != null && !axisMoveConfirmed) {
+        confirmAxisMove(movingRow)
+        return
+    }
+
     // ── Assemble and persist — Task ───────────────────────────────────────────
     if (existingTask != null) {
         val updated = existingTask!!.copy(
@@ -255,6 +262,7 @@ internal fun AddTaskActivity.saveTask() {
             timeSliceInherited  = timeSliceInherited,
             category            = selectedCategory,
             isGroup             = isGroup,
+            axisId              = targetAxisId,
             parentId            = parentId,
             taskType            = selectedTaskType,
             notificationDelaySeconds = notifDelaySecs,
@@ -288,11 +296,17 @@ internal fun AddTaskActivity.saveTask() {
             updated.isInterrupt && updated.interruptSlot == "B"         -> viewModel.clearInterruptTaskB()
             updated.isInterrupt                                          -> viewModel.clearInterruptTask()
         }
-        viewModel.updateTask(updated)
+        if (updated.axisId != existingTask!!.axisId) {
+            // A move touches several rows (copies, links, the group's contents), so it gets a scope of its
+            // own: finish() below ends this screen's before it could complete.
+            CoroutineScope(Dispatchers.Default).launch { viewModel.axes.moveToAxis(updated) }
+        } else {
+            viewModel.updateTask(updated)
+        }
     } else {
         val task = Task(
             id                  = taskId,              // pre-generated above
-            axisId              = axisId,
+            axisId              = targetAxisId,
             name                = name,
             description         = description,
             priority            = priority,
