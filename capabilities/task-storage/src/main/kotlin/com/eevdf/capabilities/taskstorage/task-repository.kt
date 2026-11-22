@@ -264,9 +264,8 @@ class TaskRepository @Inject constructor(
             rowsMoved = set.real.size,
             copiesRemoved = (set.copiesInside + set.copiesOfDefinitions).distinctBy { it.id }.size,
             linksRemoved = if (current.axisId == Axes.DEFAULT) links else 0,
-            resetsRuntime = targetAxis != Axes.DEFAULT && set.real.any {
-                it.runCount > 0 || it.totalRunTime > 0 || it.vruntime != 0.0 || it.isCompleted
-            },
+            // Timer progress and completion reset; total time and runs are statistics and are kept, so they are not a loss.
+            resetsRuntime = targetAxis != Axes.DEFAULT && set.real.any { it.vruntime != 0.0 || it.isCompleted },
             blockedByRunning = set.real.any { it.isRunning },
         )
     }
@@ -326,6 +325,8 @@ class TaskRepository @Inject constructor(
                 var next = (if (row.id == current.id) edited else row)
                     .copy(axisId = target, isGroup = if (row.id in containers) false else (if (row.id == current.id) edited.isGroup else row.isGroup))
                 if (target != Axes.DEFAULT) next = next.asTemplate()
+                // The statistics are whatever the row holds NOW (a form opened earlier may be stale), and are never reset by a move.
+                dao.getTaskById(row.id)?.let { live -> next = next.copy(totalRunTime = live.totalRunTime, runCount = live.runCount) }
                 dao.update(next)
             }
             // A route is written before the copies are reconciled, so none appear elsewhere.
@@ -724,6 +725,9 @@ class TaskRepository @Inject constructor(
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
         ensureReal(task.id)                          // copy-on-write: a write to an untouched copy makes it a row first
+        // An entry never runs itself: its totals change only when its copies run, so a stale copy of the row (an edit screen that
+        // was open while a copy ran) must not write old totals back.
+        if (task.axisId != Axes.DEFAULT) dao.getTaskById(task.id)?.let { task.totalRunTime = it.totalRunTime; task.runCount = it.runCount }
         val prev = dao.getTaskById(task.id)
         val toWrite: Task = if (prev == null) task else {
             // Moving into another group, or un-doing a completed task, is an ARRIVAL:
@@ -1187,6 +1191,7 @@ class TaskRepository @Inject constructor(
         touchSiblingPlacements(task.id, task.weight, secondsRan, excludeMembershipId = null)
 
         creditAncestors(task.parentId, secondsRan, door = door)
+        creditEntriesOf(task.id, secondsRan)
         refreshAllAndReturn(task.id) ?: task
     }
 
@@ -1322,6 +1327,22 @@ class TaskRepository @Inject constructor(
      * must stay fair too, on every single run through this chain, whether or
      * not [door] happens to be null this time.
      */
+    /**
+     * A copy's run is also a run of the ENTRY it came from — and so is the run of every copy above it in the chain (a Z copy running
+     * credits its Y copy's entry too). Added as it happens, atomically; the entry's totals are never rebuilt from existing copies.
+     */
+    private suspend fun creditEntriesOf(startId: String, secondsRan: Long) {
+        if (axisDao.nodeCount() == 0) return                         // nothing is a copy: nothing to credit
+        val chain = ArrayList<AxisRunCredit.Link>()
+        val seen = HashSet<String>()
+        var id: String? = startId
+        while (id != null && seen.add(id)) {
+            chain += AxisRunCredit.Link(id, axisDao.getNodeOf(id)?.definitionId)
+            id = dao.getTaskById(id)?.parentId
+        }
+        AxisRunCredit.definitionsToCredit(chain).forEach { dao.addRunStats(it, secondsRan) }
+    }
+
     private suspend fun creditAncestors(
         startParentId: String?,
         secondsRan: Long,

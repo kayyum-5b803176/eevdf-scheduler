@@ -256,6 +256,10 @@ interface AxisDao {
     @Query("SELECT * FROM axis_container")
     fun getAllContainers(): LiveData<List<AxisContainer>>
 
+    /** How many copies exist at all — lets the run funnel skip the entry crediting entirely when nothing is a copy. */
+    @Query("SELECT COUNT(*) FROM axis_node")
+    suspend fun nodeCount(): Int
+
     @Query("SELECT COUNT(*) FROM axis_container WHERE taskId = :taskId")
     suspend fun containerCount(taskId: String): Int
 
@@ -494,13 +498,14 @@ data class AxisEditTarget(
 )
 
 /**
- * A task or group becomes a TEMPLATE when it moves onto a later axis: it is never scheduled itself, so
- * everything that records "how it has been running" is meaningless and is reset. Configuration is kept.
+ * A task or group becomes a TEMPLATE when it moves onto a later axis: it is never scheduled itself, so everything that records
+ * "how it is running right now" is meaningless and is reset. Its STATISTICS — total run time and run count — are the valuable
+ * part and are never reset: they travel with the task wherever it goes. Configuration is kept too.
  */
 fun Task.asTemplate(): Task = copy(
     vruntime = 0.0, eligibleTime = 0.0, virtualDeadline = 0.0, lag = 0.0,
     remainingSeconds = timeSliceSeconds, isRunning = false, isCompleted = false,
-    totalRunTime = 0L, runCount = 0, accumulatedMs = 0L, startTimeEpoch = 0L,
+    accumulatedMs = 0L, startTimeEpoch = 0L,                  // totalRunTime and runCount are statistics: kept
     quotaPeriodStartEpoch = 0L, quotaUsedSeconds = 0L,
     dlPeriodStartEpoch = 0L, dlRuntimeUsedSeconds = 0L,
     loadAverage = 0.0, loadLastUpdateEpoch = 0L,
@@ -518,7 +523,7 @@ data class AxisMovePreview(
     val copiesRemoved: Int,
     /** Hardlinks and symlinks that point at, or are hosted in, the moved rows. */
     val linksRemoved: Int,
-    /** Moving onto a later axis resets timers, run counts and completion (a template never runs). */
+    /** Moving onto a later axis resets timer progress and completion (a template never runs). Total time and runs are kept. */
     val resetsRuntime: Boolean,
     /** Something in the moved rows is running — it must be stopped first. */
     val blockedByRunning: Boolean,
@@ -695,4 +700,20 @@ object AxisCopy {
 
     /** A new place [placeId] receives the entries [entryIds]: one '+' per entry at the place's own door. */
     fun placeRules(placeId: String, entryIds: List<String>): List<AxisAcl> = entryIds.map { AxisAcl(placeId, it, hidden = false) }
+}
+
+/**
+ * Which ENTRIES a run credits. A run adds its seconds and one run to the row that ran and to every parent above it (already so);
+ * each of those rows that is a COPY also credits the entry it came from — in real time, as it happens, the same way a parent
+ * follows its children. The entry's totals are therefore the sum of everything its copies ever ran, and are never rebuilt from the
+ * copies that still exist: moving, hiding or deleting a copy cannot change them, and nothing is added at upgrade or on a move.
+ * Process metrics (timer progress, fairness position, quota used, sleep) are not touched — they stay on the copy.
+ */
+object AxisRunCredit {
+
+    /** One row of the chain a run credits (leaf first) and the entry it is a copy of — null for a real, first-axis row. */
+    data class Link(val rowId: String, val definitionId: String?)
+
+    /** The entries to credit for a run through [chain]: one per copy in it. */
+    fun definitionsToCredit(chain: List<Link>): List<String> = chain.mapNotNull { it.definitionId }.distinct()
 }

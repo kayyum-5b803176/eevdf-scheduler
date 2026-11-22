@@ -27,10 +27,11 @@ internal fun AddTaskActivity.confirmAxisMove(row: Task) {
             return@launch
         }
         val lines = buildList {
-            if (cost.resetsRuntime) add("Its timer progress, run counts and completion are reset — a template never runs itself.")
+            if (cost.resetsRuntime) add("Its timer progress and completion are reset — a template never runs itself. Total time and runs are kept.")
             if (cost.copiesRemoved > 0) add(
                 "${cost.copiesRemoved} cop${if (cost.copiesRemoved == 1) "y" else "ies"} of it " +
-                    "(and what hangs under them) ${if (cost.copiesRemoved == 1) "is" else "are"} removed.",
+                    "(and what hangs under them) ${if (cost.copiesRemoved == 1) "is" else "are"} removed. " +
+                    "What ${if (cost.copiesRemoved == 1) "it" else "they"} ran stays counted.",
             )
             if (cost.linksRemoved > 0) add(
                 "${cost.linksRemoved} hardlink${if (cost.linksRemoved == 1) "" else "s"}/symlink${if (cost.linksRemoved == 1) "" else "s"} " +

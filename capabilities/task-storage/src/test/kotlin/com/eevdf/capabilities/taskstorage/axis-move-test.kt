@@ -12,7 +12,7 @@ class AxisMoveTest {
 
     // ── template reset ───────────────────────────────────────────────────
 
-    @Test fun `a template has no running history but keeps its configuration`() {
+    @Test fun `a template has no timer state but keeps its configuration and its statistics`() {
         val worked = t("a").copy(
             name = "Write", priority = 7, timeSliceSeconds = 90, quotaSeconds = 600, category = "Work",
             vruntime = 42.0, eligibleTime = 40.0, virtualDeadline = 50.0, lag = 1.5, remainingSeconds = 12,
@@ -23,7 +23,7 @@ class AxisMoveTest {
         )
         val tpl = worked.asTemplate()
         assertEquals(0.0, tpl.vruntime, 0.0); assertEquals(0.0, tpl.lag, 0.0)
-        assertEquals(0L, tpl.totalRunTime); assertEquals(0, tpl.runCount)
+        assertEquals(900L, tpl.totalRunTime); assertEquals(7, tpl.runCount)         // statistics are never reset by a move
         assertFalse(tpl.isRunning); assertFalse(tpl.isCompleted)
         assertEquals(0L, tpl.quotaUsedSeconds); assertEquals(0L, tpl.sleepUntilEpoch)
         assertFalse(tpl.semaphoreHeld); assertEquals(0L, tpl.semaphoreQueuedAt)
@@ -79,6 +79,11 @@ class AxisMoveTest {
     }
 
     // ── the confirmation ─────────────────────────────────────────────────
+
+    @Test fun `a move that only carries statistics asks nothing about them`() {
+        // total time and runs are kept, so they are not a loss (timer progress and completion still are)
+        assertFalse(AxisMovePreview(1, 0, 0, resetsRuntime = false, blockedByRunning = false).hasLoss)
+    }
 
     @Test fun `only losses ask for confirmation`() {
         assertFalse(AxisMovePreview(1, 0, 0, resetsRuntime = false, blockedByRunning = false).hasLoss)

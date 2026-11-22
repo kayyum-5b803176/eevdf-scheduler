@@ -169,6 +169,13 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE axisId != :axisId AND isCompleted = 0")
     fun getActiveTasksNotOfAxis(axisId: String): LiveData<List<Task>>
 
+    /**
+     * Add one run of [seconds] to a row's totals — atomically, in SQL, so concurrent runs and edits can never lose an increment.
+     * Used to credit the ENTRY a copy came from, in real time, the way a parent is credited by its children.
+     */
+    @Query("UPDATE tasks SET totalRunTime = totalRunTime + :seconds, runCount = runCount + 1 WHERE id = :id")
+    suspend fun addRunStats(id: String, seconds: Long)
+
     /** The rows with these ids (callers chunk: SQLite caps the number of variables). */
     @Query("SELECT * FROM tasks WHERE id IN (:ids)")
     suspend fun getTasksByIds(ids: List<String>): List<Task>

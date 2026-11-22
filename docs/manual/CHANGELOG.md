@@ -5,6 +5,41 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.67.0 — Statistics are never reset by a move; entries total what their copies run, in real time
+
+Includes everything in 6.66.2. **No database change** (still version 38), `versionCode` untouched. Only TRT and Runs are statistics; every
+other run metric stays per copy.
+
+### Fixed
+- **Moving a task between axes no longer resets its TRT and Runs.** Moving onto a later axis made the row a template and reset
+  everything about how it had been running — including total run time and run count. A template now keeps those two numbers (timer
+  progress, fairness position, quota used, sleep, completed and running still reset: they mean nothing for a template). Moving it
+  back, or on to another axis, shows the same numbers every time. A group keeps each row's own numbers.
+- **The move confirmation** no longer lists run counts as lost: "Its timer progress and completion are reset … Total time and runs are
+  kept", and when copies are removed, "What they ran stays counted."
+- **A move writes the live totals**, never a stale copy from a form opened earlier, and an edit of an entry can never write old totals
+  back over what its copies have run since.
+
+### Added — entries total their copies, tracked as it happens
+- **Isolated in the Schedule tab, merged in the Queue tab.** Every copy keeps its own TRT and Runs; a parent already showed what ran
+  inside it. Now a finished run also adds its seconds and one run to the ENTRY each copy in the chain came from — so Queue·Y shows
+  `y1  32 min  8 runs` (the sum of its copies) and Queue·Z shows `z1  7 min  4 runs`, while each copy shows only its own.
+- **Real time only.** Added when a run ends, exactly as a parent is credited by its children — never rebuilt from the copies that exist,
+  never added at upgrade (entries start from the runs made after this version), never added on a move. Hiding, deleting or moving a copy,
+  or moving the entry between axes, therefore cannot lower or change an entry's totals: "additive no matter where they run".
+- Credited atomically in SQL (`UPDATE … SET totalRunTime = totalRunTime + …`), and skipped entirely when nothing is a copy.
+
+### Verified / not verified
+`axis-run-credit-test.kt` replays your example through the same rule the app uses (x1: y1 10 min 3 runs of which z1 5 min 2 runs; x2: y1
+10 min 1 run, z1 none; x3: y1 12 min 4 runs of which z1 2 min 2 runs): each copy shows its own numbers, `y1` totals 32 min / 8 runs, `z1`
+7 min / 4 runs, a parent holds what ran inside it, removing a copy changes no entry total, and a new run of 3 minutes adds to the copy, its
+parents and both entries (y1 35 / 9, z1 10 / 5). `axis-move-test.kt`: a template keeps total time and runs. All 155 axis tests run and pass
+here. The SQL increment and the run funnel need the app; **not built with Gradle**. On the phone: run a copy for a minute and watch Queue·Y
+and Queue·Z grow by that minute; hide the copy and confirm the totals do not drop; move a card X → Y → Z → X and confirm TRT and Runs never
+change.
+
+---
+
 ## 6.66.2 — Fix: the ACL tab showed on some copies and not others; the tab bar is now permanent
 
 Includes everything in 6.66.1 (the copy prompt is left exactly as it is). No database change, `versionCode` untouched.
