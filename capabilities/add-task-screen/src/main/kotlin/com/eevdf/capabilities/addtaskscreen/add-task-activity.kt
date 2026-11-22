@@ -222,6 +222,9 @@ class AddTaskActivity : AppCompatActivity() {
     /** The id of the task being created, fixed on the first Save so a second Save (after a question) keeps it. */
     internal var pendingNewTaskId: String? = null
 
+    /** The edit screen's tab bar — see [EditTabs]. */
+    internal lateinit var editTabs: EditTabs
+
     /** The "copy it?" prompt has been answered (or there was nothing to ask), so Save can go on without asking again. */
     internal var axisCopyAsked = false
 
@@ -275,6 +278,8 @@ class AddTaskActivity : AppCompatActivity() {
         setupSemaphoreSection()
         setupWakeSection()
         setupSchedulerClassSection()
+        // The tab bar is permanent: Config always, ACL only when the row has a link (hardlink or axis door).
+        editTabs = EditTabs(findViewById(R.id.tabAddTask))
         setupAclSection()   // no-op without the membership_id extra
         setupAxisAclSection()   // no-op without the axis_door extra
 

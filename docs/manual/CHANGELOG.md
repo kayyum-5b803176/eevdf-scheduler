@@ -5,6 +5,44 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.66.2 — Fix: the ACL tab showed on some copies and not others; the tab bar is now permanent
+
+Includes everything in 6.66.1 (the copy prompt is left exactly as it is). No database change, `versionCode` untouched.
+
+### The issue
+```
+x1
+-y1   <- ACL tab always there          (a stored row)
+x2
+-y1   <- ACL tab there only after something ran in it
+x3
+-y1   <- ACL tab always there          (a stored row)
+```
+**x2's y1 was never touched, so it is not a stored row.** The edit screen asked the copy drawn on screen "are you a group?" — a place
+with untouched entries is DRAWN as a group — got yes, and concluded it could not hold entries. The moment anything ran in it (it became a
+real row, no longer drawn as a group) the ACL appeared. A second, independent cause: the tab bar itself was created and hidden by
+whatever data had arrived — empty until the first query returned, and hidden again whenever the next axis's list was momentarily
+empty — and hiding it also forced the Config page.
+
+### Fixed
+- **An untouched copy is judged by its definition**, not by how it is drawn: an untouched copy of a leaf definition is a place, so it gets
+  the same ACL as a stored copy, before and after it is touched. A stored row decides for itself; only with nothing better known does the
+  drawing count. (`AxisPlaceRule`, a pure rule, tested on the x1 / x2 / x3 case.)
+- **The tab bar is permanent and has one owner** (`EditTabs`): Config is always there; ACL is added only when the row has a link — an axis
+  door, or a hardlink placement — and that is decided ONCE from the row, never from data that is still loading. Nothing arriving later can
+  hide it, flicker it, or move you off the page you are on. If the link ever goes away while the screen is open you return to Config and the
+  ACL tab is removed.
+- **A row with a link but nothing to control yet still shows its ACL tab**, and the page says so ("Nothing on Z to include yet." / "Nothing to
+  control here yet.") instead of the tab disappearing. This applies to both the axis ACL and the hardlink ACL, which had the same weakness.
+
+### Verified / not verified
+`axis-place-rule-test.kt`: x1/x3 a stored leaf is a place; x2 an untouched copy of a leaf definition is a place although drawn as a group; the
+answer is the same before and after it is touched; an untouched copy of a GROUP definition is not; a stored group is not unless it is a
+container; the stored row beats the drawing. All 144 axis tests run and pass here. **Not built with Gradle**; the tab bar needs a look on a
+device: open the edit screen of x1, x2 and x3's y1 — each shows `Config | ACL`, every time; open a row with no link — it shows `Config` only.
+
+---
+
 ## 6.66.1 — Fix: the app froze when a group was placed on an axis (ANR in 6.66.0)
 
 Includes everything in 6.66.0. No database change, `versionCode` untouched.

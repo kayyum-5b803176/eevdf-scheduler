@@ -83,8 +83,12 @@ class TaskRepository @Inject constructor(
             dao.getTaskById(definitionId)?.let { AxisNode(task.id, definitionId, it.axisId, scope) }   // an untouched copy
         }
         val container = axisDao.containerCount(task.id) > 0
-        // The STORED row decides: a place that holds untouched entries is drawn as a group but is really a leaf.
-        val leafLike = !(dao.getTaskById(task.id)?.isGroup ?: task.isGroup) || container
+        // What the row IS decides, never how it is drawn: a place with untouched entries is drawn as a group but is a leaf.
+        // A stored row says so itself; an untouched copy (no row yet) is whatever its definition is.
+        val stored = dao.getTaskById(task.id)
+        val untouchedDefinitionIsGroup = if (stored == null && node != null && AxisVirtualId.isVirtual(task.id))
+            dao.getTaskById(node.definitionId)?.isGroup else null
+        val leafLike = AxisPlaceRule.isPlaceLike(stored?.isGroup, container, untouchedDefinitionIsGroup, task.isGroup)
         when {
             node != null -> {
                 val next = Axes.next(node.axisId)

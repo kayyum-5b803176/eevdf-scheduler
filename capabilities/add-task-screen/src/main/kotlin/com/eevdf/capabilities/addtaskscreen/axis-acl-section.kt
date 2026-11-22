@@ -17,7 +17,6 @@ import com.eevdf.capabilities.taskstorage.AxisRoute
 import com.eevdf.capabilities.taskstorage.Axes
 import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.switchmaterial.SwitchMaterial
-import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
 
 /**
@@ -29,7 +28,8 @@ import kotlinx.coroutines.launch
  *  - editing a later-axis entry in its own Queue tab (Queue·Y): the list of Z entries for EVERY copy of it;
  *  - editing a copy (a row under an X leaf): that copy's own list, layered over the entry's — a row set
  *    here wins, Inherit follows the entry's ACL, so one copy can differ from the others.
- * Shown only when that next axis has any entries.
+ * The tab is there whenever the row has an axis door (a link), even while the next axis has nothing to include yet — the page says
+ * so — because a link is a fact about the row, not about data that is still loading.
  *
  * Exactly the hardlink ACL tab ([AclTab]) — same layouts, same row adapter, same behaviour:
  * one level at a time, three circles per row (Inherit / Hide / Show), tap a group to open it,
@@ -55,7 +55,6 @@ internal class AxisAclTab(
     /** For a copy: the entry's door its own rules are layered over; null otherwise. */
     private val layerDoor: String?,
 ) {
-    private val tabs: TabLayout        = activity.findViewById(R.id.tabAddTask)
     private val configScroll: View     = activity.findViewById(R.id.configScroll)
     private val aclContainer: View     = activity.findViewById(R.id.aclContainer)
     private val switchHideNew: SwitchMaterial = activity.findViewById(R.id.switchAclHideNew)
@@ -91,7 +90,6 @@ internal class AxisAclTab(
 
     /** What this door shows by its route or because it is already copied; hidden-here comes from the routes only. */
     private val shownHere: Set<String> get() = atDoor.shown + keptHere
-    private var tabsShown = false
     private var aclShown  = false
 
     private data class Level(val id: String, val name: String)
@@ -111,13 +109,11 @@ internal class AxisAclTab(
         rv.adapter = adapter
         activity.onBackPressedDispatcher.addCallback(activity, backCallback)
 
-        tabs.addTab(tabs.newTab().setText("Config"), true)
-        tabs.addTab(tabs.newTab().setText("ACL"))
-        tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) = showAcl(tab.position == 1)
-            override fun onTabUnselected(tab: TabLayout.Tab) {}
-            override fun onTabReselected(tab: TabLayout.Tab) {}
-        })
+        // This row has an axis door, so it has an ACL: the tab exists for as long as the screen does. It is a fact about the
+        // row, not about data still loading — so nothing that arrives later can hide it or move you off the page you are on.
+        activity.editTabs.onPage = { acl -> showAcl(acl) }
+        activity.editTabs.setAclAvailable(true)
+        tvEmpty.text = "Nothing on ${listAxis.uppercase()} to include yet."
         switchHideNew.setOnCheckedChangeListener(onHideNewChanged)
 
         activity.viewModel.axes.tasksOf(listAxis).observe(activity) { defs = it; refresh() }
@@ -157,16 +153,6 @@ internal class AxisAclTab(
     }
 
     private fun refresh() {
-        // Nothing defined on that axis yet: there is nothing to include — the screen stays as it was.
-        if (defs.isEmpty()) {
-            tabs.visibility = View.GONE
-            tabsShown = false
-            stack.clear()
-            showAcl(false)
-            return
-        }
-        if (!tabsShown) { tabs.visibility = View.VISIBLE; tabsShown = true }
-
         val byId = defs.associateBy { it.id }
         fun topParent(t: Task): String? = t.parentId?.takeIf { it in byId }
 

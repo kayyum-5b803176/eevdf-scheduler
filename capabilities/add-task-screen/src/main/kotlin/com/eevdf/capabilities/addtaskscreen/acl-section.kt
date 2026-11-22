@@ -20,7 +20,6 @@ import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.capabilities.taskstorage.TaskMembership
 import com.google.android.material.radiobutton.MaterialRadioButton
 import com.google.android.material.switchmaterial.SwitchMaterial
-import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
 
 /**
@@ -55,7 +54,6 @@ internal class AclTab(
     private val activity: AddTaskActivity,
     private val membershipId: String,
 ) {
-    private val tabs: TabLayout        = activity.findViewById(R.id.tabAddTask)
     private val configScroll: View     = activity.findViewById(R.id.configScroll)
     private val aclContainer: View     = activity.findViewById(R.id.aclContainer)
     private val switchHideNew: SwitchMaterial = activity.findViewById(R.id.switchAclHideNew)
@@ -76,7 +74,6 @@ internal class AclTab(
     private var links: List<TaskLink>             = emptyList()
     private var memberships: List<TaskMembership> = emptyList()
     private var aclRows: List<MembershipAcl>      = emptyList()
-    private var tabsShown = false
     private var aclShown  = false
 
     /** The groups opened below the hardlinked group, outermost first. Empty = the group's own level. */
@@ -95,13 +92,10 @@ internal class AclTab(
         rv.adapter = adapter
         activity.onBackPressedDispatcher.addCallback(activity, backCallback)
 
-        tabs.addTab(tabs.newTab().setText("Config"), true)
-        tabs.addTab(tabs.newTab().setText("ACL"))
-        tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) = showAcl(tab.position == 1)
-            override fun onTabUnselected(tab: TabLayout.Tab) {}
-            override fun onTabReselected(tab: TabLayout.Tab) {}
-        })
+        // Opened from a hardlink placement, so it has an ACL: the tab is there for as long as the screen is, decided by that
+        // fact and not by whether the placement's data has loaded yet.
+        activity.editTabs.onPage = { acl -> showAcl(acl) }
+        activity.editTabs.setAclAvailable(true)
         switchHideNew.setOnCheckedChangeListener(onHideNewChanged)
 
         repository.activeTasks.observe(activity)        { tasks = it;       refresh() }
@@ -138,16 +132,18 @@ internal class AclTab(
     private fun refresh() {
         val m = membership()
         val g = group()
-        // Not a group (or the placement is gone): there is nothing to hide — keep
-        // the screen exactly as it is without a tab bar.
+        // Still loading, not a group, or the placement is gone: the tab stays (it belongs to the link) and the page says so.
         if (m == null || g == null || !g.isGroup) {
-            tabs.visibility = View.GONE
-            tabsShown = false
             stack.clear()
-            showAcl(false)
+            adapter.submit(emptyList())
+            breadcrumb.removeAllViews()
+            tvLocked.visibility = View.GONE
+            tvEmpty.text = "Nothing to control here yet."
+            tvEmpty.visibility = View.VISIBLE
+            backCallback.isEnabled = false
             return
         }
-        if (!tabsShown) { tabs.visibility = View.VISIBLE; tabsShown = true }
+        tvEmpty.text = "This group has no children yet."
 
         // A level that no longer exists (deleted / moved / asleep) cuts the path there.
         val byId = tasks.associateBy { it.id }

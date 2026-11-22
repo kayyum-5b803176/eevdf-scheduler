@@ -468,6 +468,22 @@ fun Task.sharingFrom(def: Task): Task = copy(
  * [doorAxis]         the axis that door lists (the one after this row's).
  * [layerDoor]        for a copy: the entry's door its own rules are layered over; else null.
  */
+/** Can the row hold the next axis's entries (is it a "place")? Pure, so the x1 / x2 / x3 case is a test. */
+object AxisPlaceRule {
+    /**
+     * @param storedIsGroup the stored row's `isGroup`, or null when there is no stored row (an UNTOUCHED copy)
+     * @param isContainer   a leaf that became a container because touched copies hang under it
+     * @param untouchedDefinitionIsGroup for an untouched copy: whether its DEFINITION is a group (null = not an untouched copy)
+     * @param shownIsGroup  what the screen drew — a place with untouched entries is drawn as a group, so it never decides
+     *                      when anything better is known
+     */
+    fun isPlaceLike(storedIsGroup: Boolean?, isContainer: Boolean, untouchedDefinitionIsGroup: Boolean?, shownIsGroup: Boolean): Boolean = when {
+        storedIsGroup != null            -> !storedIsGroup || isContainer
+        untouchedDefinitionIsGroup != null -> !untouchedDefinitionIsGroup     // the definition says what the copy is
+        else                              -> !shownIsGroup || isContainer
+    }
+}
+
 data class AxisEditTarget(
     val taskId: String,
     val axisId: String,
