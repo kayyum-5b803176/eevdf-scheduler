@@ -151,6 +151,18 @@ class TaskViewModel @Inject constructor(
     val         scheduleClassFilter: LiveData<ScheduleClassFilter> = _scheduleClassFilter
     fun setScheduleClassFilter(filter: ScheduleClassFilter) { _scheduleClassFilter.value = filter }
 
+    /**
+     * Which identity kind the Queue tab is narrowed to (view-only — see
+     * identity-queue-filter.kt). Null = no filter, today's Queue unchanged. Not saved.
+     */
+    private val _queueKindFilter = MutableLiveData<IdentityKind?>(null)
+    val         queueKindFilter: LiveData<IdentityKind?> = _queueKindFilter
+
+    /** Picks [kind]; picking the kind that is already selected clears the filter (there is no "All" row). */
+    fun toggleQueueKindFilter(kind: IdentityKind) {
+        _queueKindFilter.value = if (_queueKindFilter.value == kind) null else kind
+    }
+
     internal val _timerSeconds         = MutableLiveData<Long>()
     val           timerSeconds: LiveData<Long> = _timerSeconds
 

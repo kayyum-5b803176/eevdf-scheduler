@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.tasklistscreen.R
 import com.eevdf.capabilities.tasklistscreen.output.TaskAdapter
+import com.eevdf.capabilities.taskstorage.IdentityKind
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.timercard.TimerCardController
 import com.eevdf.capabilities.timercard.TimerCardView
@@ -79,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     internal lateinit var tvFairness:          TextView
     private lateinit var tvScheduleRank:      TextView
     private lateinit var emptyView:           LinearLayout
+    private lateinit var tvEmptyTitle:        TextView
     private lateinit var breadcrumbBar:       LinearLayout
     private lateinit var tvBreadcrumbPath:    TextView
     private lateinit var drillBackCallback:   androidx.activity.OnBackPressedCallback
@@ -492,6 +494,7 @@ class MainActivity : AppCompatActivity() {
         tvFairness        = findViewById(R.id.tvFairness)
         tvScheduleRank    = findViewById(R.id.tvScheduleRank)
         emptyView         = findViewById(R.id.emptyView)
+        tvEmptyTitle      = findViewById(R.id.tvEmptyTitle)
         breadcrumbBar     = findViewById(R.id.breadcrumbBar)
         tvBreadcrumbPath  = findViewById(R.id.tvBreadcrumbPath)
         breadcrumbBar.setOnClickListener {
@@ -546,7 +549,11 @@ class MainActivity : AppCompatActivity() {
         onGroupToggle        = { item ->
             val task  = item.task
             val style = if (scheduleTab) viewModel.scheduleListStyle.value else viewModel.queueListStyle.value
-            if (style == TaskListStyle.DRILL_DOWN) {
+            if (!scheduleTab && viewModel.queueKindFilter.value != null) {
+                // Identity filter on: the Queue shows a strict flat list, so a group has no
+                // children here to expand or drill into (and a drill frame pushed now would
+                // be invisible).
+            } else if (style == TaskListStyle.DRILL_DOWN) {
                 // A hardlinked group opens a fresh door (its own membership);
                 // a plain real subgroup just carries the CURRENT door forward
                 // unchanged, so leaves further down stay credited correctly
@@ -659,8 +666,10 @@ class MainActivity : AppCompatActivity() {
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             // Tapping the Schedule tab again while already on it opens the
             // class-filter popup — no new control added to the layout, per
-            // the existing tab itself being the anchor.
+            // the existing tab itself being the anchor. The Queue tab does the
+            // same with the identity kinds, the Completed tab with its modes.
             override fun onTabReselected(tab: TabLayout.Tab) {
+                if (tab.position == 0) showQueueKindFilterMenu(tab)
                 if (tab.position == 1) showScheduleClassFilterMenu(tab)
                 if (tab.position == 2) showCompletedTabModeMenu(tab)
             }
@@ -672,6 +681,16 @@ class MainActivity : AppCompatActivity() {
             completedAdapter.isSleepView = mode == CompletedTabMode.SLEEP
             completedAdapter.isWaitView  = mode == CompletedTabMode.WAIT
             menuSyncDelegate.syncTabVisibility()
+            updateEmptyView()
+        }
+
+        // Queue tab: the label mirrors the picked identity kind ("Queue" when none), and the
+        // things that assume a drill-down list (breadcrumb, back press) step aside while the
+        // strict flat list is showing.
+        viewModel.queueKindFilter.observe(this) {
+            updateQueueTabLabel()
+            updateBreadcrumb()
+            if (::drillBackCallback.isInitialized) refreshDrillBackCallback()
             updateEmptyView()
         }
 
@@ -741,6 +760,31 @@ class MainActivity : AppCompatActivity() {
             true
         }
         popup.show()
+    }
+
+    /**
+     * Tapping the already-selected Queue tab opens a pop-up — same mechanism as the Schedule
+     * tab's class filter — listing the identity kinds. Picking one narrows the Queue to tasks
+     * of exactly that kind (see identity-queue-filter.kt); picking the one that is already
+     * selected clears it, since there is no "All" row. A radio mark shows the current choice.
+     * View-only: it never changes any task.
+     */
+    private fun showQueueKindFilterMenu(tab: TabLayout.Tab) {
+        val popup   = android.widget.PopupMenu(this, tabView(tab), android.view.Gravity.CENTER_HORIZONTAL)
+        val current = viewModel.queueKindFilter.value
+        IdentityKind.values().forEach { k -> popup.menu.add(0, k.ordinal, k.ordinal, k.label) }
+        popup.menu.setGroupCheckable(0, true, true)
+        current?.let { popup.menu.findItem(it.ordinal)?.isChecked = true }
+        popup.setOnMenuItemClickListener { item ->
+            viewModel.toggleQueueKindFilter(IdentityKind.values()[item.itemId])
+            true
+        }
+        popup.show()
+    }
+
+    /** The Queue tab's own label mirrors whichever identity kind is selected ("Queue" when none). */
+    private fun updateQueueTabLabel() {
+        tabLayout.getTabAt(0)?.text = viewModel.queueKindFilter.value?.label ?: "Queue"
     }
 
     /**
@@ -833,6 +877,8 @@ class MainActivity : AppCompatActivity() {
             1    -> viewModel.listBuilder.scheduleDisplayList.value?.isEmpty() ?: true
             else -> viewModel.listBuilder.completedTabDisplayList.value?.isEmpty() ?: true
         }
+        val kindFilter = if (currentTab == 0) viewModel.queueKindFilter.value else null
+        tvEmptyTitle.text = if (kindFilter != null) "No ${kindFilter.label.lowercase()} tasks" else "No tasks yet"
         emptyView.visibility    = if (isEmpty) View.VISIBLE else View.GONE
         recyclerView.visibility = if (isEmpty) View.GONE   else View.VISIBLE
     }
@@ -848,7 +894,9 @@ class MainActivity : AppCompatActivity() {
         val style = if (onQueueTab) viewModel.queueListStyle.value else viewModel.scheduleListStyle.value
         val drill = if (onQueueTab) viewModel.queueDrillState.value else viewModel.scheduleDrillState.value
         val stack = drill?.stack ?: emptyList()
-        if (currentTab == 2 || style != TaskListStyle.DRILL_DOWN || stack.isEmpty()) {
+        // While an identity filter is on, the Queue is a flat list: there is no level to name.
+        val identityFiltered = onQueueTab && viewModel.queueKindFilter.value != null
+        if (currentTab == 2 || identityFiltered || style != TaskListStyle.DRILL_DOWN || stack.isEmpty()) {
             breadcrumbBar.visibility = View.GONE
             return
         }
@@ -875,7 +923,8 @@ class MainActivity : AppCompatActivity() {
     private fun refreshDrillBackCallback() {
         val onQueueTab = currentTab == 0
         val drill = if (onQueueTab) viewModel.queueDrillState.value else viewModel.scheduleDrillState.value
-        drillBackCallback.isEnabled = currentTab != 2 && (drill?.canGoBack == true)
+        val identityFiltered = onQueueTab && viewModel.queueKindFilter.value != null
+        drillBackCallback.isEnabled = currentTab != 2 && !identityFiltered && (drill?.canGoBack == true)
     }
 
     private fun showTaskDetail(task: Task, membershipId: String? = null) {

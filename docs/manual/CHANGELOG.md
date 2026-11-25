@@ -5,6 +5,35 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.54.0 — Queue tab: filter by identity kind
+
+Includes everything in 6.53.0. No database change, `versionCode` untouched.
+
+### Added
+- **Tap the Queue tab again while it is selected** to open a menu of the identity kinds — Undefined, User,
+  Group, Process, Thread, Process Group, Session — the same gesture as the Schedule tab's class menu. Picking a
+  kind narrows the Queue to tasks of exactly that kind: under **Process** only `process:…` tasks show. The tab
+  label becomes the kind ("Process"), and a radio mark in the menu shows the current choice.
+- **No "All" row and no counts.** With no filter the tab simply reads "Queue" and shows everything (the starting
+  state). Choosing the kind that is already selected clears the filter.
+- An empty kind shows "No process tasks" (etc.) instead of "No tasks yet".
+
+### Rules
+- **Strict:** a row shows only if the task's OWN kind matches. A matching task inside a collapsed group, or inside
+  a group of another kind, is still listed; a group that does not match is not. The result is one flat list,
+  numbered 1, 2, 3… and sorted by name, in both list styles (flat outline and drill-down).
+- While a filter is on, the drill-down breadcrumb and the back-press that pops a drill level step aside (there is
+  no level to name), and tapping a group row opens nothing. Hardlink / symlink placement rows are left out: each
+  task is listed once, as itself.
+- **View-only,** like the Schedule filter: it never changes a task's identity, its scheduling, or what Next picks.
+  Not saved — it resets when the app restarts. The Schedule and Completed tabs are unchanged.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here), and `task-list-screen` has no unit-test source
+set, so nothing was added there. Check on the phone: add tasks of different kinds, tap Queue again, pick Process
+→ only process tasks, label reads "Process"; pick Process again → everything is back and the label reads "Queue";
+put a process task inside a collapsed group and confirm it is listed; pick a kind with no tasks → "No … tasks".
+
 ## 6.53.0 — Category becomes Identity (kind:id, system-generated)
 
 Includes everything in 6.52.0. **Database change: version 33 → 34.** `versionCode` untouched.

@@ -10,6 +10,7 @@ import com.eevdf.capabilities.taskstorage.DoorAcl
 import com.eevdf.capabilities.taskstorage.MembershipAcl
 import com.eevdf.capabilities.taskstorage.SemaphoreRules
 import com.eevdf.capabilities.taskstorage.Task
+import com.eevdf.capabilities.taskstorage.IdentityKind
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.capabilities.taskstorage.TaskMembership
@@ -226,17 +227,26 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
 
         queueDisplayList = MediatorLiveData<List<TaskDisplayItem>>().apply {
             fun rebuild() {
-                value = withWaitingCounts(if (vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN) {
-                    val tasks       = vm.activeTasks.value       ?: emptyList()
-                    val links       = vm.allTaskLinks.value       ?: emptyList()
-                    val memberships = vm.allTaskMemberships.value ?: emptyList()
-                    val acl         = vm.allMembershipAcl.value   ?: emptyList()
-                    val drill       = vm.queueDrillState.value
-                    buildQueueDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId, acl)
-                } else {
-                    flatActiveTasks.value ?: emptyList()
+                val kindFilter = vm.queueKindFilter.value
+                value = withWaitingCounts(when {
+                    // An identity kind is picked on the Queue tab: strict flat list of that
+                    // kind, whichever list style is set (see identity-queue-filter.kt).
+                    kindFilter != null -> buildKindFilteredQueueList(
+                        vm.activeTasks.value ?: emptyList(), kindFilter,
+                        vm.settings.groupsEnabled.value ?: false,
+                        vm.allTaskLinks.value ?: emptyList(), vm.allTaskMemberships.value ?: emptyList())
+                    vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN -> {
+                        val tasks       = vm.activeTasks.value       ?: emptyList()
+                        val links       = vm.allTaskLinks.value       ?: emptyList()
+                        val memberships = vm.allTaskMemberships.value ?: emptyList()
+                        val acl         = vm.allMembershipAcl.value   ?: emptyList()
+                        val drill       = vm.queueDrillState.value
+                        buildQueueDrillLevel(drill?.currentFrameId, tasks, links, memberships, drill?.currentHighlightTaskId, drill?.currentDoorMembershipId, acl)
+                    }
+                    else -> flatActiveTasks.value ?: emptyList()
                 })
             }
+            addSource(vm.queueKindFilter) { rebuild() }
             // `W: n` must refresh when a hidden (waiting) task appears or leaves,
             // which changes nothing in the visible list itself.
             addSource(vm.activeTasksIncludingSleeping) { rebuild() }
@@ -692,6 +702,39 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
         links.any { it.targetTaskId == taskId } || memberships.any { it.taskId == taskId }
 
     // ── List builders ─────────────────────────────────────────────────────────
+
+    /**
+     * Queue tab narrowed to one identity [kind] — STRICT: a row is here only if the task's OWN
+     * kind matches, wherever it lives in the tree (inside a collapsed group, inside a group of
+     * another kind...). A group of a different kind is not shown, and nothing is nested, so
+     * this one flat list serves both list styles.
+     *
+     * Rows are built exactly like the flat (groups-off) Queue list above: sorted by name,
+     * numbered 1, 2, 3…, with the same share / quota / link fields. Hardlink and symlink
+     * placement rows are left out — each task is listed once, as itself. View-only: nothing
+     * here changes a task, its identity, or what runs next.
+     */
+    private fun buildKindFilteredQueueList(
+        tasks: List<Task>, kind: IdentityKind, groupsEnabled: Boolean,
+        links: List<TaskLink>, memberships: List<TaskMembership>,
+    ): List<TaskDisplayItem> {
+        val nowMs  = vm.clock.nowEpochMillis()
+        val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+        return tasks
+            .filter { it.ownIdentityKind() == kind && (groupsEnabled || !it.isGroup) }
+            .sortedWith(SortHelper.taskNameComparator)
+            .mapIndexed { index, it ->
+                val (descGroups, descTasks) = countDescendants(it.id, tasks)
+                TaskDisplayItem(it, 0,
+                    childGroupCount        = descGroups,
+                    childTaskCount         = descTasks,
+                    cpuShare               = shares[it.id] ?: 0.0,
+                    effectiveQuotaExceeded = it.isQuotaExceeded(nowMs),
+                    effectiveQuotaWarning  = it.isQuotaWarning(nowMs),
+                    queueNumber            = "${index + 1}",
+                    isLinkedElsewhere      = isLinkedElsewhere(it.id, links, memberships))
+            }
+    }
 
     /**
      * Queue tab: tasks sorted by the first number in their name (static order).

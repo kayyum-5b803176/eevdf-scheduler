@@ -112,6 +112,7 @@
             android:visibility="gone">
 
             <TextView
+                android:id="@+id/tvEmptyTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="No tasks yet"
