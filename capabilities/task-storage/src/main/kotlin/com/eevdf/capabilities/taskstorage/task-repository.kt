@@ -321,8 +321,7 @@ class TaskRepository @Inject constructor(
             next
         }
         // The identity is owned by changeIdentityKind, never by a caller's (possibly
-        // stale) copy — same rule as the semaphore slot above.
-        if (prev != null) toWrite.identity = prev.identity
+        // stale) copy — TaskDao.update keeps the stored one, for this and every other full-row write.
         dao.update(toWrite)
         propagateInheritedLoadFactor(task.id, task.loadFactor)
         propagateInheritedTimeSlice(task.id, task.timeSliceSeconds)

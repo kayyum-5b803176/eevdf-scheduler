@@ -5,6 +5,36 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.56.1 — Fix: an identity would not stick on some tasks and groups
+
+Includes everything in 6.56.0. No database change, `versionCode` untouched.
+
+### Fixed
+- **Changing a task's or group's identity kind worked on some and never on others, however often it was repeated.**
+  Root cause: many paths write a WHOLE task row from an in-memory copy that can be old — the run timer keeps its own copy
+  of the running task, the interrupt assignment run by every edit-save of an interrupt task writes a copy of the edited task,
+  the schedule refresh and the group-parent accounting read rows and write them back. A copy taken before the change still
+  carries the previous identity, so writing it back put the previous identity back. Tasks that were running, interrupt tasks and
+  groups being accounted lost the new identity every time; idle ones kept it — hence "works for a few, not for others".
+- **The guard is in one place: `TaskDao.update` and `TaskDao.updateAll`.** A full-row write now reads the stored identity inside
+  the same transaction and keeps it (and stamps it onto the caller's object, so that copy is current too). The identity changes
+  only through its own column writes (`setIdentity`) and an insert — so no present or future caller can revert it. The rest of any
+  such write goes through unchanged. (This is the same class of bug as the old stale-`virtualDeadline` revert and the DAO's
+  column-targeted sleep / semaphore writes; identity now has the protection by construction.)
+- `TaskDao` is now an `abstract class` instead of an `interface` so `update` / `updateAll` can be real transactional methods. Room
+  generates it the same way and no caller changes; `updateRow` / `updateAllRows` are the raw writes for those two only.
+
+### Added
+- `IdentityStaleWriteRegressionTest` (androidTest) — changes a kind, then writes a stale copy of the row / a stale batch / an edit
+  with an old copy, and asserts the identity stays; also that the rest of the stale write still goes through.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here — this includes the new androidTest). The cause was found by reading
+every full-row write site in `TaskRepository` and the edit-save path, not by reproducing it on a device. Check on the phone: on a
+task that is currently RUNNING, on an interrupt task, and on a group that contains a running task, change the kind, save, reopen —
+it must now keep the new kind and number, and keep it after the task runs or the timer ticks. Then confirm ordinary edits (name,
+priority, time slice) still save.
+
 ## 6.56.0 — Third tab: a Wake mode listing tasks with an armed wake
 
 Includes everything in 6.55.0. No database change, `versionCode` untouched.
