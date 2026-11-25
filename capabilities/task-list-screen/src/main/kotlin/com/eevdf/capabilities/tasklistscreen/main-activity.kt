@@ -715,10 +715,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Popup menu anchored and CENTERED on the actual tapped tab — not the
-     * whole tab bar (that anchored flush-left regardless of which tab was
-     * tapped, since a wide anchor view's start edge is always the same
-     * point). Lets the person narrow the tab to one scheduler class.
+     * The one way every tab's pop-up menu (Queue identity kinds, Schedule classes, Completed modes) is
+     * shown: a list exactly as wide as the tapped tab, dropping straight down from it with its left and
+     * right edges aligned to the tab's. A plain PopupMenu cannot be given a width, so this is a
+     * ListPopupWindow anchored to the tab view and sized to its measured width. Rows are one line and
+     * ellipsized, so a long label can never widen the menu.
+     *
+     * [dots] (optional, one per row) puts a small coloured circle before each label — the Schedule
+     * menu's active-count indicator. [onPick] gets the tapped row's position; the menu closes itself.
+     */
+    private fun showTabMenu(
+        tab: TabLayout.Tab,
+        labels: List<String>,
+        dots: List<android.graphics.drawable.Drawable>? = null,
+        onPick: (position: Int) -> Unit,
+    ) {
+        val anchor = tabView(tab)
+        val dotGap = resources.getDimensionPixelSize(DesignSystemR.dimen.app_spacing_md)
+        val adapter = object : android.widget.ArrayAdapter<String>(this, R.layout.item_tab_menu, labels) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = super.getView(position, convertView, parent) as TextView
+                if (dots != null) {
+                    row.setCompoundDrawablesRelative(dots[position], null, null, null)
+                    row.compoundDrawablePadding = dotGap
+                }
+                return row
+            }
+        }
+        val popup = androidx.appcompat.widget.ListPopupWindow(this)
+        popup.anchorView = anchor
+        popup.width      = anchor.width          // the tapped tab's own width
+        popup.isModal    = true                  // tapping outside closes it
+        popup.setAdapter(adapter)
+        popup.setOnItemClickListener { _, _, position, _ ->
+            onPick(position)
+            popup.dismiss()
+        }
+        popup.show()
+    }
+
+    /**
+     * Pop-up menu for the Schedule tab, shown by [showTabMenu]: exactly as wide as the
+     * tapped tab and dropping straight down from it (anchored on the tab itself — not the
+     * whole tab bar, which would always start flush-left). Lets the person narrow the tab
+     * to one scheduler class.
      * Selecting a class never changes any task's own class or how "next" is
      * picked (see [ScheduleClassFilter]'s KDoc) — purely which pre-existing
      * rows show.
@@ -734,12 +774,12 @@ class MainActivity : AppCompatActivity() {
      * identical rather than relying on Android's icon-less-row reservation.
      */
     private fun showScheduleClassFilterMenu(tab: TabLayout.Tab) {
-        val anchor = tabView(tab)
-        val popup  = android.widget.PopupMenu(this, anchor, android.view.Gravity.CENTER_HORIZONTAL)
-        val counts = viewModel.listBuilder.scheduleClassCounts.value ?: emptyMap()
-        ScheduleClassFilter.values().forEach { f ->
-            val item = popup.menu.add(0, f.ordinal, f.ordinal, f.label)
-            val dotColorRes = when (f) {
+        val counts  = viewModel.listBuilder.scheduleClassCounts.value ?: emptyMap()
+        val filters = ScheduleClassFilter.values()
+        // One status dot per row, as before; every row carries one (blank at 0 / for Schedule and
+        // Fair) so all four labels start at the same position.
+        val dots = filters.map { f ->
+            classFilterDot(when (f) {
                 ScheduleClassFilter.DEADLINE, ScheduleClassFilter.REALTIME ->
                     when (counts[f] ?: 0) {
                         0    -> DesignSystemR.color.classFilterDotBlank
@@ -748,43 +788,25 @@ class MainActivity : AppCompatActivity() {
                         else -> DesignSystemR.color.classFilterDotThreeOrMoreActive
                     }
                 else -> DesignSystemR.color.classFilterDotBlank
-            }
-            item.icon = classFilterDot(dotColorRes)
+            })
         }
-        // Without this, a menu where only SOME rows have icons renders no
-        // icon space at all on some OEM/theme combinations instead of
-        // reserving blank space for the icon-less rows.
-        popup.setForceShowIcon(true)
-        popup.setOnMenuItemClickListener { item ->
-            viewModel.setScheduleClassFilter(ScheduleClassFilter.values()[item.itemId])
-            true
+        showTabMenu(tab, filters.map { it.label }, dots) { position ->
+            viewModel.setScheduleClassFilter(filters[position])
         }
-        popup.show()
     }
 
     /**
      * Tapping the already-selected Queue tab opens a menu of the identity kinds (see
      * identity-queue-filter.kt). Picking one narrows the Queue to tasks of exactly that kind;
      * picking the kind that is already selected clears it, since there is no "All" row. The tab's
-     * own label shows the current choice, so the rows carry no radio marks.
-     *
-     * The menu is exactly as wide as the Queue tab and sits right under it. A plain PopupMenu
-     * cannot be given a width, so this is a ListPopupWindow anchored to the tab view. View-only:
-     * it never changes any task.
+     * own label shows the current choice, so the rows carry no radio marks. Shown by [showTabMenu],
+     * so it is exactly as wide as the Queue tab. View-only: it never changes any task.
      */
     private fun showQueueKindFilterMenu(tab: TabLayout.Tab) {
-        val anchor = tabView(tab)
-        val kinds  = IdentityKind.values()
-        val popup  = androidx.appcompat.widget.ListPopupWindow(this)
-        popup.anchorView = anchor
-        popup.width      = anchor.width          // the Queue tab's own width
-        popup.isModal    = true                  // tapping outside closes it
-        popup.setAdapter(android.widget.ArrayAdapter(this, R.layout.item_queue_kind_menu, kinds.map { it.label }))
-        popup.setOnItemClickListener { _, _, position, _ ->
+        val kinds = IdentityKind.values()
+        showTabMenu(tab, kinds.map { it.label }) { position ->
             viewModel.toggleQueueKindFilter(kinds[position])
-            popup.dismiss()
         }
-        popup.show()
     }
 
     /** The Queue tab's own label mirrors whichever identity kind is selected ("Queue" when none). */
@@ -793,19 +815,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Tapping the already-selected third tab opens a pop-up — same mechanism as the
-     * Schedule tab's class filter — to switch between finished tasks, sleeping
-     * ones and ones waiting for a semaphore slot. The tab's label renames itself to the choice (see the observer in
+     * Tapping the already-selected third tab opens a pop-up — shown by [showTabMenu], like
+     * the Queue and Schedule menus, so exactly as wide as the tab — to switch between
+     * finished tasks, sleeping ones and ones waiting for a semaphore slot. The tab's label renames itself to the choice (see the observer in
      * [setupTabs]). View-only: it never changes any task.
      */
     private fun showCompletedTabModeMenu(tab: TabLayout.Tab) {
-        val popup = android.widget.PopupMenu(this, tabView(tab), android.view.Gravity.CENTER_HORIZONTAL)
-        CompletedTabMode.values().forEach { m -> popup.menu.add(0, m.ordinal, m.ordinal, m.label) }
-        popup.setOnMenuItemClickListener { item ->
-            viewModel.setCompletedTabMode(CompletedTabMode.values()[item.itemId])
-            true
+        val modes = CompletedTabMode.values()
+        showTabMenu(tab, modes.map { it.label }) { position ->
+            viewModel.setCompletedTabMode(modes[position])
         }
-        popup.show()
     }
 
     /** A small solid circle for [showScheduleClassFilterMenu]'s per-row status dot. */

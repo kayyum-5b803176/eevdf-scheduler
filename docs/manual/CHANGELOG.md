@@ -5,6 +5,30 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.54.2 — Schedule and Completed menus: exactly as wide as their tab
+
+Includes everything in 6.54.1. No database change, `versionCode` untouched.
+
+### Fixed
+- **The Schedule tab's class menu and the Completed tab's mode menu are now exactly as wide as the tab you tapped,**
+  dropping straight down from it with left and right edges aligned — the same as the Queue menu (6.54.1). They used
+  to be a plain `PopupMenu` floating centred at its own width.
+- **One shared `showTabMenu` builds all three menus** (Queue identity kinds, Schedule classes, Completed modes), so the
+  width rule lives in one place and the menus cannot drift apart again. Rows are one line and ellipsized.
+- The Schedule menu **keeps its coloured status dots** (blank at 0, blue at 1, green at 2, red at 3+ active Deadline /
+  Realtime tasks), drawn before each label with the design-system dot-gap spacing. Picking a row, the tab label
+  renaming itself, and the badge are unchanged.
+
+### Changed
+- `item_queue_kind_menu.xml` is renamed `item_tab_menu.xml` (it is the row for all three menus now). Run
+  `scripts/apply-6.54.2-deletions.sh` after extracting the zip.
+
+### Verified / not verified
+**Not built, not run.** Check on the phone: tap Schedule again, then Completed again — each menu lines up with its own
+tab and is as wide as it; the Schedule rows still show their dots, with the labels aligned; picking a row still
+changes the tab. "Completed" is the longest label there; if a label is cut with "…" on a narrow screen, the row
+padding in `item_tab_menu.xml` can shrink.
+
 ## 6.54.1 — Queue filter menu: no radio marks, exactly as wide as the tab
 
 Includes everything in 6.54.0. No database change, `versionCode` untouched.

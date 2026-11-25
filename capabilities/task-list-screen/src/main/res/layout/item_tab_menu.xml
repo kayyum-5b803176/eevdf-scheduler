@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  One row of the Queue tab's identity-kind menu (see MainActivity.showQueueKindFilterMenu).
+  One row of a tab's pop-up menu — the Queue (identity kinds), Schedule (scheduler classes) and
+  Completed (modes) menus all use it through MainActivity.showTabMenu.
 
-  Single line, ellipsized: the menu is exactly as wide as the Queue tab, so a long label such as
-  "Process Group" is cut short rather than wrapped or allowed to widen the menu.
+  Each menu is exactly as wide as the tab that opened it, so a row is single line and ellipsized: a
+  long label is cut short rather than wrapped or allowed to widen the menu. The Schedule menu adds a
+  small status dot before the label in code (compound drawable), spaced by the dot-gap token.
   Tokens only — no raw sp/dp.
 -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
@@ -13,6 +15,7 @@
     android:paddingEnd="@dimen/app_card_padding_sm"
     android:paddingTop="@dimen/app_card_padding_sm"
     android:paddingBottom="@dimen/app_card_padding_sm"
+    android:gravity="center_vertical"
     android:textSize="@dimen/app_text_size_md"
     android:textColor="@color/app_text_body"
     android:fontFamily="sans-serif"
