@@ -228,7 +228,8 @@ internal class AxisAclTab(
             return when {
                 lockedBy != null              -> "Hidden by ${nameOfKey[lockedBy] ?: "a parent"}"
                 res.choice == AclChoice.HIDE  -> "Hidden · set here"
-                res.choice == AclChoice.SHOW  -> "Shown · set here"
+                // A '+' on a copy's own door makes the card real at once; on the entry's "def:" door it speaks for every place and stays virtual.
+                res.choice == AclChoice.SHOW  -> if (door.startsWith(Axes.DEFINITION_DOOR)) "Shown · set here" else "Shown · set here · real card"
                 !res.hidden && key in atDoor.shown   -> "Shown · from its path"
                 !res.hidden && key in keptHere       -> "Shown · already copied"
                 res.hidden && key in atDoor.hidden   -> "Hidden · all other places (tap + to add it here)"

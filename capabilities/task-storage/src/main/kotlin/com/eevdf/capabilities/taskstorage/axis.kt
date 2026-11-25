@@ -87,6 +87,9 @@ object Axes {
  *
  * Rules sit on ANY entry of the definition tree, inherit downward, and the deepest rule wins;
  * hiding a group hides everything inside it and nothing inside a hidden group can be shown.
+ *
+ * An explicit Show ('+') on a copy's own door makes the card REAL at once, the whole tree inside it for a group
+ * ([AxisMaterialize]) — a card shown only by a default, a route or a "def:" door stays virtual until it is touched.
  */
 @Entity(tableName = "axis_acl", primaryKeys = ["scopeKey", "childKey"])
 data class AxisAcl(
@@ -433,6 +436,47 @@ object AxisReconcile {
         Task(id = id, name = def.name, priority = def.priority, timeSliceSeconds = def.timeSliceSeconds,
             parentId = parentId, isGroup = def.isGroup, axisId = Axes.DEFAULT)
             .sharingFrom(def)
+}
+
+/**
+ * An explicit '+' (Show) makes the card REAL. Pure: it only decides which entries, the repository applies.
+ *
+ * A '+' the person sets on a copy's own door — or accepts in the "copy it?" prompt — is a decision, not a default, so the
+ * copy is made at that moment instead of waiting to be touched. Shown by "hide new" off, by a route or by a "def:" door
+ * stays virtual: those are rules about every place at once, and making rows for all of them is places × entries.
+ */
+object AxisMaterialize {
+
+    /**
+     * [rootId] and the WHOLE tree inside it that this door shows, parents before children, at most [limit] entries.
+     * Hidden entries are left out together with everything inside them (a hidden group locks its content); a deeper
+     * rule of the door's own still decides for its entry. Empty when [rootId] is not in [defs] or is itself hidden
+     * (a hidden parent above it, or the group it sits in).
+     *
+     * @param defs the definitions of ONE axis (the axis the door lists), already without the sleeping ones
+     */
+    fun shownTree(
+        rootId: String, defs: List<Task>, rules: Map<String, Boolean>, hideNew: Boolean,
+        hiddenHere: Set<String> = emptySet(), shownHere: Set<String> = emptySet(), limit: Int = Int.MAX_VALUE,
+    ): List<Task> {
+        val byId = defs.associateBy { it.id }
+        val root = byId[rootId] ?: return emptyList()
+        val kids = defs.groupBy { it.parentId }
+        val out = ArrayList<Task>()
+        val seen = HashSet<String>()
+        val queue = ArrayDeque<Task>().apply { add(root) }          // breadth first: a parent is always before its children
+        while (queue.isNotEmpty() && out.size < limit) {
+            val cur = queue.removeFirst()
+            if (!seen.add(cur.id)) continue                         // cycle-safe
+            if (AxisAclRules.isHidden(cur, byId, rules, hideNew, hiddenHere, shownHere)) continue
+            out += cur
+            kids[cur.id]?.let { queue.addAll(it) }
+        }
+        return out
+    }
+
+    /** Only a rule on a copy's (or place's) own door is a decision for ONE place; a "def:" door speaks for every place. */
+    fun makesCardsReal(rule: AxisAcl): Boolean = !rule.hidden && !rule.scopeKey.startsWith(Axes.DEFINITION_DOOR)
 }
 
 /**

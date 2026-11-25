@@ -5,6 +5,53 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.68.1 — A '+' on a group makes the whole tree real, not only the group
+
+Includes everything in 6.68.0. **No database change** (still version 38), `versionCode` untouched.
+
+### Fixed
+- **A group with a '+' had become real, but what was inside it had not.** Three gaps, all closed:
+  - *Cut short.* The tree is made parents first, and it ran in the ACL screen's own scope — leaving or saving the screen while it
+    worked cancelled it after the group and before its children. It now always runs to the end.
+  - *Arrived later.* An entry added to, or moved into, a group that has a '+' (anywhere above it) never triggered anything, so it
+    stayed virtual. It is now made real with the rest of that tree (unless the door hides it). This covers a new entry, an edit that
+    changes its group, a move between axes, and the "copy it?" prompt for a new group that gets its children afterwards.
+  - *Already there.* A '+' set before 6.68.0, or one that arrived by sync, had only its group made real. At startup every explicit
+    '+' now completes its tree. Idempotent — once everything is real it only reads.
+- Hidden entries and everything inside them are still left out; "hide new", routes and "def:" doors still stay virtual.
+- Up to 1,000 rows are written per pass (startup continues on the next launch if a very large tree needs more).
+
+### Tests
+- `axis-materialize-test.kt`: an entry that arrives later is part of the group's tree; one the door hides is not.
+
+---
+
+## 6.68.0 — An explicit '+' in an axis ACL makes the card real
+
+Includes everything in 6.67.0. **No database change** (still version 38), `versionCode` untouched.
+
+### Changed
+- **A '+' (Show) rule on a copy's own door now makes its card a real row at once**, instead of leaving it virtual until it is run,
+  selected or edited. Setting '+' on an entry in a place's ACL creates that copy (and the place's own copy and any group copy above
+  it that are still virtual, exactly as a touch would). The id is the same as the virtual one, so nothing pointing at the card moves.
+- **A '+' on a group makes the whole tree inside it real**, parents before children. An entry inside the group that the door hides
+  (its own Hide rule, or a hidden group above it) is left out together with everything under it.
+- **An accepted "copy it?" prompt** (new entry, new place, or a move between axes) makes its '+' cards real as soon as the row is saved.
+- The ACL caption reads "Shown · set here · real card" for such a rule.
+
+### Unchanged on purpose
+- Cards that are only SHOWN by a default ("hide new" off), by a route, or by an entry's own "def:" door stay virtual until touched —
+  those speak for every place at once, and making rows for all of them would be places × entries.
+- Hide still removes the real copy (a running copy is left alone); Inherit after '+' keeps the row, as a default never removes a copy.
+- At most 1,000 entries are made by one '+' (the same ceiling that bounds what the screens derive).
+- '+' rules that already exist are not converted retroactively; only a '+' set from now on makes its card real.
+
+### Tests
+- `axis-materialize-test.kt`: leaf, group tree, parents first, hidden branch left out, hidden parent locks a deeper '+' (also when
+  the group was never shown under "hide new"), limit, cycle, and which rules count.
+
+---
+
 ## 6.67.0 — Statistics are never reset by a move; entries total what their copies run, in real time
 
 Includes everything in 6.66.2. **No database change** (still version 38), `versionCode` untouched. Only TRT and Runs are statistics; every

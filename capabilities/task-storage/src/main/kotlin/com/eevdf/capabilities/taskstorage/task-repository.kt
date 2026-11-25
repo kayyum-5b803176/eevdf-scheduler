@@ -12,6 +12,7 @@ import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -116,6 +117,10 @@ class TaskRepository @Inject constructor(
     /**
      * Set one entry's ACL choice at [door] (Inherit = no row), then bring the affected copies in step.
      * Same shape as [setMembershipChildChoice] for hardlinks.
+     *
+     * A Show ('+') on a copy's own door makes the card REAL right now — for a group, the whole tree inside it that the door
+     * shows — instead of leaving it virtual until something touches it ([materializeShown]). A "def:" door does not: it speaks
+     * for every place at once.
      */
     suspend fun setAxisChoice(door: String, childKey: String, choice: AclChoice) = withContext(Dispatchers.IO) {
         when (choice) {
@@ -123,6 +128,7 @@ class TaskRepository @Inject constructor(
             AclChoice.HIDE    -> axisDao.upsertRule(AxisAcl(door, childKey, hidden = true))
             AclChoice.SHOW    -> axisDao.upsertRule(AxisAcl(door, childKey, hidden = false))
         }
+        if (choice == AclChoice.SHOW) materializeShown(listOf(AxisAcl(door, childKey, hidden = false)))
         reconcileAxes(onlyUnder = onlyUnderOf(door))
     }
 
@@ -342,6 +348,8 @@ class TaskRepository @Inject constructor(
             if (changed.isNotEmpty()) updateBatch(changed)
         }
         reconcileAxes()                       // copies of the new axis appear / are repaired
+        if (copyRules.isNotEmpty()) materializeShown(copyRules)   // an accepted "copy it?": its '+' cards are real now
+        materializeShownNaming(edited)        // landed inside a group that has a '+': real with that tree
         recalculateScheduleCache()
         bus.publish(Topics.TASK_SAVED, edited.id, "task-storage")
         true
@@ -534,6 +542,111 @@ class TaskRepository @Inject constructor(
     /** Whatever a caller is about to WRITE must be a row: a virtual id is materialized first (the write follows). */
     private suspend fun ensureReal(id: String) { if (AxisVirtualId.isVirtual(id) && dao.getTaskById(id) == null) materialize(id) }
 
+    // ── Axes: an explicit '+' makes the card real ────────────────────────────
+
+    /**
+     * Make the cards named by explicit '+' (Show) rules REAL, now. Only a rule on a copy's (or place's) own door counts
+     * ([AxisMaterialize.makesCardsReal]); anything else is ignored, so callers can pass a whole batch. For a group the WHOLE tree
+     * the door shows is made, parents first. Idempotent (a card that is a row already is skipped) and bounded by
+     * [AxisVirtualList.MAX_DERIVED] rows made per call — the same ceiling that bounds what the screens derive.
+     *
+     * It runs to the end even when the screen that asked leaves meanwhile ([NonCancellable]): a tree is made parents first, so
+     * a cancel half way would leave exactly "the group is real, what is inside it is not".
+     */
+    private suspend fun materializeShown(rules: List<AxisAcl>): Unit = withContext(Dispatchers.IO + NonCancellable) {
+        val shown = rules.filter { AxisMaterialize.makesCardsReal(it) }
+        if (shown.isEmpty()) return@withContext
+        val created = axisMutex.withLock {
+            var budget = AxisVirtualList.MAX_DERIVED
+            var made = 0
+            for ((door, rows) in shown.groupBy { it.scopeKey }) {
+                if (budget <= 0) break
+                val n = materializeShownLocked(door, rows.map { it.childKey }.distinct(), budget)
+                budget -= n; made += n
+            }
+            made
+        }
+        if (created > 0) {
+            recalculateScheduleCache()
+            val pinned = EEVDFScheduler.syncPinnedWeights(dao.getActiveTasksSync())
+            if (pinned.isNotEmpty()) updateBatch(pinned)
+        }
+    }
+
+    /**
+     * A later-axis row was just saved, or moved into another group: make real the '+' rules that name it OR ANY GROUP ABOVE IT — a
+     * group with a '+' is real as a whole tree, so an entry that arrives inside it is real too. For a new first-axis leaf (a new
+     * place) the rules whose door it is. An accepted "copy it?" wrote its '+' BEFORE the row existed, which is why this runs after.
+     */
+    private suspend fun materializeShownNaming(task: Task) {
+        val all = axisDao.getAllAclSync()
+        if (all.none { AxisMaterialize.makesCardsReal(it) }) return
+        val own = if (task.axisId != Axes.DEFAULT) {
+            val chain = HashSet<String>()
+            var cur: Task? = task
+            while (cur != null && chain.add(cur.id)) cur = cur.parentId?.let { dao.getTaskById(it) }
+            all.filter { it.childKey in chain }
+        } else if (!task.isGroup && !task.isInterrupt) all.filter { it.scopeKey == task.id }
+        else emptyList()
+        materializeShown(own)
+    }
+
+    /**
+     * Every explicit '+' that exists makes its card (and, for a group, its whole tree) real. Run once at startup: it repairs a '+'
+     * set before this rule existed, or one that arrived by sync, where only the group itself had become a row. Idempotent, and
+     * a no-op when everything is already real.
+     */
+    suspend fun makeExplicitShowReal() = withContext(Dispatchers.IO) {
+        materializeShown(axisDao.getAllAclSync())
+    }
+
+    /** Rows made for the '+' entries [keys] of one [door], at most [budget]. Call under [axisMutex]. */
+    private suspend fun materializeShownLocked(door: String, keys: List<String>, budget: Int): Int {
+        val containers = axisDao.getAllContainersSync().mapTo(HashSet()) { it.taskId }
+        val allDefs = SleepRules.awake(Axes.ALL.drop(1).flatMap { dao.getActiveTasksOfAxisSync(it) })
+        if (allDefs.isEmpty()) return 0
+
+        // The door must be a PLACE: a first-axis leaf (or a leaf made a container by touched copies), or a copy that is a leaf.
+        val next: String
+        if ('/' !in door) {
+            val place = dao.getTaskById(door) ?: return 0
+            val isPlace = place.axisId == Axes.DEFAULT && !place.isInterrupt && !place.isCompleted &&
+                (!place.isGroup || place.id in containers)
+            if (!isPlace) return 0
+            next = Axes.next(Axes.DEFAULT) ?: return 0
+        } else {
+            val def = allDefs.firstOrNull { it.id == door.substringAfterLast('/') } ?: return 0
+            if (def.isGroup) return 0                                        // a group holds real children only
+            axisDao.getNodeAt(door.substringBeforeLast('/'), def.id)
+                ?.let { dao.getTaskById(it.taskId) }?.takeIf { it.isCompleted }?.let { return 0 }
+            next = Axes.next(def.axisId) ?: return 0
+        }
+        val defs = allDefs.filter { it.axisId == next }
+        if (defs.isEmpty()) return 0
+
+        val layer = Axes.layerDoorOf(door)
+        val acl = axisDao.getAllAclSync()
+        val rules = AxisAclRules.merge(
+            layer?.let { l -> acl.filter { it.scopeKey == l }.associate { it.childKey to it.hidden } }.orEmpty(),
+            acl.filter { it.scopeKey == door }.associate { it.childKey to it.hidden },
+        )
+        val flags = axisDao.getAllDoorsSync().associate { it.scopeKey to it.newChildrenHidden }
+        val hideNew = AxisAclRules.effectiveHideNew(flags[door], layer?.let { flags[it] }, hideNewByDefault())
+        val route = AxisRoute.at(axisDao.getAllEntryRoutesSync().associate { it.definitionId to it.route }, door)
+        val have = axisDao.getAllNodesSync().asSequence().filter { it.scopeKey == door }.mapTo(HashSet()) { it.definitionId }
+
+        var made = 0
+        for (key in keys) {
+            // The whole tree, however big (it is only a walk over definitions); the budget limits the ROWS written.
+            for (def in AxisMaterialize.shownTree(key, defs, rules, hideNew, route.hidden, route.shown)) {
+                if (def.id in have) continue                                  // already a row
+                if (made >= budget) return made
+                if (materializeLocked(AxisVirtualId.of(door, def.id)) != null) { made++; have += def.id }
+            }
+        }
+        return made
+    }
+
     // ── Links (symlinks) + Memberships (hardlinks) ────────────────────────────
 
     /** Symlinks whose target is asleep are hidden too — they must not render as "broken". */
@@ -721,6 +834,7 @@ class TaskRepository @Inject constructor(
         // A new later-axis definition reaches every outer leaf; a new first-axis leaf gets its copies.
         if (task.axisId != Axes.DEFAULT) reconcileAxes()
         else if (!task.isGroup && !task.isInterrupt) reconcileAxes(onlyUnder = task.id)
+        materializeShownNaming(task)        // an accepted "copy it?" wrote its '+' BEFORE this row existed: make those cards real now
     }
 
     suspend fun update(task: Task) = withContext(Dispatchers.IO) {
@@ -758,7 +872,11 @@ class TaskRepository @Inject constructor(
         }
         bus.publish(Topics.TASK_SAVED, task.id, "task-storage")
         // An edited later-axis definition is pushed to every copy (a copy's own state is never touched).
-        if (task.axisId != Axes.DEFAULT) reconcileAxes()
+        if (task.axisId != Axes.DEFAULT) {
+            reconcileAxes()
+            // Moved into a group that has a '+': it becomes real with the rest of that tree.
+            if (prev != null && prev.parentId != toWrite.parentId) materializeShownNaming(toWrite)
+        }
     }
 
     /**

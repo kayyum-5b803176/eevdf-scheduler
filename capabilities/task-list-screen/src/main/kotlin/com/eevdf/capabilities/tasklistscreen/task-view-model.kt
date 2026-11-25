@@ -471,7 +471,8 @@ class TaskViewModel @Inject constructor(
         // See StartupRecoveryDelegate for the actual 3-step decision logic.
         viewModelScope.launch { startupRecovery.recover() }
         // Later-axis copies are kept in step with their definitions (idempotent; one cheap check when none exist).
-        viewModelScope.launch { repository.reconcileAxes() }
+        // Then every explicit '+' is made real (a group with a '+' is real as a whole tree; idempotent, a no-op once they are).
+        viewModelScope.launch { repository.reconcileAxes(); repository.makeExplicitShowReal() }
 
         // ── Build flat lists (must come after repository + delegates are ready) ─
         axisVirtual.setup()

@@ -12,6 +12,9 @@ import com.eevdf.capabilities.taskstorage.scheduling.EEVDFScheduler
  *
  * A virtual copy's id is deterministic — `cp:<scope>|<definitionId>` — so the same copy has the same identity before and
  * after it becomes a row: a list row, a timer, a link or an expand state never has to be re-pointed.
+ *
+ * One more thing makes a copy real: an explicit '+' (Show) set on its own door, or accepted in the "copy it?" prompt
+ * ([AxisMaterialize], applied by the repository). A copy shown only by a default, a route or an entry's "def:" door stays virtual.
  */
 object AxisVirtualId {
     const val PREFIX = "cp:"
