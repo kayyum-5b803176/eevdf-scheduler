@@ -215,6 +215,7 @@ class TaskRepository @Inject constructor(
                 val id = IdentityRules.nextId(kind, dao.getIdentitiesExcept(taskId))
                     ?: throw IdentityPoolFullException(kind)
                 dao.setIdentity(taskId, IdentityRules.format(kind, id))
+                android.util.Log.i("EEVDF-Identity", "kind changed $taskId: ${prev.identity} -> ${IdentityRules.format(kind, id)}")
             }
         }
         bus.publish(Topics.TASK_SAVED, taskId, "task-storage")

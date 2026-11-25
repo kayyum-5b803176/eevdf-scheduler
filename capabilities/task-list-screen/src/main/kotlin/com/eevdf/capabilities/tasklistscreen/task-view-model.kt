@@ -14,6 +14,7 @@ import androidx.lifecycle.*
 import com.eevdf.capabilities.taskstorage.TaskDatabase
 import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.taskstorage.IdentityKind
+import com.eevdf.capabilities.taskstorage.IdentityPoolFullException
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.capabilities.taskstorage.TaskWake
@@ -25,6 +26,9 @@ import com.eevdf.capabilities.countdowntimer.NextButtonState
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.scheduling.SchedulerStats
 import com.eevdf.capabilities.countdowntimer.TimerEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import com.eevdf.kernel.eventbus.SyncStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -532,14 +536,29 @@ class TaskViewModel @Inject constructor(
         repository.nextIdentityId(kind, excludeTaskId)
 
     /**
-     * Saves [task] and then moves it into [kind]'s ID pool (a fresh smallest-free number there).
-     * One coroutine, in that order: the update reads the row's identity at its start, so a
-     * concurrent kind change could be overwritten — waiting for it to finish rules that out.
+     * Moves [taskId] into [kind]'s ID pool (a fresh smallest-free number there; a no-op when it is already that kind).
+     *
+     * Runs in a scope of its OWN, deliberately not [viewModelScope]: the Add / Edit screen's view model is cleared the
+     * moment the screen closes, and the screen closes right after Save. This used to run AFTER the (slow) task update
+     * inside the screen's view model, so for a task or group whose update took longer than the screen's closing
+     * animation — a group with many children, a big tree — the screen was destroyed first, the work was cancelled and
+     * the kind silently never changed, while small tasks finished in time. (Same trap, same remedy as the wake-profile
+     * publish in the save handler.)
+     *
+     * Safe to start BEFORE or alongside the task update, in any order: `TaskDao.update` keeps the stored identity, so a
+     * full-row write can never undo this and this never undoes a full-row write.
      */
-    fun updateTaskAndKind(task: Task, kind: IdentityKind) = viewModelScope.launch {
-        crud.updateTask(task).join()
-        repository.changeIdentityKind(task.id, kind)
+    fun changeIdentityKind(taskId: String, kind: IdentityKind) {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                repository.changeIdentityKind(taskId, kind)
+            } catch (e: IdentityPoolFullException) {
+                // Practically unreachable (a 4,194,204-number pool); the screen already blocks Save when it is full.
+                android.util.Log.w("EEVDF-Identity", "no free ID left for ${kind.key}; task $taskId keeps its identity")
+            }
+        }
     }
+
     suspend fun getLoadFactor(taskId: String): TaskLoadFactor? = crud.getLoadFactor(taskId)
     fun saveLoadFactor(entry: TaskLoadFactor)     = crud.saveLoadFactor(entry)
 

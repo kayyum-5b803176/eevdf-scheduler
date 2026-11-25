@@ -5,6 +5,38 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.56.2 — Fix: the identity kind never changed on larger tasks and groups (the save was cancelled)
+
+Includes everything in 6.56.1. No database change, `versionCode` untouched.
+
+### Fixed
+- **After choosing a kind and tapping Save, the card still read "undefined".** 6.56.1 fixed one real cause (a stale copy of a
+  row writing the old identity back) but not this one, so some tasks and groups still never took a new kind.
+- **Root cause: the kind change was cancelled before it ran.** Save did "update the task, wait for it, THEN move it to the new
+  kind" inside the Add / Edit screen's own view model, and then called `finish()`. That view model is cleared the moment the
+  screen is destroyed. The update is the slow part (it propagates to child tasks, re-syncs pinned weights and refreshes the
+  schedule); when it took longer than the screen's closing animation — a group with many children, a large tree — the screen
+  was destroyed first, the second step was cancelled and the kind silently never changed. Small tasks finished in time, hence
+  "works for a few, never for others, however many times". The recorded log fits: Save at 23:59:30.5, screen destroyed at
+  23:59:31.5, no error anywhere.
+- **The kind change now runs FIRST, in a scope of its own** (`TaskViewModel.changeIdentityKind`), not behind the update and not
+  in the screen's view model. It is a short database write, so it completes before the screen goes. Order no longer matters:
+  `TaskDao.update` (6.56.1) keeps the stored identity, so the update can neither undo it nor be undone by it. This is the same
+  trap and the same remedy the save handler already uses for the wake-profile publish.
+- `updateTaskAndKind` is removed (its wait-then-change shape was the bug).
+
+### Added (diagnostics)
+- Two log lines under the tag **`EEVDF-Identity`**: the save handler logs the stored identity, the kind selected and whether it
+  will change it; the repository logs the identity it actually wrote ("kind changed <id>: undefined:101 -> process:101").
+  If a kind ever fails to stick again, `adb logcat -s EEVDF-Identity` during Edit → Save shows which step did not happen.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here). The cause was established from the recorded log's timing and the
+code (the screen's view model is `by viewModels()`, i.e. screen-scoped; `finish()` follows the save), not reproduced on a
+device. Check on the phone, on the cases that failed: a GROUP with many children, a large tree, a running task — change the
+kind, Save, and the card should show the new `kind:id` at once and still after reopening. Filter logcat by `EEVDF-Identity`
+and you should see a "save … change kind" line followed by a "kind changed …" line for each change.
+
 ## 6.56.1 — Fix: an identity would not stick on some tasks and groups
 
 Includes everything in 6.56.0. No database change, `versionCode` untouched.

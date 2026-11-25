@@ -295,12 +295,17 @@ internal fun AddTaskActivity.saveTask() {
             updated.isInterrupt && updated.interruptSlot == "B"         -> viewModel.clearInterruptTaskB()
             updated.isInterrupt                                          -> viewModel.clearInterruptTask()
         }
-        // The identity is owned by the repository (a caller's copy can never overwrite it).
-        // Only the KIND is the person's to change; moving to the new kind's pool happens
-        // right after the update, in the same coroutine, so the two writes cannot race.
+        // The identity is owned by the repository: TaskDao.update keeps the stored one, so a task
+        // update can never overwrite it. Only the KIND is the person's to change, and that is done
+        // FIRST and in a scope of its own — the update below is the slow part (it propagates to
+        // children, re-syncs weights, refreshes the schedule) and finish() at the end of this
+        // function clears this screen's view model, which used to cancel a kind change queued
+        // behind it. The two can run in either order.
         val oldKind = IdentityRules.parse(existingTask!!.identity)?.kind
-        if (oldKind != selectedIdentityKind) viewModel.updateTaskAndKind(updated, selectedIdentityKind)
-        else viewModel.updateTask(updated)
+        android.util.Log.i("EEVDF-Identity", "save ${existingTask!!.id}: stored=${existingTask!!.identity} selected=${selectedIdentityKind.key} -> " +
+            if (oldKind != selectedIdentityKind) "change kind" else "kind unchanged")
+        if (oldKind != selectedIdentityKind) viewModel.changeIdentityKind(existingTask!!.id, selectedIdentityKind)
+        viewModel.updateTask(updated)
     } else {
         val task = Task(
             id                  = taskId,              // pre-generated above
