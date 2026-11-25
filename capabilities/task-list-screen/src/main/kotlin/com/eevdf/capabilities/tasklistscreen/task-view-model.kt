@@ -16,6 +16,8 @@ import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.taskstorage.IdentityKind
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
+import com.eevdf.capabilities.taskstorage.TaskWake
+import com.eevdf.capabilities.taskstorage.TaskWakeDao
 import com.eevdf.capabilities.settingsstorage.state.AppPreferences
 import com.eevdf.capabilities.runhistory.RunSession
 import com.eevdf.capabilities.countdowntimer.TimerCardAction
@@ -79,6 +81,8 @@ class TaskViewModel @Inject constructor(
     internal val bus: EventBus,
     /** Single source of "now" (kernel rule 1) — never `System.currentTimeMillis()` inline. */
     internal val clock: Clock,
+    /** The wake table, read-only here: the third tab's Wake mode lists the armed ones. task-wake owns every write. */
+    internal val wakeDao: TaskWakeDao,
 ) : AndroidViewModel(application) {
 
     // ── Shared preferences (internal so delegates can access prefs directly) ──
@@ -416,6 +420,9 @@ class TaskViewModel @Inject constructor(
         }
 
     // ── init ──────────────────────────────────────────────────────────────────
+
+    /** Every row of the wake table — the Wake mode reads each armed task's due time and phase from it. */
+    val wakes: LiveData<List<TaskWake>> = wakeDao.observeAll()
 
     private val _wakeArmedIds = MutableLiveData<Set<String>>(emptySet())
     /** Tasks whose wake is armed or waiting for an answer: their wake icon blinks. */

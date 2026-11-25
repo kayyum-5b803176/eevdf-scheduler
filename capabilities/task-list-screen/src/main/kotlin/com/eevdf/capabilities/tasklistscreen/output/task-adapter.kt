@@ -13,6 +13,7 @@ import com.eevdf.capabilities.tasklistscreen.matchesInstance
 import com.eevdf.capabilities.taskstorage.IdentityRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
+import com.eevdf.capabilities.taskstorage.TaskWake
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
 
 /**
@@ -94,6 +95,28 @@ class TaskAdapter(
             if (field == value) return
             field = value
             notifyDataSetChanged()      // every row's actions change, not just its data
+        }
+
+    // ── Wake view (third tab in WAKE mode) ────────────────────────────────────
+    /**
+     * Only meaningful on the third tab's adapter. When true the cards list tasks with an armed
+     * wake: nothing to run / complete / revert / sleep from here (as in the Sleep view) and a
+     * "Wake in …" status instead of the stat line. The task itself is not hidden anywhere — it is
+     * also in Queue / Schedule.
+     */
+    var isWakeView: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            notifyDataSetChanged()      // every row's actions change, not just its data
+        }
+
+    /** The wake table by task id — the Wake view reads each row's due time and phase from it. */
+    var wakeInfo: Map<String, TaskWake> = emptyMap()
+        set(value) {
+            if (field == value) return
+            field = value
+            if (isWakeView) notifyDataSetChanged()
         }
 
     // ── Wait view (third tab in WAIT mode) ────────────────────────────────────
@@ -666,6 +689,7 @@ class TaskAdapter(
                 bindQuotaOnly(holder, item)
                 if (isCompletedTab && isSleepView) bindSleepCountdown(holder, item)
                 if (isCompletedTab && isWaitView)  bindWaitInfo(holder, item)
+                if (isCompletedTab && isWakeView)  bindWakeInfo(holder, item)
             }
             else -> super.onBindViewHolder(holder, position, payloads)
         }
@@ -774,6 +798,18 @@ class TaskAdapter(
                     holder.btnSleep.setOnClickListener(null)
                 }
             }
+            isCompletedTab && isWakeView -> {
+                // Listing only: nothing to run, revert, complete or sleep from here — the same as the
+                // Sleep view. The usual long-press Edit / Delete still works.
+                holder.btnRevert.visibility      = View.GONE
+                holder.btnRun.visibility         = View.GONE
+                holder.btnComplete.visibility    = View.GONE
+                holder.btnResetSlice.visibility  = View.GONE
+                holder.btnGroupToggle.visibility = View.GONE
+                holder.btnSleep.visibility       = View.GONE
+                holder.btnSleep.setOnClickListener(null)
+                bindWakeInfo(holder, item)
+            }
             isCompletedTab && isWaitView -> {
                 // A waiting task is not in the scheduler's pool: nothing to run, revert or
                 // sleep. Mark done is the one action that makes sense for a leaf; Edit /
@@ -819,6 +855,23 @@ class TaskAdapter(
             "Wakes in ${formatQuota(left)}"
         } else {
             "Asleep with group"
+        }
+    }
+
+    /**
+     * The stat line of a Wake row, from the wake table: "Wake in 12m 30s" until it is due; once due, either the
+     * preempt card is up ("Waiting for your answer") or the running task still outranks it.
+     */
+    private fun bindWakeInfo(holder: TaskViewHolder, item: TaskDisplayItem) {
+        setTimeInfoColor(holder, R.color.app_text_label)   // overrides the text a group row just set, so also its RL colour
+        val wake = wakeInfo[item.task.id]
+        holder.tvRemaining.text = if (wake == null) {
+            "Wake armed"
+        } else if (wake.phase == TaskWake.PHASE_CARD) {
+            "Waiting for your answer"
+        } else {
+            val left = ((wake.targetEpochMs - System.currentTimeMillis()) / 1_000L).coerceAtLeast(0L)
+            if (left > 0L) "Wake in ${formatQuota(left)}" else "Due · waiting for the running task"
         }
     }
 

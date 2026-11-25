@@ -66,7 +66,8 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     lateinit var scheduleClassCounts: MediatorLiveData<Map<ScheduleClassFilter, Int>>
 
     /**
-     * Third tab: finished tasks, or the sleeping ones when its mode is SLEEP.
+     * Third tab: finished tasks, or the sleeping ones when its mode is SLEEP, the waiting ones
+     * for WAIT, the tasks with an armed wake for WAKE.
      * Always flat; the Sleep view shows a sleeping group's contents beneath it.
      */
     lateinit var completedTabDisplayList: MediatorLiveData<List<TaskDisplayItem>>
@@ -304,11 +305,14 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         vm.sleep.buildSleepList(vm.activeTasksIncludingSleeping.value ?: emptyList())
                     CompletedTabMode.WAIT ->
                         buildWaitList(vm.activeTasksIncludingSleeping.value ?: emptyList())
+                    CompletedTabMode.WAKE ->
+                        buildWakeList(vm.activeTasksIncludingSleeping.value ?: emptyList(), vm.wakes.value ?: emptyList())
                 }
             }
             addSource(vm.completedTasks)               { rebuild() }
             addSource(vm.activeTasksIncludingSleeping) { rebuild() }
             addSource(vm.completedTabMode)             { rebuild() }
+            addSource(vm.wakes)                        { rebuild() }   // a wake set, cleared, fired or answered
         }
 
         scheduleClassCounts = MediatorLiveData<Map<ScheduleClassFilter, Int>>().apply {

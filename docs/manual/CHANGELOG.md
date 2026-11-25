@@ -5,6 +5,40 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.56.0 — Third tab: a Wake mode listing tasks with an armed wake
+
+Includes everything in 6.55.0. No database change, `versionCode` untouched.
+
+### Added
+- **A fourth mode on the third tab: Wake.** Tap the third tab again and the menu is now Completed · Sleep · Wait · Wake;
+  choosing Wake renames the tab to "Wake" and lists every task whose scheduled wake is **armed** — a wake waiting for its
+  time, or one that has fired and whose preempt card is waiting for an answer (the same tasks whose wake icon blinks on
+  their card). Soonest due first, so a wake already waiting for an answer comes first.
+- **Each row's status line** is live, from the wake table: **"Wake in 12m 30s"** until it is due; once due, **"Waiting
+  for your answer"** if the preempt card is up, or **"Due · waiting for the running task"** while a more important
+  running task still outranks it.
+
+### Rules
+- **Kept simple, like Sleep and Wait:** flat rows, view-only, no wake icon and no Run / Complete / Revert / Sleep buttons
+  on the rows (the third tab never shows the wake icon), long-press Edit / Delete as on every row. No new icons.
+- **Only leaf tasks** are listed (a wake is set on a task, never a group); a wake whose task is deleted or completed is
+  skipped.
+- **Nothing is hidden or changed.** Unlike Sleep and Wait, an armed wake hides nothing: the task stays where it is in
+  Queue and Schedule, and this tab only lists it. The overflow menu on Wake is the same as on Sleep / Wait (Settings and
+  Event Log), so the 3-dot button stays.
+- The empty list shows the same "No tasks yet" as the other modes.
+
+### How
+`TaskViewModel` now receives the (already Hilt-provided) `TaskWakeDao` and exposes `wakes`, read-only — task-wake still
+owns every write. `buildWakeList` (new `wake-list-builder.kt`) filters `TaskWake.isArmed`, sorts by due time and
+keeps leaf tasks; the adapter's new `isWakeView` / `wakeInfo` draw the status line and tick it every second.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here); `task-list-screen` has no unit-test source set, so nothing
+was added there. Check on the phone: arm a wake on a task, tap the third tab again → Wake: the task is listed with "Wake in
+…" counting down, and is still in Queue; let it fire → the row reads "Waiting for your answer"; Dismiss / Preempt → the row
+leaves; clear the wake → it leaves; with none armed the tab is empty; the 3-dot button is present on Wake.
+
 ## 6.55.0 — Schedule menu: status in its own column; centred, larger menu text
 
 Includes everything in 6.54.3. No database change, `versionCode` untouched.

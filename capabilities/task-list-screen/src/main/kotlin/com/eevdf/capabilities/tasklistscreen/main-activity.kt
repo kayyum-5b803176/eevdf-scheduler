@@ -183,6 +183,10 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupTabs()
         // Which tasks have an armed wake (their icon blinks) — published by task-wake.
+        // The wake table by task id: the Wake mode of the third tab shows each armed task's due time.
+        viewModel.wakes.observe(this) { wakes ->
+            completedAdapter.wakeInfo = wakes.associateBy { it.taskId }
+        }
         viewModel.wakeArmedIds.observe(this) { ids ->
             activeAdapter.wakeArmedIds   = ids
             scheduleAdapter.wakeArmedIds = ids
@@ -680,6 +684,7 @@ class MainActivity : AppCompatActivity() {
             tabLayout.getTabAt(2)?.text = mode.label
             completedAdapter.isSleepView = mode == CompletedTabMode.SLEEP
             completedAdapter.isWaitView  = mode == CompletedTabMode.WAIT
+            completedAdapter.isWakeView  = mode == CompletedTabMode.WAKE
             menuSyncDelegate.syncTabVisibility()
             updateEmptyView()
         }
