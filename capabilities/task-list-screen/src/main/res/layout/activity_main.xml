@@ -199,19 +199,41 @@
         android:contentDescription="Quick Action"
         android:visibility="gone" />
 
-    <!-- Speed dial opened by fabAdd (scrim + Links / Fork / Clone / Task). Declared BEFORE fabAdd so the
-         main button is drawn on top of it. -->
-    <include layout="@layout/section_main_speed_dial" />
+    <!-- Dims the list while the speed dial is open; consumes taps so a tap here only closes it.
+         Declared before the stack so the dial and the add button are drawn above it. -->
+    <View
+        android:id="@+id/speedDialScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/app_black"
+        android:clickable="true"
+        android:focusable="false"
+        android:contentDescription="Close menu"
+        android:visibility="gone" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabAdd"
+    <!-- The add button and its speed dial, ONE vertical stack at the bottom-right: the dial's four rows
+         (hidden until the button is tapped) first, the add button last, so the rows can only ever be laid
+         out ABOVE the button, never under it. The stack carries the margin the button used to have. -->
+    <LinearLayout
+        android:id="@+id/addFabStack"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="@dimen/app_card_padding_md"
-        android:src="@android:drawable/ic_input_add"
-        app:backgroundTint="@color/colorAccent"
-        app:tint="@android:color/white"
-        android:contentDescription="Add" />
+        android:orientation="vertical"
+        android:gravity="end">
+
+        <include layout="@layout/section_main_speed_dial" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabAdd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@android:drawable/ic_input_add"
+            app:backgroundTint="@color/colorAccent"
+            app:tint="@android:color/white"
+            android:contentDescription="Add" />
+
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

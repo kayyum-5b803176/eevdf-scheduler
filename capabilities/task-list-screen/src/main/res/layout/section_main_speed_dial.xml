@@ -1,47 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Speed dial for the add button (fabAdd) — tap it and four actions open straight up above it,
-  vertical, each a small round button with its label on the left:
+  The four actions of the add button's speed dial, stacked vertically, each a small round button with
+  its label on the left:
 
         Links    ( link )     opens the Links page (symlinks / hardlinks)
         Fork     ( split )    not wired yet — greyed, a tap only says so
         Clone    ( copy )     not wired yet — greyed, a tap only says so
         Task     ( pencil )   opens the regular Add Task screen   ← nearest the main button
 
-  A dimming scrim sits behind it; tapping the scrim, the main button again or Back closes it.
+  This is the FIRST child of activity_main's "addFabStack" (a vertical LinearLayout whose last child is
+  fabAdd), so the rows are laid out ABOVE the main button by the layout itself — they can never end up
+  underneath it, whatever size the button is or whether it is rotated. (An earlier version positioned
+  this relative to fabAdd with a CoordinatorLayout anchor, and the bottom row landed under the button.)
+
+  The stack is right-aligned, so the rows end at the main button's right edge; the end padding below
+  centres the small buttons (40dp) over the main one (56dp), and the bottom margin is the gap above it.
   Wired in MainActivity.setSpeedDialOpen() / setupViews().
-
-  <merge>: its two views become direct children of activity_main's CoordinatorLayout, so the
-  layout_anchor to fabAdd works. The container is anchored to fabAdd's TOP-END corner and grows
-  upward from it (bottom|end gravity); its bottom padding is the gap above the main button, and
-  its end padding centres the mini buttons (40dp) over the main one (56dp).
 -->
-<merge xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
-
-    <!-- Dims the list while the dial is open; fully consumes taps so a tap here only closes it. -->
-    <View
-        android:id="@+id/speedDialScrim"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/app_black"
-        android:clickable="true"
-        android:focusable="false"
-        android:contentDescription="Close menu"
-        android:visibility="gone" />
-
-    <LinearLayout
-        android:id="@+id/speedDial"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:orientation="vertical"
-        android:gravity="end"
-        android:paddingBottom="@dimen/app_spacing_xl"
-        android:paddingEnd="@dimen/app_spacing_md"
-        android:visibility="gone"
-        app:layout_anchor="@id/fabAdd"
-        app:layout_anchorGravity="top|end">
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/speedDial"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="end"
+    android:layout_marginBottom="@dimen/app_spacing_md"
+    android:paddingEnd="@dimen/app_spacing_md"
+    android:visibility="gone">
 
     <!-- Links -->
     <LinearLayout
@@ -211,5 +197,4 @@
             android:contentDescription="Task" />
     </LinearLayout>
 
-    </LinearLayout>
-</merge>
+</LinearLayout>

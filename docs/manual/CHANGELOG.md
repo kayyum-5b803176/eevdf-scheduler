@@ -5,6 +5,30 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.58.1 — Fix: the add button covered the speed dial's Task row
+
+Includes everything in 6.58.0. No database change, `versionCode` untouched.
+
+### Fixed
+- **The main add (+) button was drawn on top of the speed dial's bottom option (Task).** 6.58.0 positioned the dial relative to the
+  add button with a CoordinatorLayout anchor. That is fragile — if the anchor is not applied, or the button is rotated (it turns 45°
+  when the dial opens) or scaled by the display settings, the dial's bottom row ends up under the button. (Nothing else in the project
+  positions a view that way; the Quick Action button uses plain margins.)
+- **The dial and the add button are now one vertical stack** (`addFabStack`, bottom-right): the dial's four rows first, the add button
+  last. The layout itself puts the rows above the button, so they cannot overlap it at any size, rotation or display scale. The stack
+  carries the margin the button used to have, so the button sits exactly where it did, and when the dial is closed the stack is just
+  the button. The rows still end on the button's right edge, with the end padding centring the small buttons over it and an 8dp gap
+  above the button.
+- `section_main_speed_dial.xml` is now only the four rows (no `<merge>`, no anchor); the dimming scrim moved into `activity_main.xml`.
+  No Kotlin change: the ids, the open / close animation and the actions are as in 6.58.0.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here); the XML was checked for well-formedness and every id the code binds is
+still present. This was fixed by reasoning about the layout, not by seeing your screen, so please check it: tap + — the four buttons
+should stack straight up from the add button with a small gap, Task nearest to it and fully visible, the + turning into a ✕; close it
+and the add button should be exactly where it was. If it still overlaps, send a screenshot with the Quick Action button on or off and
+your display scale / orientation, and I will fix the real cause.
+
 ## 6.58.0 — The add button opens a vertical speed dial (Links · Fork · Clone · Task)
 
 Includes everything in 6.57.0. No database change, `versionCode` untouched.
