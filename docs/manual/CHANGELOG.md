@@ -5,6 +5,34 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.55.0 — Schedule menu: status in its own column; centred, larger menu text
+
+Includes everything in 6.54.3. No database change, `versionCode` untouched.
+
+### Changed
+- **The Schedule tab's class menu now keeps the status apart from the text.** The coloured active-count dots
+  (blue 1 · green 2 · red 3+ active Deadline / Realtime tasks) are in a narrow **status column on the left** — as wide
+  as the dot needs, separated from the labels by a hairline — and the labels sit in their own cell, **exactly as wide as
+  the Schedule tab**. The column hangs off the tab's left edge (the window is made wider by the column and shifted left
+  by the same amount), so the label cell still lines up with the tab. Dot and label share one row view, so they cannot
+  misalign. The dots are display-only; a tap anywhere on a row picks the class, as before.
+- **Menu labels are centred** (Queue, Schedule and Completed menus share the row layout), like the tab's own label.
+- **Menu font is larger: 16sp, medium weight.** The tab label is 14sp (the Material tab style, not scaled at runtime) —
+  the menu was already 14sp, so a literal "match" would have changed nothing. Per the fallback, it moves one step up the
+  design-system size scale (`app_text_size_lg`) and takes the tab's medium weight. Side padding on a row is reduced to the
+  small spacing token so a centred "Process Group" has the room.
+
+### Added
+- `item_tab_menu_status.xml` — the Schedule menu's two-part row (status column + label).
+
+### Verified / not verified
+**Not built, not run.** Check on the phone: tap Schedule again — the dots are in a narrow column on the left with a
+hairline before the labels, each level with its label; the label cell lines up with the Schedule tab; labels are centred
+and larger; create Deadline / Realtime tasks and confirm the dot colours; check the Queue and Completed menus (centred,
+larger, still tab-width). "Process Group" at 16sp is the longest label — if it is cut with "…" on a narrow screen, the side
+padding in `item_tab_menu.xml` can shrink further. The popup's own background adds a few dp of inner padding, so the label
+cell can be a few dp narrower than the tab.
+
 ## 6.54.3 — Overflow menu no longer disappears on the Sleep and Wait tabs
 
 Includes everything in 6.54.2. No database change, `versionCode` untouched.

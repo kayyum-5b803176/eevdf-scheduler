@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One row of the Schedule tab's class menu: a narrow STATUS column on the left, then the label.
+
+    ┌──┬───────────┐
+    │● │ Deadline  │   ivTabMenuDot — the active-count dot (blue 1 · green 2 · red 3+), display-only
+    └──┴───────────┘   tvTabMenuLabel — the class name, centred in a cell exactly as wide as the tab
+
+  The status column is only as wide as the dot needs (app_spacing_xl), with a hairline between it and
+  the label. MainActivity.showTabMenu makes the whole menu (tab width + this column + hairline) and
+  shifts it left by the column's width, so the LABEL cell lines up with the tab exactly and the status
+  column sticks out on its left. One row view holds both, so dot and label can never misalign.
+  Tokens only — no raw sp/dp.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal">
+
+    <!-- Status column: the dot, centred, nothing else. Not clickable on its own — a tap anywhere on the row picks the class. -->
+    <FrameLayout
+        android:layout_width="@dimen/app_spacing_xl"
+        android:layout_height="match_parent">
+
+        <ImageView
+            android:id="@+id/ivTabMenuDot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no" />
+    </FrameLayout>
+
+    <View
+        android:layout_width="@dimen/app_divider"
+        android:layout_height="match_parent"
+        android:background="@color/app_divider_inner" />
+
+    <TextView
+        android:id="@+id/tvTabMenuLabel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:paddingStart="@dimen/app_spacing_sm"
+        android:paddingEnd="@dimen/app_spacing_sm"
+        android:paddingTop="@dimen/app_card_padding_sm"
+        android:paddingBottom="@dimen/app_card_padding_sm"
+        android:gravity="center"
+        android:textSize="@dimen/app_text_size_lg"
+        android:textColor="@color/app_text_body"
+        android:fontFamily="sans-serif-medium"
+        android:singleLine="true"
+        android:ellipsize="end" />
+</LinearLayout>

@@ -718,11 +718,16 @@ class MainActivity : AppCompatActivity() {
      * The one way every tab's pop-up menu (Queue identity kinds, Schedule classes, Completed modes) is
      * shown: a list exactly as wide as the tapped tab, dropping straight down from it with its left and
      * right edges aligned to the tab's. A plain PopupMenu cannot be given a width, so this is a
-     * ListPopupWindow anchored to the tab view and sized to its measured width. Rows are one line and
-     * ellipsized, so a long label can never widen the menu.
+     * ListPopupWindow anchored to the tab view and sized to its measured width. Labels are centred, one
+     * line, ellipsized, so a long label can never widen the menu.
      *
-     * [dots] (optional, one per row) puts a small coloured circle before each label — the Schedule
-     * menu's active-count indicator. [onPick] gets the tapped row's position; the menu closes itself.
+     * [dots] (optional, one per row) adds a narrow STATUS column on the left — the Schedule menu's
+     * active-count dots — separate from the labels, as wide as the dot only. The label cell stays exactly
+     * the tab's width: the window is made wider by the column and shifted left by the same amount, so the
+     * column sticks out on the tab's left. Dot and label share one row view, so they always line up. The
+     * dots are display-only; a tap anywhere on a row picks it.
+     *
+     * [onPick] gets the tapped row's position; the menu closes itself.
      */
     private fun showTabMenu(
         tab: TabLayout.Tab,
@@ -730,22 +735,30 @@ class MainActivity : AppCompatActivity() {
         dots: List<android.graphics.drawable.Drawable>? = null,
         onPick: (position: Int) -> Unit,
     ) {
-        val anchor = tabView(tab)
-        val dotGap = resources.getDimensionPixelSize(DesignSystemR.dimen.app_spacing_md)
-        val adapter = object : android.widget.ArrayAdapter<String>(this, R.layout.item_tab_menu, labels) {
+        val anchor     = tabView(tab)
+        val withStatus = dots != null
+        // Width of the status column + its hairline; 0 when the menu has none.
+        val statusPx   = if (withStatus)
+            resources.getDimensionPixelSize(DesignSystemR.dimen.app_spacing_xl) +
+                resources.getDimensionPixelSize(DesignSystemR.dimen.app_divider)
+        else 0
+        val adapter = object : android.widget.ArrayAdapter<String>(
+            this,
+            if (withStatus) R.layout.item_tab_menu_status else R.layout.item_tab_menu,
+            R.id.tvTabMenuLabel,
+            labels,
+        ) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val row = super.getView(position, convertView, parent) as TextView
-                if (dots != null) {
-                    row.setCompoundDrawablesRelative(dots[position], null, null, null)
-                    row.compoundDrawablePadding = dotGap
-                }
+                val row = super.getView(position, convertView, parent)
+                dots?.let { row.findViewById<android.widget.ImageView>(R.id.ivTabMenuDot).setImageDrawable(it[position]) }
                 return row
             }
         }
         val popup = androidx.appcompat.widget.ListPopupWindow(this)
-        popup.anchorView = anchor
-        popup.width      = anchor.width          // the tapped tab's own width
-        popup.isModal    = true                  // tapping outside closes it
+        popup.anchorView       = anchor
+        popup.width            = anchor.width + statusPx   // label cell = the tapped tab's own width
+        popup.horizontalOffset = -statusPx                 // …and the status column hangs off its left
+        popup.isModal          = true                      // tapping outside closes it
         popup.setAdapter(adapter)
         popup.setOnItemClickListener { _, _, position, _ ->
             onPick(position)
@@ -776,8 +789,8 @@ class MainActivity : AppCompatActivity() {
     private fun showScheduleClassFilterMenu(tab: TabLayout.Tab) {
         val counts  = viewModel.listBuilder.scheduleClassCounts.value ?: emptyMap()
         val filters = ScheduleClassFilter.values()
-        // One status dot per row, as before; every row carries one (blank at 0 / for Schedule and
-        // Fair) so all four labels start at the same position.
+        // One status dot per row, shown in the menu's separate status column (see showTabMenu); every
+        // row has one (blank at 0, and always for Schedule / Fair) so the column is the same on every row.
         val dots = filters.map { f ->
             classFilterDot(when (f) {
                 ScheduleClassFilter.DEADLINE, ScheduleClassFilter.REALTIME ->
