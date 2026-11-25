@@ -26,8 +26,9 @@ import com.eevdf.capabilities.taskstorage.Task
         MembershipAcl::class,           // ← new: per-placement child visibility (hardlink ACL)
         TaskWake::class,                // ← new: scheduled wake per task (task-wake)
         WakeReturn::class,              // ← new: the wake preempt return stack
+        TaskFork::class,                // ← new: "forked from" links (the process tree's PPID)
     ],
-    version  = 34,                      // ← bumped from 33 (tasks.category → tasks.identity)
+    version  = 35,                      // ← bumped from 34 (task_fork table)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -40,6 +41,7 @@ abstract class TaskDatabase : RoomDatabase() {
     abstract fun taskMembershipDao(): TaskMembershipDao // ← new
     abstract fun membershipAclDao(): MembershipAclDao   // ← new: hardlink ACL
     abstract fun taskWakeDao(): TaskWakeDao             // ← new: scheduled wakes
+    abstract fun taskForkDao(): TaskForkDao             // ← new: forks
 
     companion object {
         @Volatile
@@ -641,6 +643,20 @@ abstract class TaskDatabase : RoomDatabase() {
         }
 
         /**
+         * version 34 → 35 — adds `task_fork`, the "forked from" link of every forked task (see [TaskFork]).
+         * A table of its own: `tasks` is untouched, so nothing is rebuilt and no existing row changes.
+         */
+        private val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `task_fork` (" +
+                        "`taskId` TEXT NOT NULL, `parentTaskId` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`taskId`))"
+                )
+            }
+        }
+
+        /**
          * version 33 → 34 — `tasks.category` becomes `tasks.identity` (`kind:id`).
          *
          * One column replaced by one column, so `tasks` does not get wider (see
@@ -776,7 +792,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                         MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
-                        MIGRATION_33_34,
+                        MIGRATION_33_34, MIGRATION_34_35,
                     )
                     .build()
                 INSTANCE = instance

@@ -28,6 +28,7 @@ import com.eevdf.capabilities.taskstorage.TaskDatabase
 import com.eevdf.capabilities.taskstorage.TaskLinkDao
 import com.eevdf.capabilities.taskstorage.TaskLoadFactorDao
 import com.eevdf.capabilities.taskstorage.TaskRepository
+import com.eevdf.capabilities.taskstorage.TaskForkDao
 import com.eevdf.capabilities.taskstorage.TaskWakeDao
 import com.eevdf.capabilities.taskwake.WakeCoordinator
 import com.eevdf.capabilities.timercard.TimerCardController
@@ -237,6 +238,9 @@ object CapabilityBindings {
 
     @Provides
     fun provideTaskWakeDao(db: TaskDatabase): TaskWakeDao = db.taskWakeDao()
+
+    @Provides
+    fun provideTaskForkDao(db: TaskDatabase): TaskForkDao = db.taskForkDao()
 
     // ── feature-toggles ──────────────────────────────────────────────────────
 

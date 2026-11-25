@@ -4,7 +4,7 @@
   its label on the left:
 
         Links    ( link )     opens the Links page (symlinks / hardlinks)
-        Fork     ( split )    not wired yet — greyed, a tap only says so
+        Fork     ( split )    opens the Fork page: copy a task or group into the same group
         Clone    ( copy )     not wired yet — greyed, a tap only says so
         Task     ( pencil )   opens the regular Add Task screen   ← nearest the main button
 
@@ -78,7 +78,7 @@
             android:contentDescription="Links" />
     </LinearLayout>
 
-    <!-- Fork — shown, not wired yet (greyed; a tap only says so) -->
+    <!-- Fork — opens the Fork page -->
     <LinearLayout
         android:id="@+id/rowSpeedDialFork"
         android:layout_width="wrap_content"
@@ -95,8 +95,7 @@
             style="@style/App.Card"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="@dimen/app_spacing_md"
-            android:alpha="0.45">
+            android:layout_marginEnd="@dimen/app_spacing_md">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -119,8 +118,7 @@
             app:fabSize="mini"
             app:backgroundTint="@color/colorAccent"
             app:tint="@color/app_white"
-            android:contentDescription="Fork"
-            android:alpha="0.45" />
+            android:contentDescription="Fork" />
     </LinearLayout>
 
     <!-- Clone — shown, not wired yet (greyed; a tap only says so) -->

@@ -47,6 +47,7 @@ include(
     ":capabilities:add-task-screen",
     ":capabilities:countdown-timer",
     ":capabilities:links-screen",
+    ":capabilities:fork-screen",
     ":capabilities:backup-restore",
     ":capabilities:app-foreground",
     ":capabilities:alarm-ringer",

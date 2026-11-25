@@ -28,6 +28,7 @@ dependencies {
     implementation(project(":capabilities:add-task-screen"))
     implementation(project(":capabilities:countdown-timer"))
     implementation(project(":capabilities:links-screen"))
+    implementation(project(":capabilities:fork-screen"))
     implementation(project(":capabilities:backup-restore"))
     implementation(project(":capabilities:task-wake"))
     implementation(project(":capabilities:timer-card"))

@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Fork page — built the same way as the Links page: a toolbar, a "create" card whose field opens a list
+  picker, an error line, a Create button, and a card listing what has been made.
+
+  The person picks ONE thing, any task or group (the one to copy); the copy lands in the SAME group as the
+  original — there is no second "place inside" picker, because a forked process always starts in its parent's
+  cgroup. Wired in ForkActivity.
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/screenBackground">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/app_text_label"
+            app:titleTextColor="@android:color/white" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        style="@style/App.PageScroll"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Create a fork -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/app_card_padding_md">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Create a fork"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/app_text_label"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="A new task or group made as a copy of the one you pick. It lands in the same group as the original, as a forked process starts in its parent's group. Its settings are copied; its run history is not."
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_caption"
+                        android:layout_marginBottom="@dimen/app_spacing_xl" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/App.TextInput.Dropdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Fork of (any task or group)"
+                        android:layout_marginBottom="@dimen/app_spacing_lg">
+
+                        <AutoCompleteTextView
+                            android:id="@+id/actvForkSource"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="none"
+                            android:focusable="false"
+                            android:focusableInTouchMode="false"
+                            android:cursorVisible="false" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/App.TextInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Name"
+                        android:layout_marginBottom="@dimen/app_spacing_lg">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etForkName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapSentences"
+                            android:maxLines="1"
+                            android:singleLine="true" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- What the copy will get, shown once a source is picked. -->
+                    <TextView
+                        android:id="@+id/tvForkPreview"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_label"
+                        android:visibility="gone"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+                    <TextView
+                        android:id="@+id/tvForkError"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_color_error"
+                        android:visibility="gone"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCreateFork"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Create fork" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Recent forks -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/App.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/app_card_gap"
+                android:layout_marginEnd="@dimen/app_card_gap"
+                android:layout_marginTop="@dimen/app_card_gap"
+                android:layout_marginBottom="@dimen/app_card_gap">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/app_card_padding_md">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Recent forks"
+                        android:textSize="@dimen/app_text_size_md"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/app_text_label"
+                        android:layout_marginBottom="@dimen/app_spacing_lg" />
+
+                    <TextView
+                        android:id="@+id/tvNoForks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No forks yet."
+                        android:textSize="@dimen/app_text_size_sm"
+                        android:textColor="@color/app_text_caption" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvForks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

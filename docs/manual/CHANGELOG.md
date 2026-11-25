@@ -5,6 +5,52 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.59.0 — Fork: copy a task or group into the same group
+
+Includes everything in 6.58.3. **Database change: version 34 → 35** (one new table). `versionCode` untouched.
+
+### Added
+- **Fork** in the add button's speed dial now works. It opens a **Fork page**, built the same way as the Links page: a toolbar, a
+  "Create a fork" card, and a list of what has been made. Pick **any task or group** (the same list picker the Links page uses), give
+  the copy a name (it starts as "original (fork)"), tap **Create fork**. The page shows what it will do before you tap: the identity
+  the copy will get, what it was forked from, and the group it lands in.
+- **The copy lands in the SAME group as the original** — always. There is no second "place inside" picker, because a forked process
+  starts in its parent's cgroup. At the top level it stays at the top level.
+- **What is copied** (it IS the original's settings): description, priority, time slice, colour, task type and notice settings,
+  scheduler class with its Deadline / Realtime settings, quota limits, load factor (including its side-table sliders), default sleep
+  length, semaphore settings, whether it is a group, and a non-default wake profile.
+- **What starts fresh** (a fork has done nothing yet): run time and run count, the timer (a full time slice again), scheduling position,
+  quota and Deadline budgets used so far, load averages, sleep, semaphore slot, creation time, and a new id. A fork is placed like
+  any new task — **at the back of its group**, queued behind a full semaphore, hidden with a sleeping parent.
+- **What is not copied:** the interrupt slot (only one task can hold it), a **pinned CPU share** (a copy could push its siblings past
+  100%; the priority is kept, so it floats), an armed wake (only the profile is carried over), and — for a group — **its children**:
+  a fork copies the one task it was called on, as `fork()` copies one process.
+- **Identity:** the copy gets the same kind as the original, numbered with the smallest free ID of that kind. An original with no kind
+  yet (Undefined) makes a **Process**, since fork creates a process. If a kind's pool is full the page says so and nothing is created.
+- **Recent forks** lists each fork, newest first: its name and identity, what it was forked from (`forked from process:142`, or
+  "removed" if that task is gone) and its group. Read-only — a fork is an ordinary task afterwards.
+- **Clone** stays shown but not wired.
+
+### How
+- **New capability `fork-screen`** (own module, `ForkActivity`, manifest fragment, route `AppRoutes.FORK`), built like `links-screen`.
+- **`task-storage`:** `ForkRules` (pure — what a fork copies, resets and drops; unit-tested), `ForkRepository` (does the copy through
+  `TaskRepository.insert`, then records the link and hands a wake profile to task-wake over the bus) and the `task_fork` table.
+- **`task_fork`** (`taskId`, `parentTaskId`, `createdAt`) holds the "forked from" link — the process tree's PPID. A table of its own,
+  so `tasks` does not get wider (TaskSchemaFreezeTest) and a full-row write of a task can never touch it. **Migration 34 → 35** only
+  creates the table; no existing row changes. It syncs between devices like any small record (task ids are shared), unlike
+  `tasks.identity`, which is a per-device number.
+- `ForkRepository` is a separate class, not a method of `TaskRepository`, so no constructor that tests build by hand changes.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here), including the new `ForkRulesTest`. The XML was checked for
+well-formedness, every token and every member the new code calls was confirmed to exist, and `scripts/check_architecture.sh` was run:
+it fails the same three checks it already failed before this change (kernel file count, 35 cross-capability imports, no exported schema
+for the database version) and Fork adds no new violation. **Build it once and commit `schemas/…/35.json`** — Room writes it during the
+build, and the schema check stays red until then (it was already red for 34.json). Check on the phone: tap + → Fork → pick a task →
+the preview shows `process:N`, "forked from …" and the group → Create fork → it appears in the Queue, in the same group, at the back,
+with a full time slice and no run time; fork a group (empty copy, no children); fork something inside a full semaphore group (the copy
+waits); delete the original and see "removed" in Recent forks.
+
 ## 6.58.3 — Fix: the add (+) button's shadow was still cut off square
 
 Includes everything in 6.58.2. No database change, `versionCode` untouched.

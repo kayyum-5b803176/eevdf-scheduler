@@ -552,10 +552,12 @@ class MainActivity : AppCompatActivity() {
             setSpeedDialOpen(false, animated = false)
             startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK))
         }
-        // Fork and Clone are shown but not wired yet.
+        // Fork opens the Fork page (copy a task or group into the same group), like Links opens its page.
         bindSpeedDialAction(R.id.rowSpeedDialFork, R.id.fabSpeedDialFork) {
-            Toast.makeText(this, "Fork isn't available yet", Toast.LENGTH_SHORT).show()
+            setSpeedDialOpen(false, animated = false)
+            startActivity(AppRoutes.fork(this))
         }
+        // Clone is shown but not wired yet.
         bindSpeedDialAction(R.id.rowSpeedDialClone, R.id.fabSpeedDialClone) {
             Toast.makeText(this, "Clone isn't available yet", Toast.LENGTH_SHORT).show()
         }

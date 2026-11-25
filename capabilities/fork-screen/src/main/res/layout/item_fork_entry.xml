@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One line of the Fork page's "Recent forks": the copy, its identity, and where it came from.
+  Read-only — a fork is an ordinary task afterwards (edit or delete it from the main screen).
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="@dimen/app_spacing_md"
+    android:paddingBottom="@dimen/app_spacing_md">
+
+    <TextView
+        android:id="@+id/tvForkEntryTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="@dimen/app_text_size_md"
+        android:textColor="@color/app_text_label" />
+
+    <TextView
+        android:id="@+id/tvForkEntrySubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="@dimen/app_text_size_sm"
+        android:textColor="@color/app_text_caption" />
+
+</LinearLayout>
