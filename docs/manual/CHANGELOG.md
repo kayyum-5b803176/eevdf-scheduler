@@ -5,6 +5,47 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.58.3 — Fix: the add (+) button's shadow was still cut off square
+
+Includes everything in 6.58.2. No database change, `versionCode` untouched.
+
+### Fixed
+- **The add button still showed a square-cut shadow after 6.58.2, although the dial's labels and round buttons were fixed.**
+  6.58.2's explanation was incomplete. A view's shadow is clipped at the edge of the container that holds it, and that edge is
+  governed by the container's PARENT (here the full-screen layout, which clips its children), not by flags on the container
+  itself. The dial's rows sit well inside the stack, so turning clipping off for them was enough. The add button sits right at the
+  stack's edge — the stack hugs it when the dial is closed — so its shadow was still cut off there.
+- **The stack now has room around the button:** the 16dp the button used to have as a layout MARGIN is PADDING of `addFabStack`
+  now, so the button is exactly where it was (16dp from the right and bottom edges) but its whole shadow falls inside the stack.
+  The padding is transparent and the stack is not clickable, so touches in it pass through to what is underneath. The layout
+  change is the one attribute (`layout_margin` → `padding`) plus a comment; no Kotlin changed.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here); the XML was checked for well-formedness. Check on the phone: with
+the dial closed and open, the add button should show a soft round shadow with no square edge, and sit where it did before. If a
+square edge is still visible, a screenshot (with the Quick Action button on or off) will show whether it comes from the add button
+itself or from something else drawn near it.
+
+## 6.58.2 — Fix: square shadows on the speed dial labels and on the add button
+
+Includes everything in 6.58.1. No database change, `versionCode` untouched.
+
+### Fixed
+- **Every speed-dial label showed a square shadow, and the add (+) button showed one too.** Cause: 6.58.1 put the add button and
+  the dial into stacked containers that hug their contents. A container clips its children to its own edge by default, and an
+  elevation shadow is drawn OUTSIDE the view that casts it — so each container cut its children's shadows off at its boundary,
+  leaving a hard square edge. The add button had been fine before because it was a direct child of the full-screen layout.
+- **Every container in the stack now has `clipChildren` and `clipToPadding` turned off:** the `addFabStack` that holds the add button
+  and the dial, the dial container, and each of the four rows. Their children's shadows are drawn in full again, rounded as the
+  card / button casts them. Layout only: nothing moves, and no Kotlin changed.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here); the XML was checked for well-formedness. This is fixed from the
+cause, not from your screen, so please check it: tap + — the labels and the round buttons should show soft, rounded shadows, and so
+should the add button, with no square edge. Two things to watch: (1) the greyed Fork / Clone rows are drawn at reduced opacity, which
+also lightens their shadow — that is intended; (2) while the dial fades in or out (about 0.16s) a row is drawn through a temporary
+layer, so a square edge could flash for that instant — if you see it, tell me and I will remove the fade on the rows.
+
 ## 6.58.1 — Fix: the add button covered the speed dial's Task row
 
 Includes everything in 6.58.0. No database change, `versionCode` untouched.

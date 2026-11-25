@@ -213,15 +213,25 @@
 
     <!-- The add button and its speed dial, ONE vertical stack at the bottom-right: the dial's four rows
          (hidden until the button is tapped) first, the add button last, so the rows can only ever be laid
-         out ABOVE the button, never under it. The stack carries the margin the button used to have. -->
+         out ABOVE the button, never under it.
+
+         The 16dp the button used to have as a MARGIN is PADDING of the stack now, so the button sits
+         exactly where it did. That is on purpose: an elevation shadow is drawn outside the view that casts
+         it and is clipped at the edge of the stack that contains it (the full-screen layout around the
+         stack clips its children). With the stack hugging the button, the button's shadow was cut off
+         square at the stack's edge; with 16dp of padding around the button the whole shadow falls inside
+         the stack. The padding is transparent and the stack is not clickable, so touches in it pass
+         through to what is underneath. clipChildren / clipToPadding are off as well, for the dial's rows. -->
     <LinearLayout
         android:id="@+id/addFabStack"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="@dimen/app_card_padding_md"
+        android:padding="@dimen/app_card_padding_md"
         android:orientation="vertical"
-        android:gravity="end">
+        android:gravity="end"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
         <include layout="@layout/section_main_speed_dial" />
 

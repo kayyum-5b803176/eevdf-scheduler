@@ -16,6 +16,10 @@
   The stack is right-aligned, so the rows end at the main button's right edge; the end padding below
   centres the small buttons (40dp) over the main one (56dp), and the bottom margin is the gap above it.
   Wired in MainActivity.setSpeedDialOpen() / setupViews().
+
+  Every container here (this one and each row) has clipChildren / clipToPadding OFF. They hug their
+  children, and a container that clips cuts off its children's elevation shadows at its own edge —
+  which showed as square shadows on the labels and the buttons.
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -27,6 +31,8 @@
     android:gravity="end"
     android:layout_marginBottom="@dimen/app_spacing_md"
     android:paddingEnd="@dimen/app_spacing_md"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:visibility="gone">
 
     <!-- Links -->
@@ -37,6 +43,8 @@
         android:layout_marginTop="@dimen/app_spacing_md"
         android:orientation="horizontal"
         android:gravity="center_vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:clickable="true"
         android:focusable="true">
 
@@ -78,6 +86,8 @@
         android:layout_marginTop="@dimen/app_spacing_md"
         android:orientation="horizontal"
         android:gravity="center_vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:clickable="true"
         android:focusable="true">
 
@@ -121,6 +131,8 @@
         android:layout_marginTop="@dimen/app_spacing_md"
         android:orientation="horizontal"
         android:gravity="center_vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:clickable="true"
         android:focusable="true">
 
@@ -164,6 +176,8 @@
         android:layout_marginTop="@dimen/app_spacing_md"
         android:orientation="horizontal"
         android:gravity="center_vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:clickable="true"
         android:focusable="true">
 
