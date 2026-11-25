@@ -10,6 +10,7 @@ import com.eevdf.capabilities.tasklistscreen.NoticePhase
 import com.eevdf.capabilities.tasklistscreen.R
 import com.eevdf.capabilities.tasklistscreen.TaskInstanceRef
 import com.eevdf.capabilities.tasklistscreen.matchesInstance
+import com.eevdf.capabilities.taskstorage.IdentityRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskDisplayItem
 import com.eevdf.capabilities.taskstorage.scheduling.RtScheduler
@@ -391,7 +392,7 @@ class TaskAdapter(
         // ── Group vs leaf rendering ────────────────────────────────────────────
         if (task.isGroup) {
             // Group header row
-            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.category)
+            holder.tvCategory.text  = buildIdentityLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.identity)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             // Groups show their Relative Lag rank here instead of VRT (the metrics row
             // below still shows the raw VRT). null = no other group at this level → "RL: —".
@@ -429,7 +430,7 @@ class TaskAdapter(
             }
         } else {
             // Leaf task row
-            holder.tvCategory.text  = buildCategoryLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.category)
+            holder.tvCategory.text  = buildIdentityLine(item.childGroupCount, item.childTaskCount, item.waitingCount, task.identity)
             holder.tvTimeSlice.text = "TRT: ${fmtDur(task.totalRunTime)}"
             holder.tvRemaining.text = task.remainingDisplay
             setTimeInfoColor(holder, R.color.app_text_label)   // views are recycled: undo a group's RL colour
@@ -831,21 +832,22 @@ class TaskAdapter(
     // ── Category line builder ────────────────────────────────────────────────
 
     /**
-     * Builds the category row string shared by both group and leaf task cards.
-     * Zero-value counts are omitted. Category "None" is omitted.
-     * Segments joined with " | "; returns "" when all suppress (tvCategory blank).
+     * Builds the identity row string shared by both group and leaf task cards.
+     * Zero-value counts are omitted. The identity (`kind:id`) is always shown; a task
+     * whose identity has not been assigned yet reads as plain "undefined".
+     * Segments joined with " | ".
      *
-     * G=2, T=5, General  →  "G: 2 | T: 5 | General"
-     * G=0, T=3, General  →  "T: 3 | General"
-     * G=2, T=5, W=4      →  "G: 2 | T: 5 | W: 4"   (W = children waiting for a semaphore slot)
-     * G=0, T=0, None     →  ""
+     * G=2, T=5, process:101  →  "G: 2 | T: 5 | process:101"
+     * G=0, T=3, user:102     →  "T: 3 | user:102"
+     * G=2, T=5, W=4          →  "G: 2 | T: 5 | W: 4 | undefined"   (W = children waiting for a semaphore slot)
+     * G=0, T=0, undefined:104 → "undefined:104"
      */
-    private fun buildCategoryLine(groupCount: Int, taskCount: Int, waitingCount: Int, category: String): String {
+    private fun buildIdentityLine(groupCount: Int, taskCount: Int, waitingCount: Int, identity: String): String {
         val parts = mutableListOf<String>()
         if (groupCount > 0)     parts.add("G: $groupCount")
         if (taskCount  > 0)     parts.add("T: $taskCount")
         if (waitingCount > 0)   parts.add("W: $waitingCount")
-        if (category != "None") parts.add(category)
+        parts.add(IdentityRules.display(identity))
         return parts.joinToString(" | ")
     }
 

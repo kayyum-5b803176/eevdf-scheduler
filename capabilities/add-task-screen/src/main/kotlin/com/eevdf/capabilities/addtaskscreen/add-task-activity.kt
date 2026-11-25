@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.capabilities.addtaskscreen.R
+import com.eevdf.capabilities.taskstorage.IdentityKind
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskRepository
 import com.eevdf.capabilities.tasklistscreen.TaskViewModel
@@ -18,6 +19,7 @@ import com.google.android.material.slider.Slider
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -33,7 +35,8 @@ import javax.inject.Inject
  *   • [onSupportNavigateUp]
  *
  * Section-specific setup, populate, parse, and format logic lives in sibling files:
- *   • CategoryPrioritySection.kt  — category chips + priority slider
+ *   • IdentitySection.kt          — identity kind dropdown + generated ID (replaces Category)
+ *   • PrioritySection.kt          — priority slider
  *   • GroupSection.kt             — parent group spinner
  *   • InterruptSection.kt         — interrupt A/B switches
  *   • PinnedShareSection.kt       — realtime / pinned share + weight calc
@@ -88,7 +91,10 @@ class AddTaskActivity : AppCompatActivity() {
     internal var isTimeSliceInherited:    Boolean = false
     /** Blocks watchers from clearing [isTimeSliceInherited] during programmatic setText calls. */
     internal var suppressTimeSliceWatcher: Boolean = false
-    internal lateinit var etCategoryInput:  AutoCompleteTextView
+    // ── Identity section (kind dropdown + generated, read-only ID) ───────────
+    internal lateinit var actvIdentityKind: AutoCompleteTextView
+    internal lateinit var tilIdentityId:    TextInputLayout
+    internal lateinit var etIdentityId:     TextInputEditText
     internal lateinit var btnSave:          MaterialButton
     internal lateinit var btnCancel:        MaterialButton
     internal lateinit var tvPriorityInfo:   TextView
@@ -197,7 +203,11 @@ class AddTaskActivity : AppCompatActivity() {
 
     // ── Activity-scoped mutable state ─────────────────────────────────────────
     internal var selectedTaskType  = "DEFAULT"
-    internal var selectedCategory  = "None"
+    internal var selectedIdentityKind: IdentityKind = IdentityKind.DEFAULT
+    /** The number on screen for [selectedIdentityKind]; a preview, reserved only on Save. Null while looking up or when the pool is full. */
+    internal var identityPreviewId: Int? = null
+    /** True when the chosen kind has no free number left — Save is blocked. */
+    internal var identityPoolFull: Boolean = false
     internal var existingTaskId:   String? = null
     internal var existingTask:     Task?   = null
     /** Groups from the ViewModel for the parent spinner; first entry = "None (root)" */
@@ -227,7 +237,7 @@ class AddTaskActivity : AppCompatActivity() {
         setupViews()
         setupLoadFactorSection()
         setupTimeSliceField()
-        setupCategoryInput()
+        setupIdentityInput()
         setupPrioritySlider()
         setupGroupSection()
         setupInterruptSwitch()
@@ -276,7 +286,9 @@ class AddTaskActivity : AppCompatActivity() {
         etMinutes            = findViewById(R.id.etMinutes)
         etSeconds            = findViewById(R.id.etSeconds)
         tvTimeSliceAutoLabel = findViewById(R.id.tvTimeSliceAutoLabel)
-        etCategoryInput   = findViewById(R.id.etCategoryInput)
+        actvIdentityKind  = findViewById(R.id.actvIdentityKind)
+        tilIdentityId     = findViewById(R.id.tilIdentityId)
+        etIdentityId      = findViewById(R.id.etIdentityId)
         btnSave           = findViewById(R.id.btnSave)
         btnCancel         = findViewById(R.id.btnCancel)
         tvPriorityInfo    = findViewById(R.id.tvPriorityInfo)
@@ -387,7 +399,8 @@ class AddTaskActivity : AppCompatActivity() {
      */
     private fun populateFields(task: Task) {
         populateBasicFields(task)
-        populateCategoryPrioritySection(task)
+        populateIdentitySection(task)
+        populatePrioritySection(task)
         populateGroupSection(task)
         populateTaskConfigSection(task)
         populateInterruptSection(task)

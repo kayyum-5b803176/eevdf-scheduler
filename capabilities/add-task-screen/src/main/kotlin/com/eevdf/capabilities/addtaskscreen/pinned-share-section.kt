@@ -116,7 +116,7 @@ internal fun AddTaskActivity.populatePinnedShareSection(task: Task) {
     // pinnedShare was previously set and the weight was derived from it.
     autoCalcWeight = if (task.pinnedShare != null) task.internalWeight else null
     applySliderLock(task.pinnedShare)
-    // Note: updatePriorityDisplay() is called by populateCategoryPrioritySection after this
+    // Note: updatePriorityDisplay() is called by populatePrioritySection after this
 
     task.pinnedShare?.let {
         switchRealtimeShare.isChecked        = true

@@ -124,9 +124,16 @@ internal object SyncSchema {
      * tasks); kept local they cost nothing. After a sync the task list screen
      * recomputes them (`TaskRepository.recalculateScheduleCache`), because
      * the lists sort by the stored copy.
+     *
+     * `tasks.identity` (`kind:id`, v34) is local for the same reason a PID is: it is
+     * a number a machine hands out for itself, from its own pool, and `process:101`
+     * on one phone is a different task from `process:101` on another. Sharing it
+     * would make two devices fight over numbers (and the engine writes rows with
+     * INSERT OR REPLACE). A task that arrives with no identity gets one from
+     * `TaskRepository.repairIdentities()` right after the merge.
      */
     val LOCAL_ONLY_COLUMNS: Map<String, Set<String>> =
-        mapOf("tasks" to setOf("lag", "eligibleTime", "virtualDeadline"))
+        mapOf("tasks" to setOf("lag", "eligibleTime", "virtualDeadline", "identity"))
 
     /** Largest primary key the dirty table can hold; wider keys are left unsynced (none exist today). */
     const val MAX_PK_COLUMNS = 4

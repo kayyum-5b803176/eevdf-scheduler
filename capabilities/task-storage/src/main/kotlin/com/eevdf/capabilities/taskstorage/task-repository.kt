@@ -12,6 +12,8 @@ import com.eevdf.kernel.clock.Clock
 import com.eevdf.kernel.eventbus.EventBus
 import com.eevdf.kernel.eventbus.Topics
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -180,13 +182,63 @@ class TaskRepository @Inject constructor(
     suspend fun getLinksForHost(groupId: String): List<TaskLink> =
         withContext(Dispatchers.IO) { taskLinkDao.getForHost(groupId) }
 
+    // ── Identity (kind:id) ────────────────────────────────────────────────────
+    //
+    // Every number is handed out here, under ONE lock, so two saves at the same
+    // moment can never take the same ID. There is deliberately no unique index:
+    // multi-device sync writes with INSERT OR REPLACE, and an index would let a
+    // remote row silently delete a different local task. See IdentityRules.
+
+    private val identityLock = Mutex()
+
     /**
-     * Live, alphabetically sorted list of every distinct category string stored
-     * in the tasks table.  Updated automatically whenever any task is saved with
-     * a new or changed category value, so the autocomplete suggestions in the
-     * Add / Edit screen always reflect the full set the user has ever typed.
+     * The ID the next task of [kind] would get: the smallest free number in that
+     * kind's pool. [excludeTaskId] is the task being edited (its own number does
+     * not count as taken). Null = the pool is full. A preview — nothing is reserved
+     * until the task is saved.
      */
-    val distinctCategories: LiveData<List<String>> = dao.getDistinctCategories()
+    suspend fun nextIdentityId(kind: IdentityKind, excludeTaskId: String?): Int? =
+        withContext(Dispatchers.IO) {
+            IdentityRules.nextId(kind, dao.getIdentitiesExcept(excludeTaskId ?: ""))
+        }
+
+    /**
+     * Moves [taskId] into [kind]'s pool with a fresh smallest-free ID. A no-op when
+     * the task is already that kind, so saving an edit that did not touch the kind
+     * keeps the number it has. Column-targeted: never rewrites the rest of the row.
+     */
+    suspend fun changeIdentityKind(taskId: String, kind: IdentityKind) {
+        withContext(Dispatchers.IO) {
+            identityLock.withLock {
+                val prev = dao.getTaskById(taskId) ?: return@withLock
+                if (IdentityRules.parse(prev.identity)?.kind == kind) return@withLock
+                val id = IdentityRules.nextId(kind, dao.getIdentitiesExcept(taskId))
+                    ?: throw IdentityPoolFullException(kind)
+                dao.setIdentity(taskId, IdentityRules.format(kind, id))
+            }
+        }
+        bus.publish(Topics.TASK_SAVED, taskId, "task-storage")
+    }
+
+    /**
+     * Gives every task whose identity is missing, malformed, reserved or a
+     * duplicate a valid one (the older task keeps a contested number). Needed
+     * after sync, which does not carry identities between devices: a task that
+     * arrives from another phone has none here yet.
+     */
+    suspend fun repairIdentities() = withContext(Dispatchers.IO) {
+        identityLock.withLock {
+            IdentityRules.repair(dao.getIdentityRows()).forEach { (taskId, identity) ->
+                dao.setIdentity(taskId, identity)
+            }
+        }
+    }
+
+    /** The identity [task] should be stored with, given every OTHER task's identity. */
+    private suspend fun resolveIdentity(task: Task): String =
+        IdentityRules.resolve(task.identity, dao.getIdentitiesExcept(task.id))
+            ?: throw IdentityPoolFullException(
+                IdentityRules.parseKind(task.identity) ?: IdentityKind.DEFAULT)
 
     // ── Load factor side table ────────────────────────────────────────────────
 
@@ -204,6 +256,16 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun insert(task: Task) = withContext(Dispatchers.IO) {
+        // The identity is chosen and the row written under one lock (see above), so a
+        // number can never be handed out twice. Stamped in place like the semaphore
+        // fields, so the caller's own object carries the result.
+        identityLock.withLock {
+            task.identity = resolveIdentity(task)
+            insertResolved(task)
+        }
+    }
+
+    private suspend fun insertResolved(task: Task) {
         val rawActive = dao.getActiveTasksSync()
         // A task created in a semaphore group ARRIVES: back of the queue, and it
         // takes a slot only if one is free and nobody waits ahead of it. Stamped
@@ -258,6 +320,9 @@ class TaskRepository @Inject constructor(
             if (next.semaphoreEnabled && !prev.semaphoreEnabled) admitExistingChildren(next)
             next
         }
+        // The identity is owned by changeIdentityKind, never by a caller's (possibly
+        // stale) copy — same rule as the semaphore slot above.
+        if (prev != null) toWrite.identity = prev.identity
         dao.update(toWrite)
         propagateInheritedLoadFactor(task.id, task.loadFactor)
         propagateInheritedTimeSlice(task.id, task.timeSliceSeconds)
@@ -1310,6 +1375,9 @@ class TaskRepository @Inject constructor(
         for (task in tasks) {
             dao.insert(task)
         }
+        // These rows went straight to the DAO: a backup from before v34 has no identity,
+        // and one from elsewhere may hold reserved or duplicate numbers. Fix them up.
+        repairIdentities()
         reconcileSemaphores()
     }
 
@@ -1328,6 +1396,9 @@ class TaskRepository @Inject constructor(
         for (task in tasks) {
             dao.insert(task)
         }
+        // These rows went straight to the DAO: a backup from before v34 has no identity,
+        // and one from elsewhere may hold reserved or duplicate numbers. Fix them up.
+        repairIdentities()
         reconcileSemaphores()
     }
 }

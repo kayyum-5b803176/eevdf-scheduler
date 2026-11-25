@@ -69,7 +69,7 @@ object BackupManager {
         put("priority", t.priority)
         put("timeSliceSeconds", t.timeSliceSeconds)
         put("timeSliceInherited", t.timeSliceInherited)
-        put("category", t.category)
+        put("identity", t.identity)
         put("color", t.color)
         put("parentId", t.parentId ?: JSONObject.NULL)
         put("isGroup", t.isGroup)
@@ -143,7 +143,9 @@ object BackupManager {
         priority = j.getInt("priority"),
         timeSliceSeconds    = j.getLong("timeSliceSeconds"),
         timeSliceInherited  = j.optBoolean("timeSliceInherited", false),
-        category = j.optString("category", "General"),
+        // Backups from before v34 carry "category" instead and have no identity: "" is
+        // "not assigned yet", so TaskRepository.insert gives the task a real one on restore.
+        identity = j.optString("identity", ""),
         color = j.optInt("color", 0),
         parentId = if (j.isNull("parentId")) null else j.optString("parentId"),
         isGroup = j.optBoolean("isGroup", false),

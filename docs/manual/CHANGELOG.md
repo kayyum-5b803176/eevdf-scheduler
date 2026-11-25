@@ -5,6 +5,52 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.53.0 — Category becomes Identity (kind:id, system-generated)
+
+Includes everything in 6.52.0. **Database change: version 33 → 34.** `versionCode` untouched.
+
+### Changed
+- **The free-text Category field is replaced by Identity** on the Add / Edit Task screen: a **Kind** dropdown and
+  a read-only, generated **ID**. Kinds: Undefined (default), User (UID), Group (GID), Process (PID),
+  Thread (TID), Process Group (PGID), Session (SID). The ID row is labelled for the chosen kind. Stored and
+  shown as `kind:id`, e.g. `process:101`.
+- **The ID is never typed** — like a PID. It is the smallest free number in that kind's own pool, so a freed
+  number is reused first. Every kind has its own pool (`user:101` and `process:101` can coexist). Changing a
+  task's kind gives it a fresh number in the new pool (the screen shows it before Save; picking the original
+  kind again shows the original number).
+- **IDs 1–100 are reserved** for the system; assignment starts at 101. The ceiling is 4,194,304 (the Linux PID
+  maximum) for every kind. A full pool blocks Save with "No free ID left for this kind".
+- The task card's info line and the timer card's subtitle show the identity (`G: 2 | T: 5 | process:101`,
+  `Priority 4 · process:101`) instead of the category. A task is never without one.
+- Backup / restore carry the identity. Restoring an older backup (which has only `category`) gives each task
+  an `undefined:N`; reserved or duplicate numbers in any restore are renumbered, the older task keeping a
+  contested one.
+
+### Database (33 → 34)
+`tasks.category` is replaced by `tasks.identity` — one column for one column, so `tasks` does **not** get wider
+(`TaskSchemaFreezeTest` only swaps the name). The table is rebuilt, as MIGRATION_14_15 did. Every existing task
+and group becomes `undefined:N`, numbered 101, 102, … in creation order. The old category text is dropped.
+
+### Why uniqueness is not a database index
+Multi-device sync writes rows with `INSERT OR REPLACE`; a unique index would let a remote row silently delete a
+*different* local task. Numbers are handed out by `TaskRepository` under one lock instead. `identity` is a
+**local-only** sync column (like `lag`): each device numbers its own tasks, as a machine does its PIDs, and a task
+arriving from another phone is numbered by `repairIdentities()` right after the merge.
+
+### Removed
+- `category-priority-section.kt` (the priority slider moved, unchanged, to `priority-section.kt`),
+  `section_add_task_category.xml`, the category autocomplete query / `distinctCategories`.
+  Run `scripts/apply-6.53.0-deletions.sh` after extracting the zip.
+
+### Verified / not verified
+The 33 → 34 SQL was run against SQLite with sample rows: numbering, creation order, tie-break and the 66-column
+result all check out. The allocation rules (`IdentityRules`) have unit tests, and their expected values were
+cross-checked with an independent re-implementation. **Not built, not run** (no Android SDK / Kotlin compiler
+here): compile it, run `IdentityRulesTest` and `TaskSchemaFreezeTest`, and open the app on a 33-schema database.
+Room writes `schemas/…/34.json` during that build — commit it. Check on the phone: Add Task shows
+`Undefined` / `101`; a second task shows `102`; switch it to Process → `101`; delete the first and add another →
+the gap is reused.
+
 ## 6.52.0 — Wake popup: each box selects its value when it gets focus
 
 Includes everything in 6.51.1. No database change, no layout change, `versionCode` untouched.

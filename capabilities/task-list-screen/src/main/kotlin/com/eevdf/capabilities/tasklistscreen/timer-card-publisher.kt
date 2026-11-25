@@ -5,6 +5,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.eevdf.capabilities.countdowntimer.NextButtonState
 import com.eevdf.capabilities.countdowntimer.TimerCardAction
+import com.eevdf.capabilities.taskstorage.IdentityRules
 import com.eevdf.capabilities.timercard.CardClock
 import com.eevdf.kernel.eventbus.CardAction
 import com.eevdf.kernel.eventbus.CardButton
@@ -117,7 +118,7 @@ internal class TimerCardPublisher(private val activity: MainActivity) {
         return CardSpec(
             id = TIMER_ID, kind = CardKind.TIMER, priority = CardPriority.TIMER,
             title = task?.name.orEmpty(),
-            subtitle = task?.let { if (it.category == "None") "Priority ${it.priority}" else "Priority ${it.priority} · ${it.category}" }.orEmpty(),
+            subtitle = task?.let { "Priority ${it.priority} · ${IdentityRules.display(it.identity)}" }.orEmpty(),
             clockEpochMs = endEpochMs, clockText = text,
             strip = strip,
             buttons = listOf(

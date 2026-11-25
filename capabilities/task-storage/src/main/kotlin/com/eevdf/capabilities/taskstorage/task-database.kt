@@ -27,7 +27,7 @@ import com.eevdf.capabilities.taskstorage.Task
         TaskWake::class,                // ← new: scheduled wake per task (task-wake)
         WakeReturn::class,              // ← new: the wake preempt return stack
     ],
-    version  = 33,                      // ← bumped from 32 (task_wake + wake_return tables)
+    version  = 34,                      // ← bumped from 33 (tasks.category → tasks.identity)
     exportSchema = true
 )
 abstract class TaskDatabase : RoomDatabase() {
@@ -640,6 +640,126 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * version 33 → 34 — `tasks.category` becomes `tasks.identity` (`kind:id`).
+         *
+         * One column replaced by one column, so `tasks` does not get wider (see
+         * TaskSchemaFreezeTest). SQLite on API 31 cannot reliably DROP COLUMN, so the
+         * table is rebuilt the same way MIGRATION_14_15 did it.
+         *
+         * Every existing task and group becomes `undefined:N`, numbered from 101
+         * (1–100 are reserved for the system, see IdentityRules) in creation order.
+         * The old free-text category is dropped — it had no place in the new model.
+         * `identity` is DEFAULT '' so a task that arrives from another device through
+         * sync (which does not carry identities) is valid until repairIdentities() runs.
+         */
+        private val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE `tasks_new` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`description` TEXT NOT NULL, " +
+                        "`priority` INTEGER NOT NULL, " +
+                        "`timeSliceSeconds` INTEGER NOT NULL, " +
+                        "`timeSliceInherited` INTEGER NOT NULL, " +
+                        "`identity` TEXT NOT NULL DEFAULT '', " +
+                        "`color` INTEGER NOT NULL, " +
+                        "`parentId` TEXT, " +
+                        "`isGroup` INTEGER NOT NULL, " +
+                        "`isGroupExpanded` INTEGER NOT NULL, " +
+                        "`vruntime` REAL NOT NULL, " +
+                        "`eligibleTime` REAL NOT NULL, " +
+                        "`virtualDeadline` REAL NOT NULL, " +
+                        "`lag` REAL NOT NULL, " +
+                        "`remainingSeconds` INTEGER NOT NULL, " +
+                        "`isRunning` INTEGER NOT NULL, " +
+                        "`isCompleted` INTEGER NOT NULL, " +
+                        "`totalRunTime` INTEGER NOT NULL, " +
+                        "`runCount` INTEGER NOT NULL, " +
+                        "`isInterrupt` INTEGER NOT NULL, " +
+                        "`interruptSlot` TEXT NOT NULL, " +
+                        "`taskType` TEXT NOT NULL, " +
+                        "`notificationDelaySeconds` INTEGER NOT NULL, " +
+                        "`notificationRestSeconds` INTEGER NOT NULL, " +
+                        "`notificationRepeatCount` INTEGER NOT NULL, " +
+                        "`resumeType` TEXT NOT NULL, " +
+                        "`accumulatedMs` INTEGER NOT NULL, " +
+                        "`startTimeEpoch` INTEGER NOT NULL, " +
+                        "`pinnedShare` REAL, " +
+                        "`internalWeight` REAL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`quotaSeconds` INTEGER NOT NULL, " +
+                        "`quotaPeriodSeconds` INTEGER NOT NULL, " +
+                        "`quotaPeriodStartEpoch` INTEGER NOT NULL, " +
+                        "`quotaUsedSeconds` INTEGER NOT NULL, " +
+                        "`schedulerClass` TEXT NOT NULL, " +
+                        "`dlRuntimeSeconds` INTEGER NOT NULL, " +
+                        "`dlDeadlineSeconds` INTEGER NOT NULL, " +
+                        "`dlPeriodSeconds` INTEGER NOT NULL, " +
+                        "`dlPeriodStartEpoch` INTEGER NOT NULL, " +
+                        "`dlRuntimeUsedSeconds` INTEGER NOT NULL, " +
+                        "`rtPriority` INTEGER NOT NULL, " +
+                        "`rtPolicy` TEXT NOT NULL, " +
+                        "`rtActiveDays` INTEGER NOT NULL, " +
+                        "`rtActivationHour` INTEGER NOT NULL, " +
+                        "`rtActivationMinute` INTEGER NOT NULL, " +
+                        "`rtActivationSecond` INTEGER NOT NULL, " +
+                        "`rtSliceTimeoutSeconds` INTEGER NOT NULL, " +
+                        "`loadFactor` REAL NOT NULL, " +
+                        "`loadFactorInherited` INTEGER NOT NULL, " +
+                        "`loadAverage` REAL NOT NULL, " +
+                        "`loadLastUpdateEpoch` INTEGER NOT NULL, " +
+                        "`loadAvgCognitive` REAL NOT NULL, " +
+                        "`loadLastUpdateCognitive` INTEGER NOT NULL, " +
+                        "`loadAvgPhysical` REAL NOT NULL, " +
+                        "`loadLastUpdatePhysical` INTEGER NOT NULL, " +
+                        "`loadAvgEmotional` REAL NOT NULL, " +
+                        "`loadLastUpdateEmotional` INTEGER NOT NULL, " +
+                        "`sleepDurationSeconds` INTEGER NOT NULL, " +
+                        "`sleepUntilEpoch` INTEGER NOT NULL, " +
+                        "`sleepLag` REAL NOT NULL, " +
+                        "`semaphoreEnabled` INTEGER NOT NULL, " +
+                        "`semaphoreLimit` INTEGER NOT NULL, " +
+                        "`semaphoreHeld` INTEGER NOT NULL, " +
+                        "`semaphoreQueuedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                db.execSQL("""
+                    INSERT INTO tasks_new (
+                        id, name, description, priority, timeSliceSeconds, timeSliceInherited, identity, color,
+                        parentId, isGroup, isGroupExpanded, vruntime, eligibleTime, virtualDeadline, lag,
+                        remainingSeconds, isRunning, isCompleted, totalRunTime, runCount, isInterrupt, interruptSlot,
+                        taskType, notificationDelaySeconds, notificationRestSeconds, notificationRepeatCount,
+                        resumeType, accumulatedMs, startTimeEpoch, pinnedShare, internalWeight, createdAt,
+                        quotaSeconds, quotaPeriodSeconds, quotaPeriodStartEpoch, quotaUsedSeconds, schedulerClass,
+                        dlRuntimeSeconds, dlDeadlineSeconds, dlPeriodSeconds, dlPeriodStartEpoch, dlRuntimeUsedSeconds,
+                        rtPriority, rtPolicy, rtActiveDays, rtActivationHour, rtActivationMinute, rtActivationSecond,
+                        rtSliceTimeoutSeconds, loadFactor, loadFactorInherited, loadAverage, loadLastUpdateEpoch,
+                        loadAvgCognitive, loadLastUpdateCognitive, loadAvgPhysical, loadLastUpdatePhysical,
+                        loadAvgEmotional, loadLastUpdateEmotional, sleepDurationSeconds, sleepUntilEpoch, sleepLag,
+                        semaphoreEnabled, semaphoreLimit, semaphoreHeld, semaphoreQueuedAt
+                    ) SELECT
+                        id, name, description, priority, timeSliceSeconds, timeSliceInherited,
+                        'undefined:' || (100 + ROW_NUMBER() OVER (ORDER BY createdAt ASC, rowid ASC)), color, parentId,
+                        isGroup, isGroupExpanded, vruntime, eligibleTime, virtualDeadline, lag, remainingSeconds,
+                        isRunning, isCompleted, totalRunTime, runCount, isInterrupt, interruptSlot, taskType,
+                        notificationDelaySeconds, notificationRestSeconds, notificationRepeatCount, resumeType,
+                        accumulatedMs, startTimeEpoch, pinnedShare, internalWeight, createdAt, quotaSeconds,
+                        quotaPeriodSeconds, quotaPeriodStartEpoch, quotaUsedSeconds, schedulerClass, dlRuntimeSeconds,
+                        dlDeadlineSeconds, dlPeriodSeconds, dlPeriodStartEpoch, dlRuntimeUsedSeconds, rtPriority,
+                        rtPolicy, rtActiveDays, rtActivationHour, rtActivationMinute, rtActivationSecond,
+                        rtSliceTimeoutSeconds, loadFactor, loadFactorInherited, loadAverage, loadLastUpdateEpoch,
+                        loadAvgCognitive, loadLastUpdateCognitive, loadAvgPhysical, loadLastUpdatePhysical,
+                        loadAvgEmotional, loadLastUpdateEmotional, sleepDurationSeconds, sleepUntilEpoch, sleepLag,
+                        semaphoreEnabled, semaphoreLimit, semaphoreHeld, semaphoreQueuedAt
+                    FROM tasks
+                """.trimIndent())
+                db.execSQL("DROP TABLE tasks")
+                db.execSQL("ALTER TABLE tasks_new RENAME TO tasks")
+            }
+        }
+
         fun getDatabase(context: Context): TaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -656,6 +776,7 @@ abstract class TaskDatabase : RoomDatabase() {
                         MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
                         MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                         MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
+                        MIGRATION_33_34,
                     )
                     .build()
                 INSTANCE = instance

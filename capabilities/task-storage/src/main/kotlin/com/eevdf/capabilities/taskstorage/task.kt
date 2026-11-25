@@ -1,5 +1,6 @@
 package com.eevdf.capabilities.taskstorage
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
@@ -16,7 +17,18 @@ data class Task(
     //         parent changes automatically until the user manually overrides it.
     // false = value was manually assigned by the user.
     val timeSliceInherited: Boolean = false,
-    val category: String = "None",
+    /**
+     * `kind:id` — what this task IS, like a process table entry: `process:101`,
+     * `user:101`, `undefined:104`. See [IdentityRules] for the kinds, the
+     * reserved range (1–100) and the smallest-free-number allocation.
+     *
+     * Generated, never typed. "" means "not assigned yet" and exists only for the
+     * instant before [TaskRepository] writes the row (or sync brings one in) —
+     * the repository replaces it with a real value. A `var` so [TaskRepository.insert]
+     * can stamp the caller's own object, like the semaphore fields.
+     */
+    @ColumnInfo(defaultValue = "''")
+    var identity: String = "",
     val color: Int = 0,
 
     // cgroup hierarchy

@@ -13,6 +13,7 @@ import android.os.CountDownTimer
 import androidx.lifecycle.*
 import com.eevdf.capabilities.taskstorage.TaskDatabase
 import com.eevdf.capabilities.taskstorage.TaskRepository
+import com.eevdf.capabilities.taskstorage.IdentityKind
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLoadFactor
 import com.eevdf.capabilities.settingsstorage.state.AppPreferences
@@ -504,6 +505,22 @@ class TaskViewModel @Inject constructor(
     fun clearToast()                               = crud.clearToast()
     fun toggleGroupExpanded(group: Task)          = crud.toggleGroupExpanded(group)
     suspend fun getTaskById(id: String): Task?    = crud.getTaskById(id)
+
+    // ── Identity (kind:id) ────────────────────────────────────────────────────
+
+    /** The ID the next task of [kind] would get (smallest free in that kind's pool); null = pool full. */
+    suspend fun nextIdentityId(kind: IdentityKind, excludeTaskId: String?): Int? =
+        repository.nextIdentityId(kind, excludeTaskId)
+
+    /**
+     * Saves [task] and then moves it into [kind]'s ID pool (a fresh smallest-free number there).
+     * One coroutine, in that order: the update reads the row's identity at its start, so a
+     * concurrent kind change could be overwritten — waiting for it to finish rules that out.
+     */
+    fun updateTaskAndKind(task: Task, kind: IdentityKind) = viewModelScope.launch {
+        crud.updateTask(task).join()
+        repository.changeIdentityKind(task.id, kind)
+    }
     suspend fun getLoadFactor(taskId: String): TaskLoadFactor? = crud.getLoadFactor(taskId)
     fun saveLoadFactor(entry: TaskLoadFactor)     = crud.saveLoadFactor(entry)
 
@@ -609,8 +626,6 @@ class TaskViewModel @Inject constructor(
     val queueListStyle:      LiveData<TaskListStyle> get() = settings.queueListStyle
     val scheduleListStyle:   LiveData<TaskListStyle> get() = settings.scheduleListStyle
 
-    /** Distinct category strings from the DB — drives autocomplete in Add/Edit task. */
-    val distinctCategories:  LiveData<List<String>> get() = repository.distinctCategories
     val allowEditEnabled:    LiveData<Boolean> get() = settings.allowEditEnabled
     val globalRotateEnabled: LiveData<Boolean> get() = settings.globalRotateEnabled
     val autoScrollEnabled:   LiveData<Boolean> get() = settings.autoScrollEnabled

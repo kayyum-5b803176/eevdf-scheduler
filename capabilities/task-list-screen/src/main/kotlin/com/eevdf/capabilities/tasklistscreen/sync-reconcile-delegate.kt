@@ -53,6 +53,9 @@ internal class SyncReconcileDelegate(private val vm: TaskViewModel) {
             // user works them out for itself. Do it now, before anything sorts
             // by the stored copy (the lists, the schedule order).
             vm.repository.recalculateScheduleCache()
+            // Sync does not carry identities either (each device numbers its own, like a
+            // PID): a task that just arrived from another phone has none here yet.
+            vm.repository.repairIdentities()
             // The ViewModel's LiveData setters and the timer engine's
             // CountDownTimer both belong to the main thread.
             withContext(Dispatchers.Main) { reconcile() }

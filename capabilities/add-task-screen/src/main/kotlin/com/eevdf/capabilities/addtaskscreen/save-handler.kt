@@ -2,6 +2,7 @@ package com.eevdf.capabilities.addtaskscreen
 
 import android.view.View
 import android.widget.Toast
+import com.eevdf.capabilities.taskstorage.IdentityRules
 import com.eevdf.capabilities.taskstorage.SemaphoreRules
 import com.eevdf.kernel.eventbus.Topics
 import com.eevdf.kernel.eventbus.WakeProfileSet
@@ -31,6 +32,13 @@ internal fun AddTaskActivity.saveTask() {
     // ── Basic validation ──────────────────────────────────────────────────────
     val name = etName.text.toString().trim()
     if (name.isEmpty()) { etName.error = "Task name required"; return }
+
+    // The chosen identity kind has no free number left (a 4,194,204-number pool, so this is
+    // practically unreachable): there is nothing valid to save under.
+    if (identityPoolFull) {
+        Toast.makeText(this, "No free ID left for this kind", Toast.LENGTH_SHORT).show()
+        return
+    }
 
     val h = etHours.text.toString().toLongOrNull() ?: 0L
     val m = etMinutes.text.toString().toLongOrNull() ?: 0L
@@ -253,7 +261,6 @@ internal fun AddTaskActivity.saveTask() {
             loadFactorInherited = loadFactorInherited,
             timeSliceSeconds    = totalSeconds,
             timeSliceInherited  = timeSliceInherited,
-            category            = selectedCategory,
             isGroup             = isGroup,
             parentId            = parentId,
             taskType            = selectedTaskType,
@@ -288,7 +295,12 @@ internal fun AddTaskActivity.saveTask() {
             updated.isInterrupt && updated.interruptSlot == "B"         -> viewModel.clearInterruptTaskB()
             updated.isInterrupt                                          -> viewModel.clearInterruptTask()
         }
-        viewModel.updateTask(updated)
+        // The identity is owned by the repository (a caller's copy can never overwrite it).
+        // Only the KIND is the person's to change; moving to the new kind's pool happens
+        // right after the update, in the same coroutine, so the two writes cannot race.
+        val oldKind = IdentityRules.parse(existingTask!!.identity)?.kind
+        if (oldKind != selectedIdentityKind) viewModel.updateTaskAndKind(updated, selectedIdentityKind)
+        else viewModel.updateTask(updated)
     } else {
         val task = Task(
             id                  = taskId,              // pre-generated above
@@ -300,7 +312,7 @@ internal fun AddTaskActivity.saveTask() {
             timeSliceSeconds    = totalSeconds,
             timeSliceInherited  = timeSliceInherited,
             remainingSeconds    = totalSeconds,
-            category            = selectedCategory,
+            identity            = identityForSave(),
             isGroup             = isGroup,
             parentId            = parentId,
             taskType            = selectedTaskType,

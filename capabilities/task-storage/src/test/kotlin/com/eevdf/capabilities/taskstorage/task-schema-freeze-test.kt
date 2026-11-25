@@ -43,8 +43,9 @@ class TaskSchemaFreezeTest {
          * do not regenerate it to make the build pass.
          */
         val FROZEN_FIELDS = setOf(
-            // identity / structure
-            "id", "name", "description", "priority", "timeSliceSeconds", "timeSliceInherited", "category", "color",
+            // identity / structure  (v34: `category` was REPLACED by `identity` — one column
+            // for one column, so the table did not get wider)
+            "id", "name", "description", "priority", "timeSliceSeconds", "timeSliceInherited", "identity", "color",
             "parentId", "isGroup", "isGroupExpanded", "createdAt",
             // EEVDF scheduler state
             "vruntime", "eligibleTime", "virtualDeadline", "lag", "internalWeight", "pinnedShare",

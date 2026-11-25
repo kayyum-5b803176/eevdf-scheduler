@@ -144,16 +144,20 @@ interface TaskDao {
     @Query("DELETE FROM tasks")
     suspend fun deleteAllTasks()
 
+    // ── Identity (kind:id) — see IdentityRules ───────────────────────────────
+
+    /** Every task's stored identity except [excludeId]'s own — the "taken" set for allocation. */
+    @Query("SELECT identity FROM tasks WHERE id != :excludeId")
+    suspend fun getIdentitiesExcept(excludeId: String): List<String>
+
+    /** Every task's identity, oldest first — the order [IdentityRules.repair] needs. */
+    @Query("SELECT id, identity FROM tasks ORDER BY createdAt ASC, rowid ASC")
+    suspend fun getIdentityRows(): List<IdentityRow>
+
     /**
-     * All distinct, non-empty category strings saved across every task, sorted
-     * alphabetically.  Used to populate the category autocomplete suggestions in
-     * the Add / Edit task screen so any category a user has ever typed is
-     * immediately available as a suggestion when editing another task.
-     *
-     * Backed by the tasks table's existing `category` column — no extra table or
-     * migration needed.  The result is a LiveData so the suggestion list updates
-     * automatically whenever a task is saved with a new category.
+     * Rewrites ONLY the identity column. A column-targeted write, so a concurrent
+     * edit of the same row is never overwritten with a stale full-row copy.
      */
-    @Query("SELECT DISTINCT category FROM tasks WHERE category != '' ORDER BY category ASC")
-    fun getDistinctCategories(): LiveData<List<String>>
+    @Query("UPDATE tasks SET identity = :identity WHERE id = :id")
+    suspend fun setIdentity(id: String, identity: String)
 }

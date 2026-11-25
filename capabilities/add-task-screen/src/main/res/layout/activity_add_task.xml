@@ -13,7 +13,7 @@
     section_add_task_quota.xml          — Quota limit toggle + quota/period fields
     section_add_task_sleep.xml          — Sleep duration (moon button) text field
     section_add_task_scheduler.xml      — Scheduler class toggle + DL + RT sub-sections
-    section_add_task_category.xml       — Category chip group
+    section_add_task_identity.xml       — Identity kind dropdown + generated ID
     section_add_task_buttons.xml        — Save / Cancel action buttons
     section_add_task_acl.xml            — ACL tab (hardlink placements only): hidden direct children
 
@@ -71,7 +71,7 @@
             <include layout="@layout/section_add_task_semaphore" />
             <include layout="@layout/section_add_task_wake" />
             <include layout="@layout/section_add_task_scheduler" />
-            <include layout="@layout/section_add_task_category" />
+            <include layout="@layout/section_add_task_identity" />
             <include layout="@layout/section_add_task_buttons" />
 
             <!-- Bottom breathing room so the Save button clears the soft keyboard -->
