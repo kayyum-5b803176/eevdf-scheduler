@@ -5,6 +5,28 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.54.3 — Overflow menu no longer disappears on the Sleep and Wait tabs
+
+Includes everything in 6.54.2. No database change, `versionCode` untouched.
+
+### Fixed
+- **The toolbar's 3-dot overflow menu vanished when the third tab was switched to Sleep or Wait.** Every overflow item
+  is `showAsAction="never"`, and Android removes the 3-dot button when none of them is visible. On the third tab the
+  menu hid all the settings-style items, and in Sleep / Wait it also hid Clear Completed (correctly — it would clear
+  tasks you cannot see), leaving nothing — so the button disappeared. On Completed it only survived because Clear
+  Completed is visible there.
+- **Sleep and Wait now keep Settings and Event Log** in the overflow menu. They are app-wide and not tied to any list.
+  The list toggles (Allow Edit, Auto Scroll, Enable Groups, Global Rotate) stay hidden there, as on Completed, and
+  Clear Completed stays hidden. Completed, Queue and Schedule are unchanged.
+- Every tab and mode now has at least one visible overflow item, so the button can no longer disappear. A side
+  effect: the button's long-press "collapse / expand all groups" handler is attached once and used to be lost when
+  the button was removed and rebuilt; that no longer happens.
+
+### Verified / not verified
+The visibility rules were checked with a table of every tab × mode × groups on/off (none is empty). **Not built, not
+run.** Check on the phone: open the third tab, choose Sleep, then Wait — the 3-dot button stays, and shows Settings and
+Event Log; choose Completed — it shows Clear Completed; Queue and Schedule look as before.
+
 ## 6.54.2 — Schedule and Completed menus: exactly as wide as their tab
 
 Includes everything in 6.54.1. No database change, `versionCode` untouched.

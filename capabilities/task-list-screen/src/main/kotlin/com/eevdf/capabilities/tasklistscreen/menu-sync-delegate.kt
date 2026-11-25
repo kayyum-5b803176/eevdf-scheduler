@@ -20,8 +20,10 @@ import android.widget.Toast
  *
  * The overflow menu is tab-aware: [syncTabVisibility] decides which items
  * show on which of the three tabs (Queue/Schedule share a base sequence plus
- * their own drill-down toggle; Completed shows only Clear Completed) — see
- * that function's KDoc for the full breakdown.
+ * their own drill-down toggle; the third tab shows Clear Completed on
+ * Completed and just Settings + Event Log on Sleep / Wait, so the 3-dot
+ * button is never left with nothing in it) — see the comment above that
+ * function for the full breakdown.
  */
 internal class MenuSyncDelegate(private val activity: MainActivity) {
 
@@ -172,27 +174,45 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
     // Queue (tab 0) and Schedule (tab 1) share one base sequence — Settings,
     // Event Log, Allow Edit, Auto Scroll, Enable Group, Global Rotate — with
     // each tab appending its own drill-down toggle after that sequence.
-    // Completed (tab 2) shows only Clear Completed; none of the settings-ish
-    // toggles are relevant there. Sync and Schedule Next are pinned toolbar
-    // action icons, not overflow items, and are unaffected by tab — they stay
-    // visible on every tab, including Completed.
     //
-    // Called from inflateMenu() (initial state) and from MainActivity's
-    // TabLayout.OnTabSelectedListener on every tab change, so the menu always
-    // reflects whichever tab is currently open — not just whatever was true
-    // when the menu was first inflated.
+    // The third tab shows less, depending on its mode:
+    //   • Completed — only Clear Completed; none of the settings-ish toggles are
+    //     relevant there.
+    //   • Sleep / Wait — Settings and Event Log only. They are app-wide, not tied to
+    //     any list, so they are always relevant; the list toggles stay hidden as on
+    //     Completed, and Clear Completed is hidden (it would clear completed tasks
+    //     the person cannot see).
+    //
+    // WHY Sleep / Wait must keep something: every overflow item is
+    // showAsAction="never", and Android REMOVES the 3-dot button when no overflow item
+    // is visible. Before 6.54.3 Sleep and Wait hid all of them, so the button vanished
+    // (and with it its long-press "collapse / expand all groups" handler). Every tab
+    // and mode now has at least one visible overflow item, so the button never goes.
+    //
+    // Sync and Schedule Next are pinned toolbar action icons, not overflow items, and
+    // are unaffected by tab — they stay visible on every tab.
+    //
+    // Called from inflateMenu() (initial state), from MainActivity's
+    // TabLayout.OnTabSelectedListener on every tab change, and from the completed-tab
+    // mode observer when Completed / Sleep / Wait is switched, so the menu always
+    // reflects whichever tab and mode is currently open.
 
     fun syncTabVisibility() {
-        val onCompleted = activity.currentTab == 2
-        val groupsOn = activity.viewModel.groupsEnabled.value ?: false
+        val onThirdTab  = activity.currentTab == 2
+        val thirdMode   = activity.viewModel.completedTabMode.value ?: CompletedTabMode.COMPLETED
+        val onCompleted = onThirdTab && thirdMode == CompletedTabMode.COMPLETED
+        val groupsOn    = activity.viewModel.groupsEnabled.value ?: false
 
-        // Queue/Schedule shared base sequence — hidden entirely on Completed.
+        // App-wide items: shown everywhere except Completed proper. This is what keeps the
+        // overflow button alive on Sleep and Wait (see above).
         activity.settingsMenuItem?.isVisible      = !onCompleted
         activity.eventLogMenuItem?.isVisible      = !onCompleted
-        activity.allowEditMenuItem?.isVisible     = !onCompleted
-        activity.autoScrollMenuItem?.isVisible    = !onCompleted
-        activity.groupsMenuItem?.isVisible        = !onCompleted
-        activity.globalRotateMenuItem?.isVisible  = !onCompleted
+
+        // List toggles: Queue / Schedule only — hidden on the whole third tab, whatever its mode.
+        activity.allowEditMenuItem?.isVisible     = !onThirdTab
+        activity.autoScrollMenuItem?.isVisible    = !onThirdTab
+        activity.groupsMenuItem?.isVisible        = !onThirdTab
+        activity.globalRotateMenuItem?.isVisible  = !onThirdTab
 
         // Per-tab drill-down toggle: each tab shows only its own, and only
         // when groups are enabled (same "no hierarchy to drill into
@@ -206,10 +226,9 @@ internal class MenuSyncDelegate(private val activity: MainActivity) {
             isChecked = activity.viewModel.scheduleListStyle.value == TaskListStyle.DRILL_DOWN
         }
 
-        // Clear Completed: the mirror image — only meaningful on Completed.
+        // Clear Completed: the mirror image — only meaningful on Completed proper.
         // Hidden in Sleep and Wait modes: it would clear completed tasks the person cannot see.
-        activity.clearCompletedMenuItem?.isVisible =
-            onCompleted && (activity.viewModel.completedTabMode.value ?: CompletedTabMode.COMPLETED) == CompletedTabMode.COMPLETED
+        activity.clearCompletedMenuItem?.isVisible = onCompleted
     }
 
     // ── Key1 (Schedule Next) dot update ──────────────────────────────────────
