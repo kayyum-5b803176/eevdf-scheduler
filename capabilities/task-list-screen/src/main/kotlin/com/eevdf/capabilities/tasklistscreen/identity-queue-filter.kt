@@ -12,10 +12,16 @@ import com.eevdf.capabilities.taskstorage.Task
  * Same family as [ScheduleClassFilter] and [CompletedTabMode]: a VIEW concept only. It
  * never changes a task's identity, its scheduling, or what "Next" picks.
  *
- * STRICT: a row shows only if its OWN kind matches. Where a matching task lives does not
- * matter — one inside a collapsed group, or inside a group of another kind, is still
- * listed — and a group that does not match is not shown. The result is one flat list
- * (no nesting, no drill-down), whichever list style the Queue tab uses.
+ * STRICT, with the way up kept: a task is a MATCH only if its OWN kind is the picked one —
+ * nothing else qualifies, and a non-matching sibling or child is never listed. Where a
+ * match lives does not matter, but so it is never orphaned the groups ABOVE it are shown
+ * too, all the way up to the root group (rows flagged
+ * [com.eevdf.capabilities.taskstorage.TaskDisplayItem.isFilterContextOnly]) — the same
+ * way the Schedule tab's class filter keeps the path to the root. EVERY match is always
+ * shown: the groups above it are open here whatever their collapsed state in the normal
+ * Queue, so nothing is hidden under a collapsed group. It is a numbered outline,
+ * whichever list style the Queue tab uses: no drill-down and no collapsing while a kind
+ * is picked.
  *
  * There is no "All" entry in the menu: no filter (the tab simply reads "Queue") is the
  * starting state, and choosing the kind that is already selected clears the filter.

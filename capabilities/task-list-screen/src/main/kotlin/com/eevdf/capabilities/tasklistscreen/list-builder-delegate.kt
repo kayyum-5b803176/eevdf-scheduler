@@ -230,12 +230,13 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             fun rebuild() {
                 val kindFilter = vm.queueKindFilter.value
                 value = withWaitingCounts(when {
-                    // An identity kind is picked on the Queue tab: strict flat list of that
-                    // kind, whichever list style is set (see identity-queue-filter.kt).
-                    kindFilter != null -> buildKindFilteredQueueList(
-                        vm.activeTasks.value ?: emptyList(), kindFilter,
-                        vm.settings.groupsEnabled.value ?: false,
-                        vm.allTaskLinks.value ?: emptyList(), vm.allTaskMemberships.value ?: emptyList())
+                    // An identity kind is picked on the Queue tab: its matches plus the chain of
+                    // groups above them, as a normal expandable outline whichever list style is
+                    // set (see identity-queue-filter.kt).
+                    kindFilter != null -> buildQueueList(
+                        vm.activeTasks.value ?: emptyList(), vm.settings.groupsEnabled.value ?: false,
+                        vm.allTaskLinks.value ?: emptyList(), vm.allTaskMemberships.value ?: emptyList(),
+                        vm.allMembershipAcl.value ?: emptyList(), kindFilter)
                     vm.settings.queueListStyle.value == TaskListStyle.DRILL_DOWN -> {
                         val tasks       = vm.activeTasks.value       ?: emptyList()
                         val links       = vm.allTaskLinks.value       ?: emptyList()
@@ -708,54 +709,43 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
     // ── List builders ─────────────────────────────────────────────────────────
 
     /**
-     * Queue tab narrowed to one identity [kind] — STRICT: a row is here only if the task's OWN
-     * kind matches, wherever it lives in the tree (inside a collapsed group, inside a group of
-     * another kind...). A group of a different kind is not shown, and nothing is nested, so
-     * this one flat list serves both list styles.
-     *
-     * Rows are built exactly like the flat (groups-off) Queue list above: sorted by name,
-     * numbered 1, 2, 3…, with the same share / quota / link fields. Hardlink and symlink
-     * placement rows are left out — each task is listed once, as itself. View-only: nothing
-     * here changes a task, its identity, or what runs next.
-     */
-    private fun buildKindFilteredQueueList(
-        tasks: List<Task>, kind: IdentityKind, groupsEnabled: Boolean,
-        links: List<TaskLink>, memberships: List<TaskMembership>,
-    ): List<TaskDisplayItem> {
-        val nowMs  = vm.clock.nowEpochMillis()
-        val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
-        return tasks
-            .filter { it.ownIdentityKind() == kind && (groupsEnabled || !it.isGroup) }
-            .sortedWith(SortHelper.taskNameComparator)
-            .mapIndexed { index, it ->
-                val (descGroups, descTasks) = countDescendants(it.id, tasks)
-                TaskDisplayItem(it, 0,
-                    childGroupCount        = descGroups,
-                    childTaskCount         = descTasks,
-                    cpuShare               = shares[it.id] ?: 0.0,
-                    effectiveQuotaExceeded = it.isQuotaExceeded(nowMs),
-                    effectiveQuotaWarning  = it.isQuotaWarning(nowMs),
-                    queueNumber            = "${index + 1}",
-                    isLinkedElsewhere      = isLinkedElsewhere(it.id, links, memberships))
-            }
-    }
-
-    /**
      * Queue tab: tasks sorted by the first number in their name (static order).
      * Groups are shown when [groupsEnabled] is true; only leaf tasks otherwise.
+     *
+     * [kindFilter] (the Queue tab's identity filter, see identity-queue-filter.kt): when set, a row is a
+     * MATCH only if the task's OWN kind is [kindFilter] — strict, nothing else qualifies — and the chain of
+     * groups ABOVE every match, up to the root, is kept as context (rows flagged
+     * [TaskDisplayItem.isFilterContextOnly]) so a match is never orphaned: the same way the Schedule tab's
+     * class filter keeps the path to the root. Every match is always shown: the groups above it are open here
+     * whatever their collapsed state in the normal Queue, so no match is hidden under a collapsed group.
+     * Everything else is left out BEFORE numbering, so numbers have no gaps. Hardlink / symlink placements
+     * are not listed (each task shows once, at its real place). Counts, shares and quota stay the real ones.
      */
     private fun buildQueueList(
         tasks: List<Task>, groupsEnabled: Boolean,
         links: List<TaskLink> = emptyList(), memberships: List<TaskMembership> = emptyList(),
         aclRows: List<MembershipAcl> = emptyList(),
+        kindFilter: IdentityKind? = null,
     ): List<TaskDisplayItem> {
         // Sampled ONCE for this list rebuild — every row's quota pill in this
         // pass reads the same instant (kernel rule 1).
         val nowMs = vm.clock.nowEpochMillis()
         val shares = EEVDFScheduler.computeShares(tasks, groupsEnabled)
+        // Identity filter: the matches, and every group on the way up from a match to the root.
+        val matchIds = if (kindFilter == null) emptySet<String>()
+            else tasks.filter { it.ownIdentityKind() == kindFilter }.mapTo(HashSet()) { it.id }
+        val keepIds = HashSet<String>()
+        if (kindFilter != null) {
+            val byId = tasks.associateBy { it.id }
+            for (id in matchIds) {
+                var cur: Task? = byId[id]
+                // add() is false once a row (and so all its ancestors) is already in: stops early, and on a cycle.
+                while (cur != null && keepIds.add(cur.id)) cur = cur.parentId?.let { byId[it] }
+            }
+        }
         if (!groupsEnabled) {
             return tasks
-                .filter { !it.isGroup }
+                .filter { !it.isGroup && (kindFilter == null || it.id in matchIds) }   // no groups shown, so no ancestors either
                 .sortedWith(SortHelper.taskNameComparator)
                 .mapIndexed { index, it ->
                     val (descGroups, descTasks) = countDescendants(it.id, tasks)
@@ -784,14 +774,17 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
             // Children hidden through the door in effect here are dropped BEFORE
             // numbering and sorting, so numbers have no gaps and a hidden child
             // is invisible to its siblings.
-            val children = acl.visibleChildren(
+            val visibleSiblings = acl.visibleChildren(
                 effectiveTasks.filter { it.parentId == parentId }.sortedWith(SortHelper.taskNameComparator),
                 inheritedDoor, parentId)
+            // Identity filter: only the matches and the groups leading to them (never a hardlink placement).
+            val children = if (kindFilter == null) visibleSiblings
+                else visibleSiblings.filter { !it.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX) && it.id in keepIds }
             // Doors with hidden children get their own share pool; every other
             // level uses the global shares unchanged.
             val levelShares = acl.sharesFor(inheritedDoor, parentId, effectiveTasks, effectiveShares)
             // Relative-lag numbers for the GROUPS of this level (visible siblings only), once per level.
-            val rlRanks = EEVDFScheduler.relativeLagRanks(children)
+            val rlRanks = EEVDFScheduler.relativeLagRanks(visibleSiblings)   // truthful ranks among ALL visible siblings, filtered or not
             val counter = IntArray(1)
             children.forEach { entry ->
                 val isMembership = entry.id.startsWith(MEMBERSHIP_SYNTHETIC_PREFIX)
@@ -839,17 +832,20 @@ internal class ListBuilderDelegate(private val vm: TaskViewModel) {
                         queueNumber            = number,
                         entryMembershipId      = inheritedDoor,
                         isLinkedElsewhere      = isLinkedElsewhere(realTask.id, links, memberships),
-                        isExpanded             = if (realTask.isGroup) (vm.groupExpand.queueExpandState[realTask.id] ?: true) else true,
-                        relativeLag            = rlRanks[entry.id]))
+                        isExpanded             = if (realTask.isGroup) (kindFilter != null || (vm.groupExpand.queueExpandState[realTask.id] ?: true)) else true,
+                        relativeLag            = rlRanks[entry.id],
+                        // Kept only as the way up to a match, not a match itself (Next skips these rows).
+                        isFilterContextOnly    = kindFilter != null && realTask.id !in matchIds))
                 }
-                if (realTask.isGroup && (vm.groupExpand.queueExpandState[realTask.id] ?: true))
+                // Filtered: always descend — a match under a collapsed group must still show.
+                if (realTask.isGroup && (kindFilter != null || (vm.groupExpand.queueExpandState[realTask.id] ?: true)))
                     addLevel(realTask.id, depth + 1, number, quotaExceeded, quotaWarning, childDoor)
             }
 
             // Symlinks hosted at this level: display-only, zero weight, appended
             // after the real/hardlinked children so they never disturb numbering
             // parity with how many "real" siblings exist.
-            acl.visibleLinks(links.filter { it.hostGroupId == parentId }, inheritedDoor, parentId).forEach { link ->
+            if (kindFilter == null) acl.visibleLinks(links.filter { it.hostGroupId == parentId }, inheritedDoor, parentId).forEach { link ->
                 val target = tasksById[link.targetTaskId]  // null = broken link, rendered not skipped
                 counter[0]++
                 val number = if (parentNumber.isEmpty()) "${counter[0]}" else "$parentNumber.${counter[0]}"

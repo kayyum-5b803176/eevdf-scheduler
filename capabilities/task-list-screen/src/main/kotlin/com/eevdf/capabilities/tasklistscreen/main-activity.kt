@@ -554,9 +554,9 @@ class MainActivity : AppCompatActivity() {
             val task  = item.task
             val style = if (scheduleTab) viewModel.scheduleListStyle.value else viewModel.queueListStyle.value
             if (!scheduleTab && viewModel.queueKindFilter.value != null) {
-                // Identity filter on: the Queue shows a strict flat list, so a group has no
-                // children here to expand or drill into (and a drill frame pushed now would
-                // be invisible).
+                // Identity filter on: the Queue shows every match with the groups above it, all open —
+                // there is nothing to collapse (it would hide a match) and no level to drill into (a
+                // drill frame pushed now would be invisible). A group tap does nothing here.
             } else if (style == TaskListStyle.DRILL_DOWN) {
                 // A hardlinked group opens a fresh door (its own membership);
                 // a plain real subgroup just carries the CURRENT door forward

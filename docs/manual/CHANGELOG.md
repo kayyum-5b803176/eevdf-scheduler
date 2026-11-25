@@ -5,6 +5,51 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.57.0 — Queue identity filter shows the parent groups up to the root
+
+Includes everything in 6.56.2. No database change, `versionCode` untouched.
+
+### Changed
+- **The Queue tab's identity filter now keeps the way up.** Open the Process tab and it shows **every Process task, plus the
+  groups above each one all the way up to the root — even when those groups are not Process kind.** Before, only the matching
+  rows were listed, so a task inside a group appeared on its own with no sign of where it lives.
+  ```
+  1      A            ← group above a match (any kind)
+    1.1  A1           ← Process
+    1.2  B            ← group above a match (any kind)
+      1.2.1  B1       ← Process
+  2      D            ← Process (a group whose own kind is Process)
+  3      E            ← group above a match
+    3.1  E1           ← Process, shown even if E is collapsed in the normal Queue
+  4      P            ← Process
+  ```
+  This is the same way the Deadline filter on the Schedule tab keeps the path to the root.
+
+### Rules
+- **Still strict.** A task is a match only if its OWN kind is the picked one. A non-matching sibling or child is never listed
+  (and a group with no match anywhere below it is not shown at all). Only the groups on the path above a match are added.
+- **Every match is always shown.** While a kind is picked the groups above a match are open whatever their collapsed state in
+  the normal Queue, so no Process task is hidden under a collapsed group. There is nothing to collapse in this view, and a tap on
+  a group does nothing; there is also no drill-down (it is this outline whichever list style is set).
+- **Same rows as the normal Queue:** numbered 1, 1.1, 1.2… with no gaps (rows left out are removed before numbering), the real
+  group counts, CPU shares and quota colours. Parent rows are flagged `isFilterContextOnly`, so Next skips them as on the
+  Schedule tab. Hardlink / symlink placement rows are still not listed (each task shows once, at its real place). With Groups
+  turned off in Settings only the matching tasks show, with no parents.
+- View-only and not saved, as before.
+
+### How
+`buildQueueList` takes an optional `kindFilter` instead of the separate flat builder of 6.54.0, which is removed: it collects the
+matching tasks, climbs `parentId` from each to the root to find the groups to keep, drops every other row before numbering, and
+descends into every kept group regardless of its collapsed state.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here; `task-list-screen` has no unit-test source set). The selection
+logic was checked with an independent model on a tree with: a match two groups deep, a group of another kind in the path, a
+matching group whose children do not match, a group with no match at all, and a match under a collapsed group — all as drawn
+above. Check on the phone: pick Process on a Queue with nested groups — every Process task appears with its parent groups up to
+the root; a Process task under a group you collapsed in the normal Queue is still shown; non-Process siblings are not; pick
+Process again to clear and the Queue is back, with your collapsed groups still collapsed.
+
 ## 6.56.2 — Fix: the identity kind never changed on larger tasks and groups (the save was cancelled)
 
 Includes everything in 6.56.1. No database change, `versionCode` untouched.
