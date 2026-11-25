@@ -159,6 +159,9 @@ internal class DisplayScaleDelegate(private val activity: MainActivity) {
 
         activity.fabAdd.visibility =
             if (!suppressForCompactProfile && editEnabled) View.VISIBLE else View.GONE
+        // The speed dial hangs off the add button: when that is hidden (Allow Edit off, compact
+        // window) it must not stay open on its own.
+        if (activity.fabAdd.visibility != View.VISIBLE) activity.setSpeedDialOpen(false, animated = false)
 
         activity.fabQuickAction.visibility =
             if (!suppressForCompactProfile && quickEnabled) View.VISIBLE else View.GONE

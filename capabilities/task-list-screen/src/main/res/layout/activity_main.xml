@@ -199,6 +199,10 @@
         android:contentDescription="Quick Action"
         android:visibility="gone" />
 
+    <!-- Speed dial opened by fabAdd (scrim + Links / Fork / Clone / Task). Declared BEFORE fabAdd so the
+         main button is drawn on top of it. -->
+    <include layout="@layout/section_main_speed_dial" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabAdd"
         android:layout_width="wrap_content"
@@ -208,6 +212,6 @@
         android:src="@android:drawable/ic_input_add"
         app:backgroundTint="@color/colorAccent"
         app:tint="@android:color/white"
-        android:contentDescription="Add Task" />
+        android:contentDescription="Add" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

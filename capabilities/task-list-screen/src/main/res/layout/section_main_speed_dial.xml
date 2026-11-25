@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Speed dial for the add button (fabAdd) — tap it and four actions open straight up above it,
+  vertical, each a small round button with its label on the left:
+
+        Links    ( link )     opens the Links page (symlinks / hardlinks)
+        Fork     ( split )    not wired yet — greyed, a tap only says so
+        Clone    ( copy )     not wired yet — greyed, a tap only says so
+        Task     ( pencil )   opens the regular Add Task screen   ← nearest the main button
+
+  A dimming scrim sits behind it; tapping the scrim, the main button again or Back closes it.
+  Wired in MainActivity.setSpeedDialOpen() / setupViews().
+
+  <merge>: its two views become direct children of activity_main's CoordinatorLayout, so the
+  layout_anchor to fabAdd works. The container is anchored to fabAdd's TOP-END corner and grows
+  upward from it (bottom|end gravity); its bottom padding is the gap above the main button, and
+  its end padding centres the mini buttons (40dp) over the main one (56dp).
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Dims the list while the dial is open; fully consumes taps so a tap here only closes it. -->
+    <View
+        android:id="@+id/speedDialScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/app_black"
+        android:clickable="true"
+        android:focusable="false"
+        android:contentDescription="Close menu"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/speedDial"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:orientation="vertical"
+        android:gravity="end"
+        android:paddingBottom="@dimen/app_spacing_xl"
+        android:paddingEnd="@dimen/app_spacing_md"
+        android:visibility="gone"
+        app:layout_anchor="@id/fabAdd"
+        app:layout_anchorGravity="top|end">
+
+    <!-- Links -->
+    <LinearLayout
+        android:id="@+id/rowSpeedDialLinks"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/app_spacing_md"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/App.Card"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/app_spacing_md">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="@dimen/app_card_padding_xs"
+                android:paddingEnd="@dimen/app_card_padding_xs"
+                android:paddingTop="@dimen/app_card_padding_cs"
+                android:paddingBottom="@dimen/app_card_padding_cs"
+                android:text="Links"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_body"
+                android:fontFamily="sans-serif-medium" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabSpeedDialLinks"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_speed_dial_link"
+            app:fabSize="mini"
+            app:backgroundTint="@color/colorAccent"
+            app:tint="@color/app_white"
+            android:contentDescription="Links" />
+    </LinearLayout>
+
+    <!-- Fork — shown, not wired yet (greyed; a tap only says so) -->
+    <LinearLayout
+        android:id="@+id/rowSpeedDialFork"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/app_spacing_md"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/App.Card"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/app_spacing_md"
+            android:alpha="0.45">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="@dimen/app_card_padding_xs"
+                android:paddingEnd="@dimen/app_card_padding_xs"
+                android:paddingTop="@dimen/app_card_padding_cs"
+                android:paddingBottom="@dimen/app_card_padding_cs"
+                android:text="Fork"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_body"
+                android:fontFamily="sans-serif-medium" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabSpeedDialFork"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_speed_dial_fork"
+            app:fabSize="mini"
+            app:backgroundTint="@color/colorAccent"
+            app:tint="@color/app_white"
+            android:contentDescription="Fork"
+            android:alpha="0.45" />
+    </LinearLayout>
+
+    <!-- Clone — shown, not wired yet (greyed; a tap only says so) -->
+    <LinearLayout
+        android:id="@+id/rowSpeedDialClone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/app_spacing_md"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/App.Card"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/app_spacing_md"
+            android:alpha="0.45">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="@dimen/app_card_padding_xs"
+                android:paddingEnd="@dimen/app_card_padding_xs"
+                android:paddingTop="@dimen/app_card_padding_cs"
+                android:paddingBottom="@dimen/app_card_padding_cs"
+                android:text="Clone"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_body"
+                android:fontFamily="sans-serif-medium" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabSpeedDialClone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_speed_dial_clone"
+            app:fabSize="mini"
+            app:backgroundTint="@color/colorAccent"
+            app:tint="@color/app_white"
+            android:contentDescription="Clone"
+            android:alpha="0.45" />
+    </LinearLayout>
+
+    <!-- Task -->
+    <LinearLayout
+        android:id="@+id/rowSpeedDialTask"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/app_spacing_md"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/App.Card"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/app_spacing_md">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="@dimen/app_card_padding_xs"
+                android:paddingEnd="@dimen/app_card_padding_xs"
+                android:paddingTop="@dimen/app_card_padding_cs"
+                android:paddingBottom="@dimen/app_card_padding_cs"
+                android:text="Task"
+                android:textSize="@dimen/app_text_size_md"
+                android:textColor="@color/app_text_body"
+                android:fontFamily="sans-serif-medium" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabSpeedDialTask"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_speed_dial_task"
+            app:fabSize="mini"
+            app:backgroundTint="@color/colorAccent"
+            app:tint="@color/app_white"
+            android:contentDescription="Task" />
+    </LinearLayout>
+
+    </LinearLayout>
+</merge>

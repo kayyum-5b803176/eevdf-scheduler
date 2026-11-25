@@ -58,6 +58,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 class MainActivity : AppCompatActivity() {
 
     private companion object {
+        /** How dark the scrim behind the open speed dial is (0 = clear, 1 = black). */
+        private const val SPEED_DIAL_SCRIM_ALPHA = 0.32f
+
         const val CAPABILITY_ID = "task-list-screen"
     }
 
@@ -73,6 +76,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabLayout:           TabLayout
     internal lateinit var fabAdd:              FloatingActionButton
     internal lateinit var fabQuickAction:      FloatingActionButton
+
+    // Speed dial opened by fabAdd: a dimming scrim and four action rows, top to bottom
+    // Links · Fork · Clone · Task (see section_main_speed_dial.xml).
+    private lateinit var speedDialScrim:   View
+    private lateinit var speedDial:        View
+    private lateinit var speedDialRows:    List<View>
+    private lateinit var speedDialBackCallback: androidx.activity.OnBackPressedCallback
+    /** True while the speed dial is open. */
+    internal var speedDialOpen = false
+        private set
     /** The card above the list — drawn by the timer-card capability from specs published on the bus. */
     internal lateinit var cardTimer:           TimerCardView
     @Inject lateinit var timerCardController:  TimerCardController
@@ -203,6 +216,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
         onBackPressedDispatcher.addCallback(this, drillBackCallback)
+        // Registered after the drill-back one, so it is asked first: Back closes an open speed dial
+        // before anything else.
+        speedDialBackCallback = object : androidx.activity.OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() { setSpeedDialOpen(false) }
+        }
+        onBackPressedDispatcher.addCallback(this, speedDialBackCallback)
         viewModel.queueDrillState.observe(this)    { refreshDrillBackCallback() }
         viewModel.scheduleDrillState.observe(this) { refreshDrillBackCallback() }
 
@@ -493,6 +512,10 @@ class MainActivity : AppCompatActivity() {
         tabLayout         = findViewById(R.id.tabLayout)
         fabAdd            = findViewById(R.id.fabAdd)
         fabQuickAction    = findViewById(R.id.fabQuickAction)
+        speedDialScrim    = findViewById(R.id.speedDialScrim)
+        speedDial         = findViewById(R.id.speedDial)
+        speedDialRows     = listOf(R.id.rowSpeedDialLinks, R.id.rowSpeedDialFork,
+                                   R.id.rowSpeedDialClone, R.id.rowSpeedDialTask).map { findViewById<View>(it) }
         cardTimer         = findViewById(R.id.cardTimer)
         tvStats           = findViewById(R.id.tvStats)
         tvFairness        = findViewById(R.id.tvFairness)
@@ -507,18 +530,34 @@ class MainActivity : AppCompatActivity() {
             if (viewModel.drillBack(onQueueTab)) updateBreadcrumb()
         }
 
+        // Tap the add button: open / close the speed dial (Links · Fork · Clone · Task). Holding it does
+        // nothing — Links used to live behind a long-press and is now the first action of the dial.
         fabAdd.setOnClickListener {
             haptic(it)
+            setSpeedDialOpen(!speedDialOpen)
+        }
+        speedDialScrim.setOnClickListener { setSpeedDialOpen(false) }
+
+        // A row and its round button both trigger the action (the label is part of the row).
+        fun bindSpeedDialAction(rowId: Int, buttonId: Int, action: () -> Unit) {
+            val click = View.OnClickListener { haptic(it); action() }
+            findViewById<View>(rowId).setOnClickListener(click)
+            findViewById<View>(buttonId).setOnClickListener(click)
+        }
+        bindSpeedDialAction(R.id.rowSpeedDialLinks, R.id.fabSpeedDialLinks) {
+            setSpeedDialOpen(false, animated = false)       // closed already when the person comes back
+            startActivity(AppRoutes.links(this))
+        }
+        bindSpeedDialAction(R.id.rowSpeedDialTask, R.id.fabSpeedDialTask) {
+            setSpeedDialOpen(false, animated = false)
             startActivity(Intent().setClassName(this, AppRoutes.ADD_TASK))
         }
-
-        // Hold Add Task -> Links (symlink/hardlink creation). Tap still opens
-        // the normal Add Task screen unchanged. Same hold-to-open pattern as
-        // statsBar's long click above.
-        fabAdd.setOnLongClickListener {
-            haptic(it)
-            startActivity(com.eevdf.capabilities.navigationroutes.AppRoutes.links(this))
-            true
+        // Fork and Clone are shown but not wired yet.
+        bindSpeedDialAction(R.id.rowSpeedDialFork, R.id.fabSpeedDialFork) {
+            Toast.makeText(this, "Fork isn't available yet", Toast.LENGTH_SHORT).show()
+        }
+        bindSpeedDialAction(R.id.rowSpeedDialClone, R.id.fabSpeedDialClone) {
+            Toast.makeText(this, "Clone isn't available yet", Toast.LENGTH_SHORT).show()
         }
 
         // Quick Action: jump to the active INT task (A or B) then start timer.
@@ -528,6 +567,56 @@ class MainActivity : AppCompatActivity() {
             haptic(it)
             viewModel.jumpToInterrupt()
             fabQuickAction.postDelayed({ viewModel.startTimer() }, 80L)
+        }
+    }
+
+    /**
+     * Opens / closes the speed dial above the add button.
+     *
+     * Open: the main button turns 45° (the + becomes a ✕), the scrim dims the list, and the four rows
+     * rise into place, the bottom one (Task, nearest the button) first. Close is the reverse. While it
+     * is open the Quick Action button is hidden — it sits exactly where the dial opens — and Back closes
+     * the dial. [animated] = false snaps it shut (used when leaving for another screen, and when the add
+     * button is hidden by the display settings, so nothing is left half-open).
+     */
+    internal fun setSpeedDialOpen(open: Boolean, animated: Boolean = true) {
+        if (open == speedDialOpen) return
+        speedDialOpen = open
+        if (::speedDialBackCallback.isInitialized) speedDialBackCallback.isEnabled = open
+
+        // The Quick Action button is hidden by alpha, not visibility: the display settings own its visibility.
+        fabQuickAction.alpha       = if (open) 0f else 1f
+        fabQuickAction.isClickable = !open
+
+        val dur  = if (animated) 160L else 0L
+        val rise = 24f * resources.displayMetrics.density
+        fabAdd.animate().cancel()
+        fabAdd.animate().rotation(if (open) 45f else 0f).setDuration(dur).start()
+
+        speedDialScrim.animate().cancel()
+        speedDial.animate().cancel()
+        if (open) {
+            speedDialScrim.alpha = 0f
+            speedDialScrim.visibility = View.VISIBLE
+            speedDialScrim.animate().alpha(SPEED_DIAL_SCRIM_ALPHA).setDuration(dur).start()
+            speedDial.alpha = 1f
+            speedDial.visibility = View.VISIBLE
+            speedDialRows.forEachIndexed { i, row ->
+                row.animate().cancel()
+                row.alpha = 0f
+                row.translationY = rise
+                // Rows are listed top to bottom; the last one (Task) appears first.
+                row.animate().alpha(1f).translationY(0f)
+                    .setStartDelay(if (animated) (speedDialRows.lastIndex - i) * 30L else 0L)
+                    .setDuration(dur).start()
+            }
+        } else {
+            speedDialScrim.animate().alpha(0f).setDuration(dur).withEndAction {
+                if (!speedDialOpen) speedDialScrim.visibility = View.GONE
+            }.start()
+            speedDial.animate().alpha(0f).setDuration(dur).withEndAction {
+                if (!speedDialOpen) speedDial.visibility = View.GONE
+            }.start()
         }
     }
 

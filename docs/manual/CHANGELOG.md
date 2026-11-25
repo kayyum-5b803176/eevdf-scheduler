@@ -5,6 +5,38 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.58.0 — The add button opens a vertical speed dial (Links · Fork · Clone · Task)
+
+Includes everything in 6.57.0. No database change, `versionCode` untouched.
+
+### Changed
+- **Tapping the add (+) button now opens a vertical speed dial** instead of going straight to Add Task. Four small round
+  buttons stack up above it, each with its label on the left, top to bottom: **Links**, **Fork**, **Clone**, **Task** (Task
+  nearest the main button). The main button turns 45° (the + becomes a ✕) and the list behind is dimmed.
+  - **Task** opens the regular Add Task screen — what a tap used to do.
+  - **Links** opens the Links page (symlinks / hardlinks) — what a long-press used to do.
+  - **Fork** and **Clone** are shown but **not wired yet**: greyed, and a tap only says "… isn't available yet".
+- **Holding the add button no longer does anything.** Links is no longer behind a long-press; it is the first action of the dial.
+- **Closing it:** tap the main button again, tap the dimmed area, or press Back (Back closes the dial before anything else).
+  It also snaps shut when you pick Task or Links, so it is closed when you come back, and when the add button is hidden by the
+  display settings (Allow Edit off, compact window) so it can never be left open on its own.
+- **The Quick Action button hides while the dial is open** (it sits exactly where the dial opens) and returns when it closes.
+  It is hidden by transparency, not visibility, so the display settings still own whether it shows.
+- The add button's accessibility label is now "Add" (it opens a menu rather than adding a task directly).
+
+### Added
+- `section_main_speed_dial.xml` (scrim + the four rows, anchored to the add button's top-end corner so it follows the button
+  wherever display scaling puts it) and four plain vector icons `ic_speed_dial_{link,task,fork,clone}.xml`. No emoji, design-system
+  tokens only. Built with the app's own views, not a speed-dial library, so no new dependency.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler here). The XML was checked for well-formedness and every token it uses
+was confirmed to exist. Check on the phone: tap + → four buttons rise, the list dims, + becomes ✕; Links and Task open their
+screens and the dial is closed when you return; Fork / Clone are greyed and only toast; tap outside, tap ✕ and Back each close
+it; hold + does nothing; with the Quick Action button enabled it disappears while the dial is open; turn Allow Edit off while it
+is open — the dial goes with the button. If a mini button is not centred over the main one, or the gap above the main button
+looks wrong with your display scale, the dial container's end / bottom padding in `section_main_speed_dial.xml` is the knob.
+
 ## 6.57.0 — Queue identity filter shows the parent groups up to the root
 
 Includes everything in 6.56.2. No database change, `versionCode` untouched.
