@@ -763,21 +763,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Tapping the already-selected Queue tab opens a pop-up — same mechanism as the Schedule
-     * tab's class filter — listing the identity kinds. Picking one narrows the Queue to tasks
-     * of exactly that kind (see identity-queue-filter.kt); picking the one that is already
-     * selected clears it, since there is no "All" row. A radio mark shows the current choice.
-     * View-only: it never changes any task.
+     * Tapping the already-selected Queue tab opens a menu of the identity kinds (see
+     * identity-queue-filter.kt). Picking one narrows the Queue to tasks of exactly that kind;
+     * picking the kind that is already selected clears it, since there is no "All" row. The tab's
+     * own label shows the current choice, so the rows carry no radio marks.
+     *
+     * The menu is exactly as wide as the Queue tab and sits right under it. A plain PopupMenu
+     * cannot be given a width, so this is a ListPopupWindow anchored to the tab view. View-only:
+     * it never changes any task.
      */
     private fun showQueueKindFilterMenu(tab: TabLayout.Tab) {
-        val popup   = android.widget.PopupMenu(this, tabView(tab), android.view.Gravity.CENTER_HORIZONTAL)
-        val current = viewModel.queueKindFilter.value
-        IdentityKind.values().forEach { k -> popup.menu.add(0, k.ordinal, k.ordinal, k.label) }
-        popup.menu.setGroupCheckable(0, true, true)
-        current?.let { popup.menu.findItem(it.ordinal)?.isChecked = true }
-        popup.setOnMenuItemClickListener { item ->
-            viewModel.toggleQueueKindFilter(IdentityKind.values()[item.itemId])
-            true
+        val anchor = tabView(tab)
+        val kinds  = IdentityKind.values()
+        val popup  = androidx.appcompat.widget.ListPopupWindow(this)
+        popup.anchorView = anchor
+        popup.width      = anchor.width          // the Queue tab's own width
+        popup.isModal    = true                  // tapping outside closes it
+        popup.setAdapter(android.widget.ArrayAdapter(this, R.layout.item_queue_kind_menu, kinds.map { it.label }))
+        popup.setOnItemClickListener { _, _, position, _ ->
+            viewModel.toggleQueueKindFilter(kinds[position])
+            popup.dismiss()
         }
         popup.show()
     }

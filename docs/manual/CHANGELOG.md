@@ -5,6 +5,26 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.54.1 — Queue filter menu: no radio marks, exactly as wide as the tab
+
+Includes everything in 6.54.0. No database change, `versionCode` untouched.
+
+### Fixed
+- **The identity menu no longer shows radio buttons.** The tab's own label already names the current kind
+  ("Process"), so the rows are plain text. Picking the kind that is already selected still clears the filter.
+- **The menu is exactly as wide as the Queue tab** and drops straight down from it, left edges aligned, instead of
+  floating centred at its own width. A plain `PopupMenu` cannot be given a width, so the Queue menu is now a
+  `ListPopupWindow` anchored to the tab view, sized to the tab's measured width. Rows are one line and ellipsized,
+  so a long label can never widen the menu. The Schedule and Completed menus are unchanged.
+
+### Added
+- `item_queue_kind_menu.xml` — one menu row, design-system tokens only.
+
+### Verified / not verified
+**Not built, not run.** Check on the phone: tap Queue again — the menu has no radio marks and its left and right
+edges line up with the Queue tab. On a narrow screen, "Process Group" may be cut with "…" (the tab is about a third
+of the screen wide); if you would rather it fit, the row padding in `item_queue_kind_menu.xml` can shrink.
+
 ## 6.54.0 — Queue tab: filter by identity kind
 
 Includes everything in 6.53.0. No database change, `versionCode` untouched.
