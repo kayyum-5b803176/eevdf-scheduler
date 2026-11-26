@@ -1,6 +1,8 @@
 package com.eevdf.capabilities.addtaskscreen
 
 import android.view.View
+import android.widget.Toast
+import com.eevdf.capabilities.taskstorage.IdentityRules
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.grouppicker.output.PickerDialog
 import com.eevdf.capabilities.taskstorage.logic.SortHelper
@@ -43,37 +45,63 @@ internal fun AddTaskActivity.setupGroupSection() {
 
     actvParentGroup.setOnClickListener {
         val dialog = PickerDialog().apply {
-            allGroups      = groupsList.filterNotNull()
+            allGroups      = allowedParentGroups()      // only the kinds this task's kind may sit in
             currentGroupId = selectedParentId
-            onGroupSelected = { chosen ->
-                selectedParentId = chosen?.id
-                actvParentGroup.setText(chosen?.name ?: "None (root level)", false)
-
-                when {
-                    // Parent picked while already in auto mode → sync to new parent
-                    chosen != null && (isLoadFactorInherited || isTimeSliceInherited) -> {
-                        if (isLoadFactorInherited) applyParentLoadFactor(chosen)   // ← Task, not Double
-                        if (isTimeSliceInherited)  applyParentTimeSlice(chosen.timeSliceSeconds)
-                    }
-
-                    // Parent deselected while in auto mode → reset to defaults
-                    chosen == null && (isLoadFactorInherited || isTimeSliceInherited) -> {
-                        if (isLoadFactorInherited) resetLoadFactorToDefault()      // ← new helper
-                        if (isTimeSliceInherited) {
-                            isTimeSliceInherited = false
-                            tvTimeSliceAutoLabel.visibility = View.GONE
-                        }
-                    }
-
-                    // New task picking a parent for the first time → inherit both
-                    chosen != null && existingTaskId == null -> {
-                        applyParentLoadFactor(chosen)                              // ← Task, not Double
-                        applyParentTimeSlice(chosen.timeSliceSeconds)
-                    }
-                }
-            }
+            onGroupSelected = { chosen -> applyParentChoice(chosen) }
         }
         dialog.show(supportFragmentManager, "group_picker")
+    }
+}
+
+/**
+ * The groups the picker offers: all of them while the task's kind is Undefined (or has no rule), otherwise only
+ * groups of a kind it may sit in — a User is offered only groups of kind Group, a Thread only Processes, and so on
+ * ([IdentityRules.allowedParentKinds]). It follows [selectedIdentityKind], so changing the kind changes the list.
+ */
+internal fun AddTaskActivity.allowedParentGroups(): List<Task> =
+    groupsList.filterNotNull().filter {
+        IdentityRules.canBeParent(selectedIdentityKind, IdentityRules.kindOf(it.identity))
+    }
+
+/**
+ * Called when the kind changes: if the group the task is in is no longer one its new kind may sit in, the task
+ * is moved back to the root, exactly as if the person had picked "None" — with a note, since it changed on its own.
+ */
+internal fun AddTaskActivity.revalidateParentForKind() {
+    val pid = selectedParentId ?: return
+    val parent = groupsList.filterNotNull().firstOrNull { it.id == pid } ?: return
+    if (IdentityRules.canBeParent(selectedIdentityKind, IdentityRules.kindOf(parent.identity))) return
+    applyParentChoice(null)
+    Toast.makeText(this, "A ${selectedIdentityKind.label.lowercase()} can't sit in \"${parent.name}\" — moved to the root",
+        Toast.LENGTH_SHORT).show()
+}
+
+/** Everything that follows from choosing [chosen] as the parent (null = root): the field, and the inherited defaults. */
+internal fun AddTaskActivity.applyParentChoice(chosen: Task?) {
+    selectedParentId = chosen?.id
+    actvParentGroup.setText(chosen?.name ?: "None (root level)", false)
+
+    when {
+        // Parent picked while already in auto mode → sync to new parent
+        chosen != null && (isLoadFactorInherited || isTimeSliceInherited) -> {
+            if (isLoadFactorInherited) applyParentLoadFactor(chosen)   // ← Task, not Double
+            if (isTimeSliceInherited)  applyParentTimeSlice(chosen.timeSliceSeconds)
+        }
+
+        // Parent deselected while in auto mode → reset to defaults
+        chosen == null && (isLoadFactorInherited || isTimeSliceInherited) -> {
+            if (isLoadFactorInherited) resetLoadFactorToDefault()      // ← new helper
+            if (isTimeSliceInherited) {
+                isTimeSliceInherited = false
+                tvTimeSliceAutoLabel.visibility = View.GONE
+            }
+        }
+
+        // New task picking a parent for the first time → inherit both
+        chosen != null && existingTaskId == null -> {
+            applyParentLoadFactor(chosen)                              // ← Task, not Double
+            applyParentTimeSlice(chosen.timeSliceSeconds)
+        }
     }
 }
 

@@ -157,6 +157,40 @@ class IdentityRulesTest {
         assertEquals("undefined:101", fixed["d"])
     }
 
+    // ── which group a kind may sit in ────────────────────────────────────────
+
+    @Test fun `undefined, group and session have no parent restriction`() {
+        for (child in listOf(IdentityKind.UNDEFINED, IdentityKind.GROUP, IdentityKind.SESSION))
+            for (parent in IdentityKind.values()) assertTrue(IdentityRules.canBeParent(child, parent))
+    }
+
+    @Test fun `a user sits only in a group`() {
+        assertTrue(IdentityRules.canBeParent(IdentityKind.USER, IdentityKind.GROUP))
+        for (p in IdentityKind.values().filter { it != IdentityKind.GROUP })
+            assertFalse(IdentityRules.canBeParent(IdentityKind.USER, p))
+    }
+
+    @Test fun `a process sits in a user, a group or a process group`() {
+        for (p in listOf(IdentityKind.USER, IdentityKind.GROUP, IdentityKind.PROCESS_GROUP))
+            assertTrue(IdentityRules.canBeParent(IdentityKind.PROCESS, p))
+        for (p in listOf(IdentityKind.UNDEFINED, IdentityKind.PROCESS, IdentityKind.THREAD, IdentityKind.SESSION))
+            assertFalse(IdentityRules.canBeParent(IdentityKind.PROCESS, p))
+    }
+
+    @Test fun `a thread sits only in a process`() {
+        assertEquals(setOf(IdentityKind.PROCESS), IdentityRules.allowedParentKinds(IdentityKind.THREAD))
+    }
+
+    @Test fun `a process group sits only in a session`() {
+        assertEquals(setOf(IdentityKind.SESSION), IdentityRules.allowedParentKinds(IdentityKind.PROCESS_GROUP))
+    }
+
+    @Test fun `kindOf reads an unassigned identity as undefined`() {
+        assertEquals(IdentityKind.USER, IdentityRules.kindOf("user:101"))
+        assertEquals(IdentityKind.UNDEFINED, IdentityRules.kindOf(""))
+        assertEquals(IdentityKind.UNDEFINED, IdentityRules.kindOf("process:"))
+    }
+
     @Test fun `reserved range constants`() {
         assertTrue(IdentityRules.isReserved(1))
         assertTrue(IdentityRules.isReserved(100))

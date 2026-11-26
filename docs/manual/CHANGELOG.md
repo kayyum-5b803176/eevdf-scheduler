@@ -5,6 +5,41 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.60.0 — The parent-group picker follows the task's kind
+
+Includes everything in 6.59.0. No database change, `versionCode` untouched.
+
+### Changed
+- **On Add / Edit Task, the "parent group" picker now offers only the groups a task of its kind may sit in**, and the list changes when
+  you change the kind. A group's kind is read from its identity (a group of kind Undefined counts as Undefined).
+
+  | Task kind | Parent group must be kind |
+  |---|---|
+  | Undefined | any (no filter) |
+  | User | Group |
+  | Process | User, Group or Process Group |
+  | Thread | Process |
+  | Process Group | Session |
+  | Group, Session | any (no rule says what contains them) |
+
+  From: a user belongs to groups; a user or group owns processes; a process belongs to one process group and contains threads; a
+  process group belongs to one session, which holds process groups.
+- **Changing the kind clears a parent it no longer allows:** the task goes back to the root, as if "None" were picked (inherited time
+  slice and load factor reset the same way), with a short note.
+- A task has ONE parent, so "a user can belong to several groups" uses the app's existing way of placing a task in more than one
+  group (hardlinks), not a second parent.
+- Note: existing groups are all kind Undefined after the identity migration, so a User, Process, Thread or Process Group offers no
+  group until you give groups a kind (Edit the group → Kind). Undefined and Group / Session tasks still see every group.
+
+### How
+`IdentityRules.allowedParentKinds` / `canBeParent` / `kindOf` (pure, unit-tested); `group-section.kt` filters the picker with them and
+its selection logic moved out of the click lambda into `applyParentChoice`, which `revalidateParentForKind` (run on a kind change) reuses.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler), including the new `IdentityRulesTest` cases. Check on the phone: give a group
+kind Group, open a task, set its kind to User → the picker lists only that group; set the kind to Thread → it lists none (until a
+Process group exists); with the task inside a group, change its kind to one that disallows it → the parent resets to the root.
+
 ## 6.59.0 — Fork: copy a task or group into the same group
 
 Includes everything in 6.58.3. **Database change: version 34 → 35** (one new table). `versionCode` untouched.

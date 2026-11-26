@@ -42,6 +42,7 @@ internal fun AddTaskActivity.setupIdentityInput() {
 
     actvIdentityKind.setOnItemClickListener { _, _, pos, _ ->
         selectedIdentityKind = identityKinds.getOrElse(pos) { IdentityKind.DEFAULT }
+        revalidateParentForKind()          // the parent picker follows the kind; a parent it no longer allows is cleared
         refreshIdentityId()
     }
     refreshIdentityId()

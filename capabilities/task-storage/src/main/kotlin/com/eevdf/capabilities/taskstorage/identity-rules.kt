@@ -77,6 +77,36 @@ object IdentityRules {
     fun display(raw: String): String =
         parse(raw)?.let { format(it.kind, it.id) } ?: IdentityKind.UNDEFINED.key
 
+    /** The kind of a stored identity; unassigned or unreadable reads as [IdentityKind.UNDEFINED], like its card. */
+    fun kindOf(identity: String): IdentityKind = parse(identity)?.kind ?: IdentityKind.UNDEFINED
+
+    /**
+     * Which kinds of group a task of kind [child] may sit in (its parent), from how the kinds relate:
+     *
+     *   • User          → Group           (a user belongs to groups)
+     *   • Process       → User, Group, Process Group   (a user or group owns processes; a process belongs to one
+     *                                       process group)
+     *   • Thread        → Process         (a process contains threads)
+     *   • Process Group → Session         (a process group belongs to one session; a session holds process groups)
+     *   • Undefined     → anything        (not classified yet: no filter)
+     *   • Group, Session → anything       (no rule says what contains them)
+     *
+     * Null means "no restriction". One task has ONE parent, so "a user can belong to several groups" is done the
+     * way the app already does multiple placements (hardlinks), not by a second parent.
+     * A group of kind Undefined is not a valid parent for a task that has a kind with a rule.
+     */
+    fun allowedParentKinds(child: IdentityKind): Set<IdentityKind>? = when (child) {
+        IdentityKind.USER          -> setOf(IdentityKind.GROUP)
+        IdentityKind.PROCESS       -> setOf(IdentityKind.USER, IdentityKind.GROUP, IdentityKind.PROCESS_GROUP)
+        IdentityKind.THREAD        -> setOf(IdentityKind.PROCESS)
+        IdentityKind.PROCESS_GROUP -> setOf(IdentityKind.SESSION)
+        IdentityKind.UNDEFINED, IdentityKind.GROUP, IdentityKind.SESSION -> null
+    }
+
+    /** True when a task of kind [child] may sit inside a group of kind [parent]. */
+    fun canBeParent(child: IdentityKind, parent: IdentityKind): Boolean =
+        allowedParentKinds(child)?.contains(parent) ?: true
+
     /** True for 1..[LAST_RESERVED], the range held back for the system. */
     fun isReserved(id: Int): Boolean = id in FIRST_RESERVED..LAST_RESERVED
 
