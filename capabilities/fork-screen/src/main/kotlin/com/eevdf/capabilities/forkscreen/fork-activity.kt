@@ -17,6 +17,7 @@ import com.eevdf.capabilities.taskstorage.ForkRepository
 import com.eevdf.capabilities.taskstorage.ForkRules
 import com.eevdf.capabilities.taskstorage.IdentityPoolFullException
 import com.eevdf.capabilities.taskstorage.IdentityRules
+import com.eevdf.capabilities.taskstorage.PickerDrill
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskFork
 import com.eevdf.capabilities.taskstorage.TaskRepository
@@ -103,6 +104,7 @@ class ForkActivity : AppCompatActivity() {
             title          = "Select what to fork"
             showNoneOption = false
             allGroups      = ForkRules.forkable(everyTask)   // any task or group that is not finished
+            pathContext    = everyTask                       // so a repeated name can be told apart by where it is
             currentGroupId = selectedSourceId
             onGroupSelected = { chosen -> onSourcePicked(chosen) }
         }
@@ -111,7 +113,9 @@ class ForkActivity : AppCompatActivity() {
 
     private fun onSourcePicked(chosen: Task?) {
         selectedSourceId = chosen?.id
-        actvForkSource.setText(chosen?.name ?: "", false)
+        actvForkSource.setText(chosen?.let {
+            PickerDrill.label(it, ForkRules.forkable(everyTask), everyTask.associateBy { t -> t.id })
+        } ?: "", false)
         tvForkError.visibility = View.GONE
         if (chosen != null) {
             val typed = etForkName.text?.toString().orEmpty()

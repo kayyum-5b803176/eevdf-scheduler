@@ -3,6 +3,7 @@ package com.eevdf.capabilities.addtaskscreen
 import android.view.View
 import android.widget.Toast
 import com.eevdf.capabilities.taskstorage.IdentityRules
+import com.eevdf.capabilities.taskstorage.PickerDrill
 import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.grouppicker.output.PickerDialog
 import com.eevdf.capabilities.taskstorage.logic.SortHelper
@@ -39,13 +40,14 @@ internal fun AddTaskActivity.setupGroupSection() {
 
         selectedParentId?.let { pid ->
             val match = filteredSorted.firstOrNull { it.id == pid }
-            if (match != null) actvParentGroup.setText(match.name, false)
+            if (match != null) actvParentGroup.setText(parentFieldText(match), false)
         }
     }
 
     actvParentGroup.setOnClickListener {
         val dialog = PickerDialog().apply {
             allGroups      = allowedParentGroups()      // only the kinds this task's kind may sit in
+            pathContext    = groupsList.filterNotNull() // every group, so a repeated name can be told apart by where it is
             currentGroupId = selectedParentId
             onGroupSelected = { chosen -> applyParentChoice(chosen) }
         }
@@ -76,10 +78,19 @@ internal fun AddTaskActivity.revalidateParentForKind() {
         Toast.LENGTH_SHORT).show()
 }
 
+/**
+ * What the parent field shows for [parent]: its name, or — when other groups the picker offers share that name — the
+ * path as identity badges that tells them apart (`104.pgroup › process1`, see [PickerDrill.label]).
+ */
+internal fun AddTaskActivity.parentFieldText(parent: Task?): String {
+    if (parent == null) return "None (root level)"
+    return PickerDrill.label(parent, allowedParentGroups(), groupsList.filterNotNull().associateBy { it.id })
+}
+
 /** Everything that follows from choosing [chosen] as the parent (null = root): the field, and the inherited defaults. */
 internal fun AddTaskActivity.applyParentChoice(chosen: Task?) {
     selectedParentId = chosen?.id
-    actvParentGroup.setText(chosen?.name ?: "None (root level)", false)
+    actvParentGroup.setText(parentFieldText(chosen), false)
 
     when {
         // Parent picked while already in auto mode → sync to new parent
@@ -113,6 +124,6 @@ internal fun AddTaskActivity.populateGroupSection(task: Task) {
     if (pid != null) {
         selectedParentId = pid
         val match = groupsList.filterNotNull().firstOrNull { it.id == pid }
-        actvParentGroup.setText(match?.name ?: actvParentGroup.text.toString(), false)
+        actvParentGroup.setText(match?.let { parentFieldText(it) } ?: actvParentGroup.text.toString(), false)
     }
 }

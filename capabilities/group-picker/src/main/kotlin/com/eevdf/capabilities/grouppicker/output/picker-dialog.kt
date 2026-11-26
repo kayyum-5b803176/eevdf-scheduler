@@ -4,6 +4,7 @@ import android.app.Dialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,8 +16,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.eevdf.capabilities.grouppicker.R
 import com.eevdf.capabilities.grouppicker.state.GroupTaskPrefs
 import com.eevdf.capabilities.grouppicker.state.RecentGroupPrefs
+import com.eevdf.capabilities.taskstorage.PickerDrill
 import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 
 /**
  * A full-screen-ish DialogFragment that replaces the plain [Spinner] for
@@ -53,6 +56,13 @@ class PickerDialog : DialogFragment() {
     /** Full sorted list of selectable items (excluding the task being edited). */
     var allGroups: List<Task> = emptyList()
 
+    /**
+     * Every task and group the caller knows about — used only to find the ANCESTORS of the items in [allGroups]
+     * when several of them share a name (the drill-down, see [PickerDrill]). Empty = [allGroups] alone, which is
+     * enough when the ancestors are in it too.
+     */
+    var pathContext: List<Task> = emptyList()
+
     /** Currently selected item id (null = root / none). Used to pre-tick the item. */
     var currentGroupId: String? = null
 
@@ -73,6 +83,18 @@ class PickerDialog : DialogFragment() {
     private lateinit var etSearch:      TextInputEditText
     private lateinit var rvItems:       RecyclerView
     private lateinit var adapter:       PickerAdapter
+    private lateinit var tvTitle:       TextView
+
+    // ── Drill-down state ──────────────────────────────────────────────────────
+
+    /** One screen of the drill-down: "process1: which one?" and the rows under it. */
+    private data class DrillStep(val title: String, val rows: List<PickerDrill.Row>, val depth: Int)
+
+    /** Empty = the normal list. Each pick of a repeated name pushes one step; Back pops one. */
+    private val drillStack = ArrayDeque<DrillStep>()
+
+    /** Everything needed to walk up from a candidate to its ancestors. */
+    private val byId: Map<String, Task> by lazy { (pathContext + allGroups).associateBy { it.id } }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -87,16 +109,24 @@ class PickerDialog : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        view.findViewById<TextView>(R.id.tvPickerTitle).text = title
+        tvTitle = view.findViewById(R.id.tvPickerTitle)
+        tvTitle.text = title
         view.findViewById<View>(R.id.btnPickerClose).setOnClickListener { dismiss() }
 
         etSearch = view.findViewById(R.id.etGroupSearch)
         rvItems  = view.findViewById(R.id.rvGroupItems)
 
-        adapter = PickerAdapter(currentGroupId, noneLabel) { chosen ->
-            RecentGroupPrefs.push(requireContext(), chosen?.id)
-            onGroupSelected?.invoke(chosen)
-            dismiss()
+        adapter = PickerAdapter(
+            currentGroupId, noneLabel,
+            onPick = { chosen -> finish(chosen) },
+            onRow  = { row -> onRowPicked(row) },
+            onBack = { goBack() },
+        )
+        // The system Back key goes up one drill step before it closes the dialog.
+        dialog?.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP && drillStack.isNotEmpty()) {
+                goBack(); true
+            } else false
         }
         rvItems.layoutManager = LinearLayoutManager(requireContext())
         rvItems.adapter       = adapter
@@ -122,6 +152,53 @@ class PickerDialog : DialogFragment() {
         dialog?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
     }
 
+    // ── Choosing and drilling down ────────────────────────────────────────────
+
+    /** The final choice: remembered as Recent, handed to the caller, and the dialog closes. */
+    private fun finish(chosen: Task?) {
+        RecentGroupPrefs.push(requireContext(), chosen?.id)
+        onGroupSelected?.invoke(chosen)
+        dismiss()
+    }
+
+    /** A distinct-name row (or a drill row) was tapped: choose its task if it is unique, else show where they are. */
+    private fun onRowPicked(row: PickerDrill.Row) {
+        val depth = drillStack.lastOrNull()?.depth ?: 0
+        when (val next = PickerDrill.next(row.candidates, byId, depth)) {
+            is PickerDrill.Next.Chosen -> finish(next.task)
+            is PickerDrill.Next.Ask    -> {
+                drillStack.addLast(DrillStep(next.title, next.rows, next.depth))
+                renderDrill()
+            }
+        }
+    }
+
+    /** One step up: the previous drill list, or the normal list again. */
+    private fun goBack() {
+        if (drillStack.isEmpty()) return
+        drillStack.removeLast()
+        if (drillStack.isEmpty()) {
+            tvTitle.text = title
+            setSearchVisible(true)
+            applyFilter(etSearch.text?.toString() ?: "")
+        } else renderDrill()
+    }
+
+    private fun renderDrill() {
+        val step = drillStack.last()
+        tvTitle.text = step.title
+        setSearchVisible(false)                         // searching names makes no sense while choosing a position
+        val items = mutableListOf<PickerItem>(PickerItem.Back)
+        step.rows.forEach { items += PickerItem.Names(it) }
+        adapter.submitList(items)
+    }
+
+    private fun setSearchVisible(visible: Boolean) {
+        var p = etSearch.parent
+        while (p != null && p !is TextInputLayout) p = p.parent
+        (p as? View ?: etSearch).visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
     // ── Filter ────────────────────────────────────────────────────────────────
 
     /**
@@ -139,23 +216,26 @@ class PickerDialog : DialogFragment() {
 
         if (q.isEmpty()) {
             // Recent section
+            // Recent items are the EXACT item chosen, so one is picked directly (no drill-down); a repeated
+            // name is labelled with its path so two of them can be told apart.
             val recentIds = RecentGroupPrefs.getIds(requireContext())
             val recentGroups = recentIds.mapNotNull { id -> allGroups.find { it.id == id } }
             if (recentGroups.isNotEmpty()) {
                 items += PickerItem.Header("Recent")
-                recentGroups.forEach { items += PickerItem.Entry(it) }
+                recentGroups.forEach { items += PickerItem.Entry(it, PickerDrill.label(it, allGroups, byId)) }
                 items += PickerItem.Divider
             }
 
-            // All groups section
+            // All groups section — one row per DISTINCT name; a name several share drills down when picked
             items += PickerItem.Header("All Groups")
             if (showNoneOption) items += PickerItem.Entry(null)
-            allGroups.forEach { items += PickerItem.Entry(it) }
+            PickerDrill.nameRows(allGroups).forEach { items += PickerItem.Names(it) }
         } else {
-            // Filtered — no section headers, just matches
-            val matched = allGroups.filter { it.name.contains(q, ignoreCase = true) }
+            // Filtered — no section headers, just matching names
             if (showNoneOption) items += PickerItem.Entry(null)
-            matched.forEach { items += PickerItem.Entry(it) }
+            PickerDrill.nameRows(allGroups)
+                .filter { it.label.contains(q, ignoreCase = true) }
+                .forEach { items += PickerItem.Names(it) }
         }
 
         adapter.submitList(items)
@@ -165,7 +245,11 @@ class PickerDialog : DialogFragment() {
 
     sealed class PickerItem {
         data class Header(val label: String) : PickerItem()
-        data class Entry(val group: Task?)   : PickerItem()   // null = root
+        data class Entry(val group: Task?, val label: String? = null) : PickerItem()   // null = root; label overrides the name
+        /** A row standing for every task in [row] that shares its label (see [PickerDrill]). */
+        data class Names(val row: PickerDrill.Row) : PickerItem()
+        /** "‹ Back" — one step up the drill-down. */
+        object Back                          : PickerItem()
         object Divider                       : PickerItem()
     }
 
@@ -174,7 +258,9 @@ class PickerDialog : DialogFragment() {
     private class PickerAdapter(
         private val selectedId: String?,
         private val noneLabel: String,
-        private val onPick: (Task?) -> Unit
+        private val onPick: (Task?) -> Unit,
+        private val onRow: (PickerDrill.Row) -> Unit,
+        private val onBack: () -> Unit,
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
         private var items: List<PickerItem> = emptyList()
@@ -188,6 +274,8 @@ class PickerDialog : DialogFragment() {
             is PickerItem.Header  -> VIEW_HEADER
             is PickerItem.Divider -> VIEW_DIVIDER
             is PickerItem.Entry   -> VIEW_ENTRY
+            is PickerItem.Names   -> VIEW_ENTRY
+            is PickerItem.Back    -> VIEW_ENTRY
         }
 
         override fun getItemCount() = items.size
@@ -205,7 +293,9 @@ class PickerDialog : DialogFragment() {
             when (val item = items[position]) {
                 is PickerItem.Header  -> (holder as HeaderVH).bind(item.label)
                 is PickerItem.Divider -> { /* static view */ }
-                is PickerItem.Entry   -> (holder as EntryVH).bind(item.group)
+                is PickerItem.Entry   -> (holder as EntryVH).bind(item.group, item.label)
+                is PickerItem.Names   -> (holder as EntryVH).bindRow(item.row)
+                is PickerItem.Back    -> (holder as EntryVH).bindBack()
             }
         }
 
@@ -222,11 +312,24 @@ class PickerDialog : DialogFragment() {
             private val tvName   = v.findViewById<TextView>(R.id.tvPickerEntryName)
             private val ivCheck  = v.findViewById<View>(R.id.ivPickerCheck)
 
-            fun bind(group: Task?) {
-                tvName.text   = group?.name ?: noneLabel
+            fun bind(group: Task?, label: String? = null) {
+                tvName.text   = label ?: group?.name ?: noneLabel
                 val isSelected = group?.id == selectedId
                 ivCheck.visibility = if (isSelected) View.VISIBLE else View.INVISIBLE
                 itemView.setOnClickListener { onPick(group) }
+            }
+
+            /** A distinct-name / drill row: ticked when the current choice is one of its tasks. */
+            fun bindRow(row: PickerDrill.Row) {
+                tvName.text = row.label
+                ivCheck.visibility = if (row.candidates.any { it.id == selectedId }) View.VISIBLE else View.INVISIBLE
+                itemView.setOnClickListener { onRow(row) }
+            }
+
+            fun bindBack() {
+                tvName.text = "‹  Back"
+                ivCheck.visibility = View.INVISIBLE
+                itemView.setOnClickListener { onBack() }
             }
         }
 

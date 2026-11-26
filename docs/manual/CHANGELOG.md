@@ -5,6 +5,40 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.61.0 — The group picker drills down when names repeat
+
+Includes everything in 6.60.0. No database change, `versionCode` untouched. Applies **everywhere the shared picker is used**:
+the Add / Edit parent group, Links (target and "place inside") and Fork.
+
+### Changed
+- **The picker lists each distinct name once** (names compared by exact text), however many tasks or groups have it. Picking a name only
+  one task has chooses it at once, nothing extra. Search filters the distinct names; "None" and "Recent" work as before.
+- **Picking a name several share shows WHERE they are:** a list of the groups that hold them, one row per group name, titled
+  "process1: which one?". Pick one and that is your choice. If several of those groups share a name too, that row leads to a list one
+  level higher (their sessions, and so on) — every level is shown, even one with a single row — until the path is unique. A "‹ Back" row
+  (and the system Back key) goes up one step; the search box is hidden while choosing a position.
+- **Two with the same name in the same place** (two top-level `process1`, or two in one group) cannot be told apart by climbing, so the
+  last list shows them separately, each with its identity: `process1 · 104.process`, `process1 · 105.process`.
+- **The field shows the path as identity badges**, outermost first, up to the level that made the choice unique:
+  `104.pgroup › process1`, or `201.session › 104.pgroup › process1`. A name that is already unique stays plain (`process3`); an item at the
+  root next to a nested one of the same name stays plain too. An ancestor with no kind yet reads `101.undefined`.
+- **Recent** shows the exact item that was chosen, labelled with its path when its name is repeated, and picks it directly (no drill).
+- The 6.60.0 kind filter is applied first, so only the groups a kind may sit in are counted as duplicates.
+
+### How
+`PickerDrill` (new, pure, in `task-storage`): `nameRows`, `next` (choose or ask again, one level per call), `label` (the field text) and
+`badge`. `PickerDialog` gained `pathContext` — the full task list used only to find ancestors — and the drill steps; Add/Edit, Links and Fork
+pass their lists and show `PickerDrill.label` in their fields. The task chosen is still one specific task: nothing is renamed or saved
+differently.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler), including the new `PickerDrillTest` (13 cases: distinct names, a unique name, a
+repeated name, climbing, same-position ties, root-vs-nested, unknown parent, a parent cycle). The architecture guard shows the same three
+failures as before this change and no new one. Check on the phone: make `pgroup1 { process1, process2 }` and `pgroup2 { process1, process3 }`
+(kinds set), open a parent picker for a new thread — each name appears once; process3 chooses straight away; process1 asks which group;
+choosing pgroup1 fills the field with `104.pgroup › process1` (your numbers); Back returns; two groups both named pgroup1 climb to their
+sessions; two top-level `process1` list with their identity numbers.
+
 ## 6.60.0 — The parent-group picker follows the task's kind
 
 Includes everything in 6.59.0. No database change, `versionCode` untouched.

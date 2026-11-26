@@ -16,6 +16,7 @@ import com.eevdf.capabilities.taskstorage.Task
 import com.eevdf.capabilities.taskstorage.TaskLink
 import com.eevdf.capabilities.linksscreen.R
 import com.eevdf.capabilities.grouppicker.output.PickerDialog
+import com.eevdf.capabilities.taskstorage.PickerDrill
 import com.eevdf.capabilities.taskstorage.TaskRepository
 import javax.inject.Inject
 import com.eevdf.capabilities.taskstorage.logic.SortHelper
@@ -96,14 +97,17 @@ class LinksActivity : AppCompatActivity() {
         }
 
         actvLinkTarget.setOnClickListener {
+            val candidates = allTasksSnapshot.sortedWith(SortHelper.taskNameComparator)
+            val byId       = allTasksSnapshot.associateBy { it.id }
             val dialog = PickerDialog().apply {
                 title          = "Select link target"
                 showNoneOption = false
-                allGroups      = allTasksSnapshot.sortedWith(SortHelper.taskNameComparator)
+                allGroups      = candidates
+                pathContext    = allTasksSnapshot
                 currentGroupId = selectedTargetId
                 onGroupSelected = { chosen ->
                     selectedTargetId = chosen?.id
-                    actvLinkTarget.setText(chosen?.name ?: "", false)
+                    actvLinkTarget.setText(chosen?.let { PickerDrill.label(it, candidates, byId) } ?: "", false)
                     tvLinkError.visibility = View.GONE
                 }
             }
@@ -111,15 +115,18 @@ class LinksActivity : AppCompatActivity() {
         }
 
         actvLinkHost.setOnClickListener {
+            val candidates = allTasksSnapshot.filter { it.isGroup }
+                .sortedWith(SortHelper.taskNameComparator)
+            val byId       = allTasksSnapshot.associateBy { it.id }
             val dialog = PickerDialog().apply {
                 title          = "Place inside"
                 showNoneOption = false
-                allGroups      = allTasksSnapshot.filter { it.isGroup }
-                    .sortedWith(SortHelper.taskNameComparator)
+                allGroups      = candidates
+                pathContext    = allTasksSnapshot
                 currentGroupId = selectedHostId
                 onGroupSelected = { chosen ->
                     selectedHostId = chosen?.id
-                    actvLinkHost.setText(chosen?.name ?: "", false)
+                    actvLinkHost.setText(chosen?.let { PickerDrill.label(it, candidates, byId) } ?: "", false)
                     tvLinkError.visibility = View.GONE
                 }
             }
