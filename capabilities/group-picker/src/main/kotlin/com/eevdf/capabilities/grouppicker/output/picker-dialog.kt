@@ -19,7 +19,6 @@ import com.eevdf.capabilities.grouppicker.state.RecentGroupPrefs
 import com.eevdf.capabilities.taskstorage.PickerDrill
 import com.eevdf.capabilities.taskstorage.Task
 import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 
 /**
  * A full-screen-ish DialogFragment that replaces the plain [Spinner] for
@@ -84,10 +83,11 @@ class PickerDialog : DialogFragment() {
     private lateinit var rvItems:       RecyclerView
     private lateinit var adapter:       PickerAdapter
     private lateinit var tvTitle:       TextView
+    private lateinit var btnBack:       View
 
     // ── Drill-down state ──────────────────────────────────────────────────────
 
-    /** One screen of the drill-down: "process1: which one?" and the rows under it. */
+    /** One screen of the drill-down: the name being narrowed ("process1") and the rows under it. */
     private data class DrillStep(val title: String, val rows: List<PickerDrill.Row>, val depth: Int)
 
     /** Empty = the normal list. Each pick of a repeated name pushes one step; Back pops one. */
@@ -111,6 +111,8 @@ class PickerDialog : DialogFragment() {
 
         tvTitle = view.findViewById(R.id.tvPickerTitle)
         tvTitle.text = title
+        btnBack = view.findViewById(R.id.btnPickerBack)
+        btnBack.setOnClickListener { goBack() }
         view.findViewById<View>(R.id.btnPickerClose).setOnClickListener { dismiss() }
 
         etSearch = view.findViewById(R.id.etGroupSearch)
@@ -120,7 +122,6 @@ class PickerDialog : DialogFragment() {
             currentGroupId, noneLabel,
             onPick = { chosen -> finish(chosen) },
             onRow  = { row -> onRowPicked(row) },
-            onBack = { goBack() },
         )
         // The system Back key goes up one drill step before it closes the dialog.
         dialog?.setOnKeyListener { _, keyCode, event ->
@@ -177,26 +178,22 @@ class PickerDialog : DialogFragment() {
     private fun goBack() {
         if (drillStack.isEmpty()) return
         drillStack.removeLast()
-        if (drillStack.isEmpty()) {
-            tvTitle.text = title
-            setSearchVisible(true)
-            applyFilter(etSearch.text?.toString() ?: "")
-        } else renderDrill()
+        showLevel()
     }
 
-    private fun renderDrill() {
-        val step = drillStack.last()
-        tvTitle.text = step.title
-        setSearchVisible(false)                         // searching names makes no sense while choosing a position
-        val items = mutableListOf<PickerItem>(PickerItem.Back)
-        step.rows.forEach { items += PickerItem.Names(it) }
-        adapter.submitList(items)
-    }
+    private fun renderDrill() = showLevel()
 
-    private fun setSearchVisible(visible: Boolean) {
-        var p = etSearch.parent
-        while (p != null && p !is TextInputLayout) p = p.parent
-        (p as? View ?: etSearch).visibility = if (visible) View.VISIBLE else View.GONE
+    /**
+     * Shows the current level — the normal list, or the drill step on top of the stack — with the SAME structure
+     * either way: title bar (with ← while drilling), search bar, Recent, All Groups. The search box starts empty at
+     * every level and filters that level's rows only.
+     */
+    private fun showLevel() {
+        val step = drillStack.lastOrNull()
+        tvTitle.text = step?.title ?: title
+        btnBack.visibility = if (step != null) View.VISIBLE else View.GONE
+        etSearch.setText("")
+        applyFilter("")
     }
 
     // ── Filter ────────────────────────────────────────────────────────────────
@@ -213,8 +210,26 @@ class PickerDialog : DialogFragment() {
     private fun applyFilter(query: String) {
         val q = query.trim()
         val items = mutableListOf<PickerItem>()
+        val step = drillStack.lastOrNull()
 
-        if (q.isEmpty()) {
+        if (step != null) {
+            // A drill level: same sections as the normal list. "Recent" is per level — each recently chosen item that
+            // is one of this level's candidates shows as the row that stands for it here (a recent item inside
+            // pgroup1 shows as pgroup1), most recent first. "All Groups" is every row of the level.
+            if (q.isEmpty()) {
+                val recentIds  = RecentGroupPrefs.getIds(requireContext())
+                val recentRows = recentIds.mapNotNull { id -> step.rows.firstOrNull { r -> r.candidates.any { it.id == id } } }.distinct()
+                if (recentRows.isNotEmpty()) {
+                    items += PickerItem.Header("Recent")
+                    recentRows.forEach { items += PickerItem.Names(it) }
+                    items += PickerItem.Divider
+                }
+                items += PickerItem.Header("All Groups")
+                step.rows.forEach { items += PickerItem.Names(it) }
+            } else {
+                step.rows.filter { it.label.contains(q, ignoreCase = true) }.forEach { items += PickerItem.Names(it) }
+            }
+        } else if (q.isEmpty()) {
             // Recent section
             // Recent items are the EXACT item chosen, so one is picked directly (no drill-down); a repeated
             // name is labelled with its path so two of them can be told apart.
@@ -248,8 +263,6 @@ class PickerDialog : DialogFragment() {
         data class Entry(val group: Task?, val label: String? = null) : PickerItem()   // null = root; label overrides the name
         /** A row standing for every task in [row] that shares its label (see [PickerDrill]). */
         data class Names(val row: PickerDrill.Row) : PickerItem()
-        /** "‹ Back" — one step up the drill-down. */
-        object Back                          : PickerItem()
         object Divider                       : PickerItem()
     }
 
@@ -260,7 +273,6 @@ class PickerDialog : DialogFragment() {
         private val noneLabel: String,
         private val onPick: (Task?) -> Unit,
         private val onRow: (PickerDrill.Row) -> Unit,
-        private val onBack: () -> Unit,
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
         private var items: List<PickerItem> = emptyList()
@@ -275,7 +287,6 @@ class PickerDialog : DialogFragment() {
             is PickerItem.Divider -> VIEW_DIVIDER
             is PickerItem.Entry   -> VIEW_ENTRY
             is PickerItem.Names   -> VIEW_ENTRY
-            is PickerItem.Back    -> VIEW_ENTRY
         }
 
         override fun getItemCount() = items.size
@@ -295,7 +306,6 @@ class PickerDialog : DialogFragment() {
                 is PickerItem.Divider -> { /* static view */ }
                 is PickerItem.Entry   -> (holder as EntryVH).bind(item.group, item.label)
                 is PickerItem.Names   -> (holder as EntryVH).bindRow(item.row)
-                is PickerItem.Back    -> (holder as EntryVH).bindBack()
             }
         }
 
@@ -326,11 +336,6 @@ class PickerDialog : DialogFragment() {
                 itemView.setOnClickListener { onRow(row) }
             }
 
-            fun bindBack() {
-                tvName.text = "‹  Back"
-                ivCheck.visibility = View.INVISIBLE
-                itemView.setOnClickListener { onBack() }
-            }
         }
 
         companion object {

@@ -5,6 +5,32 @@ zip; the zip filename is that change's diff, this file is the summary.
 
 ---
 
+## 6.61.1 — Group picker drill-down keeps the original picker structure
+
+Includes everything in 6.61.0. No database change, `versionCode` untouched.
+
+### Changed
+- **The drill-down keeps the full original picker structure at every level:** the title bar, the **search bar (always shown)**, a
+  **Recent** section and an **All Groups** section. In 6.61.0 a drill step replaced all of that with a bare list.
+- **The "‹ Back" row is gone.** While you drill, the title bar shows **←** before the title (`←  process1        ✕`); it goes up one step.
+  The system Back key still does the same. At the top level there is no arrow.
+- **The title at a drill level is just the name** (`process1`) — "which one?" is removed.
+- **Recent is per level:** at a drill level it shows the rows of THAT level that stand for something you chose recently — a recently chosen
+  item inside `pgroup1` shows as the `pgroup1` row at the pgroup level — most recent first, and nothing if none of them is here. **All Groups**
+  is every row of the level.
+- **Search filters the current level's rows only** and starts empty at every level.
+- Top-level behaviour (distinct names, Recent items labelled with their path, "None") is unchanged.
+
+### How
+One render path for every level (`showLevel` / `applyFilter`); new `btnPickerBack` in `dialog_group_picker.xml` with a back-arrow icon
+(`ic_picker_back.xml`); `PickerDrill` titles are the bare name.
+
+### Verified / not verified
+**Not built, not run** (no Android SDK / Kotlin compiler); the XML was checked for well-formedness, bracket balance was checked, and the
+architecture guard shows the same three failures as before and nothing new. The `PickerDrillTest` title assertion was updated. Check on the
+phone: pick a repeated name — the bar reads `←  process1 ✕`, the search bar is still there, "Recent" (when one of your recent choices is among
+them) and "All Groups" are shown; type to filter that level; tap ← (or Back) to go up; pick from the top level again to confirm nothing changed.
+
 ## 6.61.0 — The group picker drills down when names repeat
 
 Includes everything in 6.60.0. No database change, `versionCode` untouched. Applies **everywhere the shared picker is used**:

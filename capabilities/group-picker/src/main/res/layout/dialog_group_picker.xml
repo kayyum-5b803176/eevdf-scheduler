@@ -18,6 +18,18 @@
         android:background="@color/screenBackground"
         android:elevation="4dp">
 
+        <!-- One step up the drill-down; only shown while drilling (see PickerDialog). -->
+        <ImageButton
+            android:id="@+id/btnPickerBack"
+            android:layout_width="40dp"
+            android:layout_height="@dimen/app_size_calendar_row"
+            android:layout_marginStart="-8dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_picker_back"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/tvPickerTitle"
             android:layout_width="0dp"

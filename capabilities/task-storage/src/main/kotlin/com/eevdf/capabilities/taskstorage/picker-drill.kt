@@ -66,7 +66,7 @@ object PickerDrill {
         if (keys.all { it == null } || d > MAX_DEPTH) {
             // The climb has run out and these still cannot be told apart by position: list them one by one.
             val rows = candidates.map { Row("$name · ${badge(it)}", listOf(it)) }
-            return Next.Ask("$name: which one?", rows, d - 1)
+            return Next.Ask(name, rows, d - 1)
         }
         // One row per distinct ancestor name — even a single one: the list is shown at every level, as the
         // person asked, until the path is unique.
@@ -79,7 +79,7 @@ object PickerDrill {
                     else -> SortHelper.nameComparator.compare(a.label, b.label)
                 }
             })
-        return Next.Ask("$name: which one?", rows, d)
+        return Next.Ask(name, rows, d)
     }
 
     /**

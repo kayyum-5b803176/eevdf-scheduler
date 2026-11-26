@@ -42,7 +42,7 @@ class PickerDrillTest {
 
     @Test fun `a repeated name asks which group holds it`() {
         val ask = PickerDrill.next(listOf(p1a, p1b), byId) as Next.Ask
-        assertEquals("process1: which one?", ask.title)
+        assertEquals("process1", ask.title)           // just the name, no "which one?"
         assertEquals(listOf("pgroup1", "pgroup2"), ask.rows.map { it.label })
         assertEquals(Next.Chosen(p1a), PickerDrill.next(ask.rows[0].candidates, byId, ask.depth))
         assertEquals(Next.Chosen(p1b), PickerDrill.next(ask.rows[1].candidates, byId, ask.depth))
